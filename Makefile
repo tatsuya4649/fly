@@ -12,8 +12,8 @@ debug: build
 leak: build
 	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET)
 
-build: 	server.o
-	gcc -o $(TARGET) $<
+build: 	server.o response.o
+	gcc -o $(TARGET) $^
 
 %.o:	%.c
 	gcc -c $(CFLAG) -o $@ $<

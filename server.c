@@ -10,6 +10,8 @@
 #include <ctype.h>
 
 #include "server.h"
+#include "response.h"
+#include "connect.h"
 
 #define BIND_PORT       3333
 #define BACK_LOG        4096
@@ -75,12 +77,22 @@ http_version *match_version(char *version)
     return NULL;
 }
 
-int parse_request_line(char *request_line, request_info *req)
+void nothing_uri(int c_sock)
+{
+    response(c_sock, _400, NULL, NULL, 0, NULL, 0);
+}
+
+int parse_request_line(int c_sock, char *request_line, request_info *req)
 {
     char *method;
     char *space;
     printf("%s\n", request_line);
     space = strstr(request_line, " ");
+    /* method only => response 400 Bad Request */
+    if (space == NULL){
+        nothing_uri(c_sock);
+        return -1;
+    }
     method = malloc((space-request_line)+1);
     memcpy(method, request_line, space-request_line);
     method[space-request_line] = '\0';
@@ -125,7 +137,7 @@ http_request *alloc_request(void)
     return req;
 }
 
-int request_operation(char *buffer, http_request *req)
+int request_operation(int c_sock,char *buffer, http_request *req)
 {
     /* get request */
     //char *request_line;
@@ -133,10 +145,12 @@ int request_operation(char *buffer, http_request *req)
     request_line_length = strstr(buffer, "\r\n") - buffer;
     req->request_line = malloc(sizeof(char)*(request_line_length+1));
     memcpy(req->request_line, buffer, request_line_length);
+    /* get total line */
     req->request_line[request_line_length] = '\0';
     printf("Request Line: %s\n", req->request_line);
     printf("Request Line LENGTH: %ld\n", strlen(req->request_line));
     if (parse_request_line(
+        c_sock,
         req->request_line,
         req->rinfo
     ) < 0){
@@ -263,6 +277,7 @@ int main()
         socklen_t addrlen;
         struct sockaddr_storage client_addr;
         char hostname[NI_MAXHOST];
+        char servname[NI_MAXSERV];
         int gname_err;
         addrlen = sizeof(client_addr);
         c_sock = accept(sockfd, (struct sockaddr *) &client_addr, &addrlen);
@@ -293,12 +308,20 @@ int main()
         }else if (recv_len == -1){
             goto error;
         }
+        /* connection */
+        http_connection conn;
+        conn.c_sock = c_sock;
+        conn.hostname = hostname;
+        conn.servname = servname;
+        conn.client_addr = &client_addr;
         /* request operation*/
         http_request *req;
         req = alloc_request();
         /* get request_line */
         char *request_line = get_request_line_point(buffer);
-        request_operation(request_line, req);
+        if (request_operation(conn.c_sock, request_line, req) < 0){
+            goto error;
+        }
         /* get header */
         char *header_lines = get_header_lines_point(buffer);
         header_operation(header_lines, req);
