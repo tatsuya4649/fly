@@ -12,6 +12,7 @@
 #include "server.h"
 #include "response.h"
 #include "connect.h"
+#include "header.h"
 
 #define BIND_PORT       3333
 #define BACK_LOG        4096
@@ -79,7 +80,15 @@ http_version *match_version(char *version)
 
 void nothing_uri(int c_sock)
 {
-    response(c_sock, _400, NULL, NULL, 0, NULL, 0);
+    response(
+		c_sock,
+		_400,
+		NULL,
+		NULL,
+		0,
+		NULL,
+		0
+	);
 }
 
 int parse_request_line(int c_sock, char *request_line, request_info *req)
@@ -113,9 +122,6 @@ int parse_request_line(int c_sock, char *request_line, request_info *req)
     if (req->version){
         printf("NOT FOUND VERSION\n");
     }
-    //req->version->full = malloc(strlen(version_start)+1);
-    //memcpy(req->version->full, version_start, strlen(version_start));
-    //req->version->full[strlen(version_start)] = '\0';
 
     printf("%s\n", req->version->full);
     char *slash_p = strchr(req->version->full,'/');
@@ -272,6 +278,18 @@ int main()
         return -1;
     }
 
+	/* register builtin header setting */
+	if (fly_hdr_init() == -1){
+		perror("fly_hdr_init");
+		return -1;
+	}
+	struct fly_hdr_elem builtin[] = {
+		{"Date", fly_date_header, fly_date_header_release, NULL},
+	};
+
+	for (int i=0; i<(int) (sizeof(builtin)/sizeof(struct fly_hdr_elem));i++)
+		fly_register_header(builtin[i].name, builtin[i].trig, builtin[i].release);
+
     while (1){
         fprintf(stderr, "Waiting Connection...\n");
         socklen_t addrlen;
@@ -302,6 +320,7 @@ int main()
             goto error;
         }
         fprintf(stderr, "Peer Info: %s\n", hostname); 
+		memset(buffer, 0, BUF_SIZE);
         recv_len = recv(c_sock, buffer, BUF_SIZE, 0);
         if (recv_len == 0){
             goto end_connection;

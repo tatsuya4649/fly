@@ -3,6 +3,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include "response.h"
+#include "header.h"
 
 response_code responses[] = {
 	{400, _400, ""},
@@ -173,7 +174,7 @@ int response(
 	int c_sockfd,
 	int response_code,
 	char *version,
-	char **header_lines,
+	struct fly_hdr_elem *header_lines,
 	int header_len,
 	char *body,
 	int body_len
@@ -181,9 +182,11 @@ int response(
 	http_response res_content;
 	int send_result, send_len;
 	char *send_start;
-	res_content.response_line = malloc(1000);
+	res_content.response_line = malloc(sizeof(char)*1000);
+	if (res_content.response_line == NULL)
+		return -1;
 	sprintf(res_content.response_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), get_code_explain(response_code));
-	res_content.header_lines = header_lines;
+	res_content.header_lines = fly_hdr_eles_to_string(header_lines);
 	res_content.header_len = header_len;
 	res_content.body = body;
 	res_content.body_len = body_len;
@@ -199,6 +202,8 @@ int response(
 		send_start += send_result;
 		send_len -= send_result;
 	}
+
+	fly_header_free(res_content.header_lines, header_lines);
 
 	return 0;
 }

@@ -1,6 +1,7 @@
 CC = gcc
 CFLAG = -g -O0 -W -Wall -Werror -Wcast-align
 TARGET = server
+BUILD_FILES := server.o response.o header.o
 .PHONY: all clean
 
 all: build
@@ -12,7 +13,7 @@ debug: build
 leak: build
 	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET)
 
-build: 	server.o response.o
+build:	$(BUILD_FILES)
 	gcc -o $(TARGET) $^
 
 %.o:	%.c

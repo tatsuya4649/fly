@@ -1,3 +1,7 @@
+#ifndef _RESPONSE_H
+#define _RESPONSE_H
+#include "header.h"
+
 #define RESPONSE_LENGTH_PER		1024
 #define DEFAULT_RESPONSE_VERSION			"1.1"
 #define CRLF_LENGTH				2
@@ -14,7 +18,7 @@ int response(
 	int c_sockfd,
 	int response_code,
 	char *version,
-	char **header_lines,
+	struct fly_hdr_elem *header_lines,
 	int header_len,
 	char *body,
 	int body_len
@@ -52,3 +56,5 @@ typedef struct{
 void response_free(char *);
 char *response_raw(http_response *res, int *send_len);
 int response_code_from_type(enum response_code_type type);
+
+#endif
