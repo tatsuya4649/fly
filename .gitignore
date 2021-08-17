@@ -1,0 +1,6 @@
+.*.swp
+.*.swo
+*.o
+/dist/
+/build/
+__pycache__/
