@@ -25,6 +25,7 @@ response_code responses[] = {
 	{415, _415, ""},
 	{416, _416, ""},
 	{417, _417, ""},
+	{500, _500, "Server Error"},
 	{-1, -1, NULL}
 };
 
@@ -156,9 +157,13 @@ char *get_version(char *version)
 	return version;
 }
 
-char *get_code_explain(__attribute__((unused)) int status_code)
+char *get_code_explain(enum response_code_type type)
 {
-	return "Hello World";
+	for (response_code *res=responses; res->status_code!=-1; res++){
+		if (res->type == type)
+			return res->explain;
+	}
+	return NULL;
 }
 
 int response_code_from_type(enum response_code_type type)
@@ -170,7 +175,36 @@ int response_code_from_type(enum response_code_type type)
 	return -1;
 }
 
-int response(
+int fly_send(int c_sockfd, char *buffer, int send_len, int flag)
+{
+	int send_result;
+	while(1){
+		send_result = send(c_sockfd, buffer, send_len, flag);
+		if (send_result == -1)
+			return -1;
+		if (send_result == send_len){
+			break;
+		}
+		buffer += send_result;
+		send_len -= send_result;
+	}
+	return 0;
+}
+
+void response_500_error(int c_sockfd, char *version)
+{
+	char *response_line = malloc(FLY_STATUS_LINE_MAX);
+	sprintf(
+		response_line,
+		"HTTP/%s %d %s",
+		version ? get_version(version) : DEFAULT_RESPONSE_VERSION,
+		response_code_from_type(_500),
+		get_code_explain(_500)
+	);
+	fly_send(c_sockfd, response_line, strlen(response_line), 0);
+}
+
+int fly_response(
 	int c_sockfd,
 	int response_code,
 	char *version,
@@ -180,28 +214,25 @@ int response(
 	int body_len
 ){
 	http_response res_content;
-	int send_result, send_len;
+	__attribute__((unused)) int send_result, send_len;
 	char *send_start;
 	res_content.response_line = malloc(sizeof(char)*1000);
 	if (res_content.response_line == NULL)
 		return -1;
 	sprintf(res_content.response_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), get_code_explain(response_code));
-	res_content.header_lines = fly_hdr_eles_to_string(header_lines);
+	res_content.header_lines = fly_hdr_eles_to_string(header_lines, &header_len, body, body_len);
+
+	if (res_content.header_lines == NULL){
+		response_500_error(c_sockfd, version);
+		return -1;
+	}
+
 	res_content.header_len = header_len;
 	res_content.body = body;
 	res_content.body_len = body_len;
 
 	send_start = response_raw(&res_content, &send_len);
-	while(1){
-		send_result = send(c_sockfd, send_start, send_len, 0);
-		if (send_result == -1)
-			return -1;
-		if (send_result == send_len){
-			break;
-		}
-		send_start += send_result;
-		send_len -= send_result;
-	}
+	send_result = fly_send(c_sockfd, send_start, send_len, 0);
 
 	fly_header_free(res_content.header_lines, header_lines);
 

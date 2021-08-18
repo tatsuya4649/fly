@@ -80,7 +80,19 @@ http_version *match_version(char *version)
 
 void nothing_uri(int c_sock)
 {
-    response(
+    fly_response(
+		c_sock,
+		_400,
+		NULL,
+		NULL,
+		0,
+		NULL,
+		0
+	);
+}
+void unmatch_method(int c_sock)
+{
+    fly_response(
 		c_sock,
 		_400,
 		NULL,
@@ -146,7 +158,6 @@ http_request *alloc_request(void)
 int request_operation(int c_sock,char *buffer, http_request *req)
 {
     /* get request */
-    //char *request_line;
     int request_line_length;
     request_line_length = strstr(buffer, "\r\n") - buffer;
     req->request_line = malloc(sizeof(char)*(request_line_length+1));
@@ -225,7 +236,7 @@ char *get_request_line_point(char *buffer)
 
 char *get_header_lines_point(char *buffer)
 {
-    return strchr(buffer, '\n') + 1;
+    return strstr(buffer, "\r\n") + CRLF_LENGTH;
 }
 
 char *get_body_point(char *buffer)
@@ -233,9 +244,7 @@ char *get_body_point(char *buffer)
     char *newline_point;
     newline_point = strstr(buffer, "\r\n\r\n");
     if (newline_point != NULL)
-        return newline_point + 4;
-//    if ((newline_point = strstr(buffer, "\n\n")) != NULL)
-//        return newline_point + 2;
+        return newline_point + 2*CRLF_LENGTH;
     return NULL;
 }
 
@@ -284,11 +293,12 @@ int main()
 		return -1;
 	}
 	struct fly_hdr_elem builtin[] = {
-		{"Date", fly_date_header, fly_date_header_release, NULL},
+		{"Date", fly_date_header, NULL},
+		{"Content-Length", fly_content_length_header, NULL},
 	};
 
 	for (int i=0; i<(int) (sizeof(builtin)/sizeof(struct fly_hdr_elem));i++)
-		fly_register_header(builtin[i].name, builtin[i].trig, builtin[i].release);
+		fly_register_header(builtin[i].name, builtin[i].trig);
 
     while (1){
         fprintf(stderr, "Waiting Connection...\n");
@@ -349,7 +359,7 @@ int main()
         req->body = body;
         printf("BODY: %s\n",body);
 
-        char *res = "HTTP/1.1 200 OK\n\n";
+        char *res = "HTTP/1.1 200 OK\n\nHello Fly!";
         send(c_sock, res, strlen(res), 0);
         free_client(req);
         close(c_sock);

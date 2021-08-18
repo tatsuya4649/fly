@@ -14,7 +14,7 @@ typedef struct{
 	int body_len;
 } http_response;
 
-int response(
+int fly_response(
 	int c_sockfd,
 	int response_code,
 	char *version,
@@ -43,8 +43,9 @@ enum response_code_type{
 	_414,
 	_415,
 	_416,
-	_417
+	_417,
 	/* Server Error 5xx */
+	_500
 };
 
 typedef struct{
