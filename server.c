@@ -14,6 +14,7 @@
 #include "connect.h"
 #include "header.h"
 #include "alloc.h"
+#include "fs.h"
 
 #define BIND_PORT       3333
 #define BACK_LOG        4096
@@ -383,6 +384,10 @@ int main()
 		fly_register_header(builtin[i].name, builtin[i].trig);
 
 	/* mount point setting */
+	if (fly_fs_init() == -1){
+		perror("fly_fs_init");
+		return -1;
+	}
 	if (fly_fs_mount(".") == -1){
 		perror("fly_fs_mount");
 		return -1;
@@ -474,6 +479,7 @@ error:
 
     /* end of server */
 	fly_hdr_release();
+	fly_fs_release();
     close(sockfd);
     return 0;
 }

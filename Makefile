@@ -1,7 +1,7 @@
 CC = gcc
 CFLAG = -g3 -O0 -W -Wall -Werror -Wcast-align
 TARGET = server
-BUILD_FILES := server.o response.o header.o alloc.o
+BUILD_FILES := server.o response.o header.o alloc.o fs.o
 .PHONY: all clean
 
 all: build
