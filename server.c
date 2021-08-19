@@ -13,6 +13,7 @@
 #include "response.h"
 #include "connect.h"
 #include "header.h"
+#include "alloc.h"
 
 #define BIND_PORT       3333
 #define BACK_LOG        4096
@@ -23,6 +24,7 @@
 void sigint_handler(__attribute__((unused)) int signo)
 {
     fprintf(stderr, "Interrupt now (Ctrl+C)...");
+	fly_hdr_release();
     exit(0);
 }
 
@@ -145,23 +147,25 @@ int parse_request_line(int c_sock, char *request_line, request_info *req)
     return 0;
 }
 
-http_request *alloc_request(void)
+http_request *alloc_request(fly_pool_t *pool)
 {
     /* request content */
-    http_request *req = malloc(sizeof(http_request));
-    request_info *reqinfo = malloc(sizeof(request_info));
-    reqinfo->version = malloc(sizeof(http_version));
+    http_request *req = fly_palloc(pool, fly_page_convert(sizeof(http_request)));
+    request_info *reqinfo = fly_palloc(pool, fly_page_convert(sizeof(request_info)));
+    reqinfo->version = fly_palloc(pool, fly_page_convert(sizeof(http_version)));
     req->rinfo = reqinfo;
     return req;
 }
 
-int request_operation(int c_sock,char *buffer, http_request *req)
+int request_operation(int c_sock, fly_pool_t *pool,char *request_line, http_request *req)
 {
     /* get request */
     int request_line_length;
-    request_line_length = strstr(buffer, "\r\n") - buffer;
-    req->request_line = malloc(sizeof(char)*(request_line_length+1));
-    memcpy(req->request_line, buffer, request_line_length);
+    request_line_length = strstr(request_line, "\r\n") - request_line;
+    req->request_line = (char *) fly_palloc(pool, sizeof(char)*(request_line_length+1));
+	if (req->request_line == NULL)
+		return -1;
+    memcpy(req->request_line, request_line, request_line_length);
     /* get total line */
     req->request_line[request_line_length] = '\0';
     printf("Request Line: %s\n", req->request_line);
@@ -292,12 +296,11 @@ int main()
 		perror("fly_hdr_init");
 		return -1;
 	}
-	struct fly_hdr_elem builtin[] = {
+	fly_hdr_t builtin[] = {
 		{"Date", fly_date_header, NULL},
 		{"Content-Length", fly_content_length_header, NULL},
 	};
-
-	for (int i=0; i<(int) (sizeof(builtin)/sizeof(struct fly_hdr_elem));i++)
+	for (int i=0; i<(int) (sizeof(builtin)/sizeof(fly_hdr_t));i++)
 		fly_register_header(builtin[i].name, builtin[i].trig);
 
     while (1){
@@ -308,9 +311,16 @@ int main()
         char servname[NI_MAXSERV];
         int gname_err;
         addrlen = sizeof(client_addr);
+		/* accept */
         c_sock = accept(sockfd, (struct sockaddr *) &client_addr, &addrlen);
+		/* make pool */
+		fly_pool_t *pool;
+		pool = fly_create_pool(FLY_DEFAULT_ALLOC_PAGESIZE);
         int recv_len;
-        char buffer[BUF_SIZE];
+        char *buffer = fly_palloc(pool, fly_page_convert(BUF_SIZE));
+		if (buffer == NULL){
+			goto error;
+		}
         if (c_sock == -1){
             perror("accept");
             continue;
@@ -343,12 +353,13 @@ int main()
         conn.hostname = hostname;
         conn.servname = servname;
         conn.client_addr = &client_addr;
+		conn.pool = pool;
         /* request operation*/
         http_request *req;
-        req = alloc_request();
+        req = alloc_request(pool);
         /* get request_line */
         char *request_line = get_request_line_point(buffer);
-        if (request_operation(conn.c_sock, request_line, req) < 0){
+        if (request_operation(conn.c_sock, pool, request_line, req) < 0){
             goto error;
         }
         /* get header */
@@ -361,17 +372,20 @@ int main()
 
         char *res = "HTTP/1.1 200 OK\n\nHello Fly!";
         send(c_sock, res, strlen(res), 0);
-        free_client(req);
+		fly_delete_pool(pool);
         close(c_sock);
 end_connection:
+		fly_delete_pool(pool);
         close(c_sock);
         continue;
 error:
+		fly_delete_pool(pool);
         close(c_sock);
         continue;
     }
 
     /* end of server */
+	fly_hdr_release();
     close(sockfd);
     return 0;
 }

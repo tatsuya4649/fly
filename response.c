@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include "response.h"
 #include "header.h"
+#include "alloc.h"
 
 response_code responses[] = {
 	{400, _400, ""},
@@ -88,9 +89,9 @@ char *response_raw(http_response *res, int *send_len)
 		&total_length,
 		RESPONSE_LENGTH_PER
 	);
-	/* response_line */
-	strcpy(&response_content[pos],res->response_line);
-	pos += (int) strlen(res->response_line);
+	/* status_line */
+	strcpy(&response_content[pos],res->status_line);
+	pos += (int) strlen(res->status_line);
 	add_cr_lf(
 		response_content,
 		&pos,
@@ -191,40 +192,42 @@ int fly_send(int c_sockfd, char *buffer, int send_len, int flag)
 	return 0;
 }
 
-void response_500_error(int c_sockfd, char *version)
+void response_500_error(int c_sockfd, fly_pool_t *pool, char *version)
 {
-	char *response_line = malloc(FLY_STATUS_LINE_MAX);
+	char *status_line = fly_palloc(pool, fly_page_convert(FLY_STATUS_LINE_MAX));
 	sprintf(
-		response_line,
+		status_line,
 		"HTTP/%s %d %s",
 		version ? get_version(version) : DEFAULT_RESPONSE_VERSION,
 		response_code_from_type(_500),
 		get_code_explain(_500)
 	);
-	fly_send(c_sockfd, response_line, strlen(response_line), 0);
+	fly_send(c_sockfd, status_line, strlen(status_line), 0);
 }
 
 int fly_response(
 	int c_sockfd,
 	int response_code,
 	char *version,
-	struct fly_hdr_elem *header_lines,
+	fly_hdr_t *header_lines,
 	int header_len,
 	char *body,
 	int body_len
 ){
+	fly_pool_t *respool;
+	respool = fly_create_pool(FLY_RESPONSE_POOL_PAGE);
 	http_response res_content;
 	__attribute__((unused)) int send_result, send_len;
 	char *send_start;
-	res_content.response_line = malloc(sizeof(char)*1000);
-	if (res_content.response_line == NULL)
-		return -1;
-	sprintf(res_content.response_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), get_code_explain(response_code));
-	res_content.header_lines = fly_hdr_eles_to_string(header_lines, &header_len, body, body_len);
+	res_content.status_line = fly_palloc(respool, fly_page_convert(sizeof(char)*FLY_STATUS_LINE_MAX));
+	if (res_content.status_line == NULL)
+		goto error;
+	sprintf(res_content.status_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), get_code_explain(response_code));
+	res_content.header_lines = fly_hdr_eles_to_string(header_lines, respool, &header_len, body, body_len);
 
 	if (res_content.header_lines == NULL){
-		response_500_error(c_sockfd, version);
-		return -1;
+		response_500_error(c_sockfd, respool, version);
+		goto error;
 	}
 
 	res_content.header_len = header_len;
@@ -234,9 +237,11 @@ int fly_response(
 	send_start = response_raw(&res_content, &send_len);
 	send_result = fly_send(c_sockfd, send_start, send_len, 0);
 
-	fly_header_free(res_content.header_lines, header_lines);
-
+	fly_delete_pool(respool);
 	return 0;
+error:
+	fly_delete_pool(respool);
+	return -1;
 }
 
 

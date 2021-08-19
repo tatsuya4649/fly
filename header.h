@@ -1,5 +1,6 @@
 #ifndef _HEADER_H
 #define _HEADER_H
+#include "alloc.h"
 #include <string.h>
 
 typedef struct{
@@ -16,24 +17,34 @@ typedef char fly_hdr_name;
 	0: success, -1: error(500 return)
  */
 typedef int fly_header_trigger(fly_hdr_value *,fly_trig_data *);
-//typedef void fly_header_release(fly_hdr_value *value_field);
 
 #define FLY_STATUS_LINE_MAX		50
 #define FLY_HEADER_NAME_MAX		20
 #define FLY_HEADER_LINE_MAX		100
 #define FLY_HEADER_ELES_MAX		1000
+#define FLY_REGISTER_HEADER_POOL_SIZE	10
+
 struct fly_hdr_elem{
 	fly_hdr_name name[FLY_HEADER_NAME_MAX];
 	fly_header_trigger *trig;
-//	fly_header_release *release;
 	struct fly_hdr_elem *next;
 };
+typedef struct fly_hdr_elem fly_hdr_t;
+
+
+struct fly_hdr{
+	fly_pool_t *pool;
+	fly_hdr_t *entry;
+};
+/* entry point of all header */
+typedef struct fly_hdr fly_hdr_e;
 
 #define fly_name_hdr_gap()		" : "
 #define FLY_HEADER_VALUE_MAX	(FLY_HEADER_LINE_MAX-FLY_HEADER_NAME_MAX-strlen(fly_name_hdr_gap()))
 
-extern struct fly_hdr_elem *init_header;
+extern fly_hdr_e fly_init_header;
 int fly_hdr_init(void);
+int fly_hdr_release(void);
 
 int fly_register_header(
 	fly_hdr_name *,
@@ -53,8 +64,7 @@ int fly_content_length_header(fly_hdr_value *value_field, fly_trig_data *data);
 #define FLY_NAME	"fly-server"
 #define fly_server_name()	(FLY_NAME)
 
-char **fly_hdr_eles_to_string(struct fly_hdr_elem *elems, int *header_len, char *body, int body_len);
-void fly_header_free(char **, struct fly_hdr_elem *elem);
+char **fly_hdr_eles_to_string(fly_hdr_t *elems, fly_pool_t *pool, int *header_len, char *body, int body_len);
 
 fly_hdr_value *fly_hdr_alloc(void);
 void fly_hdr_free(fly_hdr_value *);

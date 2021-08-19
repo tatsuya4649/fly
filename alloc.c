@@ -9,7 +9,7 @@ void *fly_malloc(int size)
 
 int fly_memalign(void **ptr, int page_size)
 {
-	return posix_memalign(ptr, fly_align_size(), fly_page_convert(page_size));
+	return posix_memalign(ptr, fly_align_size(), fly_byte_convert(page_size));
 }
 
 void fly_free(void *ptr)
@@ -28,27 +28,33 @@ fly_pool_t *fly_create_pool(
 	pool->current = pool;
 	pool->next = NULL;
 	/* actual memory */
-	pool->entry.size = fly_page_convert(size);
-	pool->entry.entry = fly_malloc(size);
-	pool->entry.last = pool->entry.entry;
-	pool->entry.next = NULL;
-	if (pool->entry.entry == NULL)
+	pool->entry = fly_malloc(sizeof(fly_pool_b));
+	pool->entry->size = fly_byte_convert(size);
+	pool->entry->entry = fly_malloc(pool->entry->size);
+	pool->entry->last = pool->entry->entry;
+	pool->entry->next = NULL;
+	if (pool->entry->entry == NULL)
 		return NULL;
 
-	fly_pool_t *p;
-	for (p=init_pool; p!=NULL; p=p->next)
-		;
-	p = pool;
+	if (init_pool == NULL){
+		init_pool = pool;
+	}else{
+		fly_pool_t *p;
+		for (p=init_pool; p->next!=NULL; p=p->next)
+			;
+		p->next = pool;
+	}
 	return pool;
 }
 
 void *fly_palloc(fly_pool_t *pool, fly_page_t size)
 {
-	fly_pool_b *block = &pool->entry;
-	for (; block!=NULL; block=block->next){
-		void *last_next = block->last+1;
-		if (block->size-(fly_align_ptr(last_next, fly_align_size())-(block->entry)) <= (long) fly_page_convert(size)){
-			return fly_align_ptr(last_next, fly_align_size());
+	fly_pool_b *block;
+	for (block=pool->entry; block!=NULL; block=block->next){
+		void *start_ptr = fly_align_ptr(block->last+1, fly_align_size());
+		if (block->size-(start_ptr-block->entry) > (long) fly_byte_convert(size)){
+			block->last = start_ptr + fly_byte_convert(size);
+			return start_ptr;
 		}
 	}
 	fly_pool_b *new_block;
@@ -61,29 +67,33 @@ void *fly_palloc(fly_pool_t *pool, fly_page_t size)
 		return NULL;
 	}
 	new_block->last = new_block->entry;
-	new_block->size = fly_page_convert(size);
+	new_block->size = fly_byte_convert(size);
 	new_block->next = NULL;
 	block->next = new_block;
 	
 	return new_block->entry;
 }
 
-int fly_pdelete(fly_pool_t *pool)
+int fly_delete_pool(fly_pool_t *pool)
 {
 	fly_pool_t *prev = NULL;
-	for (fly_pool_t *p=init_pool; p!=NULL; p=p->next){
+	fly_pool_t *next = NULL;
+	for (fly_pool_t *p=init_pool; p!=NULL; p=next){
+		next = p->next;
 		if (p == pool){
 			if (prev!=NULL){
 				prev->next = p->next;
 			}
-			
-			for (fly_pool_b *block=&p->entry; block!=NULL; block=block->next){
+			fly_pool_b *next_block;
+			for (fly_pool_b *block=p->entry; block!=NULL; block=next_block){
+				next_block = block->next;
 				fly_free(block->entry);
+				fly_free(block);
 			}
 			fly_free(p);
+			return 0;
 		}
 		prev = p;
-		return 0;
 	}
 	return -1;
 }

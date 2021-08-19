@@ -19,7 +19,8 @@ typedef struct fly_pool_block fly_pool_b;
 typedef enum fly_pool_size fly_pool_e;
 
 #define FLY_DEFAULT_ALLOC_PAGESIZE			100
-#define fly_page_convert(size)		(sysconf(_SC_PAGESIZE)*(size))
+#define fly_byte_convert(size)		(sysconf(_SC_PAGESIZE)*(size))
+#define fly_page_convert(size)		(size/sysconf(_SC_PAGESIZE) + (size%sysconf(_SC_PAGESIZE) ? 1 : 0))
 #define fly_max_size(size)			(10*(size))
 
 #define fly_align_size()				(sizeof(unsigned long))
@@ -37,9 +38,13 @@ struct fly_pool{
 	fly_page_t max;			/* per page size */
 	fly_pool_t *current;	/* now pointed pool */
 	fly_pool_t *next;		/* next pool */
-	fly_pool_b entry;		/* actual memory */
+	fly_pool_b *entry;		/* actual memory */
 	unsigned per_size;
 };
 
+
+fly_pool_t *fly_create_pool(fly_page_t size);
+int fly_delete_pool(fly_pool_t *pool);
+void *fly_palloc(fly_pool_t *pool, fly_page_t size);
 
 #endif

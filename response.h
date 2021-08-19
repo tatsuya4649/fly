@@ -3,11 +3,12 @@
 #include "header.h"
 
 #define RESPONSE_LENGTH_PER		1024
+#define FLY_RESPONSE_POOL_PAGE		100
 #define DEFAULT_RESPONSE_VERSION			"1.1"
 #define CRLF_LENGTH				2
 
 typedef struct{
-	char *response_line;
+	char *status_line;
 	char **header_lines;
 	int header_len;
 	char *body;
@@ -18,7 +19,7 @@ int fly_response(
 	int c_sockfd,
 	int response_code,
 	char *version,
-	struct fly_hdr_elem *header_lines,
+	fly_hdr_t *header_lines,
 	int header_len,
 	char *body,
 	int body_len
