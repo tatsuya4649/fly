@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include "response.h"
 #include "header.h"
+#include "alloc.h"
 
 response_code responses[] = {
 	{400, _400, ""},
@@ -29,10 +30,10 @@ response_code responses[] = {
 	{-1, -1, NULL}
 };
 
-char *alloc_response_content(char *now,int *before,int incre)
+char *alloc_response_content(fly_pool_t *pool,char *now,int *before,int incre)
 {
 	char *resp;
-	resp = malloc(*before+incre);
+	resp = fly_palloc(pool, fly_page_convert(*before+incre));
 	if (resp != now)
 		memcpy(resp, now, *before);
 	*before += incre;
@@ -40,6 +41,7 @@ char *alloc_response_content(char *now,int *before,int incre)
 }
 
 char *update_alloc_response_content(
+	fly_pool_t *pool,
 	char *response_content,
 	int pos,
 	int length,
@@ -49,6 +51,7 @@ char *update_alloc_response_content(
 {
 	while ((pos+length) > total_length){
 		response_content = alloc_response_content(
+			pool,
 			response_content,
 			&total_length,
 			incre
@@ -58,6 +61,7 @@ char *update_alloc_response_content(
 }
 
 char *add_cr_lf(
+	fly_pool_t *pool,
 	char *response_content,
 	int *pos,
 	int total_length,
@@ -66,6 +70,7 @@ char *add_cr_lf(
 {
 	char *res;
 	res = update_alloc_response_content(
+		pool,
 		response_content,
 		*pos,
 		CRLF_LENGTH,
@@ -77,21 +82,23 @@ char *add_cr_lf(
 	return res;
 }
 
-char *response_raw(http_response *res, int *send_len)
+char *response_raw(http_response *res, fly_pool_t *pool, int *send_len)
 {
 	char *response_content = NULL;
 	int total_length = 0;
 	int pos = 0;
 
 	response_content = alloc_response_content(
+		pool,
 		response_content,
 		&total_length,
 		RESPONSE_LENGTH_PER
 	);
-	/* response_line */
-	strcpy(&response_content[pos],res->response_line);
-	pos += (int) strlen(res->response_line);
+	/* status_line */
+	strcpy(&response_content[pos],res->status_line);
+	pos += (int) strlen(res->status_line);
 	add_cr_lf(
+		pool,
 		response_content,
 		&pos,
 		total_length,
@@ -100,6 +107,7 @@ char *response_raw(http_response *res, int *send_len)
 	/* header */
 	for (int i=0;i<res->header_len;i++){
 		update_alloc_response_content(
+			pool,
 			response_content,
 			pos,
 			(int) strlen(res->header_lines[i]),
@@ -109,6 +117,7 @@ char *response_raw(http_response *res, int *send_len)
 		strcpy(&response_content[pos],res->header_lines[i]);
 		pos += (int) strlen(res->header_lines[i]);
 		add_cr_lf(
+			pool,
 			response_content,
 			&pos,
 			total_length,
@@ -117,6 +126,7 @@ char *response_raw(http_response *res, int *send_len)
 	}
 	if (res->header_len != 0){
 		add_cr_lf(
+			pool,
 			response_content,
 			&pos,
 			total_length,
@@ -126,6 +136,7 @@ char *response_raw(http_response *res, int *send_len)
 	/* body */
 	if (res->body!=NULL && res->body_len>0){
 		update_alloc_response_content(
+			pool,
 			response_content,
 			pos,
 			(int) res->body_len,
@@ -139,10 +150,10 @@ char *response_raw(http_response *res, int *send_len)
 	return response_content;
 }
 
-void response_free(char *res)
-{
-	free(res);
-}
+//void response_free(char *res)
+//{
+//	free(res);
+//}
 
 char *get_default_version(void)
 {
@@ -191,24 +202,30 @@ int fly_send(int c_sockfd, char *buffer, int send_len, int flag)
 	return 0;
 }
 
-void response_500_error(int c_sockfd, char *version)
+void response_500_error(int c_sockfd, fly_pool_t *pool, char *version)
 {
-	char *response_line = malloc(FLY_STATUS_LINE_MAX);
+	char *status_line = fly_palloc(pool, fly_page_convert(FLY_STATUS_LINE_MAX));
 	sprintf(
-		response_line,
+		status_line,
 		"HTTP/%s %d %s",
 		version ? get_version(version) : DEFAULT_RESPONSE_VERSION,
 		response_code_from_type(_500),
 		get_code_explain(_500)
 	);
-	fly_send(c_sockfd, response_line, strlen(response_line), 0);
+	fly_send(c_sockfd, status_line, strlen(status_line), 0);
+}
+
+fly_pool_t *fly_response_init(void)
+{
+	return fly_create_pool(FLY_RESPONSE_POOL_PAGE);
 }
 
 int fly_response(
 	int c_sockfd,
+	fly_pool_t *respool,
 	int response_code,
 	char *version,
-	struct fly_hdr_elem *header_lines,
+	fly_hdr_t *header_lines,
 	int header_len,
 	char *body,
 	int body_len
@@ -216,27 +233,33 @@ int fly_response(
 	http_response res_content;
 	__attribute__((unused)) int send_result, send_len;
 	char *send_start;
-	res_content.response_line = malloc(sizeof(char)*1000);
-	if (res_content.response_line == NULL)
-		return -1;
-	sprintf(res_content.response_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), get_code_explain(response_code));
-	res_content.header_lines = fly_hdr_eles_to_string(header_lines, &header_len, body, body_len);
+	res_content.status_line = fly_palloc(respool, fly_page_convert(sizeof(char)*FLY_STATUS_LINE_MAX));
+	if (res_content.status_line == NULL)
+		goto error;
+	sprintf(res_content.status_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), get_code_explain(response_code));
+	res_content.header_lines = fly_hdr_eles_to_string(header_lines, respool, &header_len, body, body_len);
 
 	if (res_content.header_lines == NULL){
-		response_500_error(c_sockfd, version);
-		return -1;
+		response_500_error(c_sockfd, respool, version);
+		goto error;
 	}
 
 	res_content.header_len = header_len;
 	res_content.body = body;
 	res_content.body_len = body_len;
 
-	send_start = response_raw(&res_content, &send_len);
+	send_start = response_raw(&res_content, respool, &send_len);
 	send_result = fly_send(c_sockfd, send_start, send_len, 0);
 
-	fly_header_free(res_content.header_lines, header_lines);
-
 	return 0;
+error:
+	return -1;
 }
 
+int fly_response_release(fly_pool_t *respool)
+{
+	if (respool != NULL)
+		return fly_delete_pool(respool);
+	return 0;
+}
 
