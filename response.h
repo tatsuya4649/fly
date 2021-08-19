@@ -17,6 +17,7 @@ typedef struct{
 
 int fly_response(
 	int c_sockfd,
+	fly_pool_t *respool,
 	int response_code,
 	char *version,
 	fly_hdr_t *header_lines,
@@ -24,6 +25,8 @@ int fly_response(
 	char *body,
 	int body_len
 );
+fly_pool_t *fly_response_init(void);
+int fly_response_release(fly_pool_t *respool);
 
 enum response_code_type{
 	/* Client Error 4xx */
@@ -55,8 +58,7 @@ typedef struct{
 	char *explain;
 } response_code;
 
-void response_free(char *);
-char *response_raw(http_response *res, int *send_len);
-int response_code_from_type(enum response_code_type type);
+//char *response_raw(http_response *res, int *send_len);
+//int response_code_from_type(enum response_code_type type);
 
 #endif
