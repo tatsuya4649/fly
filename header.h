@@ -2,6 +2,7 @@
 #define _HEADER_H
 #include "alloc.h"
 #include <string.h>
+#include "util.h"
 
 typedef struct{
 	char *body;
@@ -56,15 +57,18 @@ int fly_unregister_header(fly_hdr_name *name);
 #define DATE_FIELD_LENGTH	40
 
 /* Header Date Field */
-int fly_date_header(fly_hdr_value *,fly_trig_data *);
-//void fly_date_header_release(fly_hdr_value *value_field);
+int fly_date_header(fly_hdr_value *,__unused fly_trig_data *);
 /* Content-Length Date Field */
-int fly_content_length_header(fly_hdr_value *value_field, fly_trig_data *data);
+int fly_content_length_header(fly_hdr_value *value_field,__unused fly_trig_data *data);
+/* Connection: close */
+int fly_connection_close_header(fly_hdr_value *value_field,__unused fly_trig_data *data);
+/* Connection: keey-alive */
+int fly_connection_keep_alive_header(fly_hdr_value *value_field,__unused fly_trig_data *data);
 
 #define FLY_NAME	"fly-server"
 #define fly_server_name()	(FLY_NAME)
 
-char **fly_hdr_eles_to_string(fly_hdr_t *elems, fly_pool_t *pool, int *header_len, char *body, int body_len);
+char **fly_hdr_eles_to_string(fly_pool_t *pool, fly_hdr_t *elems, int *header_len, char *body, int body_len);
 
 fly_hdr_value *fly_hdr_alloc(void);
 void fly_hdr_free(fly_hdr_value *);

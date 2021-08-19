@@ -85,10 +85,18 @@ int fly_date_header(fly_hdr_value *value_field, __attribute__((unused)) fly_trig
 }
 
 int fly_content_length_header(fly_hdr_value *value_field, fly_trig_data *data){
-	return -1;
-	if (data->body != NULL)
-		return -1;
 	sprintf(value_field,"%d", data->body_len);
+	return 0;
+}
+
+int fly_connection_close_header(fly_hdr_value *value_field, __unused fly_trig_data *data)
+{
+	strcpy(value_field, "close");
+	return 0;
+}
+
+int fly_connection_keep_alive_header(fly_hdr_value *value_field, __unused fly_trig_data *data){
+	strcpy(value_field, "keep-alive");
 	return 0;
 }
 
@@ -115,8 +123,8 @@ int fly_header_str(char *res, fly_hdr_t *now, fly_trig_data *trig_data)
 	return 0;
 } 
 char **fly_hdr_eles_to_string(
-	fly_hdr_t *elems,
 	fly_pool_t *conn_pool,
+	fly_hdr_t *elems,
 	int *header_len,
 	char *body,
 	int body_len

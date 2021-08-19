@@ -18,10 +18,10 @@
 #define BIND_PORT       3333
 #define BACK_LOG        4096
 #define SERV_ADDR       "127.0.0.1"
-#define BUF_SIZE        5*1024
+#define BUF_SIZE        (8000*8)
 #define HEADER_LINES    100
 
-void sigint_handler(__attribute__((unused)) int signo)
+void sigint_handler(__unused int signo)
 {
     fprintf(stderr, "Interrupt now (Ctrl+C)...");
 	fly_hdr_release();
@@ -80,33 +80,85 @@ http_version *match_version(char *version)
     return NULL;
 }
 
+fly_hdr_t *fly_header_con(fly_hdr_t *h1, fly_hdr_t *h2)
+{
+	fly_hdr_t *ptr;
+	for (ptr=h1; ptr->next!=NULL; ptr=ptr->next)
+		;
+	ptr->next = h2;
+	return h1;
+}
+int fly_headers_length(fly_hdr_t *hdrs)
+{
+	int i=0;
+	fly_hdr_t *ptr;
+	
+	for (ptr=hdrs; ptr!=NULL; ptr=ptr->next)
+		i++;
+	return i;
+}
+fly_hdr_t *fly_response_err(fly_pool_t *pool)
+{
+	fly_hdr_t *headers;
+	headers = fly_pballoc(pool, sizeof(fly_hdr_t));
+	strcpy(headers->name, "connection");
+	headers->trig = fly_connection_close_header;
+	headers->next = NULL;
+	return headers;
+}
 void nothing_uri(int c_sock)
 {
 	fly_pool_t *respool;
+	fly_hdr_t *headers;
+
 	respool = fly_response_init();
+	headers = fly_response_err(respool);
     fly_response(
 		c_sock,
 		respool,
 		_400,
 		NULL,
-		NULL,
-		0,
-		NULL,
-		0
+		headers,
+		fly_headers_length(headers),
+		fly_code_explain(_400),
+		strlen(fly_code_explain(_400))	
 	);
 	fly_response_release(respool);
 }
 void unmatch_method(int c_sock)
 {
 	fly_pool_t *respool;
+	fly_hdr_t *headers;
+
 	respool = fly_response_init();
+	headers = fly_response_err(respool);
     fly_response(
 		c_sock,
 		respool,
 		_400,
 		NULL,
+		headers,
+		fly_headers_length(headers),
 		NULL,
-		0,
+		0
+	);
+	fly_response_release(respool);
+}
+
+void no_version(int c_sock)
+{
+	fly_pool_t *respool;
+	fly_hdr_t *headers;
+
+	respool = fly_response_init();
+	headers = fly_response_err(respool);
+    fly_response(
+		c_sock,
+		respool,
+		_400,
+		NULL,
+		headers,
+		fly_headers_length(headers),
 		NULL,
 		0
 	);
@@ -125,23 +177,36 @@ int parse_request_line(fly_pool_t *pool, int c_sock, char *request_line, request
         return -1;
     }
     method = fly_palloc(pool, fly_page_convert((space-request_line)+1));
+	/* memory alloc error */
+	if (method == NULL){
+		return -1;
+	}
     memcpy(method, request_line, space-request_line);
     method[space-request_line] = '\0';
     req->method = match_method(method);
-    free(method);
-    if (req->method == NULL)
+	/* no match method */
+    if (req->method == NULL){
         return -1;
+	}
 
     char *uri_start = space+1;
     char *next_space = strstr(uri_start," ");
+	/* no version */
+	if (next_space == NULL){
+		no_version(c_sock);
+		return -1;
+	}
     req->uri = fly_palloc(pool, fly_page_convert(next_space-uri_start+1));
+	if (req->uri == NULL){
+		return -1;
+	}
     memcpy(req->uri, space+1, next_space-uri_start);
     req->uri[next_space-uri_start] = '\0';
     printf("%s\n", req->uri);
 
     char *version_start = next_space+1;
     req->version = match_version(version_start);
-    if (req->version){
+    if (req->version == NULL){
         printf("NOT FOUND VERSION\n");
     }
 
@@ -169,6 +234,8 @@ int request_operation(int c_sock, fly_pool_t *pool,char *request_line, http_requ
 {
     /* get request */
     int request_line_length;
+	if (strstr(request_line, "\r\n") == NULL)
+		return -1;
     request_line_length = strstr(request_line, "\r\n") - request_line;
     req->request_line = (char *) fly_palloc(pool, sizeof(char)*(request_line_length+1));
 	if (req->request_line == NULL)
@@ -189,7 +256,7 @@ int request_operation(int c_sock, fly_pool_t *pool,char *request_line, http_requ
     return 0;
 }
 
-void header_operation(fly_pool_t *pool, char *headers, http_request *req)
+int header_operation(fly_pool_t *pool, char *headers, http_request *req)
 {
     char *header_line = headers;
     char *header_line_end;
@@ -200,13 +267,15 @@ void header_operation(fly_pool_t *pool, char *headers, http_request *req)
         header_line_end = strstr(header_line, "\r\n");
         if (header_line_end-header_line == 0)
             break;
-        header_lines[i] = (char *) fly_palloc(pool, (sizeof(char)*(header_line_end-header_line+1)));
+        header_lines[i] = (char *) fly_pballoc(pool, sizeof(char)*(header_line_end-header_line+1));
+		if (header_lines[i] == NULL)
+			return -1;
         memcpy(header_lines[i], header_line, header_line_end-header_line);
         header_lines[i][header_line_end-header_line] = '\0';
 
         i++;
         /* next line */
-        header_line = header_line_end + 2;
+        header_line = header_line_end + CRLF_LENGTH;
     }
     header_lines[i+1] = NULL;
     req->header_lines = header_lines;
@@ -218,6 +287,7 @@ void header_operation(fly_pool_t *pool, char *headers, http_request *req)
     for (int j=0; j<req->header_len; j++){
         printf("HEADER_Line: %s\n", header_lines[j]);
     }
+	return 0;
 }
 
 void request_free(http_request *req)
@@ -312,6 +382,12 @@ int main()
 	for (int i=0; i<(int) (sizeof(builtin)/sizeof(fly_hdr_t));i++)
 		fly_register_header(builtin[i].name, builtin[i].trig);
 
+	/* mount point setting */
+	if (fly_fs_mount(".") == -1){
+		perror("fly_fs_mount");
+		return -1;
+	}
+
     while (1){
         fprintf(stderr, "Waiting Connection...\n");
         socklen_t addrlen;
@@ -326,7 +402,7 @@ int main()
 		fly_pool_t *pool;
 		pool = fly_create_pool(FLY_DEFAULT_ALLOC_PAGESIZE);
         int recv_len;
-        char *buffer = fly_palloc(pool, fly_page_convert(BUF_SIZE));
+        char *buffer = fly_pballoc(pool, BUF_SIZE);
 		if (buffer == NULL){
 			goto error;
 		}
@@ -373,7 +449,10 @@ int main()
         }
         /* get header */
         char *header_lines = get_header_lines_point(buffer);
-        header_operation(pool, header_lines, req);
+        if (header_operation(pool, header_lines, req) == -1){
+			fly_500_error(c_sock, pool, req->rinfo->version->full);
+			goto error;
+		}
         /* get body */
         char *body = get_body_point(buffer);;
         req->body = body;

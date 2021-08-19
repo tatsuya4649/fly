@@ -46,5 +46,6 @@ struct fly_pool{
 fly_pool_t *fly_create_pool(fly_page_t size);
 int fly_delete_pool(fly_pool_t *pool);
 void *fly_palloc(fly_pool_t *pool, fly_page_t size);
+void *fly_pballoc(fly_pool_t *pool, size_t size);
 
 #endif

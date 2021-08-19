@@ -51,6 +51,7 @@ enum response_code_type{
 	/* Server Error 5xx */
 	_500
 };
+typedef enum response_code_type fly_rescode_t;
 
 typedef struct{
 	int status_code;
@@ -58,7 +59,7 @@ typedef struct{
 	char *explain;
 } response_code;
 
-//char *response_raw(http_response *res, int *send_len);
-//int response_code_from_type(enum response_code_type type);
+char *fly_code_explain(fly_rescode_t type);
+void fly_500_error(int c_sockfd, fly_pool_t *pool, char *version);
 
 #endif

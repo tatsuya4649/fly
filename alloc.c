@@ -74,6 +74,11 @@ void *fly_palloc(fly_pool_t *pool, fly_page_t size)
 	return new_block->entry;
 }
 
+void *fly_pballoc(fly_pool_t *pool, size_t size)
+{
+	return fly_palloc(pool, fly_page_convert(size));
+}
+
 int fly_delete_pool(fly_pool_t *pool)
 {
 	fly_pool_t *prev = NULL;

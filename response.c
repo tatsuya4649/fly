@@ -7,25 +7,25 @@
 #include "alloc.h"
 
 response_code responses[] = {
-	{400, _400, ""},
-	{401, _401, ""},
-	{402, _402, ""},
-	{403, _403, ""},
-	{404, _404, ""},
-	{405, _405, ""},
-	{406, _406, ""},
-	{407, _407, ""},
-	{408, _408, ""},
-	{409, _409, ""},
-	{409, _409, ""},
-	{410, _410, ""},
-	{411, _411, ""},
-	{412, _412, ""},
-	{413, _413, ""},
-	{414, _414, ""},
-	{415, _415, ""},
-	{416, _416, ""},
-	{417, _417, ""},
+	{400, _400, "Bad Request"},
+	{401, _401, "Unauthorized"},
+	{402, _402, "Payment Required"},
+	{403, _403, "Forbidden"},
+	{404, _404, "Not Found"},
+	{405, _405, "Method Not Allowed"},
+	{406, _406, "Not Acceptable"},
+	{407, _407, "Proxy Authentication Required"},
+	{408, _408, "Request Timeout"},
+	{409, _409, "Conflict"},
+	{409, _409, "Gone"},
+	{410, _410, "Length Required"},
+	{411, _411, "Precondition Failed"},
+	{412, _412, "Precondition Failed"},
+	{413, _413, "Request Entiry Too Large"},
+	{414, _414, "Request-URI Too Long"},
+	{415, _415, "Unsupported Media Type"},
+	{416, _416, "Requested Range Not Satisfiable"},
+	{417, _417, "Expectation Failed"},
 	{500, _500, "Server Error"},
 	{-1, -1, NULL}
 };
@@ -168,7 +168,7 @@ char *get_version(char *version)
 	return version;
 }
 
-char *get_code_explain(enum response_code_type type)
+char *fly_code_explain(fly_rescode_t type)
 {
 	for (response_code *res=responses; res->status_code!=-1; res++){
 		if (res->type == type)
@@ -202,7 +202,7 @@ int fly_send(int c_sockfd, char *buffer, int send_len, int flag)
 	return 0;
 }
 
-void response_500_error(int c_sockfd, fly_pool_t *pool, char *version)
+void fly_500_error(int c_sockfd, fly_pool_t *pool, char *version)
 {
 	char *status_line = fly_palloc(pool, fly_page_convert(FLY_STATUS_LINE_MAX));
 	sprintf(
@@ -210,7 +210,7 @@ void response_500_error(int c_sockfd, fly_pool_t *pool, char *version)
 		"HTTP/%s %d %s",
 		version ? get_version(version) : DEFAULT_RESPONSE_VERSION,
 		response_code_from_type(_500),
-		get_code_explain(_500)
+		fly_code_explain(_500)
 	);
 	fly_send(c_sockfd, status_line, strlen(status_line), 0);
 }
@@ -231,16 +231,16 @@ int fly_response(
 	int body_len
 ){
 	http_response res_content;
-	__attribute__((unused)) int send_result, send_len;
+	__unused int send_result, send_len;
 	char *send_start;
 	res_content.status_line = fly_palloc(respool, fly_page_convert(sizeof(char)*FLY_STATUS_LINE_MAX));
 	if (res_content.status_line == NULL)
 		goto error;
-	sprintf(res_content.status_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), get_code_explain(response_code));
-	res_content.header_lines = fly_hdr_eles_to_string(header_lines, respool, &header_len, body, body_len);
+	sprintf(res_content.status_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), fly_code_explain(response_code));
+	res_content.header_lines = fly_hdr_eles_to_string(respool, header_lines, &header_len, body, body_len);
 
-	if (res_content.header_lines == NULL){
-		response_500_error(c_sockfd, respool, version);
+	if (header_lines != NULL && res_content.header_lines == NULL){
+		fly_500_error(c_sockfd, respool, version);
 		goto error;
 	}
 
