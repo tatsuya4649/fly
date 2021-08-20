@@ -5,6 +5,7 @@
 #include "response.h"
 #include "header.h"
 #include "alloc.h"
+#include "fs.h"
 
 response_code responses[] = {
 	{400, _400, "Bad Request"},
@@ -105,7 +106,7 @@ char *response_raw(http_response *res, fly_pool_t *pool, int *send_len)
 		RESPONSE_LENGTH_PER
 	);
 	/* header */
-	for (int i=0;i<res->header_len;i++){
+	for (int i=0;i<res->header_lines_len;i++){
 		update_alloc_response_content(
 			pool,
 			response_content,
@@ -124,7 +125,7 @@ char *response_raw(http_response *res, fly_pool_t *pool, int *send_len)
 			RESPONSE_LENGTH_PER
 		);
 	}
-	if (res->header_len != 0){
+	if (res->header_lines_len != 0){
 		add_cr_lf(
 			pool,
 			response_content,
@@ -220,15 +221,35 @@ fly_pool_t *fly_response_init(void)
 	return fly_create_pool(FLY_RESPONSE_POOL_PAGE);
 }
 
-int fly_response(
+int fly_response_file(
 	int c_sockfd,
 	fly_pool_t *respool,
 	int response_code,
 	char *version,
 	fly_hdr_t *header_lines,
 	int header_len,
+	char *file_path,
+	int mount_number,
+	fly_pool_s size,
+	fly_flag_t flag
+){
+	char *body = fly_from_path(respool, size, mount_number, file_path);
+	ssize_t body_len = fly_file_size(file_path);
+	if (body_len == -1)
+		return -1;
+	return fly_response(c_sockfd, respool, response_code, version, header_lines, header_len, body, body_len, flag);
+}
+
+int fly_response(
+	int c_sockfd,
+	fly_pool_t *respool,
+	int response_code,
+	char *version,
+	fly_hdr_t *header_lines,
+	int header_lines_len,
 	char *body,
-	int body_len
+	ssize_t body_len,
+	fly_flag_t flag
 ){
 	http_response res_content;
 	__unused int send_result, send_len;
@@ -237,14 +258,14 @@ int fly_response(
 	if (res_content.status_line == NULL)
 		goto error;
 	sprintf(res_content.status_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), fly_code_explain(response_code));
-	res_content.header_lines = fly_hdr_eles_to_string(respool, header_lines, &header_len, body, body_len);
+	res_content.header_lines = fly_hdr_eles_to_string(respool, header_lines, &header_lines_len, body, body_len);
 
 	if (header_lines != NULL && res_content.header_lines == NULL){
 		fly_500_error(c_sockfd, respool, version);
 		goto error;
 	}
 
-	res_content.header_len = header_len;
+	res_content.header_lines_len = header_lines_len;
 	res_content.body = body;
 	res_content.body_len = body_len;
 

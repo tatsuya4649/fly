@@ -10,9 +10,9 @@
 typedef struct{
 	char *status_line;
 	char **header_lines;
-	int header_len;
+	int header_lines_len;
 	char *body;
-	int body_len;
+	ssize_t body_len;
 } http_response;
 
 int fly_response(
@@ -23,7 +23,18 @@ int fly_response(
 	fly_hdr_t *header_lines,
 	int header_len,
 	char *body,
-	int body_len
+	ssize_t body_len
+);
+int fly_response_file(
+	int c_sockfd,
+	fly_pool_t *respool,
+	int response_code,
+	char *version,
+	fly_hdr_t *header_lines,
+	int header_len,
+	char *file_path,
+	int mount_number,
+	fly_pool_s size
 );
 fly_pool_t *fly_response_init(void);
 int fly_response_release(fly_pool_t *respool);
@@ -59,7 +70,7 @@ typedef struct{
 	char *explain;
 } response_code;
 
-char *fly_code_explain(fly_rescode_t type);
-void fly_500_error(int c_sockfd, fly_pool_t *pool, char *version);
+char *fly_code_explain(fly_rescode_t type); void fly_500_error(int c_sockfd, fly_pool_t *pool, char *version); 
 
+typedef int fly_flag_t;
 #endif
