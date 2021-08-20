@@ -1,4 +1,5 @@
 #include "alloc.h"
+#include "util.h"
 
 fly_pool_t *init_pool = NULL;
 
@@ -26,9 +27,14 @@ void *fly_malloc(int size)
 	return malloc(size);
 }
 
-int fly_memalign(void **ptr, int page_size)
+int fly_memalign_page(void **ptr, int page_size)
 {
 	return posix_memalign(ptr, fly_align_size(), fly_byte_convert(page_size));
+}
+
+int fly_memalign(void **ptr, int size)
+{
+	return posix_memalign(ptr, fly_align_size(), size);
 }
 
 void fly_free(void *ptr)
@@ -66,14 +72,14 @@ fly_pool_t *fly_create_pool(
 	return pool;
 }
 
-void *fly_palloc(fly_pool_t *pool, fly_page_t size)
+static void *_fly_palloc(fly_pool_t *pool, size_t size, size_t newbsize)
 {
 	fly_pool_b *block;
 	fly_pool_b *prevb = NULL;
 	for (block=pool->entry; block!=NULL; block=block->next){
 		void *start_ptr = fly_align_ptr(block->last+1, fly_align_size());
-		if (block->size-(start_ptr-block->entry) > (long) fly_byte_convert(size)){
-			block->last = start_ptr + fly_byte_convert(size);
+		if (block->size-(start_ptr-block->entry) > (long) size){
+			block->last = start_ptr + size;
 			return start_ptr;
 		}
 		prevb = block;
@@ -83,12 +89,12 @@ void *fly_palloc(fly_pool_t *pool, fly_page_t size)
 	if (new_block == NULL)
 		return NULL;
 
-	if (fly_memalign(&new_block->entry, size) != 0){
+	if (fly_memalign(&new_block->entry, newbsize) != 0){
 		fly_free(new_block);
 		return NULL;
 	}
 	new_block->last = new_block->entry;
-	new_block->size = fly_byte_convert(size);
+	new_block->size = newbsize;
 	new_block->next = NULL;
 	if (pool->entry == NULL)
 		pool->entry = new_block;
@@ -96,6 +102,11 @@ void *fly_palloc(fly_pool_t *pool, fly_page_t size)
 		prevb->next = new_block;
 	
 	return new_block->entry;
+}
+
+void *fly_palloc(fly_pool_t *pool, fly_page_t psize)
+{
+	return _fly_palloc(pool, (size_t) fly_byte_convert(psize), (size_t) fly_byte_convert(psize));
 }
 
 void *fly_pballoc(fly_pool_t *pool, size_t size)
@@ -125,4 +136,9 @@ int fly_delete_pool(fly_pool_t *pool)
 		prev = p;
 	}
 	return -1;
+}
+
+int fly_pfree(__unused fly_pool_t *pool, __unused void *ptr)
+{
+	return 0;
 }
