@@ -32,7 +32,6 @@ struct fly_hdr_elem{
 };
 typedef struct fly_hdr_elem fly_hdr_t;
 
-
 struct fly_hdr{
 	fly_pool_t *pool;
 	fly_hdr_t *entry;
@@ -50,13 +49,12 @@ int fly_hdr_release(void);
 int fly_register_header(
 	fly_hdr_name *,
 	fly_header_trigger *
-//	fly_header_release *
 );
 int fly_unregister_header(fly_hdr_name *name);
-#define DATE_FORMAT		"%a, %d %b %Y %H:%M:%S GMT"
-#define DATE_FIELD_LENGTH	40
 
 /* Header Date Field */
+#define DATE_FORMAT		"%a, %d %b %Y %H:%M:%S GMT"
+#define DATE_FIELD_LENGTH	40
 int fly_date_header(fly_hdr_value *,__unused fly_trig_data *);
 /* Content-Length Date Field */
 int fly_content_length_header(fly_hdr_value *value_field,__unused fly_trig_data *data);
@@ -68,9 +66,6 @@ int fly_connection_keep_alive_header(fly_hdr_value *value_field,__unused fly_tri
 #define FLY_NAME	"fly-server"
 #define fly_server_name()	(FLY_NAME)
 
-char **fly_hdr_eles_to_string(fly_pool_t *pool, fly_hdr_t *elems, int *header_len, char *body, int body_len);
-
-fly_hdr_value *fly_hdr_alloc(void);
-void fly_hdr_free(fly_hdr_value *);
+char **fly_hdr_eles_to_string(fly_pool_t *pool, fly_hdr_t *elems, int *header_len, char *body, int body_len);S
 
 #endif

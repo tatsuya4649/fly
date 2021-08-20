@@ -1,6 +1,6 @@
-
 #ifndef _ALLOC_H
 #define _ALLOC_H
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -8,11 +8,20 @@
 enum fly_pool_size{
 	XS,		/* max 1KB */
 	S,		/* max 1MB */
-	M,		/* max 10MB */
-	L,		/* max 100MB */
-	XL		/* max 1GB */
+	M,		/* max 100MB */
+	L,		/* max 1GB */
+	XL		/* max 10GB */
 };
 
+struct fly_size_bytes{
+	enum fly_pool_size size;
+	unsigned kb;
+};
+#define FLY_KB		1000
+
+extern struct fly_size_bytes fly_sizes[];
+
+typedef enum fly_pool_size fly_pool_s;
 typedef unsigned long fly_page_t;
 typedef struct fly_pool fly_pool_t;
 typedef struct fly_pool_block fly_pool_b;
@@ -47,5 +56,6 @@ fly_pool_t *fly_create_pool(fly_page_t size);
 int fly_delete_pool(fly_pool_t *pool);
 void *fly_palloc(fly_pool_t *pool, fly_page_t size);
 void *fly_pballoc(fly_pool_t *pool, size_t size);
+ssize_t fly_bytes_from_size(fly_pool_s size);
 
 #endif

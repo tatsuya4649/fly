@@ -463,8 +463,9 @@ int main()
         req->body = body;
         printf("BODY: %s\n",body);
 
-        char *res = "HTTP/1.1 200 OK\n\nHello Fly!";
-        send(c_sock, res, strlen(res), 0);
+        //char *res = "HTTP/1.1 200 OK\n\nHello Fly!";
+		char *res = fly_from_path(pool, XS, FLY_FS_INIT_NUMBER, "test");
+		fly_response_file(c_sock, pool, _200, "1.1", , , "test", FLY_FS_INIT_NUMBER, _XS);
 		fly_delete_pool(pool);
         close(c_sock);
 end_connection:

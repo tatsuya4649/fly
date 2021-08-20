@@ -2,6 +2,25 @@
 
 fly_pool_t *init_pool = NULL;
 
+struct fly_size_bytes fly_sizes[] = {
+	{XS, 1},
+	{S, 1000},
+	{M, 100000},
+	{L, 1000000},
+	{XL, 10000000},
+	{-1, 0},
+};
+
+ssize_t fly_bytes_from_size(fly_pool_s size)
+{
+	for (struct fly_size_bytes *s=fly_sizes; s->size>=0; s++){
+		if (s->size == size){
+			return FLY_KB * s->kb;
+		}
+	}
+	return -1;
+}
+
 void *fly_malloc(int size)
 {
 	return malloc(size);
