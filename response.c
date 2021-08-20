@@ -8,6 +8,11 @@
 #include "fs.h"
 
 response_code responses[] = {
+	/* 1xx Info */
+	/* 2xx Success */
+	{200, _200, "Success"},
+	/* 3xx Redirect */
+	/* 4xx Client Error */
 	{400, _400, "Bad Request"},
 	{401, _401, "Unauthorized"},
 	{402, _402, "Payment Required"},
@@ -27,6 +32,7 @@ response_code responses[] = {
 	{415, _415, "Unsupported Media Type"},
 	{416, _416, "Requested Range Not Satisfiable"},
 	{417, _417, "Expectation Failed"},
+	/* 5xx Server Error */
 	{500, _500, "Server Error"},
 	{-1, -1, NULL}
 };
@@ -83,7 +89,7 @@ char *add_cr_lf(
 	return res;
 }
 
-char *response_raw(http_response *res, fly_pool_t *pool, int *send_len)
+static char *response_raw(http_response *res, fly_pool_t *pool, int *send_len)
 {
 	char *response_content = NULL;
 	int total_length = 0;
@@ -106,33 +112,20 @@ char *response_raw(http_response *res, fly_pool_t *pool, int *send_len)
 		RESPONSE_LENGTH_PER
 	);
 	/* header */
-	for (int i=0;i<res->header_lines_len;i++){
+	if (res->header!=NULL && res->header_len>0){
 		update_alloc_response_content(
 			pool,
 			response_content,
 			pos,
-			(int) strlen(res->header_lines[i]),
+			(int) res->header_len,
 			total_length,
 			RESPONSE_LENGTH_PER
 		);
-		strcpy(&response_content[pos],res->header_lines[i]);
-		pos += (int) strlen(res->header_lines[i]);
-		add_cr_lf(
-			pool,
-			response_content,
-			&pos,
-			total_length,
-			RESPONSE_LENGTH_PER
-		);
+		memcpy(&response_content[pos], res->header, res->header_len);
+		pos += res->header_len;
 	}
-	if (res->header_lines_len != 0){
-		add_cr_lf(
-			pool,
-			response_content,
-			&pos,
-			total_length,
-			RESPONSE_LENGTH_PER
-		);
+	if (res->header_len != 0 && res->body_len > 0){
+		add_cr_lf(pool, response_content, &pos, total_length, RESPONSE_LENGTH_PER);
 	}
 	/* body */
 	if (res->body!=NULL && res->body_len>0){
@@ -155,19 +148,18 @@ char *response_raw(http_response *res, fly_pool_t *pool, int *send_len)
 //{
 //	free(res);
 //}
-
-char *get_default_version(void)
-{
-	return DEFAULT_RESPONSE_VERSION;
-}
-
-char *get_version(char *version)
-{
-	if (version == NULL){
-		return get_default_version();
-	}
-	return version;
-}
+//char *get_default_version(void)
+//{
+//	return DEFAULT_RESPONSE_VERSION;
+//}
+//
+//char *get_version(char *version)
+//{
+//	if (version == NULL){
+//		return get_default_version();
+//	}
+//	return version;
+//}
 
 char *fly_code_explain(fly_rescode_t type)
 {
@@ -203,13 +195,17 @@ int fly_send(int c_sockfd, char *buffer, int send_len, int flag)
 	return 0;
 }
 
-void fly_500_error(int c_sockfd, fly_pool_t *pool, char *version)
+void fly_500_error(int c_sockfd, fly_pool_t *pool, fly_version_e version)
 {
 	char *status_line = fly_palloc(pool, fly_page_convert(FLY_STATUS_LINE_MAX));
+	char verstr[FLY_VERSION_MAXLEN];
+	if (fly_version_str(verstr, version) == -1){
+		return;
+	}
 	sprintf(
 		status_line,
-		"HTTP/%s %d %s",
-		version ? get_version(version) : DEFAULT_RESPONSE_VERSION,
+		"%s %d %s",
+		verstr,
 		response_code_from_type(_500),
 		fly_code_explain(_500)
 	);
@@ -221,12 +217,52 @@ fly_pool_t *fly_response_init(void)
 	return fly_create_pool(FLY_RESPONSE_POOL_PAGE);
 }
 
+int fly_response(
+	int c_sockfd,
+	fly_pool_t *respool,
+	int response_code,
+	fly_version_e version,
+	char *header,
+	int header_len,
+	char *body,
+	ssize_t body_len,
+	__unused fly_flag_t flag
+){
+	http_response res_content;
+	__unused int send_result, send_len;
+	char *send_start;
+	char verstr[FLY_VERSION_MAXLEN];
+	res_content.status_line = fly_palloc(respool, fly_page_convert(sizeof(char)*FLY_STATUS_LINE_MAX));
+	if (res_content.status_line == NULL)
+		goto error;
+	if (fly_version_str(verstr,version) == -1)
+		goto error;
+	sprintf(res_content.status_line,"%s %d %s", verstr, response_code_from_type(response_code), fly_code_explain(response_code));
+	res_content.header = header;
+
+	if (header != NULL && res_content.header == NULL){
+		fly_500_error(c_sockfd, respool, version);
+		goto error;
+	}
+
+	res_content.header_len = header_len;
+	res_content.body = body;
+	res_content.body_len = body_len;
+
+	send_start = response_raw(&res_content, respool, &send_len);
+	send_result = fly_send(c_sockfd, send_start, send_len, 0);
+
+	return 0;
+error:
+	return -1;
+}
+
 int fly_response_file(
 	int c_sockfd,
 	fly_pool_t *respool,
 	int response_code,
-	char *version,
-	fly_hdr_t *header_lines,
+	fly_version_e version,
+	char *header_lines,
 	int header_len,
 	char *file_path,
 	int mount_number,
@@ -238,43 +274,6 @@ int fly_response_file(
 	if (body_len == -1)
 		return -1;
 	return fly_response(c_sockfd, respool, response_code, version, header_lines, header_len, body, body_len, flag);
-}
-
-int fly_response(
-	int c_sockfd,
-	fly_pool_t *respool,
-	int response_code,
-	char *version,
-	fly_hdr_t *header_lines,
-	int header_lines_len,
-	char *body,
-	ssize_t body_len,
-	fly_flag_t flag
-){
-	http_response res_content;
-	__unused int send_result, send_len;
-	char *send_start;
-	res_content.status_line = fly_palloc(respool, fly_page_convert(sizeof(char)*FLY_STATUS_LINE_MAX));
-	if (res_content.status_line == NULL)
-		goto error;
-	sprintf(res_content.status_line,"HTTP/%s %d %s", get_version(version), response_code_from_type(response_code), fly_code_explain(response_code));
-	res_content.header_lines = fly_hdr_eles_to_string(respool, header_lines, &header_lines_len, body, body_len);
-
-	if (header_lines != NULL && res_content.header_lines == NULL){
-		fly_500_error(c_sockfd, respool, version);
-		goto error;
-	}
-
-	res_content.header_lines_len = header_lines_len;
-	res_content.body = body;
-	res_content.body_len = body_len;
-
-	send_start = response_raw(&res_content, respool, &send_len);
-	send_result = fly_send(c_sockfd, send_start, send_len, 0);
-
-	return 0;
-error:
-	return -1;
 }
 
 int fly_response_release(fly_pool_t *respool)

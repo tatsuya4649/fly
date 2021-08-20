@@ -38,13 +38,12 @@ struct fly_hdr{
 };
 /* entry point of all header */
 typedef struct fly_hdr fly_hdr_e;
-
-#define fly_name_hdr_gap()		" : "
+#define fly_name_hdr_gap()		": "
 #define FLY_HEADER_VALUE_MAX	(FLY_HEADER_LINE_MAX-FLY_HEADER_NAME_MAX-strlen(fly_name_hdr_gap()))
 
 extern fly_hdr_e fly_init_header;
-int fly_hdr_init(void);
-int fly_hdr_release(void);
+//int fly_hdr_init(void);
+//int fly_hdr_release(void);
 
 int fly_register_header(
 	fly_hdr_name *,
@@ -66,6 +65,27 @@ int fly_connection_keep_alive_header(fly_hdr_value *value_field,__unused fly_tri
 #define FLY_NAME	"fly-server"
 #define fly_server_name()	(FLY_NAME)
 
-char **fly_hdr_eles_to_string(fly_pool_t *pool, fly_hdr_t *elems, int *header_len, char *body, int body_len);S
+char **fly_hdr_eles_to_string(fly_pool_t *pool, fly_hdr_t *elems, int *header_len, char *body, int body_len);
+
+#define FLY_HEADER_POOL_PAGESIZE		2
+struct fly_hdr_chain{
+	char *name;
+	char *value;
+	struct fly_hdr_chain *next;
+};
+struct fly_hdr_chain_info{
+	fly_pool_t *pool;
+	struct fly_hdr_chain *entry;
+	struct fly_hdr_chain *last;
+	unsigned chain_length;
+};
+typedef struct fly_hdr_chain fly_hdr_c;
+typedef struct fly_hdr_chain_info fly_hdr_ci;
+
+fly_hdr_ci *fly_header_init(void);
+int fly_header_release(fly_hdr_ci *info);
+int fly_header_add(fly_hdr_ci *chain_info, char *name, char *value);
+int fly_header_delete(fly_hdr_ci *chain_info, char *name);
+char *fly_header_from_chain(fly_hdr_ci *chain_info);
 
 #endif

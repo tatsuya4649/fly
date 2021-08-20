@@ -28,8 +28,8 @@ typedef struct fly_pool_block fly_pool_b;
 typedef enum fly_pool_size fly_pool_e;
 
 #define FLY_DEFAULT_ALLOC_PAGESIZE			100
-#define fly_byte_convert(size)		(sysconf(_SC_PAGESIZE)*(size))
-#define fly_page_convert(size)		(size/sysconf(_SC_PAGESIZE) + (size%sysconf(_SC_PAGESIZE) ? 1 : 0))
+#define fly_byte_convert(page)		(sysconf(_SC_PAGESIZE)*(page))
+#define fly_page_convert(byte)		(byte/sysconf(_SC_PAGESIZE) + (byte%sysconf(_SC_PAGESIZE) ? 1 : 0))
 #define fly_max_size(size)			(10*(size))
 
 #define fly_align_size()				(sizeof(unsigned long))

@@ -7,4 +7,7 @@
 
 #define __unused	__attribute__((unused))
 
+#define CRLF					"\r\n"
+#define CRLF_LENGTH				(strlen(CRLF))
+
 #endif

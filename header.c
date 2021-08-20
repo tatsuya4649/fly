@@ -4,63 +4,62 @@
 #include <stdlib.h>
 #include "header.h"
 
-
 fly_hdr_e fly_init_header;
-int fly_hdr_init(void)
-{
-	fly_init_header.pool = fly_create_pool(FLY_REGISTER_HEADER_POOL_SIZE);
-	if (fly_init_header.pool == NULL)
-		return -1;
-	fly_init_header.entry = NULL;
-	return 0;
-}
-int fly_hdr_release(void)
-{
-	return fly_delete_pool(fly_init_header.pool);
-}
-
-int fly_register_header(
-	fly_hdr_name *name,
-	fly_header_trigger *trig
-){
-	fly_hdr_t *reg;
-	fly_hdr_t *elem;
-
-	if (strlen(name) > FLY_HEADER_NAME_MAX)
-		return -1;
-	reg = fly_palloc(fly_init_header.pool, fly_page_convert(sizeof(fly_hdr_t)));
-	if (reg == NULL)
-		return -1;
-
-	strcpy(reg->name, name);
-	reg->trig = trig;
-	reg->next = NULL;
-
-	if (fly_init_header.entry == NULL){
-		fly_init_header.entry = reg;
-	}else{
-		for (elem=fly_init_header.entry; elem->next!=NULL; elem=elem->next)
-			;
-		elem->next = reg;
-	}
-	return 0;
-}
-
-int fly_unregister_header(fly_hdr_name *name)
-{
-	fly_hdr_t *elem;
-	fly_hdr_t *prev;
-
-	if (strlen(name) > FLY_HEADER_NAME_MAX)
-		return -1;
-	for (elem=fly_init_header.entry; elem->next!=NULL; elem=elem->next){
-		if (strcmp(elem->name, name) == 0){
-			prev->next = elem->next;
-		}
-		prev = elem;
-	}
-	return -1;
-}
+//int fly_hdr_init(void)
+//{
+//	fly_init_header.pool = fly_create_pool(FLY_REGISTER_HEADER_POOL_SIZE);
+//	if (fly_init_header.pool == NULL)
+//		return -1;
+//	fly_init_header.entry = NULL;
+//	return 0;
+//}
+//int fly_hdr_release(void)
+//{
+//	return fly_delete_pool(fly_init_header.pool);
+//}
+//
+//int fly_register_header(
+//	fly_hdr_name *name,
+//	fly_header_trigger *trig
+//){
+//	fly_hdr_t *reg;
+//	fly_hdr_t *elem;
+//
+//	if (strlen(name) > FLY_HEADER_NAME_MAX)
+//		return -1;
+//	reg = fly_palloc(fly_init_header.pool, fly_page_convert(sizeof(fly_hdr_t)));
+//	if (reg == NULL)
+//		return -1;
+//
+//	strcpy(reg->name, name);
+//	reg->trig = trig;
+//	reg->next = NULL;
+//
+//	if (fly_init_header.entry == NULL){
+//		fly_init_header.entry = reg;
+//	}else{
+//		for (elem=fly_init_header.entry; elem->next!=NULL; elem=elem->next)
+//			;
+//		elem->next = reg;
+//	}
+//	return 0;
+//}
+//
+//int fly_unregister_header(fly_hdr_name *name)
+//{
+//	fly_hdr_t *elem;
+//	fly_hdr_t *prev;
+//
+//	if (strlen(name) > FLY_HEADER_NAME_MAX)
+//		return -1;
+//	for (elem=fly_init_header.entry; elem->next!=NULL; elem=elem->next){
+//		if (strcmp(elem->name, name) == 0){
+//			prev->next = elem->next;
+//		}
+//		prev = elem;
+//	}
+//	return -1;
+//}
 
 int fly_date_header(fly_hdr_value *value_field, __attribute__((unused)) fly_trig_data *data)
 {
@@ -168,4 +167,113 @@ char **fly_hdr_eles_to_string(
 	results[i] = NULL;
 	*header_len = i;
 	return results;
+}
+
+fly_hdr_ci *fly_header_init(void)
+{
+	fly_pool_t *pool = fly_create_pool(FLY_HEADER_POOL_PAGESIZE);
+	if (pool == NULL)
+		return NULL;
+
+	fly_hdr_ci *chain_info;
+	chain_info = fly_pballoc(pool, sizeof(fly_hdr_ci));
+	chain_info->pool = pool;
+	chain_info->entry = NULL;
+	chain_info->last = NULL;
+	chain_info->chain_length = 0;
+	return chain_info;
+}
+
+int fly_header_release(fly_hdr_ci *info)
+{
+	return fly_delete_pool(info->pool);
+}
+
+int fly_header_add(fly_hdr_ci *chain_info, char *name, char *value)
+{
+	fly_hdr_c *new_chain;
+	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
+	if (new_chain == NULL)
+		return -1;
+	new_chain->name = name;
+	new_chain->value = value;
+	new_chain->next = NULL;
+	if (chain_info->chain_length == 0)
+		chain_info->entry = new_chain;
+	else
+		chain_info->last->next = new_chain;
+	chain_info->last = new_chain;
+	chain_info->chain_length++;
+	return 0;
+}
+
+int fly_header_delete(fly_hdr_ci *chain_info, char *name)
+{
+	if (chain_info->entry == NULL)
+		return 0;
+
+	fly_hdr_c *prev = NULL;
+	for (fly_hdr_c *chain=chain_info->entry; chain!=NULL; chain=chain->next){
+		if (strcmp(chain->name, name) == 0){
+			if (prev != NULL)
+				prev->next = chain->next;
+			chain_info->chain_length--;
+			return 0;
+		}
+		prev = chain;
+	}
+	return -1;
+}
+
+int fly_strcpy(char *dist, char *src, char *end)
+{
+	while (*src!='\0'){
+		*dist++ = *src++;
+		if (dist >= end)
+			return -1;
+	}
+	return 0;
+}
+
+char *fly_chain_string(char *buffer, fly_hdr_c *chain, char *ebuffer)
+{
+	char *ptr = buffer;
+	if (ptr == NULL)
+		return NULL;
+	
+	if (fly_strcpy(ptr, chain->name, ebuffer) == -1)
+		return NULL;
+	ptr += strlen(chain->name);
+	if (fly_strcpy(ptr, fly_name_hdr_gap(), ebuffer) == -1)
+		return NULL;
+	ptr += strlen(fly_name_hdr_gap());
+	if (fly_strcpy(ptr, chain->value, ebuffer) == -1)
+		return NULL;
+	ptr += strlen(chain->value);
+	if (fly_strcpy(ptr, CRLF, ebuffer) == -1)
+		return NULL;
+	ptr += CRLF_LENGTH;
+	/* next header point */
+	return ptr;
+}
+
+char *fly_header_from_chain(fly_hdr_ci *chain_info)
+{
+	if (chain_info->entry == NULL)
+		return NULL;
+	
+	char *chain_str;
+	char *ptr;
+
+	chain_str= fly_palloc(chain_info->pool, FLY_HEADER_POOL_PAGESIZE);
+	if (chain_str == NULL)
+		return NULL;
+
+	ptr = chain_str;
+	for (fly_hdr_c *c=chain_info->entry; c!=NULL; c=c->next){
+		ptr = fly_chain_string(ptr, c, chain_str+ (int) fly_byte_convert(FLY_HEADER_POOL_PAGESIZE));
+		if (ptr == NULL)
+			return NULL;
+	}
+	return chain_str;
 }

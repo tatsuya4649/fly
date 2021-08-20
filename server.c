@@ -25,7 +25,7 @@
 void sigint_handler(__unused int signo)
 {
     fprintf(stderr, "Interrupt now (Ctrl+C)...");
-	fly_hdr_release();
+	//fly_hdr_release();
     exit(0);
 }
 
@@ -68,13 +68,13 @@ http_method *match_method(char *method_name)
     return NULL;
 }
 
-http_version *match_version(char *version)
+http_version_t *match_version(char *version)
 {
     /* version name should be upper */
     for (char *n=version; *n!='\0'; n++)
         *n = toupper((int) *n);
 
-    for (http_version *ver=versions; ver->full!=NULL; ver++){
+    for (http_version_t *ver=versions; ver->full!=NULL; ver++){
         if (strcmp(version, ver->full) == 0)
             return ver;
     }
@@ -98,75 +98,69 @@ int fly_headers_length(fly_hdr_t *hdrs)
 		i++;
 	return i;
 }
-fly_hdr_t *fly_response_err(fly_pool_t *pool)
-{
-	fly_hdr_t *headers;
-	headers = fly_pballoc(pool, sizeof(fly_hdr_t));
-	strcpy(headers->name, "connection");
-	headers->trig = fly_connection_close_header;
-	headers->next = NULL;
-	return headers;
-}
-void nothing_uri(int c_sock)
-{
-	fly_pool_t *respool;
-	fly_hdr_t *headers;
 
-	respool = fly_response_init();
-	headers = fly_response_err(respool);
-    fly_response(
-		c_sock,
-		respool,
-		_400,
-		NULL,
-		headers,
-		fly_headers_length(headers),
-		fly_code_explain(_400),
-		strlen(fly_code_explain(_400))	
-	);
-	fly_response_release(respool);
-}
-void unmatch_method(int c_sock)
-{
-	fly_pool_t *respool;
-	fly_hdr_t *headers;
+//void nothing_uri(int c_sock)
+//{
+//	fly_pool_t *respool;
+//	fly_hdr_t *headers;
+//
+//	respool = fly_response_init();
+//	headers = fly_response_err(respool);
+//    fly_response(
+//		c_sock,
+//		respool,
+//		_400,
+//		NULL,
+//		headers,
+//		fly_headers_length(headers),
+//		fly_code_explain(_400),
+//		strlen(fly_code_explain(_400)),
+//		0
+//	);
+//	fly_response_release(respool);
+//}
+//void unmatch_method(int c_sock)
+//{
+//	fly_pool_t *respool;
+//	fly_hdr_t *headers;
+//
+//	respool = fly_response_init();
+//	headers = fly_response_err(respool);
+//    fly_response(
+//		c_sock,
+//		respool,
+//		_400,
+//		NULL,
+//		headers,
+//		fly_headers_length(headers),
+//		NULL,
+//		0,
+//		0
+//	);
+//	fly_response_release(respool);
+//}
+//void no_version(int c_sock)
+//{
+//	fly_pool_t *respool;
+//	fly_hdr_t *headers;
+//
+//	respool = fly_response_init();
+//	headers = fly_response_err(respool);
+//    fly_response(
+//		c_sock,
+//		respool,
+//		_400,
+//		NULL,
+//		headers,
+//		fly_headers_length(headers),
+//		NULL,
+//		0,
+//		0
+//	);
+//	fly_response_release(respool);
+//}
 
-	respool = fly_response_init();
-	headers = fly_response_err(respool);
-    fly_response(
-		c_sock,
-		respool,
-		_400,
-		NULL,
-		headers,
-		fly_headers_length(headers),
-		NULL,
-		0
-	);
-	fly_response_release(respool);
-}
-
-void no_version(int c_sock)
-{
-	fly_pool_t *respool;
-	fly_hdr_t *headers;
-
-	respool = fly_response_init();
-	headers = fly_response_err(respool);
-    fly_response(
-		c_sock,
-		respool,
-		_400,
-		NULL,
-		headers,
-		fly_headers_length(headers),
-		NULL,
-		0
-	);
-	fly_response_release(respool);
-}
-
-int parse_request_line(fly_pool_t *pool, int c_sock, char *request_line, request_info *req)
+int parse_request_line(fly_pool_t *pool, __unused int c_sock, char *request_line, request_info *req)
 {
     char *method;
     char *space;
@@ -174,7 +168,7 @@ int parse_request_line(fly_pool_t *pool, int c_sock, char *request_line, request
     space = strstr(request_line, " ");
     /* method only => response 400 Bad Request */
     if (space == NULL){
-        nothing_uri(c_sock);
+        //nothing_uri(c_sock);
         return -1;
     }
     method = fly_palloc(pool, fly_page_convert((space-request_line)+1));
@@ -194,7 +188,7 @@ int parse_request_line(fly_pool_t *pool, int c_sock, char *request_line, request
     char *next_space = strstr(uri_start," ");
 	/* no version */
 	if (next_space == NULL){
-		no_version(c_sock);
+		//no_version(c_sock);
 		return -1;
 	}
     req->uri = fly_palloc(pool, fly_page_convert(next_space-uri_start+1));
@@ -226,7 +220,7 @@ http_request *alloc_request(fly_pool_t *pool)
     /* request content */
     http_request *req = fly_palloc(pool, fly_page_convert(sizeof(http_request)));
     request_info *reqinfo = fly_palloc(pool, fly_page_convert(sizeof(request_info)));
-    reqinfo->version = fly_palloc(pool, fly_page_convert(sizeof(http_version)));
+    reqinfo->version = fly_palloc(pool, fly_page_convert(sizeof(http_version_t)));
     req->rinfo = reqinfo;
     return req;
 }
@@ -371,18 +365,6 @@ int main()
         return -1;
     }
 
-	/* register builtin header setting */
-	if (fly_hdr_init() == -1){
-		perror("fly_hdr_init");
-		return -1;
-	}
-	fly_hdr_t builtin[] = {
-		{"Date", fly_date_header, NULL},
-		{"Content-Length", fly_content_length_header, NULL},
-	};
-	for (int i=0; i<(int) (sizeof(builtin)/sizeof(fly_hdr_t));i++)
-		fly_register_header(builtin[i].name, builtin[i].trig);
-
 	/* mount point setting */
 	if (fly_fs_init() == -1){
 		perror("fly_fs_init");
@@ -455,7 +437,7 @@ int main()
         /* get header */
         char *header_lines = get_header_lines_point(buffer);
         if (header_operation(pool, header_lines, req) == -1){
-			fly_500_error(c_sock, pool, req->rinfo->version->full);
+			fly_500_error(c_sock, pool, req->rinfo->version->type);
 			goto error;
 		}
         /* get body */
@@ -463,9 +445,29 @@ int main()
         req->body = body;
         printf("BODY: %s\n",body);
 
-        //char *res = "HTTP/1.1 200 OK\n\nHello Fly!";
-		char *res = fly_from_path(pool, XS, FLY_FS_INIT_NUMBER, "test");
-		fly_response_file(c_sock, pool, _200, "1.1", , , "test", FLY_FS_INIT_NUMBER, _XS);
+		__unused char *res = fly_from_path(pool, XS, FLY_FS_INIT_NUMBER, "test");
+
+		__unused fly_hdr_ci *ci = fly_header_init();
+		if (fly_header_add(ci, "Content-Length", "11") == -1)
+			goto error;
+		if (fly_header_add(ci, "Connection", "close") == -1)
+			goto error;
+		printf("%s\n",fly_header_from_chain(ci));
+		char *header = fly_header_from_chain(ci);
+		fly_response(
+			c_sock,
+			pool,
+			_200,
+			V1_1,
+			header,
+			strlen(header),
+			"Hello World",
+			strlen("Hello World"),
+			0
+		);
+
+		fly_header_release(ci);
+
 		fly_delete_pool(pool);
         close(c_sock);
 end_connection:
@@ -479,7 +481,6 @@ error:
     }
 
     /* end of server */
-	fly_hdr_release();
 	fly_fs_release();
     close(sockfd);
     return 0;
