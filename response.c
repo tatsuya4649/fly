@@ -6,6 +6,7 @@
 #include "header.h"
 #include "alloc.h"
 #include "fs.h"
+#include "math.h"
 
 response_code responses[] = {
 	/* 1xx Info */
@@ -144,23 +145,6 @@ static char *response_raw(http_response *res, fly_pool_t *pool, int *send_len)
 	return response_content;
 }
 
-//void response_free(char *res)
-//{
-//	free(res);
-//}
-//char *get_default_version(void)
-//{
-//	return DEFAULT_RESPONSE_VERSION;
-//}
-//
-//char *get_version(char *version)
-//{
-//	if (version == NULL){
-//		return get_default_version();
-//	}
-//	return version;
-//}
-
 char *fly_code_explain(fly_rescode_t type)
 {
 	for (response_code *res=responses; res->status_code!=-1; res++){
@@ -195,13 +179,72 @@ int fly_send(int c_sockfd, char *buffer, int send_len, int flag)
 	return 0;
 }
 
-void fly_500_error(int c_sockfd, fly_pool_t *pool, fly_version_e version)
+void __fly_400_error(int c_sockfd, fly_version_e version)
 {
-	char *status_line = fly_palloc(pool, fly_page_convert(FLY_STATUS_LINE_MAX));
+	fly_pool_t *respool;
+	fly_hdr_ci *ci;
+	char *contlen_str;
+	char *header;
+	int contlen = strlen(fly_code_explain(_400));
+
+	ci = fly_header_init();
+	respool = fly_response_init();
+
+	contlen_str = fly_pballoc(ci->pool, fly_number_digits(contlen)+1);
+	sprintf(contlen_str, "%d", contlen);
+	if (fly_header_add(ci, "Content-Length", contlen_str) == -1)
+		goto error;
+	if (fly_header_add(ci, "Connection", "close") == -1)
+		goto error;
+
+	header = fly_header_from_chain(ci);
+    if (fly_response(
+		c_sockfd,
+		respool,
+		_400,
+		version,
+		header,
+		strlen(header),
+		fly_code_explain(_400),
+		strlen(fly_code_explain(_400)),
+		0
+	) == -1)
+		goto error;
+	
+	fly_header_release(ci);
+	fly_response_release(respool);
+	return;
+
+error:
+	fly_500_error(c_sockfd, V1_1);
+
+	fly_header_release(ci);
+	fly_response_release(respool);
+	return;
+}
+
+#define __alias_fly_400_error		\
+	__attribute__ ((weak, alias("fly_400_error")))
+__attribute__ ((weak, alias("__fly_400_error"))) void fly_400_error(int c_sockfd, fly_version_e version);
+__alias_fly_400_error void fly_notfound_request_line(int c_sockfd, fly_version_e version);
+__alias_fly_400_error void fly_notfound_request_method(int c_sockfd, fly_version_e version);
+__alias_fly_400_error  void fly_unmatch_request_method(int c_sockfd, fly_version_e version);
+__alias_fly_400_error void fly_notfound_uri(int c_sockfd, fly_version_e version);
+__alias_fly_400_error void fly_notfound_http_version(int c_sockfd, fly_version_e version);
+__alias_fly_400_error void fly_unmatch_http_version(int c_sockfd, fly_version_e version);
+__alias_fly_400_error void fly_nonumber_http_version(int c_sockfd, fly_version_e version);
+
+void fly_500_error(int c_sockfd, fly_version_e version)
+{
+	fly_pool_t *respool;
+	char *status_line;
 	char verstr[FLY_VERSION_MAXLEN];
-	if (fly_version_str(verstr, version) == -1){
-		return;
-	}
+
+	respool = fly_response_init();
+	status_line = fly_palloc(respool, fly_page_convert(FLY_STATUS_LINE_MAX));
+	if (fly_version_str(verstr, version) == -1)
+		goto error;
+
 	sprintf(
 		status_line,
 		"%s %d %s",
@@ -210,6 +253,9 @@ void fly_500_error(int c_sockfd, fly_pool_t *pool, fly_version_e version)
 		fly_code_explain(_500)
 	);
 	fly_send(c_sockfd, status_line, strlen(status_line), 0);
+error:
+	fly_response_release(respool);
+	return;
 }
 
 fly_pool_t *fly_response_init(void)
@@ -232,16 +278,23 @@ int fly_response(
 	__unused int send_result, send_len;
 	char *send_start;
 	char verstr[FLY_VERSION_MAXLEN];
+	int rescode;
+	char *resexp;
+
 	res_content.status_line = fly_palloc(respool, fly_page_convert(sizeof(char)*FLY_STATUS_LINE_MAX));
 	if (res_content.status_line == NULL)
 		goto error;
 	if (fly_version_str(verstr,version) == -1)
 		goto error;
-	sprintf(res_content.status_line,"%s %d %s", verstr, response_code_from_type(response_code), fly_code_explain(response_code));
+	if ((rescode = response_code_from_type(response_code)) == -1)
+		goto error;
+	if ((resexp = fly_code_explain(response_code)) == NULL)
+		goto error;
+	sprintf(res_content.status_line,"%s %d %s", verstr, rescode, resexp);
 	res_content.header = header;
 
 	if (header != NULL && res_content.header == NULL){
-		fly_500_error(c_sockfd, respool, version);
+		fly_500_error(c_sockfd,  version);
 		goto error;
 	}
 

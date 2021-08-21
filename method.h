@@ -2,6 +2,8 @@
 #define _METHOD_H
 
 #include <stddef.h>
+#include <ctype.h>
+#include <string.h>
 
 enum method_type{
 	GET,
@@ -22,5 +24,6 @@ typedef struct{
 
 extern http_method methods[];
 
+http_method *fly_match_method(char *method_name);
 
 #endif

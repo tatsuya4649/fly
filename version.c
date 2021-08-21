@@ -17,3 +17,17 @@ int fly_version_str(char *buffer, fly_version_e version)
 	/* not found valid http version */
 	return -1;
 }
+
+http_version_t *fly_match_version(char *version)
+{
+    /* version name should be upper */
+    for (char *n=version; *n!='\0'; n++)
+        *n = toupper((int) *n);
+
+    for (http_version_t *ver=versions; ver->full!=NULL; ver++){
+        if (strcmp(version, ver->full) == 0)
+            return ver;
+    }
+    return NULL;
+}
+

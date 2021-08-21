@@ -79,6 +79,16 @@ typedef struct{
 } response_code;
 
 char *fly_code_explain(fly_rescode_t type);
-void fly_500_error(int c_sockfd, fly_pool_t *pool, fly_version_e version); 
+void fly_500_error(int c_sockfd, fly_version_e version); 
+
+void fly_400_error(int c_sockfd, fly_version_e version); 
+#define FLY_DEFAULT_HTTP_VERSION		V1_1
+void fly_notfound_request_line(int c_sockfd, fly_version_e version);
+void fly_notfound_request_method(int c_sockfd, fly_version_e version);
+void fly_unmatch_request_method(int c_sockfd, fly_version_e version);
+void fly_notfound_uri(int c_sockfd, fly_version_e version);
+void fly_notfound_http_version(int c_sockfd, fly_version_e version);
+void fly_unmatch_http_version(int c_sockfd, fly_version_e version);
+void fly_nonumber_http_version(int c_sockfd, fly_version_e version);
 
 #endif
