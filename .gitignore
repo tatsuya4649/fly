@@ -6,3 +6,6 @@
 /lib/
 __pycache__/
 /server
+/GPATH
+/GRTAGS
+/GTAGS
