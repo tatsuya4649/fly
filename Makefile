@@ -1,7 +1,7 @@
 CC = gcc
 CFLAG = -g3 -O0 -W -Wall -Werror -Wcast-align
 TARGET = fly
-BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o api.o test_api.o signal.o
+BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o api.o test_api.o signal.o main.o
 SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
 .PHONY: all clean lib build
 
@@ -27,7 +27,7 @@ build:	$(BUILD_FILES)
 
 lib: $(SOURCE_FILES)
 	@mkdir -p $(LIBDIR)
-	gcc -shared -fPIC -Wl,-soname,lib$(TARGET).so.$(MAJOR_VERSION) -o $(LIBDIR)/lib$(TARGET).so.$(MAJOR_VERSION).$(MINOR_VERSION).$(RELEA_VERSION) $(CFLAG) $^
+	gcc -shared -fPIC -Wl,-soname,lib$(TARGET).so.$(MAJOR_VERSION) -o $(LIBDIR)/lib$(TARGET).so.$(MAJOR_VERSION).$(MINOR_VERSION).$(RELEA_VERSION) $(CFLAG) $(filter-out main.c, $^)
 	ldconfig -n $(LIBDIR)
 
 %.o:	%.c
