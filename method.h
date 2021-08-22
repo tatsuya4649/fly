@@ -16,14 +16,17 @@ enum method_type{
 	TRACE,
 	PATCH,
 };
+typedef enum method_type fly_method_e;
 
-typedef struct{
+struct fly_http_method{
 	char *name;
 	enum method_type type;
-} http_method;
+};
+typedef struct fly_http_method fly_http_method_t;
 
-extern http_method methods[];
+extern fly_http_method_t methods[];
 
-http_method *fly_match_method(char *method_name);
+fly_http_method_t *fly_match_method_name(char *method_name);
+fly_http_method_t *fly_match_method_type(fly_method_e method);
 
 #endif

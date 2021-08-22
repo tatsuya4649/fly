@@ -3,5 +3,6 @@
 *.o
 /dist/
 /build/
+/lib/
 __pycache__/
 /server

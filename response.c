@@ -41,7 +41,7 @@ response_code responses[] = {
 char *alloc_response_content(fly_pool_t *pool,char *now,int *before,int incre)
 {
 	char *resp;
-	resp = fly_palloc(pool, fly_page_convert(*before+incre));
+	resp = fly_pballoc(pool, *before+incre);
 	if (resp != now)
 		memcpy(resp, now, *before);
 	*before += incre;
@@ -190,7 +190,7 @@ void __fly_400_error(int c_sockfd, fly_version_e version)
 	ci = fly_header_init();
 	respool = fly_response_init();
 
-	contlen_str = fly_pballoc(ci->pool, fly_number_digits(contlen)+1);
+	contlen_str = fly_pballoc(respool, fly_number_digits(contlen)+1);
 	sprintf(contlen_str, "%d", contlen);
 	if (fly_header_add(ci, "Content-Length", contlen_str) == -1)
 		goto error;
@@ -234,6 +234,10 @@ __alias_fly_400_error void fly_notfound_http_version(int c_sockfd, fly_version_e
 __alias_fly_400_error void fly_unmatch_http_version(int c_sockfd, fly_version_e version);
 __alias_fly_400_error void fly_nonumber_http_version(int c_sockfd, fly_version_e version);
 
+void fly_404_error(__unused int c_sockfd, __unused fly_version_e version)
+{
+	printf("Hello 404 Error\n");
+}
 void fly_500_error(int c_sockfd, fly_version_e version)
 {
 	fly_pool_t *respool;
@@ -266,7 +270,7 @@ fly_pool_t *fly_response_init(void)
 int fly_response(
 	int c_sockfd,
 	fly_pool_t *respool,
-	int response_code,
+	fly_rescode_t response_code,
 	fly_version_e version,
 	char *header,
 	int header_len,
@@ -281,7 +285,7 @@ int fly_response(
 	int rescode;
 	char *resexp;
 
-	res_content.status_line = fly_palloc(respool, fly_page_convert(sizeof(char)*FLY_STATUS_LINE_MAX));
+	res_content.status_line = fly_pballoc(respool, sizeof(char)*FLY_STATUS_LINE_MAX);
 	if (res_content.status_line == NULL)
 		goto error;
 	if (fly_version_str(verstr,version) == -1)
@@ -313,7 +317,7 @@ error:
 int fly_response_file(
 	int c_sockfd,
 	fly_pool_t *respool,
-	int response_code,
+	fly_rescode_t response_code,
 	fly_version_e version,
 	char *header_lines,
 	int header_len,

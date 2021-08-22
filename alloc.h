@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include "util.h"
 
 enum fly_pool_size{
 	XS,		/* max 1KB */
@@ -40,7 +41,7 @@ struct fly_pool_block{
 	void *entry;
 	void *last;
 	unsigned size;				/* byte */
-	fly_pool_b *next;
+	struct fly_pool_block *next;
 };
 
 struct fly_pool{
@@ -48,11 +49,14 @@ struct fly_pool{
 	fly_pool_t *current;	/* now pointed pool */
 	fly_pool_t *next;		/* next pool */
 	fly_pool_b *entry;		/* actual memory */
+	fly_pool_b *last_block;
+	unsigned block_size;
 	unsigned per_size;
 };
 
 
 fly_pool_t *fly_create_pool(fly_page_t size);
+fly_pool_t *fly_create_poolb(size_t size);
 int fly_delete_pool(fly_pool_t *pool);
 void *fly_palloc(fly_pool_t *pool, fly_page_t size);
 void *fly_pballoc(fly_pool_t *pool, size_t size);
