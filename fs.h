@@ -12,7 +12,9 @@ struct fly_fs{
 	int mount_number;
 	struct fly_fs *next;
 };
-
+#ifdef FLY_TEST
+extern fly_pool_t *fspool;
+#endif
 typedef struct fly_fs fly_fs_t;
 extern fly_fs_t *init_mount;
 
@@ -21,6 +23,8 @@ int fly_fs_release(void);
 int fly_fs_mount(const char *path);
 
 
+int fly_fs_isdir(const char *path);
+int fly_fs_isfile(const char *path);
 ssize_t fly_file_size(const char *path);
 int fly_mount_number(const char *path);
 char *fly_content_from_path(int mount_number, char *filepath);

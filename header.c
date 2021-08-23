@@ -250,9 +250,9 @@ char *fly_chain_string(char *buffer, fly_hdr_c *chain, char *ebuffer)
 	if (fly_strcpy(ptr, chain->value, ebuffer) == -1)
 		return NULL;
 	ptr += strlen(chain->value);
-	if (fly_strcpy(ptr, CRLF, ebuffer) == -1)
+	if (fly_strcpy(ptr, FLY_CRLF, ebuffer) == -1)
 		return NULL;
-	ptr += CRLF_LENGTH;
+	ptr += FLY_CRLF_LENGTH;
 	/* next header point */
 	return ptr;
 }
@@ -281,5 +281,5 @@ char *fly_header_from_chain(fly_hdr_ci *chain_info)
 
 char *fly_get_header_lines_ptr(char *buffer)
 {
-	return strstr(buffer, "\r\n") + CRLF_LENGTH;
+	return strstr(buffer, "\r\n") + FLY_CRLF_LENGTH;
 }

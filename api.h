@@ -17,7 +17,7 @@ typedef int fly_route(fly_request_t *request);
 typedef const char fly_path;
 struct fly_http_route{
 	fly_route *function;
-	fly_path *path;
+	fly_path *uri;
 	fly_http_method_t method;
 };
 typedef struct fly_http_route fly_route_t;
@@ -30,8 +30,7 @@ struct __fly_http_route{
 	struct __fly_http_route *next;
 	fly_route_t *route;
 };
-typedef struct __fly_http_route __fly_route_t;
-struct fly_route_reg{
+typedef struct __fly_http_route __fly_route_t; struct fly_route_reg{
 	fly_pool_t *pool;
 	unsigned regcount;
 	__fly_route_t *entry;
@@ -48,9 +47,10 @@ int fly_register_route(
 );
 
 int fly_route_init(void);
+int fly_route_release(void);
 fly_route_reg_t *fly_route_reg_init(void);
 
-int fly_register_route(fly_route_reg_t *reg, fly_route *func, fly_path *path, fly_method_e method);
+int fly_register_route(fly_route_reg_t *reg, fly_route *func, fly_path *uri, fly_method_e method);
 fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *path, fly_method_e method);
 
 #endif

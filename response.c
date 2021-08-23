@@ -81,12 +81,12 @@ char *add_cr_lf(
 		pool,
 		response_content,
 		*pos,
-		CRLF_LENGTH,
+		FLY_CRLF_LENGTH,
 		total_length,
 		incre
 	);
 	strcpy(&response_content[*pos], "\r\n");
-	*pos += CRLF_LENGTH;
+	*pos += FLY_CRLF_LENGTH;
 	return res;
 }
 

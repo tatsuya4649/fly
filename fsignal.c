@@ -1,7 +1,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include "signal.h"
+#include "fsignal.h"
 #include "fs.h"
 
 int fly_signal_init(void)
@@ -13,7 +13,7 @@ int fly_signal_init(void)
     return sigaction(SIGINT, &intact,NULL);
 }
 
-void fly_sigint_handler(__unused int signo)
+__attribute__((noreturn)) void fly_sigint_handler(__unused int signo)
 {
     fprintf(stderr, "Interrupt now (Ctrl+C)...");
 	fly_fs_release();

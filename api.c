@@ -29,7 +29,7 @@ int fly_route_release(void)
 int fly_register_route(
 	fly_route_reg_t *reg,
 	fly_route *func,
-	fly_path *path,
+	fly_path *uri,
 	fly_method_e method
 ){
 	fly_http_method_t *mtd;
@@ -49,7 +49,7 @@ int fly_register_route(
 		return -1;
 
 	route->function = func;
-	route->path = path;
+	route->uri = uri;
 	route->method = *mtd;
 
 	/* allocated wrapper register info */
@@ -69,13 +69,13 @@ int fly_register_route(
 	return 0;
 }
 
-fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *path, fly_method_e method)
+fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *uri, fly_method_e method)
 {
 	if (reg == NULL || reg->entry == NULL)
 		return NULL;
 
 	for(__fly_route_t *r=reg->entry; r!=NULL; r=r->next){
-		if (strcmp(r->route->path, path) == 0 && r->route->method.type==method)
+		if (strcmp(r->route->uri, uri) == 0 && r->route->method.type==method)
 			return r->route;
 	}
 	return NULL;

@@ -91,8 +91,11 @@ int fly_fs_release()
 int fly_mount_number(const char *path)
 {
 	fly_fs_t *now;
-	for (now=init_mount; now->next!=NULL; now=now->next){
-		if (strcmp(now->mount_path, path) == 0)
+	char rpath[FLY_PATH_MAX];
+	if (realpath(path, rpath) == NULL)
+		return -1;
+	for (now=init_mount; now!=NULL; now=now->next){
+		if (strcmp(now->mount_path, rpath) == 0)
 			return now->mount_number;
 	}
 	return -1;
@@ -101,9 +104,10 @@ int fly_mount_number(const char *path)
 int fly_join_path(char *buffer, char *join1, char *join2)
 {
 	char *ptr;
+	char result[FLY_PATH_MAX];
 	if (strlen(join1)+strlen(join2)+1 >= FLY_PATH_MAX)
 		return -1;
-	ptr = buffer;
+	ptr = result;
 	strcpy(ptr, join1);
 	ptr += strlen(join1);
 	strcpy(ptr, "/");
@@ -111,10 +115,14 @@ int fly_join_path(char *buffer, char *join1, char *join2)
 	strcpy(ptr, join2);
 	ptr += strlen(join2);
 	strcpy(ptr, "\0");
+
+	if (realpath(result, buffer) == NULL)
+		return -1;
+
 	return 0; 
 }
 
-void *fly_memory_from_size(fly_pool_t *pool, fly_pool_s size)
+__fly_static void *fly_memory_from_size(fly_pool_t *pool, fly_pool_s size)
 {
 	for (struct fly_size_bytes *sbyte=fly_sizes; sbyte->size>=0; sbyte++){
 		if (size == sbyte->size)

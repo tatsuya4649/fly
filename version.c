@@ -1,4 +1,5 @@
 #include <string.h>
+#include <stdio.h>
 #include "version.h"
 
 fly_http_version_t versions[] = {
@@ -21,8 +22,9 @@ int fly_version_str(char *buffer, fly_version_e version)
 fly_http_version_t *fly_match_version(char *version)
 {
     /* version name should be upper */
-    for (char *n=version; *n!='\0'; n++)
+    for (char *n=version; *n!='\0'; n++){
         *n = toupper((int) *n);
+	}
 
     for (fly_http_version_t *ver=versions; ver->full!=NULL; ver++){
         if (strcmp(version, ver->full) == 0)

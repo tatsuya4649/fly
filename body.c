@@ -37,6 +37,6 @@ fly_bodyc_t *fly_get_body_ptr(char *buffer)
     char *newline_point;
     newline_point = strstr(buffer, "\r\n\r\n");
     if (newline_point != NULL)
-        return newline_point + 2*CRLF_LENGTH;
+        return newline_point + 2*FLY_CRLF_LENGTH;
     return NULL;
 }

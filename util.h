@@ -10,9 +10,15 @@
 
 #define __unused	__attribute__((unused))
 
+#ifdef FLY_TEST
+#define __fly_static
+#else
+#define __fly_static			static
+#endif
+
 #define FLY_PAGESIZE			(sysconf(_SC_PAGESIZE))
-#define CRLF					"\r\n"
-#define CRLF_LENGTH				(strlen(CRLF))
+#define FLY_CRLF					"\r\n"
+#define FLY_CRLF_LENGTH				(strlen(FLY_CRLF))
 
 void fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr);
 #endif

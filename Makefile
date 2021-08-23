@@ -1,7 +1,7 @@
 CC = gcc
 CFLAG = -g3 -O0 -W -Wall -Werror -Wcast-align
 TARGET = fly
-BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o api.o test_api.o signal.o main.o
+BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o api.o test_api.o fsignal.o main.o
 SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
 .PHONY: all clean lib build test
 
@@ -14,7 +14,10 @@ LIBNAME := lib$(TARGET).so.$(MAJOR_VERSION)
 BUILDDIR := build
 TESTDIR := test
 TEST_EXEC := fly_test
-TEST_FILES := test_fly.cpp test_socket.c
+TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_api.cpp test_request.cpp
+ifdef FLY_TEST 
+MACROS := $(MACROS) -D FLY_TEST
+endif
 
 all: build
 	./$(BUILDDIR)/$(TARGET)
@@ -31,19 +34,22 @@ build:	$(BUILD_FILES)
 
 lib: $(SOURCE_FILES)
 	@mkdir -p $(LIBDIR)
-	gcc -shared -fPIC -Wl,-soname,$(LIBNAME) -o $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(CFLAG) $(filter-out main.c, $^)
-	ldconfig -n $(LIBDIR)
-	ln -s $(LIBNAME) $(LIBDIR)/lib$(TARGET).so
+	@gcc -shared $(MACROS) -fPIC -Wl,-soname,$(LIBNAME) -o $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(CFLAG) $(filter-out main.c, $^)
+	@ldconfig -n $(LIBDIR)
+	@ln -s $(LIBNAME) $(LIBDIR)/lib$(TARGET).so
 
-test: lib 
+test: clean_lib lib 
 	@mkdir -p $(TESTDIR)
-	g++ -o $(TESTDIR)/$(TEST_EXEC) $(addprefix $(TESTDIR)/, $(TEST_FILES)) -L./$(LIBDIR) -lCppUTest -lfly 
-	./$(TESTDIR)/$(TEST_EXEC)
+	@g++ -I. $(MACROS) -o $(TESTDIR)/$(TEST_EXEC) $(addprefix $(TESTDIR)/, $(TEST_FILES)) -L ./$(LIBDIR) -lgtest_main -lgtest -lgmock -lpthread -lfly 
+	@LD_LIBRARY_PATH=./lib ./$(TESTDIR)/$(TEST_EXEC)
 
 %.o:	%.c
 	gcc -c $(CFLAG) -o $@ $<
 
-clean:
-	rm -f $(BUILDDIR)/$(TARGET) $(LIBDIR)/lib$(TARGET).so* *.o
+clean_lib:
+	@rm -f $(LIBDIR)/lib$(TARGET).so*
+
+clean: clean_lib
+	rm -f $(BUILDDIR)/$(TARGET)  *.o
 	rm -f .*.swp
 	rm -f $(TESTDIR)/$(TEST_EXEC)

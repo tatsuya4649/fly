@@ -19,7 +19,7 @@
 #include "header.h"
 #include "body.h"
 #include "api.h"
-#include "signal.h"
+#include "fsignal.h"
 
 int test_function(__unused fly_request_t *request);
 
