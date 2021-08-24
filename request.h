@@ -27,14 +27,14 @@ struct fly_http_request{
 	fly_pool_t *pool;
 	fly_connect_t *connect;
 	fly_reqline_t *request_line;
-	fly_hdr_ci *headers;
+	fly_hdr_ci *header;
 	fly_body_t *body;
 	fly_buffer_t *buffer;
 };
 typedef struct fly_http_request fly_request_t;
 
 int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_line, fly_request_t *req);
-int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *headers);
+int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *header);
 
 #define FLY_REQUEST_POOL_SIZE		1
 fly_request_t *fly_request_init(void);

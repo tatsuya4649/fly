@@ -17,8 +17,9 @@
 #endif
 
 #define FLY_PAGESIZE			(sysconf(_SC_PAGESIZE))
+#define FLY_LF						'\n'
 #define FLY_CRLF					"\r\n"
 #define FLY_CRLF_LENGTH				(strlen(FLY_CRLF))
 
-void fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr);
+int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr);
 #endif

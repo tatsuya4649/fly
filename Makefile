@@ -14,7 +14,7 @@ LIBNAME := lib$(TARGET).so.$(MAJOR_VERSION)
 BUILDDIR := build
 TESTDIR := test
 TEST_EXEC := fly_test
-TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_api.cpp test_request.cpp
+TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_api.cpp test_request.cpp test_util.cpp
 ifdef FLY_TEST 
 MACROS := $(MACROS) -D FLY_TEST
 endif
