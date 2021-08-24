@@ -25,7 +25,7 @@ int fly_body_release(fly_pool_t *pool)
 
 int fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer)
 {
-	if (body == NULL)
+	if (body == NULL || buffer == NULL)
 		return -1;
 	body->body = buffer;
 	body->body_len = buffer ? strlen(buffer) : 0;
@@ -35,6 +35,9 @@ int fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer)
 fly_bodyc_t *fly_get_body_ptr(char *buffer)
 {
     char *newline_point;
+
+	if (buffer == NULL)
+		return NULL;
     newline_point = strstr(buffer, "\r\n\r\n");
     if (newline_point != NULL)
         return newline_point + 2*FLY_CRLF_LENGTH;

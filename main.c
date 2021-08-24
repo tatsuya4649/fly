@@ -102,8 +102,7 @@ int main()
         if (fly_reqheader_operation(req, header_lines) == -1){
 			fly_500_error(conn->c_sockfd, req->request_line->version->type);
 			goto error;
-		}
-        /* get body */
+		} /* get body */
 		fly_body_t *body = fly_body_init();
 		req->body = body;
         fly_bodyc_t *body_ptr = fly_get_body_ptr(req->buffer);
@@ -152,6 +151,6 @@ error:
 
     /* end of server */
 	fly_fs_release();
-    close(sockfd);
+	fly_socket_release(sockfd);
     return 0;
 }

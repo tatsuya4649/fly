@@ -7,5 +7,8 @@ extern "C"{
 #include <gtest/gtest.h>
 
 TEST(ServerTest, fly_socket_init_test){
-	EXPECT_NE(-1, fly_socket_init());
+	int sockfd;
+	sockfd = fly_socket_init();
+	EXPECT_NE(-1, sockfd);
+	EXPECT_TRUE(fly_socket_release(sockfd) != -1);
 }

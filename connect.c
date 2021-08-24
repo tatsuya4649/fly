@@ -18,12 +18,17 @@ fly_connect_t *fly_connect_init(int sockfd)
 
 int fly_connect_release(fly_connect_t *conn)
 {
+	if (conn == NULL)
+		return -1;
 	close(conn->c_sockfd);
 	return fly_delete_pool(conn->pool);
 }
 
 int fly_connect_accept(fly_connect_t *conn)
 {
+	if (conn == NULL)
+		return -1;
+
 	int c_sockfd;
 	c_sockfd = accept(conn->sockfd, (struct sockaddr *) &conn->client_addr, &conn->addrlen);
 	if (c_sockfd == -1){
