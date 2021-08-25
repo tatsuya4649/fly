@@ -3,28 +3,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include "header.h"
-
-//int fly_date_header(fly_hdr_value *value_field, __attribute__((unused)) fly_trig_data *data)
-//{
-//	time_t now;
-//	int length;
-//	now = time(NULL);
-//
-//	if (now == -1)
-//		return -1;
-//    length = strftime(
-//		value_field,
-//		DATE_FIELD_LENGTH,
-//		"%a, %d %b %Y %H:%M:%S GMT",
-//		gmtime(&now)
-//	);
-//	if (length == 0)
-//		return -1;
-//	else{
-//		value_field[length] = '\0';
-//	}
-//	return 0;
-//}
+#include "body.h"
+#include "mime.h"
 
 fly_hdr_ci *fly_header_init(void)
 {
@@ -155,4 +135,60 @@ char *fly_get_header_lines_ptr(char *buffer)
 
 	header = strstr(buffer, "\r\n") + FLY_CRLF_LENGTH;
 	return *header != '\0' ? header : NULL;
+}
+
+
+/*
+ *		Builtin Header Function
+ *
+ */
+int fly_date_header(fly_hdr_ci *ci)
+{
+	#define FLY_DATE_LENGTH			50
+	time_t now;
+	int length;
+	char value_field[FLY_DATE_LENGTH];
+	now = time(NULL);
+
+	if (now == -1)
+		return -1;
+    length = strftime(
+		value_field,
+		(size_t) FLY_DATE_LENGTH,
+		"%a, %d %b %Y %H:%M:%S GMT",
+		gmtime(&now)
+	);
+	if (length == 0)
+		return -1;
+
+	value_field[length] = '\0';
+	return fly_header_add(ci, (fly_hdr_name *) "Date", value_field);
+	#undef FLY_DATE_LENGTH
+}
+
+int fly_content_type_header(fly_hdr_ci *ci, fly_mime_e type)
+{
+	#define FLY_CONTENT_TYPE_LENGTH		100
+	fly_mime_t *mime;
+
+	mime = fly_mime_from_type(type);
+	if (mime == NULL || mime->name == NULL)
+		return -1;
+	
+	return fly_header_add(ci, (fly_hdr_name *) "Content-Type", (fly_hdr_value *) mime->name);
+	#undef FLY_CONTENT_TYPE_LENGTH
+}
+
+int fly_content_length_heaedr(fly_hdr_ci *ci, fly_body_t *body)
+{
+	#define FLY_CONTENT_LENGTH_LENGTH	100
+	char contlen_str[FLY_CONTENT_LENGTH_LENGTH];
+	if (body == NULL)
+		return -1;
+
+	if (snprintf(contlen_str, FLY_CONTENT_LENGTH_LENGTH, "%d", body->body_len) == -1)
+		return -1;
+
+	return fly_header_add(ci, (fly_hdr_name *) "Content-Length", (fly_hdr_value *) contlen_str);
+	#undef FLY_CONTENT_LENGTH_LENGTH
 }

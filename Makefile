@@ -1,7 +1,7 @@
 CC = gcc
 CFLAG = -g3 -O0 -W -Wall -Werror -Wcast-align
 TARGET = fly
-BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o api.o test_api.o fsignal.o main.o
+BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o api.o test_api.o fsignal.o main.o mime.o encode.o
 SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
 .PHONY: all clean lib build test
 

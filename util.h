@@ -21,5 +21,7 @@
 #define FLY_CRLF					"\r\n"
 #define FLY_CRLF_LENGTH				(strlen(FLY_CRLF))
 
+#define FLY_STRING_ARRAY(...)		(char *[]) {__VA_ARGS__}
+
 int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr);
 #endif

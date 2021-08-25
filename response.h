@@ -13,9 +13,22 @@ typedef int fly_flag_t;
 
 enum status_code_type{
 	/* 1xx Info */
+	_100,
+	_101,
 	/* 2xx Succes */
 	_200,
+	_201,
+	_202,
+	_203,
+	_204,
+	_205,
 	/* 3xx Redirect */
+	_300,
+	_301,
+	_302,
+	_303,
+	_304,
+	_307,
 	/* 4xx Client Error */
 	_400,
 	_401,
@@ -29,14 +42,19 @@ enum status_code_type{
 	_409,
 	_410,
 	_411,
-	_412,
 	_413,
 	_414,
 	_415,
 	_416,
 	_417,
+	_426,
 	/* 5xx Server Error */
-	_500
+	_500,
+	_501,
+	_502,
+	_503,
+	_504,
+	_505
 };
 typedef enum status_code_type fly_stcode_t;
 #define FLY_ERROR(x)		(-1*(x))
@@ -51,13 +69,6 @@ struct fly_http_response{
 
 typedef struct fly_http_response fly_response_t;
 
-
-int fly_response(
-	int c_sockfd,
-	fly_response_t *response,
-	fly_flag_t flag
-);
-
 fly_response_t *fly_response_init(void);
 int fly_response_release(fly_response_t *response);
 
@@ -65,9 +76,13 @@ typedef struct{
 	int status_code;
 	enum status_code_type type;
 	char *explain;
+	char **required_header;
 } fly_status_code;
 
 char *fly_stcode_explain(fly_stcode_t type);
+
+int fly_response( int c_sockfd, fly_response_t *response, fly_flag_t flag);
+
 void fly_500_error(int c_sockfd, fly_version_e version); 
 void fly_414_error(int c_sockfd, fly_version_e version); 
 void fly_404_error(int c_sockfd, fly_version_e version); 

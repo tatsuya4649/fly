@@ -10,32 +10,49 @@
 
 fly_status_code responses[] = {
 	/* 1xx Info */
+	{100, _100, "Continue",						NULL},
+	{101, _101, "Switching Protocols",			FLY_STRING_ARRAY("Upgrade", NULL)},
 	/* 2xx Success */
-	{200, _200, "Success"},
+	{200, _200, "OK",							NULL},
+	{201, _201, "Created",						NULL},
+	{202, _202, "Accepted",						NULL},
+	{203, _203, "Non-Authoritative Information",NULL},
+	{204, _204, "No Content",					NULL},
+	{205, _205, "Reset Content",				NULL},
 	/* 3xx Redirect */
+	{300, _300, "Multiple Choices",				NULL},
+	{301, _301, "Moved Permanently",			FLY_STRING_ARRAY("Location", NULL)},
+	{302, _302, "Found",						FLY_STRING_ARRAY("Location", NULL)},
+	{303, _303, "See Other",					FLY_STRING_ARRAY("Location", NULL)},
+	{304, _304, "Not Modified",					NULL},
+	{307, _307, "Temporary Redirect",			FLY_STRING_ARRAY("Location", NULL)},
 	/* 4xx Client Error */
-	{400, _400, "Bad Request"},
-	{401, _401, "Unauthorized"},
-	{402, _402, "Payment Required"},
-	{403, _403, "Forbidden"},
-	{404, _404, "Not Found"},
-	{405, _405, "Method Not Allowed"},
-	{406, _406, "Not Acceptable"},
-	{407, _407, "Proxy Authentication Required"},
-	{408, _408, "Request Timeout"},
-	{409, _409, "Conflict"},
-	{409, _409, "Gone"},
-	{410, _410, "Length Required"},
-	{411, _411, "Precondition Failed"},
-	{412, _412, "Precondition Failed"},
-	{413, _413, "Request Entiry Too Large"},
-	{414, _414, "Request-URI Too Long"},
-	{415, _415, "Unsupported Media Type"},
-	{416, _416, "Requested Range Not Satisfiable"},
-	{417, _417, "Expectation Failed"},
+	{400, _400, "Bad Request",					NULL},
+	{401, _401, "Unauthorized",					NULL},
+	{402, _402, "Payment Required",				NULL},
+	{403, _403, "Forbidden",					NULL},
+	{404, _404, "Not Found",					NULL},
+	{405, _405, "Method Not Allowed",			FLY_STRING_ARRAY("Allow", NULL)},
+	{406, _406, "Not Acceptable",				NULL},
+	{407, _407, "Proxy Authentication Required",NULL},
+	{408, _408, "Request Timeout",				FLY_STRING_ARRAY("Connection", NULL)},
+	{409, _409, "Conflict",						NULL},
+	{409, _410, "Gone",							NULL},
+	{410, _411, "Length Required",				NULL},
+	{413, _413, "Payload Too Large",			FLY_STRING_ARRAY("Retry-After", NULL)},
+	{414, _414, "URI Too Long",					NULL},
+	{415, _415, "Unsupported Media Type",		NULL},
+	{416, _416, "Range Not Satisfiable",		NULL},
+	{417, _417, "Expectation Failed",			NULL},
+	{426, _426, "Upgrade Required",				FLY_STRING_ARRAY("Upgrade", NULL)},
 	/* 5xx Server Error */
-	{500, _500, "Server Error"},
-	{-1, -1, NULL}
+	{500, _500, "Internal Server Error",		NULL},
+	{501, _501, "Not Implemented",				NULL},
+	{502, _502, "Bad Gateway",					NULL},
+	{503, _503, "Service Unavailable",			NULL},
+	{504, _504, "Gateway Timeout",				NULL},
+	{505, _505, "HTTP Version Not SUpported",	NULL},
+	{-1, -1, NULL, NULL}
 };
 
 fly_response_t *fly_response_init(void)
@@ -81,6 +98,55 @@ __fly_static char *__fly_update_alloc_response_content(
 		);
 	}
 	return response_content;
+}
+
+__fly_static char **__fly_stcode_required_header(fly_stcode_t type)
+{
+	for (fly_status_code *res=responses; res->status_code!=-1; res++){
+		if (res->type == type)
+			return res->required_header;
+	}
+	return NULL;
+}
+
+__fly_static int __fly_required_header(fly_hdr_ci *header, char **required_header)
+{
+	#define __FLY_FOUND			0
+	#define __FLY_NOT_FOUND		-1
+	if (required_header == NULL)
+		return __FLY_FOUND;
+
+	for (char **h=required_header; *h!=NULL; h++){
+		if (header == NULL)
+			goto not_found;
+
+		for (fly_hdr_c *e=header->entry; e!=NULL; e=e->next){
+			if (e->name != NULL && strcmp(e->name, *h) == 0)
+				continue;
+		}
+		goto not_found;
+	}
+
+	goto found;
+not_found:
+	return __FLY_NOT_FOUND;
+found:
+	return __FLY_FOUND;
+
+	#undef __FLY_FOUND
+	#undef __FLY_NOT_FOUND
+}
+
+__fly_static int __fly_response_required_header(fly_response_t *response)
+{
+	fly_stcode_t status_code = response->status_code;
+
+	char **required_header;
+
+	if ((required_header=__fly_stcode_required_header(status_code)) == NULL)
+		return -1;
+
+	return __fly_required_header(response->header, required_header);
 }
 
 __fly_static char *__fly_add_cr_lf(
@@ -314,6 +380,9 @@ int fly_response(
 	if (response == NULL)
 		goto error_500;
 	if (response->pool == NULL)
+		goto error_500;
+
+	if (__fly_response_required_header(response) == -1)
 		goto error_500;
 
 	send_start = __fly_response_raw(response, &send_len);
