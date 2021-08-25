@@ -60,7 +60,7 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	if (pool->entry == NULL)
 		pool->entry = new_block;
 	else
-		pool->last_block = new_block;
+		pool->last_block->next = new_block;
 
 	pool->block_size++;
 	pool->last_block = new_block;

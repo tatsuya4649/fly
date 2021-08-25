@@ -23,7 +23,17 @@ fly_route_reg_t *fly_route_reg_init(void)
 
 int fly_route_release(void)
 {
+	if (route_pool == NULL)
+		return -1;
+
 	return fly_delete_pool(route_pool);
+}
+int fly_route_reg_release(fly_route_reg_t *reg)
+{
+	if (reg == NULL)
+		return -1;
+
+	return fly_delete_pool(reg->pool);
 }
 
 int fly_register_route(
@@ -36,15 +46,14 @@ int fly_register_route(
 	fly_route_t *route;
 	__fly_route_t *__route;
 
-	if (route_pool == NULL)
+	if (reg->pool == NULL)
 		return -1;
-
 	/* allocated register info */
 	mtd = fly_match_method_type(method);
 	if (mtd == NULL)
 		return -1;
 	
-	route = fly_pballoc(route_pool, sizeof(fly_route_t));
+	route = fly_pballoc(reg->pool, sizeof(fly_route_t));
 	if (route == NULL)
 		return -1;
 
@@ -53,7 +62,7 @@ int fly_register_route(
 	route->method = *mtd;
 
 	/* allocated wrapper register info */
-	__route = fly_pballoc(route_pool, sizeof(__fly_route_t));
+	__route = fly_pballoc(reg->pool, sizeof(__fly_route_t));
 	if (__route == NULL)
 		return -1;
 	__route->next = NULL;

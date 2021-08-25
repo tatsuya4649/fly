@@ -18,14 +18,14 @@ fly_body_t *fly_body_init(void)
 	return body;
 }
 
-int fly_body_release(fly_pool_t *pool)
+int fly_body_release(fly_body_t *body)
 {
-	return fly_delete_pool(pool);
+	return fly_delete_pool(body->pool);
 }
 
 int fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer)
 {
-	if (body == NULL || buffer == NULL)
+	if (body == NULL)
 		return -1;
 	body->body = buffer;
 	body->body_len = buffer ? strlen(buffer) : 0;

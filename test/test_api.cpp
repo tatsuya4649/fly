@@ -21,9 +21,9 @@ TEST(APITEST, fly_route_release)
 	EXPECT_TRUE(fly_route_release() != -1);
 }
 
-int test_func(fly_request_t *request)
+fly_response_t *test_func(fly_request_t *request)
 {
-	return 0;
+	return NULL;
 }
 
 TEST(APITEST, fly_register_route)

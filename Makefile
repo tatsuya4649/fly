@@ -26,7 +26,7 @@ debug: build
 	gdb ./$(BUILDDIR)/$(TARGET)
 
 leak: build
-	valgrind --leak-check=full --show-leak-kinds=all ./$(TARGET)
+	valgrind --leak-check=full --show-leak-kinds=all ./$(BUILDDIR)/$(TARGET)
 
 build:	$(BUILD_FILES)
 	@mkdir -p $(BUILDDIR)

@@ -12,6 +12,8 @@
 #include "util.h"
 
 #define FLY_BUFSIZE			(8*FLY_PAGESIZE)
+#define FLY_REQUEST_LINE_MAX			8000
+#define FLY_REQUEST_URI_MAX				6000
 
 typedef char fly_reqlinec_t;
 typedef char fly_buffer_t;

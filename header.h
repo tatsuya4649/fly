@@ -39,6 +39,7 @@ int fly_header_release(fly_hdr_ci *info);
 int fly_header_add(fly_hdr_ci *chain_info, char *name, char *value);
 int fly_header_delete(fly_hdr_ci *chain_info, char *name);
 char *fly_header_from_chain(fly_hdr_ci *chain_info);
+size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info);
 
 char *fly_get_header_lines_ptr(char *buffer);
 

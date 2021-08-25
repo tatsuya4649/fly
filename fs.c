@@ -49,11 +49,13 @@ ssize_t fly_file_size(const char *path)
 int fly_fs_mount(const char *path)
 {
 	fly_fs_t *now;
-	if (strlen(path) > FLY_PATH_MAX)
+	if (path == NULL || strlen(path) > FLY_PATH_MAX)
 		return -1;
 
 	if (init_mount == NULL){
 		init_mount = fly_pballoc(fspool, sizeof(fly_fs_t));
+		init_mount->mount_number = 0;
+		init_mount->next = NULL;
 		if (init_mount == NULL)
 			return -1;
 		if (realpath(path, init_mount->mount_path) == NULL)
@@ -77,6 +79,7 @@ int fly_fs_mount(const char *path)
 			return -1;
 		newfs->mount_number += now->mount_number+1;
 		newfs->next = NULL;
+
 		now->next = newfs;
 	}
 	return 0;

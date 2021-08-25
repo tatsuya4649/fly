@@ -87,15 +87,15 @@ __fly_static int __fly_colon(char c)
 {
 	return (c == ':') ? 1 : 0;
 }
-__fly_static int __fly_bracket(char c)
+__unused __fly_static int __fly_bracket(char c)
 {
 	return (c == '[' || c == ']') ? 1 : 0;
 }
-__fly_static int __fly_gtlt(char c)
+__unused __fly_static int __fly_gtlt(char c)
 {
 	return (c == '<' || c == '>') ? 1 : 0;
 }
-__fly_static int __fly_equal(char c)
+__unused __fly_static int __fly_equal(char c)
 {
 	return (c == '=') ? 1 : 0;
 }
@@ -225,7 +225,7 @@ error:
 	return -1;
 }
 
-__fly_static int parse_request_line(fly_pool_t *pool, __unused int c_sock, fly_reqline_t *req)
+__fly_static int __fly_parse_request_line(fly_pool_t *pool, __unused int c_sock, fly_reqline_t *req)
 {
 	fly_reqlinec_t *request_line;
     char *method;
@@ -238,54 +238,50 @@ __fly_static int parse_request_line(fly_pool_t *pool, __unused int c_sock, fly_r
     printf("%s\n", request_line);
     space = strstr(request_line, " ");
     /* method only => response 400 Bad Request */
-    if (space == NULL){
-        fly_notfound_uri(c_sock, FLY_DEFAULT_HTTP_VERSION);
-        return -1;
-    }
+    if (space == NULL)
+        return FLY_ERROR(400);
+
     method = fly_pballoc(pool, space-request_line+1);
 	/* memory alloc error */
-	if (method == NULL){
-		return -1;
-	}
+	if (method == NULL)
+		return FLY_ERROR(500);
+
     memcpy(method, request_line, space-request_line);
     method[space-request_line] = '\0';
     req->method = fly_match_method_name(method);
 	/* no match method */
-    if (req->method == NULL){
-		fly_unmatch_request_method(c_sock, FLY_DEFAULT_HTTP_VERSION);
-        return -1;
-	}
+    if (req->method == NULL)
+        return FLY_ERROR(400);
 
     char *uri_start = space+1;
     char *next_space = strstr(uri_start," ");
-	if (next_space == NULL){
-		fly_notfound_http_version(c_sock, FLY_DEFAULT_HTTP_VERSION);
-		return -1;
-	}
+	/* not found http version */
+	if (next_space == NULL)
+        return FLY_ERROR(400);
+
+	/* too long uri */
+	if (next_space-uri_start >= FLY_REQUEST_URI_MAX)
+		return FLY_ERROR(414);
+
     req->uri.uri = fly_pballoc(pool, next_space-uri_start+1);
-	if (req->uri.uri == NULL){
-		fly_500_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
-		return -1;
-	}
+	if (req->uri.uri == NULL)
+		return FLY_ERROR(500);
+
     memcpy(req->uri.uri, space+1, next_space-uri_start);
     req->uri.uri[next_space-uri_start] = '\0';
     printf("%s\n", req->uri.uri);
 
     char *version_start = next_space+1;
     req->version = fly_match_version(version_start);
-    if (req->version == NULL){
-		/* no version */
-		fly_unmatch_http_version(c_sock, FLY_DEFAULT_HTTP_VERSION);
-		return -1;
-    }
+	/* unmatch version */
+    if (req->version == NULL)
+		return FLY_ERROR(400);
 
     printf("%s\n", req->version->full);
     char *slash_p = strchr(req->version->full,'/');
 	/* http version number not found */ 
-    if (slash_p == NULL){
-		fly_nonumber_http_version(c_sock, FLY_DEFAULT_HTTP_VERSION);
-        return -1;
-	}
+    if (slash_p == NULL)
+		return FLY_ERROR(400);
 
     req->version->number = slash_p + 1;
     printf("%s\n", req->version->number);
@@ -298,32 +294,60 @@ int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_l
     int request_line_length;
 	/* request line parse check */
 	if (__fly_parse_reqline(request_line) == -1)
-		return -1;
+		goto error_400;
 
-	if (strstr(request_line, "\r\n") == NULL){
-		fly_notfound_request_line(c_sock, FLY_DEFAULT_HTTP_VERSION);
-		return -1;
-	}
+	if (strstr(request_line, "\r\n") == NULL)
+		goto error_not_found_request_line;
+
     request_line_length = strstr(request_line, "\r\n") - request_line;
+	if (request_line_length >= FLY_REQUEST_LINE_MAX)
+		goto error_501;
+
 	req->request_line = fly_pballoc(pool, sizeof(fly_reqline_t));
     req->request_line->request_line = fly_pballoc(pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
-	if (req->request_line == NULL){
-		fly_500_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
-		return -1;
-	}
-	if (req->request_line->request_line == NULL){
-		fly_500_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
-		return -1;
-	}
+	if (req->request_line == NULL)
+		goto error_500;
+	if (req->request_line->request_line == NULL)
+		goto error_500;
+
     memcpy(req->request_line->request_line, request_line, request_line_length);
     /* get total line */
     req->request_line->request_line[request_line_length] = '\0';
     printf("Request Line: %s\n", req->request_line->request_line);
     printf("Request Line LENGTH: %ld\n", strlen(req->request_line->request_line));
-    if (parse_request_line(pool, c_sock, req->request_line) < 0){
-        return -1;
-    }
-    return 0;
+
+	switch(__fly_parse_request_line(pool, c_sock, req->request_line)){
+	case 0:
+		return 0;
+	case FLY_ERROR(400):
+		goto error_400;
+	case FLY_ERROR(414):
+		goto error_414;
+	case FLY_ERROR(500):
+		goto error_500;
+	default:
+		goto error_500;
+	}
+error_400:
+	/* Bad Request(result of Parse) */
+	fly_400_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
+	return -1;
+error_414:
+	/* URI Too Long */
+	fly_414_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
+	return -1;
+error_not_found_request_line:
+	fly_notfound_request_line(c_sock, FLY_DEFAULT_HTTP_VERSION);
+	return -1;
+error_500:
+	/* Server Error */
+	fly_500_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
+	return -1;
+error_501:
+	/* Request line Too long */
+	fly_500_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
+	return -1;
+	
 }
 
 
@@ -517,6 +541,8 @@ __fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_t *header)
 	} now;
 
 	fly_buffer_t *ptr = header;
+	if (header == NULL)
+		goto end;
 
 	now = HEADER_LINE;
 	while(1){
@@ -562,9 +588,6 @@ end:
 
 int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *header)
 {
-	if (header == NULL)
-		return -1;
-
 	fly_hdr_ci *rchain_info;
 	rchain_info = fly_header_init();
 	if (rchain_info == NULL)
