@@ -14,7 +14,7 @@ struct fly_body{
 typedef struct fly_body fly_body_t;
 
 fly_body_t *fly_body_init(void);
-int fly_body_release(fly_pool_t *pool);
+int fly_body_release(fly_body_t *body);
 int fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer);
 
 fly_bodyc_t *fly_get_body_ptr(char *buffer);

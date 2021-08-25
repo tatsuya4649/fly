@@ -21,7 +21,7 @@
 #include "api.h"
 #include "fsignal.h"
 
-int test_function(__unused fly_request_t *request);
+fly_response_t *test_function(__unused fly_request_t *request);
 
 int main()
 {
@@ -102,8 +102,7 @@ int main()
         if (fly_reqheader_operation(req, header_lines) == -1){
 			fly_500_error(conn->c_sockfd, req->request_line->version->type);
 			goto error;
-		}
-        /* get body */
+		} /* get body */
 		fly_body_t *body = fly_body_init();
 		req->body = body;
         fly_bodyc_t *body_ptr = fly_get_body_ptr(req->buffer);
@@ -111,47 +110,36 @@ int main()
 			goto error;
         printf("BODY: %s\n",req->body->body);
 
-		//__unused char *res = fly_from_path(pool, XS, FLY_FS_INIT_NUMBER, "test");
-//		__unused fly_hdr_ci *ci = fly_header_init();
-//		if (fly_header_add(ci, "Content-Length", "11") == -1)
-//			goto error;
-//		if (fly_header_add(ci, "Connection", "close") == -1)
-//			goto error;
-//		printf("%s\n",fly_header_from_chain(ci));
-//		char *header = fly_header_from_chain(ci);
-//		fly_response(
-//			conn->c_sockfd,
-//			conn->pool,
-//			_200,
-//			V1_1,
-//			header,
-//			strlen(header),
-//			"Hello World",
-//			strlen("Hello World"),
-//			0
-//		);
-//		fly_header_release(ci);
 		fly_route_t *route;
+		__unused fly_response_t *response;
 		route = fly_found_route(reg, req->request_line->uri.uri, req->request_line->method->type);
 
 		if (route == NULL)
 			fly_404_error(req->connect->c_sockfd, req->request_line->version->type);
 		else{
 			/* found route */
-			route->function(req);
+			response = route->function(req);
 		}
 
+		fly_response(req->connect->c_sockfd, response, 0);
+
+		fly_request_release(req);
 		fly_connect_release(conn);
+		fly_route_release();
 end_connection:
+		fly_request_release(req);
 		fly_connect_release(conn);
+		fly_route_release();
         continue;
 error:
+		fly_request_release(req);
 		fly_connect_release(conn);
+		fly_route_release();
         continue;
     }
 
     /* end of server */
 	fly_fs_release();
-    close(sockfd);
+	fly_socket_release(sockfd);
     return 0;
 }

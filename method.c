@@ -15,6 +15,8 @@ fly_http_method_t methods[] = {
 
 fly_http_method_t *fly_match_method_name(char *method_name)
 {
+	if (method_name == NULL)
+		return NULL;
     /* method name should be lower */
     for (char *n=method_name; *n!='\0'; n++){
         *n = (char) tolower((int) *n);

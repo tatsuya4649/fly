@@ -84,3 +84,22 @@ TEST(REQUEST, fly_request_operation)
 
 	EXPECT_TRUE(fly_request_release(req) != -1);
 }
+
+fly_buffer_t HEADERS_SUCCESS[] = "Host: localhost\r\nAccept: text/plain\r\n\r\n";
+fly_buffer_t HEADERS_NONCR[] = "Host: localhost\nAccept: text/plain\n\n";
+fly_buffer_t HEADERS_NONLF[] = "Host: localhost\rAccept: text/plain\r\r";
+fly_buffer_t HEADERS_FIRSTSPACE[] = " Host: localhost\rAccept: text/plain\r\r";
+TEST(REQUEST, fly_reqheader_operation)
+{
+	fly_request_t *req;
+	EXPECT_TRUE((req=fly_request_init()) != NULL);
+
+	/* Success */
+	EXPECT_TRUE(fly_reqheader_operation(req, HEADERS_SUCCESS) == 0);
+	/* Success(no cr) */
+	EXPECT_TRUE(fly_reqheader_operation(req, HEADERS_NONCR) == 0);
+	/* Failure(no lf) */
+	EXPECT_TRUE(fly_reqheader_operation(req, HEADERS_NONLF) == -1);
+	/* First Space */
+	EXPECT_TRUE(fly_reqheader_operation(req, HEADERS_FIRSTSPACE) == -1);
+}

@@ -34,3 +34,7 @@ int fly_socket_init(void)
 	return sockfd;
 }
 
+int fly_socket_release(int sockfd)
+{
+	return close(sockfd);
+}

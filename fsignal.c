@@ -8,6 +8,7 @@ int fly_signal_init(void)
 {
 	struct sigaction intact;
 
+	sigemptyset(&intact.sa_mask);
     intact.sa_handler = fly_sigint_handler;
     intact.sa_flags = 0;
     return sigaction(SIGINT, &intact,NULL);

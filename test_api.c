@@ -1,8 +1,8 @@
 #include "api.h"
 #include <stdio.h>
 
-int test_function(__unused fly_request_t *request)
+fly_response_t *test_function(__unused fly_request_t *request)
 {
 	printf("Hello World\n");
-	return 0;
+	return NULL;
 }

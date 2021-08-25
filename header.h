@@ -10,10 +10,10 @@ typedef char fly_hdr_name;
 #define FLY_STATUS_LINE_MAX		50
 #define FLY_HEADER_NAME_MAX		20
 #define FLY_HEADER_LINE_MAX		100
+#define FLY_HEADER_VALUE_MAX	(FLY_HEADER_LINE_MAX-FLY_HEADER_NAME_MAX-FLY_CRLF_LENGTH)
 #define FLY_HEADER_ELES_MAX		1000
 #define FLY_REQHEADER_POOL_SIZE	10 
 #define fly_name_hdr_gap()		": "
-#define FLY_HEADER_VALUE_MAX	(FLY_HEADER_LINE_MAX-FLY_HEADER_NAME_MAX-strlen(fly_name_hdr_gap()))
 
 #define FLY_NAME	"fly-server"
 #define fly_server_name()	(FLY_NAME)
@@ -39,6 +39,7 @@ int fly_header_release(fly_hdr_ci *info);
 int fly_header_add(fly_hdr_ci *chain_info, char *name, char *value);
 int fly_header_delete(fly_hdr_ci *chain_info, char *name);
 char *fly_header_from_chain(fly_hdr_ci *chain_info);
+size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info);
 
 char *fly_get_header_lines_ptr(char *buffer);
 

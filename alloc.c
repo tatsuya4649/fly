@@ -60,41 +60,11 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	if (pool->entry == NULL)
 		pool->entry = new_block;
 	else
-		pool->last_block = new_block;
+		pool->last_block->next = new_block;
 
 	pool->block_size++;
 	pool->last_block = new_block;
 	return new_block->entry;
-
-//	fly_pool_b *block;
-//	fly_pool_b *prevb = NULL;
-//
-//	for (block=pool->entry; block!=NULL; block=block->next){
-//		void *start_ptr = fly_align_ptr(block->last+1, fly_align_size());
-//		if (block->size-(start_ptr-block->entry) > (long) size){
-//			block->last = start_ptr + size;
-//			return start_ptr;
-//		}
-//		prevb = block;
-//	}
-//	fly_pool_b *new_block;
-//	new_block = fly_malloc(sizeof(fly_pool_b));
-//	if (new_block == NULL)
-//		return NULL;
-//
-//	if (fly_memalign(&new_block->entry, newbsize) != 0){
-//		fly_free(new_block);
-//		return NULL;
-//	}
-//	new_block->last = new_block->entry+size-1;
-//	new_block->size = newbsize;
-//	new_block->next = NULL;
-//	if (pool->entry == NULL)
-//		pool->entry = new_block;
-//	else
-//		prevb->next = new_block;
-//	
-//	return new_block->entry;
 }
 
 static fly_pool_t *__fly_create_pool(size_t size){

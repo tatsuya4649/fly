@@ -2,6 +2,7 @@
 #define _API_H
 
 #include "request.h"
+#include "response.h"
 #include "method.h"
 
 /*
@@ -11,7 +12,7 @@
 	success: 0
 	failure: -1
  */
-typedef int fly_route(fly_request_t *request);
+typedef fly_response_t *fly_route(fly_request_t *request);
 
 /**/
 typedef const char fly_path;
@@ -30,7 +31,8 @@ struct __fly_http_route{
 	struct __fly_http_route *next;
 	fly_route_t *route;
 };
-typedef struct __fly_http_route __fly_route_t; struct fly_route_reg{
+typedef struct __fly_http_route __fly_route_t;
+struct fly_route_reg{
 	fly_pool_t *pool;
 	unsigned regcount;
 	__fly_route_t *entry;
@@ -38,16 +40,9 @@ typedef struct __fly_http_route __fly_route_t; struct fly_route_reg{
 };
 typedef struct fly_route_reg fly_route_reg_t;
 
-/* request_line, header, body */
-int fly_register_route(
-	fly_route_reg_t *reg,
-	fly_route *func,
-	fly_path *path,
-	fly_method_e method
-);
-
 int fly_route_init(void);
 int fly_route_release(void);
+int fly_route_reg_release(fly_route_reg_t *reg);
 fly_route_reg_t *fly_route_reg_init(void);
 
 int fly_register_route(fly_route_reg_t *reg, fly_route *func, fly_path *uri, fly_method_e method);
