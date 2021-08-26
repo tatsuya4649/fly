@@ -22,7 +22,7 @@ struct fly_http_route{
 	fly_http_method_t method;
 	fly_flag_t flag;
 };
-#define FLY_ROUTE_FLAG_PYTHON			1UL << 1
+#define FLY_ROUTE_FLAG_PYTHON			1UL << 5
 typedef struct fly_http_route fly_route_t;
 
 #define FLY_ROUTE_POOL_PAGE			100
