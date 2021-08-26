@@ -20,12 +20,14 @@ struct fly_http_route{
 	fly_route *function;
 	fly_path *uri;
 	fly_http_method_t method;
+	fly_flag_t flag;
 };
+#define FLY_ROUTE_FLAG_PYTHON			1UL << 1
 typedef struct fly_http_route fly_route_t;
 
 #define FLY_ROUTE_POOL_PAGE			100
 #define FLY_ROUTE_POOL_SIZE			(FLY_PAGESIZE*FLY_ROUTE_POOO_PAGE)
-extern fly_pool_t *route_pool;
+extern fly_pool_t *fly_route_pool;
 
 struct __fly_http_route{
 	struct __fly_http_route *next;
@@ -45,7 +47,7 @@ int fly_route_release(void);
 int fly_route_reg_release(fly_route_reg_t *reg);
 fly_route_reg_t *fly_route_reg_init(void);
 
-int fly_register_route(fly_route_reg_t *reg, fly_route *func, fly_path *uri, fly_method_e method);
+int fly_register_route(fly_route_reg_t *reg, fly_route *func, fly_path *uri, fly_method_e method, fly_flag_t flag);
 fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *path, fly_method_e method);
 
 #endif

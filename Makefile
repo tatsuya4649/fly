@@ -2,7 +2,9 @@ CC = gcc
 CFLAG = -g3 -O0 -W -Wall -Werror -Wcast-align
 TARGET = fly
 BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o
+PYBUILD_FILES := pyroute.o
 SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
+PYSOURCE_FILES := $(PYBUILD_FILES:%.o=%.c)
 .PHONY: all clean lib build test
 
 MAJOR_VERSION:=1
@@ -20,6 +22,7 @@ TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_route.cpp test_re
 ifdef FLY_TEST 
 MACROS := $(MACROS) -D FLY_TEST
 endif
+PYTHON := python
 
 all: build
 	./$(BUILDDIR)/$(TARGET)
@@ -33,6 +36,10 @@ leak: build
 build:	$(BUILD_FILES)
 	@mkdir -p $(BUILDDIR)
 	gcc -o $(BUILDDIR)/$(TARGET) $^
+
+pybuild:
+	@rm -rf fly/fly*.so
+	$(PYTHON) setup.py build
 
 lib: $(SOURCE_FILES)
 	@mkdir -p $(LIBDIR)
@@ -55,3 +62,4 @@ clean: clean_lib
 	rm -f $(BUILDDIR)/$(TARGET)  *.o
 	rm -f .*.swp
 	rm -f $(TESTDIR)/$(TEST_EXEC)
+	rm -f fly/fly*.so

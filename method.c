@@ -41,3 +41,13 @@ fly_http_method_t *fly_match_method_type(fly_method_e method)
     }
     return NULL;
 }
+
+fly_method_e *fly_match_method_name_e(char *name)
+{
+	fly_http_method_t *m;
+    for (m=methods; m->name!=NULL; m++){
+        if (strcmp(name, m->name) == 0)
+            return &m->type;
+    }
+    return NULL;
+}

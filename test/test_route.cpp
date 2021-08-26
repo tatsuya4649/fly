@@ -36,10 +36,10 @@ TEST(APITEST, fly_register_route)
 	/* Success register */
 	EXPECT_TRUE(fly_register_route(reg, test_func, "/", GET) != -1);
 	/* Failure register (route_pool is NULL) */
-	old = route_pool;
-	route_pool = NULL;
+	old = fly_route_pool;
+	fly_route_pool = NULL;
 	EXPECT_TRUE(fly_route_release() == -1);
-	route_pool = old;
+	fly_route_pool = old;
 
 	EXPECT_TRUE(fly_route_release() != -1);
 }

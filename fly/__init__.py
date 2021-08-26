@@ -3,7 +3,7 @@ import os
 sys.path.append(
 	os.path.abspath(os.path.dirname(__file__))
 )
-from fly_route import FlyRoute
+from route import FlyRoute
 
 __all__ = [
 	FlyRoute.__name__,
