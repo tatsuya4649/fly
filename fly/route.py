@@ -1,5 +1,5 @@
 
-from fly_route import _fly_route
+from _fly_route import _fly_route
 
 
 class FlyRoute(_fly_route):
@@ -10,7 +10,7 @@ class FlyRoute(_fly_route):
 	@property
 	def routes(self):
 		return self._routes
-
+	
 	def register_route(self, uri, func, method):
 		super().register_route(*(uri, method))
 

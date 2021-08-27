@@ -95,7 +95,7 @@ static PyModuleDef __pyfly_route_module = {
 	.m_size = -1,
 };
 
-PyMODINIT_FUNC PyInit_fly_route(void)
+PyMODINIT_FUNC PyInit__fly_route(void)
 {
 	PyObject *m;
 	if (PyType_Ready(&__pyfly_route_type) < 0)
