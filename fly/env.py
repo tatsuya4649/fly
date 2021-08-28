@@ -79,3 +79,11 @@ class FlyEnv:
 	@property
 	def workers(self):
 		return self._envdict["workers"] if "workers" in self._envdict and self._envdict["workers"] else FlyEnv._FLY_DEFAULT_WORKERS
+
+	@workers.setter
+	def workers(self, value):
+		if not isinstance(value, int) and value is not None:
+			raise TypeError(
+				"workers must be str type or None."
+			)
+		self._envdict["workers"] = value

@@ -19,6 +19,13 @@ server = Extension(
 	libraries=["fly"],
 	runtime_library_dirs=["./lib"],
 )
+signal = Extension(
+	name="_fly_signal",
+	sources=["pysignal.c"],
+	library_dirs=["./lib"],
+	libraries=["fly"],
+	runtime_library_dirs=["./lib"],
+)
 
 setup(
 	name="fly",
@@ -27,5 +34,6 @@ setup(
 	ext_modules = [
 		route,
 		server,
+		signal,
 	],
 )

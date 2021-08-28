@@ -6,6 +6,7 @@
 #include <errno.h>
 #include "fs.h"
 #include "alloc.h"
+#include "err.h"
 
 fly_fs_t *init_mount;
 fly_pool_t *fspool;
@@ -50,7 +51,7 @@ int fly_fs_mount(const char *path)
 {
 	fly_fs_t *now;
 	if (path == NULL || strlen(path) > FLY_PATH_MAX)
-		return -1;
+		return FLY_EARG;
 
 	if (init_mount == NULL){
 		init_mount = fly_pballoc(fspool, sizeof(fly_fs_t));
@@ -85,10 +86,11 @@ int fly_fs_mount(const char *path)
 	return 0;
 }
 
-int fly_fs_release()
+int fly_fs_release(void)
 {
-	fly_delete_pool(fspool);
-	return 0;
+	if (fspool == NULL)
+		return 0;
+	return fly_delete_pool(fspool);
 }
 
 int fly_mount_number(const char *path)
@@ -96,12 +98,13 @@ int fly_mount_number(const char *path)
 	fly_fs_t *now;
 	char rpath[FLY_PATH_MAX];
 	if (realpath(path, rpath) == NULL)
-		return -1;
+		return FLY_ERROR(errno);
+
 	for (now=init_mount; now!=NULL; now=now->next){
 		if (strcmp(now->mount_path, rpath) == 0)
 			return now->mount_number;
 	}
-	return -1;
+	return FLY_ENOTFOUND;
 }
 
 int fly_join_path(char *buffer, char *join1, char *join2)

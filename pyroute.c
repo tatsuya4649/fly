@@ -1,11 +1,5 @@
 #include "pyroute.h"
 
-struct __pyfly_route{
-	PyObject_HEAD
-	fly_route_reg_t *reg;
-};
-typedef struct __pyfly_route __pyfly_route_t;
-
 static int __pyfly_route_traverse(__pyfly_route_t *self, visitproc visit, void *arg)
 {
 	return 0;
