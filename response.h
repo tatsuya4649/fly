@@ -9,7 +9,7 @@
 #define FLY_RESPONSE_POOL_PAGE		100
 #define DEFAULT_RESPONSE_VERSION			"1.1"
 
-typedef int fly_flag_t;
+typedef unsigned long long fly_flag_t;
 
 enum status_code_type{
 	/* 1xx Info */

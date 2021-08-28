@@ -18,7 +18,7 @@
 #include "request.h"
 #include "header.h"
 #include "body.h"
-#include "api.h"
+#include "route.h"
 #include "fsignal.h"
 
 fly_response_t *test_function(__unused fly_request_t *request);
@@ -59,7 +59,7 @@ int main()
 		return -1;
 	}
 	/* register route */
-	if (fly_register_route(reg, test_function, "/", GET) == -1){
+	if (fly_register_route(reg, test_function, "/", GET, 0) == -1){
 		perror("fly_register_route");
 		return -1;
 	}
@@ -118,7 +118,8 @@ int main()
 			fly_404_error(req->connect->c_sockfd, req->request_line->version->type);
 		else{
 			/* found route */
-			response = route->function(req);
+			if (!(route->flag & FLY_ROUTE_FLAG_PYTHON))
+				response = route->function(req);
 		}
 
 		fly_response(req->connect->c_sockfd, response, 0);

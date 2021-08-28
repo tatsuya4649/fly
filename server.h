@@ -7,7 +7,7 @@
 
 
 #define FLY_SOCKET_OPTION		1
-int fly_socket_init(void);
+int fly_socket_init(char *host, int port, int ip_v);
 int fly_socket_release(int sockfd);
 
 #endif
