@@ -14,8 +14,8 @@ class FlyMethod(Enum):
 class Fly(FlySignal, FlyFs, _fly_server):
     def __init__(
         self,
-        port=None,
         host=None,
+        port=None,
         root=".",
         workers=None,
     ):
@@ -23,7 +23,7 @@ class Fly(FlySignal, FlyFs, _fly_server):
         FlyFs.__init__(self)
         self._env = FlyEnv()
         self._env.port = port
-        self._env.host = port
+        self._env.host = host
         self._env.workers = workers
         self._port = self._env.port
         self._host = self._env.host
@@ -35,7 +35,6 @@ class Fly(FlySignal, FlyFs, _fly_server):
             host=self._env.host,
             port=self._env.port,
             ip_v=self._env.ip_v,
-            mounts=self.mounts,
         )
         self._route = FlyRoute()
         self._root = os.path.abspath(root)
@@ -76,13 +75,3 @@ class Fly(FlySignal, FlyFs, _fly_server):
         print(f"    \033[1m*\033[0m Mount paths ({','.join(self.mounts)})", file=sys.stderr)
         print("\n", file=sys.stderr)
         super().run(self._route)
-	
-if __name__ == "__main__":
-    print(Fly.__mro__)
-    fly = Fly()
-
-    @fly.get("/")
-    def a():
-        print("a")
-	
-    fly.run()

@@ -17,7 +17,6 @@ static void __pyfly_server_dealloc(__pyfly_server_t *self)
 
 static PyObject *__pyfly_server_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
-	printf("_server_new\n");
 	__pyfly_server_t *self;
 	self = (__pyfly_server_t *) type->tp_alloc(type, 0);
 	if (self != NULL){
@@ -30,42 +29,58 @@ static int __pyfly_server_init(__pyfly_server_t *self, PyObject *args, PyObject 
 {
 	char *host;
 	int port, ip_v, sockfd;
-	PyObject *mounts;
-	int mounts_size;
-	static char *kwlist[] = { "host", "port", "ip_v", "mounts", NULL};
-	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "siiO", kwlist, &host, &port, &ip_v, &mounts))
+	static char *kwlist[] = { "host", "port", "ip_v", NULL};
+	char error_buf[FLY_ERR_BUFLEN];
+
+	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sii", kwlist, &host, &port, &ip_v))
 		return -1;
 	
 	/* Fs Mount */
 	if (fly_fs_init() < 0)
 		return -1;
-	if (!mounts)
-		return -1;
 
-	if (!PyList_Check(mounts)){
-		PyErr_SetString(PyExc_TypeError, "mounts must be list of string.");
-		return -1;
-	}
-	Py_INCREF(mounts);
-	mounts_size = PyList_Size(mounts);
-
-	for (int i=0; i<mounts_size; i++){
-		PyObject *path_obj = PyList_GetItem(mounts, i);
-		if (path_obj == NULL)
-			return -1;
-
-		if (!PyUnicode_Check(path_obj)){
-			PyErr_SetString(PyExc_TypeError, "mounts must be list of string.");
-			return -1;
-		}
-		if (fly_fs_mount(PyUnicode_AsUTF8(path_obj)) == -1)
-			return -1;
-	}
-
-	Py_DECREF(mounts);
 	/* Socket */
-	if ((sockfd = fly_socket_init(host, port, ip_v)) == -1)
+	sockfd = fly_socket_init(host, port, ip_v);
+	switch(sockfd){
+	case FLY_EMAKESOCK:
+		PyErr_Format(PyExc_ValueError, "can't make socket: (%s:%d)", host, port);
+		self->sockfd = -1;
 		return -1;
+	case FLY_EBINDSOCK:
+		PyErr_Format(PyExc_ValueError, "can't bind socket: (%s:%d)", host, port);
+		self->sockfd = -1;
+		return -1;
+	case FLY_EBINDSOCK_ACCESS:
+		PyErr_Format(PyExc_ValueError, "can't bind socket(%s): (%s:%d)", strerror_r(EACCES, error_buf, FLY_ERR_BUFLEN), host, port);
+		self->sockfd = -1;
+		return -1;
+	case FLY_EBINDSOCK_ADDRINUSE:
+		PyErr_Format(PyExc_ValueError, "can't bind socket(%s): (%s:%d)", strerror_r(EADDRINUSE, error_buf, FLY_ERR_BUFLEN), host, port);
+		self->sockfd = -1;
+		return -1;
+	case FLY_EBINDSOCK_BADF:
+		PyErr_Format(PyExc_ValueError, "can't bind socket(%s): (%s:%d)", strerror_r(EBADF, error_buf, FLY_ERR_BUFLEN), host, port);
+		self->sockfd = -1;
+		return -1;
+	case FLY_EBINDSOCK_INVAL:
+		PyErr_Format(PyExc_ValueError, "can't bind socket(%s): (%s:%d)", strerror_r(EINVAL, error_buf, FLY_ERR_BUFLEN), host, port);
+		self->sockfd = -1;
+		return -1;
+	case FLY_EBINDSOCK_NOTSOCK:
+		PyErr_Format(PyExc_ValueError, "can't bind socket(%s): (%s:%d)", strerror_r(ENOTSOCK, error_buf, FLY_ERR_BUFLEN), host, port);
+		self->sockfd = -1;
+		return -1;
+	case FLY_ELISTSOCK:
+		PyErr_Format(PyExc_ValueError, "can't listen path: (%s:%s)", host, port);
+		self->sockfd = -1;
+		return -1;
+	case FLY_EUNKNOWN_IP:
+		PyErr_Format(PyExc_ValueError, "unknown ip version: (%s)", host);
+		self->sockfd = -1;
+		return -1;
+	default:
+		break;
+	}
 	self->sockfd = sockfd;
 
 	return 0;
@@ -183,7 +198,7 @@ static PyTypeObject __pyfly_server_type = {
 	.tp_basicsize = sizeof(__pyfly_server_t),
 	.tp_itemsize = 0,
 	.tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
-	//.tp_new = __pyfly_server_new,
+	.tp_new = __pyfly_server_new,
 	.tp_new = PyType_GenericNew,
 	.tp_init = (initproc) __pyfly_server_init,
 	.tp_dealloc = (destructor) __pyfly_server_dealloc,

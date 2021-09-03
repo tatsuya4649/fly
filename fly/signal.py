@@ -7,9 +7,3 @@ class FlySignal(_fly_signal):
 		**kwargs,
 	):
 		super().__init__()
-
-if __name__ == "__main__":
-	s = FlySignal()
-	print(dir(s))
-	while(True):
-		...
