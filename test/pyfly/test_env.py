@@ -43,6 +43,12 @@ def test_host_set_type_error(__flyenv_init, host):
     ) as raiseinfo:
         __flyenv_init.host = host
 
+def test_host_scoket_error(__flyenv_init):
+    with pytest.raises(
+        ValueError
+    ):
+        __flyenv_init.host = "lo"
+
 def test_port(__flyenv_init):
     assert(isinstance(__flyenv_init.port, int))
 

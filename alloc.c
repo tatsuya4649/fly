@@ -67,6 +67,7 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	return new_block->entry;
 }
 
+#include <stdio.h>
 static fly_pool_t *__fly_create_pool(size_t size){
 	fly_pool_t *pool;
 	pool = fly_malloc(sizeof(fly_pool_t));
@@ -115,6 +116,9 @@ int fly_delete_pool(fly_pool_t *pool)
 		if (p == pool){
 			if (prev!=NULL)
 				prev->next = p->next;
+			else
+				init_pool = p->next;
+
 			fly_pool_b *nblock;
 			for (fly_pool_b *block=p->entry; block!=NULL;block=nblock){
 				nblock = block->next;
