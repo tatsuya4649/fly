@@ -23,7 +23,7 @@ fly_hdr_ci *fly_header_init(void)
 
 int fly_header_release(fly_hdr_ci *info)
 {
-	return fly_delete_pool(info->pool);
+	return fly_delete_pool(&info->pool);
 }
 
 int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, fly_hdr_value *value)
@@ -78,7 +78,7 @@ char *fly_chain_string(char *buffer, fly_hdr_c *chain, char *ebuffer)
 {
 	char *ptr = buffer;
 	if (ptr == NULL)
-		return NULL; 
+		return NULL;
 	if (fly_strcpy(ptr, chain->name, ebuffer) == -1)
 		return NULL;
 	ptr += strlen(chain->name);
@@ -101,7 +101,7 @@ char *fly_header_from_chain(fly_hdr_ci *chain_info)
 		return NULL;
 	if (chain_info->entry == NULL)
 		return NULL;
-	
+
 	char *chain_str;
 	char *ptr;
 
@@ -125,7 +125,7 @@ size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info)
 	chain_str = fly_header_from_chain(chain_info);
 	if (chain_str == NULL)
 		return 0;
-	
+
 	return strlen(chain_str);
 }
 
@@ -174,7 +174,7 @@ int fly_content_type_header(fly_hdr_ci *ci, fly_mime_e type)
 	mime = fly_mime_from_type(type);
 	if (mime == NULL || mime->name == NULL)
 		return -1;
-	
+
 	return fly_header_add(ci, (fly_hdr_name *) "Content-Type", (fly_hdr_value *) mime->name);
 	#undef FLY_CONTENT_TYPE_LENGTH
 }

@@ -3,7 +3,7 @@
 
 #include "alloc.h"
 #include <limits.h>
-#define FLY_PATH_MAX	_POSIX_PATH_MAX	
+#define FLY_PATH_MAX	_POSIX_PATH_MAX
 #define FLY_FS_POOL_PAGE		((fly_page_t) 10)
 #define FLY_FS_INIT_NUMBER		0
 
@@ -31,4 +31,4 @@ char *fly_content_from_path(int mount_number, char *filepath);
 int fly_join_path(char *buffer, char *join1, char *join2);
 void *fly_from_path(fly_pool_t *pool, fly_pool_s size, int mount_number, char *filepath);
 
-#endif 
+#endif

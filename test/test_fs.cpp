@@ -1,6 +1,7 @@
 #ifdef __cplusplus
 extern "C"{
 	#include "fs.h"
+	#include "err.h"
 	void *fly_memory_from_size(fly_pool_t *pool, fly_pool_s size);
 }
 #endif
@@ -62,7 +63,7 @@ TEST(FSTEST, fly_fs_mount)
 	/* Failure of mount (not found dir) */
 	EXPECT_EQ(-1, fly_fs_mount("./__test"));
 	EXPECT_EQ(-1, fly_fs_mount(path));
-	
+
 	fly_fs_release();
 	free(path);
 }
@@ -77,7 +78,7 @@ TEST(FSTEST, fly_mount_number)
 {
 	fly_fs_init();
 	EXPECT_EQ(0, fly_fs_mount("./test"));
-	EXPECT_EQ(-1, fly_mount_number("./__test"));
+	EXPECT_EQ(FLY_ENOTFOUND, fly_mount_number("./__test"));
 	EXPECT_NE(-1, fly_mount_number("./test"));
 	fly_fs_release();
 }

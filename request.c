@@ -32,8 +32,8 @@ fly_request_t *fly_request_init(void)
 int fly_request_release(fly_request_t *req)
 {
 	if (req->header != NULL)
-		fly_delete_pool(req->header->pool);
-	return fly_delete_pool(req->pool);
+		fly_delete_pool(&req->header->pool);
+	return fly_delete_pool(&req->pool);
 }
 
 fly_reqlinec_t *fly_get_request_line_ptr(char *buffer)
@@ -279,7 +279,7 @@ __fly_static int __fly_parse_request_line(fly_pool_t *pool, __unused int c_sock,
 
     printf("%s\n", req->version->full);
     char *slash_p = strchr(req->version->full,'/');
-	/* http version number not found */ 
+	/* http version number not found */
     if (slash_p == NULL)
 		return FLY_ERROR(400);
 
@@ -347,7 +347,6 @@ error_501:
 	/* Request line Too long */
 	fly_500_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
 	return -1;
-	
 }
 
 
@@ -434,7 +433,7 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				continue;
 			}else
 				goto error;
-			
+
 			/* copy name */
 			*name++ = *ptr;
 			prev = NAME;
@@ -487,7 +486,7 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				continue;
 			}else
 				goto error;
-			
+
 			*value++ = *ptr;
 			prev = VALUE;
 			break;
@@ -592,7 +591,7 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *header)
 	rchain_info = fly_header_init();
 	if (rchain_info == NULL)
 		return -1;
-	
+
 	req->header = rchain_info;
 	return __fly_parse_header(rchain_info, header);
 }

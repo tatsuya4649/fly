@@ -10,7 +10,7 @@ fly_body_t *fly_body_init(void)
 		return NULL;
 
 	body = fly_pballoc(pool, sizeof(fly_body_t));
-	
+
 	body->pool = pool;
 	body->body = NULL;
 	body->body_len = 0;
@@ -20,7 +20,7 @@ fly_body_t *fly_body_init(void)
 
 int fly_body_release(fly_body_t *body)
 {
-	return fly_delete_pool(body->pool);
+	return fly_delete_pool(&body->pool);
 }
 
 int fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer)

@@ -14,6 +14,9 @@ int fly_route_init(void)
 
 fly_route_reg_t *fly_route_reg_init(void)
 {
+	if (fly_route_pool == NULL)
+		return NULL;
+
 	fly_route_reg_t *reg;
 	reg = fly_pballoc(fly_route_pool, sizeof(fly_route_reg_t));
 	if (reg == NULL)
@@ -30,14 +33,14 @@ int fly_route_release(void)
 	if (fly_route_pool == NULL)
 		return -1;
 
-	return fly_delete_pool(fly_route_pool);
+	return fly_delete_pool(&fly_route_pool);
 }
 int fly_route_reg_release(fly_route_reg_t *reg)
 {
 	if (reg == NULL)
 		return -1;
 
-	return fly_delete_pool(reg->pool);
+	return fly_delete_pool(&reg->pool);
 }
 
 int fly_register_route(
@@ -57,7 +60,7 @@ int fly_register_route(
 	mtd = fly_match_method_type(method);
 	if (mtd == NULL)
 		return -1;
-	
+
 	route = fly_pballoc(reg->pool, sizeof(fly_route_t));
 	if (route == NULL)
 		return -1;

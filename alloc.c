@@ -48,7 +48,7 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	new_block = fly_malloc(sizeof(fly_pool_b));
 	if (new_block == NULL)
 		return NULL;
-	
+
 	if (fly_memalign(&new_block->entry, size) != 0){
 		fly_free(new_block);
 		return NULL;
@@ -107,15 +107,20 @@ void *fly_pballoc(fly_pool_t *pool, size_t size)
 	return __fly_palloc(pool, size);
 }
 
-int fly_delete_pool(fly_pool_t *pool)
+int fly_delete_pool(fly_pool_t **pool)
 {
 	fly_pool_t *prev = NULL;
 	fly_pool_t *next = NULL;
 	for (fly_pool_t *p=init_pool; p!=NULL; p=next){
 		next = p->next;
-		if (p == pool){
-			if (prev!=NULL)
+		if (p == *pool){
+			/* only init_pool */
+			if (next == NULL && p == init_pool)
+				init_pool = NULL;
+			/* init_pool */
+			else if (prev!=NULL)
 				prev->next = p->next;
+			/* others */
 			else
 				init_pool = p->next;
 
@@ -127,6 +132,7 @@ int fly_delete_pool(fly_pool_t *pool)
 				p->block_size--;
 			}
 			fly_free(p);
+			*pool = NULL;
 			return 0;
 		}
 		prev = p;

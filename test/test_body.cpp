@@ -14,7 +14,7 @@ TEST(BODY, fly_body_release)
 {
 	fly_body_t *body;
 	EXPECT_TRUE((body=fly_body_init()) != NULL);
-	EXPECT_TRUE(fly_body_release(body->pool) != -1);
+	EXPECT_TRUE(fly_body_release(body) != -1);
 }
 
 TEST(BODY, fly_body_setting)

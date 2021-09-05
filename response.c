@@ -62,7 +62,7 @@ fly_response_t *fly_response_init(void)
 	pool = fly_create_pool(FLY_RESPONSE_POOL_PAGE);
 	if (pool == NULL)
 		return NULL;
-	
+
 	response = fly_pballoc(pool, sizeof(fly_response_t));
 	response->pool = pool;
 	response->header = NULL;
@@ -351,9 +351,9 @@ void fly_500_error(int c_sockfd, fly_version_e version)
 	fly_body_t *body;
 
 	response = fly_response_init();
-	if (response == NULL)	
+	if (response == NULL)
 		return;
-	
+
 	response->status_code = _500;
 	response->version = version;
 	response->header = NULL;
@@ -364,7 +364,7 @@ void fly_500_error(int c_sockfd, fly_version_e version)
 	response->body = body;
 
 	fly_response(c_sockfd, response, 0);
-	
+
 	fly_body_release(body);
 	fly_response_release(response);
 }
@@ -397,7 +397,7 @@ int fly_response_release(fly_response_t *response)
 {
 	if (response == NULL)
 		return -1;
-	
-	return fly_delete_pool(response->pool);
+
+	return fly_delete_pool(&response->pool);
 }
 

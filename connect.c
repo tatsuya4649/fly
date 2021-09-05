@@ -21,7 +21,7 @@ int fly_connect_release(fly_connect_t *conn)
 	if (conn == NULL)
 		return -1;
 	close(conn->c_sockfd);
-	return fly_delete_pool(conn->pool);
+	return fly_delete_pool(&conn->pool);
 }
 
 int fly_connect_accept(fly_connect_t *conn)
@@ -54,6 +54,6 @@ int fly_info_of_connect(fly_connect_t *conn)
 		fprintf(stderr, "getnameinfo: %s\n", gai_strerror(gname_err));
 		return -1;
 	}
-	fprintf(stderr, "Peer Info: %s\n", conn->hostname); 
+	fprintf(stderr, "Peer Info: %s\n", conn->hostname);
 	return 0;
 }

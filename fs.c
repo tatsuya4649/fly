@@ -40,7 +40,7 @@ ssize_t fly_file_size(const char *path)
 {
 	if (fly_fs_isfile(path) <= 0)
 		return -1;
-	
+
 	struct stat stbuf;
 	if (stat(path, &stbuf) == -1)
 		return -1;
@@ -90,7 +90,7 @@ int fly_fs_release(void)
 {
 	if (fspool == NULL)
 		return 0;
-	return fly_delete_pool(fspool);
+	return fly_delete_pool(&fspool);
 }
 
 int fly_mount_number(const char *path)
@@ -125,7 +125,7 @@ int fly_join_path(char *buffer, char *join1, char *join2)
 	if (realpath(result, buffer) == NULL)
 		return -1;
 
-	return 0; 
+	return 0;
 }
 
 __fly_static void *fly_memory_from_size(fly_pool_t *pool, fly_pool_s size)
