@@ -4,6 +4,7 @@
 /dist/
 /build/
 /lib/
+/log/
 __pycache__/
 /server
 /GPATH

@@ -7,10 +7,6 @@
 #include "server.h"
 #include "err.h"
 
-#define FLY_IP_V4			4
-#define FLY_IP_V6			6
-
-/* TODO: making Error type. */
 int fly_socket_init(
 	__unused char *host,
 	__unused int port,
@@ -46,8 +42,14 @@ int fly_socket_init(
 		{
 			struct sockaddr_in *in = (struct sockaddr_in *) &bind_addr;
 			in->sin_family = fly_ip;
-			if (inet_pton(fly_ip, host, &in->sin_addr.s_addr) != 1)
+			switch (inet_pton(fly_ip, host, &in->sin_addr.s_addr)){
+			case 1:
+				break;
+			case 0:
+				return FLY_EINCADDR;
+			default:
 				return FLY_ECONVNET;
+			}
 			in->sin_port = htons((unsigned short) port);
 
 			if (bind(sockfd, (const struct sockaddr *) &bind_addr, sizeof(struct sockaddr_in)) == -1){

@@ -33,5 +33,7 @@
 #define FLY_EBINDSOCK_NOTSOCK			-12
 /* can't setopt */
 #define FLY_ESETOPTSOCK					-13
+/* incorrect host format(IPv4, IPv6) */
+#define FLY_EINCADDR					-14
 
 #endif

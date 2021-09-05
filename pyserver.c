@@ -34,7 +34,7 @@ static int __pyfly_server_init(__pyfly_server_t *self, PyObject *args, PyObject 
 
 	if (!PyArg_ParseTupleAndKeywords(args, kwargs, "sii", kwlist, &host, &port, &ip_v))
 		return -1;
-	
+
 	/* Fs Mount */
 	if (fly_fs_init() < 0)
 		return -1;
@@ -44,6 +44,14 @@ static int __pyfly_server_init(__pyfly_server_t *self, PyObject *args, PyObject 
 	switch(sockfd){
 	case FLY_EMAKESOCK:
 		PyErr_Format(PyExc_ValueError, "can't make socket: (%s:%d)", host, port);
+		self->sockfd = -1;
+		return -1;
+	case FLY_ECONVNET:
+		PyErr_Format(PyExc_ValueError, "convert error: (%s)", host);
+		self->sockfd = -1;
+		return -1;
+	case FLY_EINCADDR:
+		PyErr_Format(PyExc_ValueError, "incorrect host format: (%s)", host);
 		self->sockfd = -1;
 		return -1;
 	case FLY_EBINDSOCK:
@@ -218,7 +226,7 @@ PyMODINIT_FUNC PyInit__fly_server(void)
 	PyObject *m;
 	if (PyType_Ready(&__pyfly_server_type) < 0)
 		return NULL;
-	
+
 	m = PyModule_Create(&__pyfly_server_module);
 	if (m == NULL)
 		return NULL;

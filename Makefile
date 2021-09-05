@@ -1,7 +1,7 @@
 CC = gcc
 CFLAG = -g3 -O0 -W -Wall -Werror -Wcast-align
 TARGET = fly
-BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o
+BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o
 PYBUILD_FILES := pyroute.o
 SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
 PYSOURCE_FILES := $(PYBUILD_FILES:%.o=%.c)
@@ -17,9 +17,9 @@ LIBDIR := lib
 LIBNAME := lib$(TARGET).so.$(MAJOR_VERSION)
 BUILDDIR := build
 TESTDIR := test
-TEST_EXEC := fly_test
-TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_route.cpp test_request.cpp test_util.cpp test_math.cpp test_body.cpp test_connect.cpp
-ifdef FLY_TEST 
+TESTPRE := __fly_
+TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_route.cpp test_request.cpp test_util.cpp test_math.cpp test_body.cpp test_connect.cpp test_log.cpp
+ifdef FLY_TEST
 MACROS := $(MACROS) -D FLY_TEST
 endif
 PYTHON := python
@@ -47,10 +47,16 @@ lib: $(SOURCE_FILES)
 	@ldconfig -n $(LIBDIR)
 	@ln -s $(LIBNAME) $(LIBDIR)/lib$(TARGET).so
 
-test: clean_lib lib 
+test: test_placeholder clean_lib lib $(addprefix $(TESTPRE), $(TEST_FILES))
+test_placeholder:
+	@echo -en "\t>>> fly test start <<< \n"
 	@mkdir -p $(TESTDIR)
-	@g++ -I. $(MACROS) -o $(TESTDIR)/$(TEST_EXEC) $(addprefix $(TESTDIR)/, $(TEST_FILES)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly 
-	@LD_LIBRARY_PATH=./lib ./$(TESTDIR)/$(TEST_EXEC)
+
+$(TESTPRE)%.cpp:
+		@echo "Target: $@"
+		@echo "Source: $(subst $(TESTPRE),,$@)"
+		g++ -g -O -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
+		LD_LIBRARY_PATH=./lib ./$(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),,$@))
 
 %.o:	%.c
 	gcc -c $(CFLAG) -o $@ $<
@@ -61,5 +67,5 @@ clean_lib:
 clean: clean_lib
 	rm -f $(BUILDDIR)/$(TARGET)  *.o
 	rm -f .*.swp
-	rm -f $(TESTDIR)/$(TEST_EXEC)
+	rm -f $(TESTDIR)/__fly_*
 	rm -f fly/*fly*.so
