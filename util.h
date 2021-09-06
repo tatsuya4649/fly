@@ -8,7 +8,9 @@
 #define __attribute__((x))		/* NOTHING */
 #endif
 
-#define __unused	__attribute__((unused))
+#define __unused			__attribute__((unused))
+#define __noreturn			__attribute__((noreturn))
+#define __destructor		__attribute__((destructor))
 
 #ifdef FLY_TEST
 #define __fly_static

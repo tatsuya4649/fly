@@ -8,6 +8,7 @@
 #include "util.h"
 #include "fs.h"
 #include "alloc.h"
+#include "err.h"
 
 #define FLY_ACCESLOG_ENV				"FYL_ACCESLOG_ENV"
 #define FLY_ERRORLOG_ENV				"FYL_ERRORLOG_ENV"
@@ -30,6 +31,13 @@ struct fly_log{
 	fly_pool_t **pool;
 };
 
+enum fly_log_type{
+	ACCESS,
+	ERROR,
+	NOTICE,
+};
+typedef enum fly_log_type fly_log_e;
+
 #define FLY_LOG_PLACE_SIZE					100
 #define FLY_LOG_BODY_SIZE					1000
 
@@ -40,5 +48,11 @@ struct __fly_log{
 
 fly_log_t *fly_log_init(void);
 int fly_log_release(fly_log_t *log);
+
+int fly_log_write(fly_log_t *lt, fly_log_e type, char *logbody);
+int fly_access_log_write(fly_log_t *lt, char *logbody);
+int fly_error_log_write(fly_log_t *lt, char *logbody);
+int fly_notice_log_write(fly_log_t *lt, char *logbody);
+
 
 #endif
