@@ -82,7 +82,9 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 
 	event->manager = manager;
 	event->timerfd = -1;
+	event->time = NULL;
 	event->next = NULL;
+	event->handler = NULL;
 	return event;
 }
 
@@ -151,7 +153,14 @@ int fly_event_handler(fly_event_manager_t *manager)
 
 			fly_event = (fly_event_t *) event->data.ptr;
 			/*TODO: handle*/
-			fly_event->handler(fly_event->fd);
+			if (fly_event->handler)
+				fly_event->handler(fly_event->fd);
+
+			/* remove event if not persistent */
+			if (!(fly_event->flag & FLY_PERSISTENT)){
+				if(epoll_ctl(manager->fd, EPOLL_CTL_DEL, fly_event->fd, NULL) == -1)
+					return -1;
+			}
 		}
 	}
 }
