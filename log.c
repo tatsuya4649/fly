@@ -2,6 +2,7 @@
 #include <errno.h>
 
 fly_pool_t *fly_log_pool = NULL;
+__fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize);
 
 __fly_static fly_path_t *__fly_log_path(const char *env)
 {
@@ -38,6 +39,9 @@ __fly_static __fly_log_t *__fly_logfile_init(const fly_path_t *fly_log_path)
 	if (lt == NULL)
 		return NULL;
 
+	if (__fly_make_logdir((fly_path_t *) fly_log_path, strlen(fly_log_path)) < 0)
+		return NULL;
+
 	lfp = fopen(fly_log_path, "a");
 	if (lfp == NULL)
 		return NULL;
@@ -48,6 +52,44 @@ __fly_static __fly_log_t *__fly_logfile_init(const fly_path_t *fly_log_path)
 }
 
 #define __fly_log_path(name)			__fly_ ## name ## _log_path()
+
+__fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize)
+{
+	size_t n = 0;
+	fly_path_t *ptr = dir;
+	fly_path_t path[FLY_PATH_MAX];
+	bool only_word = true;
+
+	if (dirsize > FLY_PATH_MAX)
+		return FLY_EBUFLEN;
+
+	while(n<=dirsize){
+		if (*ptr == '/'){
+			int path_length = (ptr - dir);
+
+			if (FLY_PATH_MAX < path_length)
+				return FLY_EBUFLEN;
+
+			strncpy(path, dir, path_length);
+			path[path_length] = '\0';
+
+			if (fly_fs_isdir(path) <= 0)
+				return FLY_ENFOUNDDIR;
+
+			only_word = false;
+		}
+
+		if (*ptr == '\0'){
+			if (only_word && fly_fs_isdir(dir) <= 0)
+				return FLY_ENFOUNDDIR;
+			return FLY_SUCCESS;
+		}
+
+		ptr++;
+		n++;
+	}
+	return FLY_EBUFLEN;
+}
 
 fly_log_t *fly_log_init(void)
 {
@@ -78,7 +120,6 @@ fly_log_t *fly_log_init(void)
 error:
 	return NULL;
 }
-
 int fly_log_release(fly_log_t *lt)
 {
 	if (!lt || !lt->pool)
@@ -140,4 +181,41 @@ __fly_static int __fly_log_write(fly_log_fp *lfp, char *logbody)
 	return 0;
 error:
 	return -1;
+}
+
+__fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type)
+{
+	switch(type){
+	case ACCESS:
+		return lt->access;
+	case ERROR:
+		return lt->error;
+	case NOTICE:
+		return lt->notice;
+	default:
+		return NULL;
+	}
+}
+
+int fly_log_write(fly_log_t *lt, fly_log_e type, char *logbody)
+{
+	__fly_log_t *l;
+	l = __fly_log_from_type(lt, type);
+	if (!l)
+		return -1;
+
+	return __fly_log_write(l->fp, logbody);
+}
+
+int fly_error_log_write(fly_log_t *lt, char *logbody)
+{
+	return fly_log_write(lt, ERROR, logbody);
+}
+int fly_access_log_write(fly_log_t *lt, char *logbody)
+{
+	return fly_log_write(lt, ACCESS, logbody);
+}
+int fly_notice_log_write(fly_log_t *lt, char *logbody)
+{
+	return fly_log_write(lt, NOTICE, logbody);
 }

@@ -5,6 +5,39 @@
 #include "fs.h"
 #include "err.h"
 
+fly_signum_t fly_signals[] = {
+	SIGHUP,
+	SIGINT,
+	SIGQUIT,
+	SIGILL,
+	SIGTRAP,
+	SIGABRT,
+	SIGBUS,
+	SIGFPE,
+	SIGKILL,
+	SIGUSR1,
+	SIGSEGV,
+	SIGUSR2,
+	SIGPIPE,
+	SIGALRM,
+	SIGTERM,
+	SIGCHLD,
+	SIGCONT,
+	SIGSTOP,
+	SIGTTIN,
+	SIGTTOU,
+	SIGURG,
+	SIGXCPU,
+	SIGXFSZ,
+	SIGVTALRM,
+	SIGPROF,
+	SIGWINCH,
+	SIGIO,
+	SIGPWR,
+	SIGSYS,
+	-1
+};
+
 int fly_signal_init(void)
 {
 	struct sigaction intact;
@@ -25,3 +58,8 @@ __attribute__((noreturn)) void fly_sigint_handler(__unused int signo)
     exit(0);
 }
 
+
+void __fly_only_recv(int, siginfo_t *, void *)
+{
+	return;
+}

@@ -1,7 +1,9 @@
 CC = gcc
-CFLAG = -g3 -O0 -W -Wall -Werror -Wcast-align
+CPP = g++
+CFLAG := -g3 -O0 -W -Wall -Werror -Wcast-align
+DEBUG_CFLAG := -g3 -O0
 TARGET = fly
-BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o
+BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o event.o
 PYBUILD_FILES := pyroute.o
 SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
 PYSOURCE_FILES := $(PYBUILD_FILES:%.o=%.c)
@@ -55,7 +57,12 @@ test_placeholder:
 $(TESTPRE)%.cpp:
 		@echo "Target: $@"
 		@echo "Source: $(subst $(TESTPRE),,$@)"
-		g++ -g -O -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
+		$(CPP) -g3 -O -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
+		LD_LIBRARY_PATH=./lib ./$(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),,$@))
+$(TESTPRE)%.c:
+		@echo "Target: $@"
+		@echo "Source: $(subst $(TESTPRE),,$@)"
+		$(CC) -g3 -O -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
 		LD_LIBRARY_PATH=./lib ./$(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),,$@))
 
 %.o:	%.c

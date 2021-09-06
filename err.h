@@ -35,5 +35,9 @@
 #define FLY_ESETOPTSOCK					-13
 /* incorrect host format(IPv4, IPv6) */
 #define FLY_EINCADDR					-14
+/* not found directory */
+#define FLY_ENFOUNDDIR					-15
+/* buffer length error */
+#define FLY_EBUFLEN						-16
 
 #endif
