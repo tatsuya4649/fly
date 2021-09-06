@@ -3,6 +3,6 @@
 
 #include <unistd.h>
 
-int fly_worker_init(void);
+void fly_worker_process(void);
 
 #endif

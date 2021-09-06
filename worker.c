@@ -1,18 +1,5 @@
 #include "worker.h"
 
-int fly_worker_init()
+void fly_worker_process(void)
 {
-	int cpid;
-	cpid = fork();
-	switch (cpid){
-	case 0:
-		/* child */
-		return 0;
-	case -1:
-		/* error */
-		return -1;
-	default:
-		/* parent */
-		return cpid;
-	}
 }
