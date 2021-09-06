@@ -11,11 +11,23 @@
 #include <sys/resource.h>
 #include "fsignal.h"
 #include "config.h"
+#include "alloc.h"
+#include "worker.h"
 
+
+enum fly_proc_type{
+	WORKER,
+};
+typedef enum fly_proc_type fly_proc_type;
 struct fly_master{
+	pid_t pid;
 	int req_workers;
 	int now_workers;
+	void (*worker_process)(void *data);
+	fly_pool_t *pool;
+	fly_worker_t *workers;
 };
+#define FLY_MASTER_POOL_SIZE				100
 typedef struct fly_master fly_master_t;
 extern fly_master_t fly_master_info;
 
@@ -27,7 +39,7 @@ int fly_create_pidfile(void);
 int fly_remove_pidfile(void);
 int fly_master_init(void);
 int fly_master_waiting_for_signal(void);
-int fly_master_spawn(void (*proc)(void *), void *data);
+int fly_master_worker_spawn(void (*proc)(void *));
 
 #define FLY_ROOT_DIR		("/")
 #define __FLY_DEVNULL		("/dev/null")
