@@ -36,6 +36,8 @@ struct fly_event{
 	struct fly_event *next;
 
 	int (*handler)(struct fly_event *);
+
+	void *event_data;
 };
 typedef struct fly_event fly_event_t;
 

@@ -2,6 +2,7 @@
 #define _SERVER_H
 
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include "version.h"
 #include "method.h"
 #include "request.h"
@@ -9,8 +10,9 @@
 #define FLY_IP_V4			4
 #define FLY_IP_V6			6
 
+typedef int fly_sock_t;
 struct fly_sockinfo{
-	int sockfd;
+	fly_sock_t fd;
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
 };
@@ -23,5 +25,6 @@ int fly_socket_release(int sockfd);
 #define FLY_BACKLOG_DEFAULT		1024
 #define FLY_PORTSTR_LEN			100
 const char *fly_sockport_env(void);
+int fly_socket_nonblocking(fly_sock_t s);
 
 #endif

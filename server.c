@@ -7,12 +7,18 @@
 #include "server.h"
 #include "err.h"
 
+int fly_socket_nonblocking(fly_sock_t s)
+{
+	int val = 1;
+	return ioctl(s, FIONBIO, &val);
+}
+
 int fly_socket_init(int port, fly_sockinfo_t *info){
 
 	if (!info)
 		return -1;
 
-	int sockfd;
+	fly_sock_t sockfd;
 	int res;
     int option = FLY_SOCKET_OPTION;
 	struct addrinfo hints;
@@ -37,6 +43,8 @@ int fly_socket_init(int port, fly_sockinfo_t *info){
 		if (sockfd == -1)
 			continue;
 
+		if (fly_socket_nonblocking(sockfd) == -1)
+			continue;
 		if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1)
 			goto error;
 
@@ -49,7 +57,7 @@ int fly_socket_init(int port, fly_sockinfo_t *info){
 	if (listen(sockfd, FLY_BACKLOG_DEFAULT) == -1)
 		goto error;
 
-	info->sockfd = sockfd;
+	info->fd = sockfd;
 	memcpy(&info->addr, rp->ai_addr, rp->ai_addrlen);
 	info->addrlen = rp->ai_addrlen;
 	freeaddrinfo(result);
