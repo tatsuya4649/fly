@@ -13,7 +13,7 @@
 #include "config.h"
 #include "alloc.h"
 #include "worker.h"
-
+#include "context.h"
 
 enum fly_proc_type{
 	WORKER,
@@ -23,9 +23,10 @@ struct fly_master{
 	pid_t pid;
 	int req_workers;
 	int now_workers;
-	void (*worker_process)(void *data);
+	void (*worker_process)(fly_context_t *ctx, void *data);
 	fly_pool_t *pool;
 	fly_worker_t *workers;
+	fly_context_t *context;
 };
 #define FLY_MASTER_POOL_SIZE				100
 typedef struct fly_master fly_master_t;
@@ -39,7 +40,7 @@ int fly_create_pidfile(void);
 int fly_remove_pidfile(void);
 int fly_master_init(void);
 int fly_master_waiting_for_signal(void);
-int fly_master_worker_spawn(void (*proc)(void *));
+int fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
 
 #define FLY_ROOT_DIR		("/")
 #define __FLY_DEVNULL		("/dev/null")
