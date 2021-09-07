@@ -3,6 +3,7 @@
 
 #include <unistd.h>
 #include <time.h>
+#include "event.h"
 
 struct fly_worker{
 	pid_t pid;
@@ -18,7 +19,5 @@ struct fly_worker_info{
 };
 typedef struct fly_worker fly_worker_t;
 typedef struct fly_worker_info fly_worker_i;
-
-void fly_worker_process(void);
 
 #endif

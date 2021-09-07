@@ -13,7 +13,7 @@ extern fly_pool_t *fly_event_pool;
 #define FLY_EVLIST_ELES			1000
 struct fly_event_manager{
 	fly_pool_t *pool;
-	int fd;
+	int efd;
 	struct epoll_event *evlist;
 	int maxevents;
 
@@ -35,7 +35,7 @@ struct fly_event{
 	int flag;
 	struct fly_event *next;
 
-	int (*handler)(int);
+	int (*handler)(struct fly_event *);
 };
 typedef struct fly_event fly_event_t;
 
