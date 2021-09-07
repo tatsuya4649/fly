@@ -1,8 +1,10 @@
 #ifndef _WORKER_H
 #define _WORKER_H
 
+#define _GNU_SOURCE
 #include <unistd.h>
 #include <time.h>
+#include "context.h"
 #include "event.h"
 
 struct fly_worker{
@@ -19,5 +21,7 @@ struct fly_worker_info{
 };
 typedef struct fly_worker fly_worker_t;
 typedef struct fly_worker_info fly_worker_i;
+
+__noreturn void fly_worker_process(fly_context_t *ctx, void *data);
 
 #endif

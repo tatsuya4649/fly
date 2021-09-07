@@ -9,5 +9,5 @@ int main()
 	res = fly_socket_init(TEST_PORT, &info);
 
 	assert(res > 0);
-	assert(fly_socket_release(info.sockfd) != -1);
+	assert(fly_socket_release(info.fd) != -1);
 }

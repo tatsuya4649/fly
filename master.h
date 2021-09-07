@@ -23,7 +23,7 @@ struct fly_master{
 	pid_t pid;
 	int req_workers;
 	int now_workers;
-	void (*worker_process)(void *data);
+	void (*worker_process)(fly_context_t *ctx, void *data);
 	fly_pool_t *pool;
 	fly_worker_t *workers;
 	fly_context_t *context;
@@ -40,7 +40,7 @@ int fly_create_pidfile(void);
 int fly_remove_pidfile(void);
 int fly_master_init(void);
 int fly_master_waiting_for_signal(void);
-int fly_master_worker_spawn(void (*proc)(void *));
+int fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
 
 #define FLY_ROOT_DIR		("/")
 #define __FLY_DEVNULL		("/dev/null")

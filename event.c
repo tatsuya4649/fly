@@ -52,6 +52,7 @@ fly_event_manager_t *fly_event_manager_init(void)
 	manager->maxevents = FLY_EVLIST_ELES;
 	manager->efd = fd;
 	manager->first = NULL;
+	manager->last = NULL;
 
 	return manager;
 error:
