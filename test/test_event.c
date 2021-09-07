@@ -6,9 +6,10 @@
 
 #define TEST_MOUSE			"/dev/input/mice"
 
-int handler(__unused int fd)
+int handler(__unused struct fly_event *e)
 {
-	printf("Handler\n");
+	printf("event fd: %d\n", e->fd);
+	printf("epoll fd: %d\n", e->manager->efd);
 }
 
 int main()

@@ -15,8 +15,8 @@ fly_signal_t fly_master_signals[] = {
 
 __fly_static int __fly_get_req_workers(void);
 __fly_static int __fly_master_signal_init(void);
-__fly_static int __fly_master_fork(fly_proc_type type, void (*proc)(void *), void *data);
-__fly_static int __fly_master_worker_spawn(void (*proc)(void *));
+__fly_static int __fly_master_fork(fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data);
+__fly_static int __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
 __fly_static int __fly_insert_workerp(fly_worker_t *w);
 __fly_static fly_worker_id __fly_get_worker_id(void);
 __fly_static void __fly_remove_workerp(pid_t cpid);
@@ -171,7 +171,10 @@ int fly_master_init(void)
 	fly_master_info.pid = getpid();
 	fly_master_info.now_workers = 0;
 	fly_master_info.req_workers = __fly_get_req_workers();
+	fly_master_info.context = fly_context_init();
 	if (fly_master_info.req_workers <= 0)
+		return -1;
+	if (fly_master_info.context == NULL)
 		return -1;
 
 	if (__fly_master_signal_init() == -1)
@@ -221,8 +224,7 @@ int fly_create_pidfile(void)
 		return -1;
 	}
 
-	if (close(pidfd) == -1)
-		return -1;
+	if (close(pidfd) == -1) return -1;
 	return 0;
 }
 
@@ -249,7 +251,8 @@ __destructor int fly_remove_pidfile(void)
 		return remove(FLY_PID_FILE);
 	}
 }
-__fly_static int __fly_master_worker_spawn(void (*proc)(void *))
+
+__fly_static int __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *))
 {
 
 	if (fly_master_info.req_workers <= 0)
@@ -264,14 +267,14 @@ __fly_static int __fly_master_worker_spawn(void (*proc)(void *))
 		fly_worker_i info;
 		info.id = __fly_get_worker_id();
 		info.start = time(NULL);
-		if (__fly_master_fork(WORKER, proc, &info) == -1)
+		if (__fly_master_fork(WORKER, proc, fly_master_info.context, &info) == -1)
 			return -1;
 	}
 
 	return 0;
 }
 
-int fly_master_worker_spawn(void (*proc)(void *))
+int fly_master_worker_spawn(void (*proc)(fly_context_t *, void *))
 {
 	return __fly_master_worker_spawn(proc);
 }
@@ -315,7 +318,7 @@ __fly_static void __fly_remove_workerp(pid_t cpid)
 	return;
 }
 
-int __fly_master_fork(fly_proc_type type, void (*proc)(void *), void *data)
+int __fly_master_fork(fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data)
 {
 	pid_t pid;
 	switch((pid=fork())){
@@ -328,7 +331,7 @@ int __fly_master_fork(fly_proc_type type, void (*proc)(void *), void *data)
 		goto child_register;
 	}
 	/* new process only */
-	proc(data);
+	proc(ctx, data);
 	exit(0);
 child_register:
 	switch(type){

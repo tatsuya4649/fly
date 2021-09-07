@@ -50,8 +50,9 @@ fly_event_manager_t *fly_event_manager_init(void)
 	manager->pool = fly_event_pool;
 	manager->evlist = fly_pballoc(manager->pool, sizeof(struct epoll_event)*FLY_EVLIST_ELES);
 	manager->maxevents = FLY_EVLIST_ELES;
-	manager->fd = fd;
+	manager->efd = fd;
 	manager->first = NULL;
+	manager->last = NULL;
 
 	return manager;
 error:
@@ -64,7 +65,7 @@ int fly_event_manager_release(fly_event_manager_t *manager)
 	if (manager == NULL || manager->pool == NULL)
 		return -1;
 
-	if (close(manager->fd) == -1)
+	if (close(manager->efd) == -1)
 		return -1;
 	return fly_delete_pool(&manager->pool);
 }
@@ -103,7 +104,7 @@ int fly_event_register(fly_event_t *event)
 	data.ptr = event;
 	ev.data = data;
 	ev.events = event->read_or_write | event->eflag;
-	return epoll_ctl(event->manager->fd, EPOLL_CTL_ADD, event->fd, &ev);
+	return epoll_ctl(event->manager->efd, EPOLL_CTL_ADD, event->fd, &ev);
 }
 
 int fly_event_unregister(fly_event_t *event)
@@ -139,11 +140,11 @@ int fly_event_handler(fly_event_manager_t *manager)
 {
 	int epoll_events;
 	struct epoll_event *event;
-	if (!manager || manager->fd < 0)
+	if (!manager || manager->efd < 0)
 		return -1;
 
 	for (;;){
-		epoll_events = epoll_wait(manager->fd, manager->evlist, manager->maxevents, -1);
+		epoll_events = epoll_wait(manager->efd, manager->evlist, manager->maxevents, -1);
 		if (epoll_events == -1)
 			return -1;
 
@@ -154,11 +155,11 @@ int fly_event_handler(fly_event_manager_t *manager)
 			fly_event = (fly_event_t *) event->data.ptr;
 			/*TODO: handle*/
 			if (fly_event->handler)
-				fly_event->handler(fly_event->fd);
+				fly_event->handler(fly_event);
 
 			/* remove event if not persistent */
 			if (!(fly_event->flag & FLY_PERSISTENT)){
-				if(epoll_ctl(manager->fd, EPOLL_CTL_DEL, fly_event->fd, NULL) == -1)
+				if(epoll_ctl(manager->efd, EPOLL_CTL_DEL, fly_event->fd, NULL) == -1)
 					return -1;
 			}
 		}
