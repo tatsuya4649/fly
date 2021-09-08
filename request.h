@@ -2,12 +2,14 @@
 #define _REQUEST_H
 
 #include <string.h>
+#include <errno.h>
 #include "connect.h"
 #include "alloc.h"
 #include "method.h"
 #include "version.h"
 #include "header.h"
 #include "body.h"
+#include "server.h"
 #include "uri.h"
 #include "util.h"
 
@@ -25,7 +27,7 @@ struct fly_request_line{
 };
 typedef struct fly_request_line fly_reqline_t;
 
-struct fly_http_request{
+struct fly_request{
 	fly_pool_t *pool;
 	fly_connect_t *connect;
 	fly_reqline_t *request_line;
@@ -33,13 +35,16 @@ struct fly_http_request{
 	fly_body_t *body;
 	fly_buffer_t *buffer;
 };
-typedef struct fly_http_request fly_request_t;
+typedef struct fly_request fly_request_t;
+
+int fly_request_receive(fly_sock_t fd, fly_request_t *request);
+int fly_request_event_handler(fly_event_t *event);
 
 int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_line, fly_request_t *req);
 int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *header);
 
 #define FLY_REQUEST_POOL_SIZE		1
-fly_request_t *fly_request_init(void);
+fly_request_t *fly_request_init(fly_connect_t *conn);
 int fly_request_release(fly_request_t *req);
 
 fly_reqlinec_t *fly_get_request_line_ptr(char *buffer);

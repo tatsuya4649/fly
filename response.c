@@ -144,7 +144,7 @@ __fly_static int __fly_response_required_header(fly_response_t *response)
 	char **required_header;
 
 	if ((required_header=__fly_stcode_required_header(status_code)) == NULL)
-		return -1;
+		return 0;
 
 	return __fly_required_header(response->header, required_header);
 }
@@ -294,9 +294,9 @@ __fly_static void __fly_4xx_error(int c_sockfd, fly_version_e version, fly_stcod
 
 	contlen_str = fly_pballoc(ci->pool, fly_number_digits(contlen)+1);
 	sprintf(contlen_str, "%d", contlen);
-	if (fly_header_add(ci, "Content-Length", contlen_str) == -1)
+	if (fly_header_add(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str)) == -1)
 		goto error;
-	if (fly_header_add(ci, "Connection", "close") == -1)
+	if (fly_header_add(ci, fly_header_name_length("Connection"), fly_header_value_length("close")) == -1)
 		goto error;
 
 	body = fly_body_init();
@@ -329,8 +329,8 @@ void __fly_414_error(int c_sockfd, fly_version_e version)
 }
 
 #define __alias_fly_400_error		\
-	__attribute__ ((weak, alias("fly_400_error")))
-__attribute__ ((weak, alias("__fly_400_error"))) void fly_400_error(int c_sockfd, fly_version_e version);
+	__attribute__ ((weak, alias("__fly_400_error")))
+__alias_fly_400_error void fly_400_error(int c_sockfd, fly_version_e version);
 __alias_fly_400_error void fly_notfound_request_line(int c_sockfd, fly_version_e version);
 __alias_fly_400_error void fly_notfound_request_method(int c_sockfd, fly_version_e version);
 __alias_fly_400_error  void fly_unmatch_request_method(int c_sockfd, fly_version_e version);
@@ -343,6 +343,30 @@ __attribute__ ((weak, alias("__fly_414_error"))) void fly_414_error(int c_sockfd
 void fly_404_error(__unused int c_sockfd, __unused fly_version_e version)
 {
 	return __fly_4xx_error(c_sockfd, version, _404);
+}
+
+void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcode_t code)
+{
+	fly_response_t *response;
+	fly_body_t *body;
+
+	response = fly_response_init();
+	if (response == NULL)
+		return;
+
+	response->status_code = code;
+	response->version = version;
+	response->header = NULL;
+
+	body = fly_body_init();
+	body->body = fly_stcode_explain(_500);
+	body->body_len = strlen(body->body);
+	response->body = body;
+
+	fly_response(c_sockfd, response, 0);
+
+	fly_body_release(body);
+	fly_response_release(response);
 }
 
 void fly_500_error(int c_sockfd, fly_version_e version)
@@ -401,3 +425,57 @@ int fly_response_release(fly_response_t *response)
 	return fly_delete_pool(&response->pool);
 }
 
+__fly_static int __fly_4xx_error_handler(fly_event_t *e)
+{
+	printf("4xx\n");
+	fly_stcode_t code = (fly_stcode_t) e->event_data;
+
+	__fly_4xx_error(e->fd, FLY_DEFAULT_HTTP_VERSION, code);
+	/* end_of_connection */
+	fly_socket_release(e->fd);
+	return 0;
+}
+__fly_static int __fly_5xx_error_handler(fly_event_t *e)
+{
+	printf("5xx\n");
+	fly_stcode_t code = (fly_stcode_t) e->event_data;
+
+	__fly_5xx_error(e->fd, FLY_DEFAULT_HTTP_VERSION, code);
+	/* end_of_connection */
+	fly_socket_release(e->fd);
+	return 0;
+}
+
+int fly_4xx_error_event(fly_event_manager_t *m, fly_sock_t fd, fly_stcode_t code)
+{
+	fly_event_t *re;
+
+	re = fly_event_init(m);
+	re->fd = fd;
+	re->read_or_write = FLY_WRITE;
+	re->event_data = (void *) code;
+	/* close socket in 4xx event */
+	re->flag = FLY_CLOSE_EV;
+	re->tflag = 0;
+	re->eflag = 0;
+	re->handler = __fly_4xx_error_handler;
+
+	return fly_event_register(re);
+}
+
+int fly_5xx_error_event(fly_event_manager_t *m, fly_sock_t fd, fly_stcode_t code)
+{
+	fly_event_t *re;
+
+	re = fly_event_init(m);
+	re->fd = fd;
+	re->read_or_write = FLY_WRITE;
+	re->event_data = (void *) code;
+	/* close socket in 5xx event */
+	re->flag = FLY_CLOSE_EV;
+	re->tflag = 0;
+	re->eflag = 0;
+	re->handler = __fly_5xx_error_handler;
+
+	return fly_event_register(re);
+}

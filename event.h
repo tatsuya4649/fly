@@ -5,6 +5,7 @@
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include "alloc.h"
+#include "context.h"
 
 extern fly_pool_t *fly_event_pool;
 #define FLY_EVENT_POOL_SIZE			100
@@ -13,6 +14,7 @@ extern fly_pool_t *fly_event_pool;
 #define FLY_EVLIST_ELES			1000
 struct fly_event_manager{
 	fly_pool_t *pool;
+	fly_context_t *ctx;
 	int efd;
 	struct epoll_event *evlist;
 	int maxevents;
@@ -47,10 +49,18 @@ typedef struct fly_event fly_event_t;
 #define FLY_WAITFIRST	1<<1
 /* flag(generary flag) */
 #define FLY_PERSISTENT	1<<0
-#define FLY_TIMER_NOW	1<<1
+#define FLY_NODELETE	1<<1
+#define FLY_TIMER_NOW	1<<2
+#define FLY_CLOSE_EV	1<<3
+#define fly_nodelete(e)						\
+	(										\
+		((e)->flag & FLY_PERSISTENT)	||	\
+		((e)->flag & FLY_NODELETE)		||	\
+		((e)->flag & FLY_CLOSE_EV)			\
+	)
 
 /* manager setting */
-fly_event_manager_t *fly_event_manager_init(void);
+fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx);
 int fly_event_manager_release(fly_event_manager_t *manager);
 int fly_event_handler(fly_event_manager_t *manager);
 
