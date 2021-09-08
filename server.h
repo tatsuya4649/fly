@@ -1,11 +1,12 @@
 #ifndef _SERVER_H
 #define _SERVER_H
 
+#include <unistd.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
+#include <sys/socket.h>
 #include "version.h"
 #include "method.h"
-#include "request.h"
 
 #define FLY_IP_V4			4
 #define FLY_IP_V6			6

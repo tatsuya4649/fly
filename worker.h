@@ -6,6 +6,8 @@
 #include <time.h>
 #include "context.h"
 #include "event.h"
+#include "connect.h"
+#include "request.h"
 
 struct fly_worker{
 	pid_t pid;

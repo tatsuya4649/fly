@@ -47,7 +47,13 @@ typedef struct fly_event fly_event_t;
 #define FLY_WAITFIRST	1<<1
 /* flag(generary flag) */
 #define FLY_PERSISTENT	1<<0
-#define FLY_TIMER_NOW	1<<1
+#define FLY_NODELETE	1<<1
+#define FLY_TIMER_NOW	1<<2
+#define fly_nodelete(e)						\
+	(										\
+		((e)->flag & FLY_PERSISTENT)	||	\
+		((e)->flag & FLY_NODELETE)			\
+	)
 
 /* manager setting */
 fly_event_manager_t *fly_event_manager_init(void);
