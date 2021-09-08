@@ -7,6 +7,7 @@
 #ifndef FLY_ERROR
 #define FLY_ERROR(errno)		(-1*errno)
 #endif
+#define FLY_REQUEST_ERROR(status_code)		(-1*status_code)
 
 #define FLY_ERR_BUFLEN				30
 /* Success */
