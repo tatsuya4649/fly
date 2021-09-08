@@ -26,14 +26,23 @@ int fly_header_release(fly_hdr_ci *info)
 	return fly_delete_pool(&info->pool);
 }
 
-int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, fly_hdr_value *value)
+/*
+ * WARNING: name_len and value_len is length not including end of '\0'.
+ */
+int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
 {
 	fly_hdr_c *new_chain;
 	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
 	if (new_chain == NULL)
 		return -1;
-	new_chain->name = name;
-	new_chain->value = value;
+
+	new_chain->name = fly_pballoc(chain_info->pool, name_len+1);
+	memcpy(new_chain->name, name, name_len);
+	new_chain->value = fly_pballoc(chain_info->pool, value_len+1);
+	memcpy(new_chain->value, value, value_len);
+	new_chain->name[name_len] = '\0';
+	new_chain->value[value_len] = '\0';
+
 	new_chain->next = NULL;
 	if (chain_info->chain_length == 0)
 		chain_info->entry = new_chain;
@@ -132,8 +141,12 @@ size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info)
 char *fly_get_header_lines_ptr(char *buffer)
 {
 	char *header;
+	char *end_of_reqline;
 
-	header = strstr(buffer, "\r\n") + FLY_CRLF_LENGTH;
+	end_of_reqline = strstr(buffer, "\r\n");
+	if (end_of_reqline == NULL)
+		return NULL;
+	header = end_of_reqline + FLY_CRLF_LENGTH;
 	return *header != '\0' ? header : NULL;
 }
 
@@ -162,7 +175,7 @@ int fly_date_header(fly_hdr_ci *ci)
 		return -1;
 
 	value_field[length] = '\0';
-	return fly_header_add(ci, (fly_hdr_name *) "Date", value_field);
+	return fly_header_add(ci, fly_header_name_length("Date"), fly_header_value_length(value_field));
 	#undef FLY_DATE_LENGTH
 }
 
@@ -175,7 +188,7 @@ int fly_content_type_header(fly_hdr_ci *ci, fly_mime_e type)
 	if (mime == NULL || mime->name == NULL)
 		return -1;
 
-	return fly_header_add(ci, (fly_hdr_name *) "Content-Type", (fly_hdr_value *) mime->name);
+	return fly_header_add(ci, fly_header_name_length("Content-Type"), fly_header_value_length(mime->name));
 	#undef FLY_CONTENT_TYPE_LENGTH
 }
 
@@ -189,6 +202,6 @@ int fly_content_length_heaedr(fly_hdr_ci *ci, fly_body_t *body)
 	if (snprintf(contlen_str, FLY_CONTENT_LENGTH_LENGTH, "%d", body->body_len) == -1)
 		return -1;
 
-	return fly_header_add(ci, (fly_hdr_name *) "Content-Length", (fly_hdr_value *) contlen_str);
+	return fly_header_add(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
 	#undef FLY_CONTENT_LENGTH_LENGTH
 }

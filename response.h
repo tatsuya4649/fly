@@ -4,6 +4,7 @@
 #include "body.h"
 #include "version.h"
 #include "util.h"
+#include "event.h"
 
 #define RESPONSE_LENGTH_PER		1024
 #define FLY_RESPONSE_POOL_PAGE		100
@@ -57,7 +58,6 @@ enum status_code_type{
 	_505
 };
 typedef enum status_code_type fly_stcode_t;
-#define FLY_ERROR(x)		(-1*(x))
 
 struct fly_http_response{
 	fly_pool_t *pool;
@@ -83,10 +83,10 @@ char *fly_stcode_explain(fly_stcode_t type);
 
 int fly_response( int c_sockfd, fly_response_t *response, fly_flag_t flag);
 
-void fly_500_error(int c_sockfd, fly_version_e version); 
-void fly_414_error(int c_sockfd, fly_version_e version); 
-void fly_404_error(int c_sockfd, fly_version_e version); 
-void fly_400_error(int c_sockfd, fly_version_e version); 
+void fly_500_error(int c_sockfd, fly_version_e version);
+void fly_414_error(int c_sockfd, fly_version_e version);
+void fly_404_error(int c_sockfd, fly_version_e version);
+void fly_400_error(int c_sockfd, fly_version_e version);
 #define FLY_DEFAULT_HTTP_VERSION		V1_1
 void fly_notfound_request_line(int c_sockfd, fly_version_e version);
 void fly_notfound_request_method(int c_sockfd, fly_version_e version);
@@ -96,4 +96,6 @@ void fly_notfound_http_version(int c_sockfd, fly_version_e version);
 void fly_unmatch_http_version(int c_sockfd, fly_version_e version);
 void fly_nonumber_http_version(int c_sockfd, fly_version_e version);
 
+int fly_4xx_error_event(fly_event_manager_t *, fly_sock_t, fly_stcode_t);
+int fly_5xx_error_event(fly_event_manager_t *, fly_sock_t, fly_stcode_t);
 #endif

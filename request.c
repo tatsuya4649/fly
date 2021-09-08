@@ -6,7 +6,7 @@
 #include "version.h"
 #include "util.h"
 
-fly_request_t *fly_request_init(void)
+fly_request_t *fly_request_init(fly_connect_t *conn)
 {
 	fly_pool_t *pool;
 	fly_request_t *req;
@@ -25,6 +25,7 @@ fly_request_t *fly_request_init(void)
 	if (req->buffer == NULL)
 		return NULL;
 	memset(req->buffer, 0, FLY_BUFSIZE);
+	req->connect = conn;
 
 	return req;
 }
@@ -235,7 +236,6 @@ __fly_static int __fly_parse_request_line(fly_pool_t *pool, __unused int c_sock,
 		return -1;
 
 	request_line = req->request_line;
-    printf("%s\n", request_line);
     space = strstr(request_line, " ");
     /* method only => response 400 Bad Request */
     if (space == NULL)
@@ -269,7 +269,6 @@ __fly_static int __fly_parse_request_line(fly_pool_t *pool, __unused int c_sock,
 
     memcpy(req->uri.uri, space+1, next_space-uri_start);
     req->uri.uri[next_space-uri_start] = '\0';
-    printf("%s\n", req->uri.uri);
 
     char *version_start = next_space+1;
     req->version = fly_match_version(version_start);
@@ -277,14 +276,12 @@ __fly_static int __fly_parse_request_line(fly_pool_t *pool, __unused int c_sock,
     if (req->version == NULL)
 		return FLY_ERROR(400);
 
-    printf("%s\n", req->version->full);
     char *slash_p = strchr(req->version->full,'/');
 	/* http version number not found */
     if (slash_p == NULL)
 		return FLY_ERROR(400);
 
     req->version->number = slash_p + 1;
-    printf("%s\n", req->version->number);
     return 0;
 }
 
@@ -313,8 +310,6 @@ int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_l
     memcpy(req->request_line->request_line, request_line, request_line_length);
     /* get total line */
     req->request_line->request_line[request_line_length] = '\0';
-    printf("Request Line: %s\n", req->request_line->request_line);
-    printf("Request Line LENGTH: %ld\n", strlen(req->request_line->request_line));
 
 	switch(__fly_parse_request_line(pool, c_sock, req->request_line)){
 	case 0:
@@ -330,23 +325,18 @@ int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_l
 	}
 error_400:
 	/* Bad Request(result of Parse) */
-	fly_400_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
-	return -1;
+	return FLY_REQUEST_ERROR(400);
 error_414:
 	/* URI Too Long */
-	fly_414_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
-	return -1;
+	return FLY_REQUEST_ERROR(414);
 error_not_found_request_line:
-	fly_notfound_request_line(c_sock, FLY_DEFAULT_HTTP_VERSION);
-	return -1;
+	return FLY_REQUEST_ERROR(400);
 error_500:
 	/* Server Error */
-	fly_500_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
-	return -1;
+	return FLY_REQUEST_ERROR(500);
 error_501:
 	/* Request line Too long */
-	fly_500_error(c_sock, FLY_DEFAULT_HTTP_VERSION);
-	return -1;
+	return FLY_REQUEST_ERROR(501);
 }
 
 
@@ -376,24 +366,24 @@ __fly_static int __fly_end_of_header(char *ptr)
 {
 	if (__fly_lf(*ptr))
 		return 1;
-	else if (__fly_cr(*ptr) + __fly_lf(*(ptr+1))){
+	else if (__fly_cr(*ptr)){
 		return 1;
 	}else
 		return 0;
 }
 
 enum __fly_parse_type_result_type{
-	SUCCESS,
-	ERROR,
-	FATAL,
-	END_OF_HEADER
+	_FLY_PARSE_SUCCESS,
+	_FLY_PARSE_ERROR,
+	_FLY_PARSE_FATAL,
+	_FLY_PARSE_END_OF_HEADER
 };
 struct __fly_parse_header_line_result{
 	fly_buffer_t *ptr;
 	enum __fly_parse_type_result_type type;
 };
 
-__fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_parse_header_line_result *res, char *name, char *value)
+__fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_parse_header_line_result *res,char **name, int *name_len,char **value, int *value_len)
 {
 	enum {
 		INIT,
@@ -409,6 +399,8 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 	fly_buffer_t *ptr = header;
 
 	now = INIT;
+	*name_len = 0;
+	*value_len = 0;
 	while(1){
 		switch(now){
 		case INIT:
@@ -420,6 +412,7 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 			}
 
 			now = NAME;
+			*name = ptr;
 			prev = INIT;
 			continue;
 		case NAME:
@@ -429,13 +422,12 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				now = GAP;
 				prev = NAME;
 				/* end of name */
-				*name = '\0';
+				//*name = '\0';
 				continue;
 			}else
 				goto error;
 
-			/* copy name */
-			*name++ = *ptr;
+			(*name_len)++;
 			prev = NAME;
 			break;
 		case GAP:
@@ -445,6 +437,7 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				now = GAP_SPACE;
 			else if (__fly_alpha_number(*ptr)){
 				now = VALUE;
+				*value = ptr;
 				prev = GAP;
 				continue;
 			}else if (__fly_cr(*ptr))
@@ -461,6 +454,7 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				;
 			else if (__fly_alpha_number(*ptr)){
 				now = VALUE;
+				*value = ptr;
 				prev = GAP_SPACE;
 				continue;
 			}else if (__fly_cr(*ptr))
@@ -476,22 +470,22 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				;
 			else if (__fly_cr(*ptr)){
 				now = CR;
-				*value = '\0';
+				//*value = '\0';
 				prev = VALUE;
 				continue;
 			}else if (__fly_lf(*ptr)){
 				now = LF;
-				*value = '\0';
+				//*value = '\0';
 				prev = VALUE;
 				continue;
 			}else
 				goto error;
 
-			*value++ = *ptr;
+			(*value_len)++;
 			prev = VALUE;
 			break;
 		case CR:
-			if (prev == VALUE && __fly_lf(*ptr))
+			if (prev == VALUE && __fly_cr(*ptr))
 				now = LF;
 			else
 				goto error;
@@ -502,7 +496,7 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 			now = NEXT;
 
 			prev = LF;
-			continue;
+			break;
 		case NEXT:
 			prev = NEXT;
 			goto end_line;
@@ -513,22 +507,22 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 	}
 end_line:
 	res->ptr = ptr;
-	res->type = SUCCESS;
+	res->type = _FLY_PARSE_SUCCESS;
 	return 0;
 end_of_header:
 	res->ptr = ptr;
-	res->type = END_OF_HEADER;
+	res->type = _FLY_PARSE_END_OF_HEADER;
 	return 0;
 error:
 	if (strchr(ptr, FLY_LF) == NULL){
 		res->ptr = ptr;
-		res->type = FATAL;
+		res->type = _FLY_PARSE_FATAL;
 		return -1;
 	}else{
 		while( !__fly_lf(*ptr++) )
 			;
 		res->ptr = ptr;
-		res->type = ERROR;
+		res->type = _FLY_PARSE_ERROR;
 		return -1;
 	}
 }
@@ -548,20 +542,21 @@ __fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_t *header)
 		switch(now){
 		case HEADER_LINE:
 			{
-				char name[FLY_HEADER_NAME_MAX];
-				char value[FLY_HEADER_VALUE_MAX];
+				char *name=NULL;
+				char *value=NULL;
+				int name_len, value_len;
 				struct __fly_parse_header_line_result result;
-				__fly_parse_header_line(ptr, &result, name, value);
+				__fly_parse_header_line(ptr, &result, &name, &name_len, &value, &value_len);
 				switch(result.type){
-				case END_OF_HEADER:
+				case _FLY_PARSE_END_OF_HEADER:
 					now = END;
 					continue;
-				case FATAL:
+				case _FLY_PARSE_FATAL:
 					goto fatal;
-				case ERROR:
+				case _FLY_PARSE_ERROR:
 					break;
-				case SUCCESS:
-					if (fly_header_add(ci, name, value) == -1)
+				case _FLY_PARSE_SUCCESS:
+					if (fly_header_add(ci, name, name_len, value, value_len) == -1)
 						return -1;
 					break;
 				default:
@@ -596,3 +591,100 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *header)
 	return __fly_parse_header(rchain_info, header);
 }
 
+
+int fly_request_receive(fly_sock_t fd, fly_request_t *request)
+{
+	if (request == NULL)
+		return -1;
+
+	int recvlen=0;
+
+	while(1){
+		/* buffer overflow */
+		if (FLY_BUFSIZE-recvlen == 0)
+			goto error;
+		recvlen += recv(fd, request->buffer+recvlen, FLY_BUFSIZE-recvlen, MSG_DONTWAIT);
+		switch(recvlen){
+		case 0:
+			goto end_of_connection;
+		case -1:
+			if (errno == EINTR)
+				continue;
+			goto error;
+		default:
+			break;
+		}
+		break;
+	}
+end_of_connection:
+	request->buffer[recvlen-1] = '\0';
+	return 0;
+error:
+	return -1;
+}
+
+int fly_request_event_handler(fly_event_t *event)
+{
+	fly_request_t *req;
+	fly_reqlinec_t *request_line_ptr;
+	char *header_ptr;
+	fly_body_t *body;
+	fly_bodyc_t *body_ptr;
+
+	req = (fly_request_t *) event->event_data;
+	if (fly_request_receive(event->fd, req) == -1)
+		goto error;
+
+	printf("%s\n", req->buffer);
+	/* parse request_line */
+	request_line_ptr = fly_get_request_line_ptr(req->buffer);
+	if (request_line_ptr == NULL)
+		goto error;
+	switch(fly_request_operation(event->fd, req->pool, request_line_ptr, req)){
+	case FLY_REQUEST_ERROR(400):
+		goto response_400;
+	case FLY_REQUEST_ERROR(414):
+		goto response_414;
+	case FLY_REQUEST_ERROR(500):
+		goto response_500;
+	case FLY_REQUEST_ERROR(501):
+		goto response_501;
+	default:
+		break;
+	}
+
+	/* parse header */
+	header_ptr = fly_get_header_lines_ptr(req->buffer);
+	if (header_ptr == NULL)
+		goto error;
+	if (fly_reqheader_operation(req, header_ptr) == -1)
+		goto response_400;
+
+	/* parse body */
+	body = fly_body_init();
+	if (body == NULL)
+		goto error;
+	req->body = body;
+	body_ptr = fly_get_body_ptr(req->buffer);
+	if (fly_body_setting(body, body_ptr) == -1)
+		goto error;
+
+	/* Success parse request */
+	return 0;
+
+/* TODO: error response event */
+response_400:
+	fly_4xx_error_event(event->manager, event->fd, _400);
+	goto error;
+response_414:
+	fly_4xx_error_event(event->manager, event->fd, _414);
+	goto error;
+response_500:
+	fly_5xx_error_event(event->manager, event->fd, _500);
+	goto error;
+response_501:
+	fly_5xx_error_event(event->manager, event->fd, _501);
+	goto error;
+error:
+	return -1;
+}
