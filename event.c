@@ -93,18 +93,31 @@ int fly_event_register(fly_event_t *event)
 {
 	struct epoll_event ev;
 	epoll_data_t data;
+	int op;
 	if (!event)
 		return -1;
 
-	if (event->manager->last == NULL)
-		event->manager->last = event;
+	op = EPOLL_CTL_ADD;
+	if (event->manager->first != NULL){
+		for (fly_event_t *e=event->manager->first; e!=NULL; e=e->next){
+			if (e->fd == event->fd){
+				op = EPOLL_CTL_MOD;
+				break;
+			}
+		}
+	}
+
+	if (event->manager->first == NULL)
+		event->manager->first = event;
 	else
 		event->manager->last->next = event;
 
+	event->manager->last = event;
 	data.ptr = event;
 	ev.data = data;
 	ev.events = event->read_or_write | event->eflag;
-	return epoll_ctl(event->manager->efd, EPOLL_CTL_ADD, event->fd, &ev);
+
+	return epoll_ctl(event->manager->efd, op, event->fd, &ev);
 }
 
 int fly_event_unregister(fly_event_t *event)
@@ -113,14 +126,21 @@ int fly_event_unregister(fly_event_t *event)
 
 	for (e=event->manager->first; e!=NULL; e=e->next){
 		if (event == e){
-			if (e == event->manager->first)
+			if (event == event->manager->first && event == event->manager->last){
+				event->manager->first = NULL;
+				event->manager->last = NULL;
+			}else if (e == event->manager->first)
 				event->manager->first = e->next;
+			else if (e == event->manager->last)
+				event->manager->last = prev;
 			else
 				prev->next = e->next;
+
+			return epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL);
 		}
 		prev = e;
 	}
-	return -1;
+	return 0;
 }
 
 int fly_event_timer_init(fly_event_t *event)
@@ -158,8 +178,8 @@ int fly_event_handler(fly_event_manager_t *manager)
 				fly_event->handler(fly_event);
 
 			/* remove event if not persistent */
-			if (!(fly_event->flag & FLY_PERSISTENT)){
-				if(epoll_ctl(manager->efd, EPOLL_CTL_DEL, fly_event->fd, NULL) == -1)
+			if (!fly_nodelete(fly_event)){
+				if(fly_event_unregister(fly_event) == -1)
 					return -1;
 			}
 		}

@@ -294,9 +294,9 @@ __fly_static void __fly_4xx_error(int c_sockfd, fly_version_e version, fly_stcod
 
 	contlen_str = fly_pballoc(ci->pool, fly_number_digits(contlen)+1);
 	sprintf(contlen_str, "%d", contlen);
-	if (fly_header_add(ci, "Content-Length", contlen_str) == -1)
+	if (fly_header_add(ci, "Content-Length", strlen("Content-Length"), contlen_str, strlen(contlen_str)) == -1)
 		goto error;
-	if (fly_header_add(ci, "Connection", "close") == -1)
+	if (fly_header_add(ci, "Connection", strlen("Connection"), "close", strlen("close")) == -1)
 		goto error;
 
 	body = fly_body_init();

@@ -1,8 +1,10 @@
 #include "worker.h"
 
-__noreturn void fly_worker_process(fly_context_t *ctx, void *data);
-__fly_static fly_event_t *__fly_listen_socked_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
+__fly_static fly_event_t *__fly_listen_socked_event(fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
+__fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen);
+__fly_static int __fly_listen_connected(fly_event_t *);
+
 
 /*
  * this function is called after fork from master process.
@@ -19,7 +21,7 @@ __noreturn void fly_worker_process(__unused fly_context_t *ctx, __unused void *d
 	if (manager == NULL)
 		goto error_end;
 
-	event = __fly_listen_socked_event(manager, ctx->listen_sock);
+	event = __fly_listen_socked_event(manager, ctx);
 	if (event == NULL || fly_event_register(event) == -1)
 		goto error_end;
 
@@ -35,7 +37,7 @@ end:
 	exit(0);
 }
 
-__fly_static fly_event_t *__fly_listen_socked_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo)
+__fly_static fly_event_t *__fly_listen_socked_event(fly_event_manager_t *manager, fly_context_t *ctx)
 {
 	fly_event_t *e;
 
@@ -43,19 +45,14 @@ __fly_static fly_event_t *__fly_listen_socked_event(fly_event_manager_t *manager
 	if (e == NULL)
 		return NULL;
 
-	e->fd = sockinfo->fd;
+	e->fd = ctx->listen_sock->fd;
 	e->read_or_write = FLY_READ;
 	/* TODO: accept */
 	e->handler = __fly_listen_socket_handler;
 	e->flag = FLY_PERSISTENT;
+	e->event_data = ctx;
 
 	return e;
-}
-
-__fly_static int __connected(fly_event_t *)
-{
-	printf("Hello World\n");
-	return 0;
 }
 
 __fly_static int __fly_listen_socket_handler(__unused struct fly_event *event)
@@ -79,13 +76,53 @@ __fly_static int __fly_listen_socket_handler(__unused struct fly_event *event)
 		return -1;
 	ne->fd = conn_sock;
 	ne->read_or_write = FLY_READ;
-	/* TODO: connected socket handler */
-	ne->handler = __connected;
-	ne->flag = 0;
+	ne->handler = __fly_listen_connected;
+	ne->flag = FLY_NODELETE;
+	ne->event_data = __fly_connected(listen_sock, conn_sock, ne,(struct sockaddr *) &addr, addrlen);
+	if (ne->event_data == NULL)
+		return -1;
 
 	if (fly_event_register(ne) == -1)
 		return -1;
 
 	return 0;
+}
+
+__fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen)
+{
+	fly_connect_t *conn;
+
+	conn = fly_connect_init(fd, cfd, e, addr, addrlen);
+	if (conn == NULL)
+		return NULL;
+
+	return conn;
+}
+
+/*
+ *  ready for receiving request, and publish an received event.
+ */
+__fly_static int __fly_listen_connected(fly_event_t *e)
+{
+	fly_connect_t *conn;
+	fly_request_t *req;
+	fly_event_t *re;
+
+	conn = (fly_connect_t *) e->event_data;
+	/* ready for request */
+	req = fly_request_init(conn);
+	if (req == NULL)
+		return -1;
+
+	re = fly_event_init(e->manager);
+	re->fd = e->fd;
+	re->read_or_write = FLY_READ;
+	re->event_data = req;
+	re->flag = FLY_NODELETE;
+	re->tflag = 0;
+	re->eflag = 0;
+	re->handler = fly_request_event_handler;
+
+	return fly_event_register(re);
 }
 
