@@ -4,6 +4,7 @@
 
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
+#include <sys/time.h>
 #include "alloc.h"
 #include "context.h"
 
@@ -24,14 +25,14 @@ struct fly_event_manager{
 };
 typedef struct fly_event_manager fly_event_manager_t;
 
+typedef struct timeval fly_time_t;
 struct fly_event{
 	fly_event_manager_t *manager;
 	int fd;
 	int read_or_write;
 	int eflag;
 
-	int timerfd;
-	struct itimerspec *time;
+	fly_time_t timeout;
 	int tflag;
 
 	int flag;
@@ -40,13 +41,50 @@ struct fly_event{
 	int (*handler)(struct fly_event *);
 
 	void *event_data;
+
+	/* event bit fields */
+	int expired: 1;
+	int available: 1;
 };
 typedef struct fly_event fly_event_t;
+#define fly_time(tptr)		gettimeofday((struct timeval *) tptr, NULL)
+
+#define fly_diff_time(new, old) (float) ((float) fly_diff_sec((now),(old)) - (float) fly_diff_usec((now), (old)))
+
+#define fly_sub_time(nptr, dptr)							\
+	do{														\
+		(nptr)->tv_sec  = (int) ((struct timeval *) (nptr))->tv_sec - (int) ((struct timeval *) (dptr))->tv_sec;		\
+		(nptr)->tv_usec = (long) ((struct timeval *) (nptr))->tv_usec - (long) ((struct timeval *) (dptr))->tv_usec;		\
+		if ((nptr)->tv_usec < 0){								\
+			(nptr)->tv_sec--;									\
+			(nptr)->tv_usec += 1000*1000;						\
+		}													\
+	} while(0)
+#define fly_time_null(t)									\
+	do {														\
+		(t).tv_sec = -1;									\
+		(t).tv_usec = -1;									\
+	} while(0)
+
+#define fly_equal_time(t1, t2)								\
+	do{														\
+		(t1).tv_sec = (t2).tv_sec;							\
+		(t1).tv_usec = (t2).tv_usec;						\
+	} while(0)
+#define fly_diff_sec(new, old)	((new).tv_sec-(old).tv_sec)
+#define fly_diff_usec(new, old)	((float) ((new).tv_usec-(old).tv_usec)/(1000.0*1000.0))
+#define fly_milli_time(t1)								\
+	({													\
+		int milli = 0;									\
+		milli += (int) 1000*((int) (t1).tv_sec);		\
+		milli += (int) ((int) (t1).tv_usec) / 1000;		\
+	})
 
 /* eflag(epoll flag) shown detail in epoll API */
 /* tflag(time flag) */
-#define FLY_TIMEOUT		1<<0
-#define FLY_WAITFIRST	1<<1
+#define FLY_INFINITY	1<<0
+#define FLY_TIMEOUT		1<<1
+#define FLY_WAITFIRST	1<<2
 /* flag(generary flag) */
 #define FLY_PERSISTENT	1<<0
 #define FLY_NODELETE	1<<1

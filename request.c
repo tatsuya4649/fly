@@ -26,6 +26,7 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 		return NULL;
 	memset(req->buffer, 0, FLY_BUFSIZE);
 	req->connect = conn;
+	req->fase = FLY_REQUEST_REQUEST_LINE;
 
 	return req;
 }
@@ -623,6 +624,14 @@ error:
 	return -1;
 }
 
+/* TODO */
+/* Parse Request Line Event*/
+int fly_rline_event_handler(fly_event_t *event);
+/* Parse Request Header Event */
+int fly_rheader_event_handler(fly_event_t *event);
+/* Parse Request Body Event*/
+int fly_rbody_event_handler(fly_event_t *event);
+
 int fly_request_event_handler(fly_event_t *event)
 {
 	fly_request_t *req;
@@ -630,6 +639,8 @@ int fly_request_event_handler(fly_event_t *event)
 	char *header_ptr;
 	fly_body_t *body;
 	fly_bodyc_t *body_ptr;
+	fly_route_reg_t *route_reg;
+	fly_route_t *route;
 
 	req = (fly_request_t *) event->event_data;
 	if (fly_request_receive(event->fd, req) == -1)
@@ -670,11 +681,21 @@ int fly_request_event_handler(fly_event_t *event)
 		goto error;
 
 	/* Success parse request */
+	/* TODO: success handler */
+	route_reg = event->manager->ctx->route_reg;
+	route = fly_found_route(route_reg, req->request_line->uri.uri, req->request_line->method->type);
+	if (route == NULL)
+		goto response_404;
+
+
 	return 0;
 
-/* TODO: error response event */
+/* TODO: error response event memory release */
 response_400:
 	fly_4xx_error_event(event->manager, event->fd, _400);
+	goto error;
+response_404:
+	fly_4xx_error_event(event->manager, event->fd, _404);
 	goto error;
 response_414:
 	fly_4xx_error_event(event->manager, event->fd, _414);

@@ -4,6 +4,7 @@
 #include "alloc.h"
 #include "log.h"
 #include "server.h"
+#include "route.h"
 
 #define FLY_CONTEXT_POOL_SIZE			10
 
@@ -11,6 +12,7 @@ struct fly_context{
 	fly_pool_t *pool;
 	fly_sockinfo_t *listen_sock;
 	fly_log_t *log;
+	fly_route_reg_t *route_reg;
 };
 typedef struct fly_context fly_context_t;
 

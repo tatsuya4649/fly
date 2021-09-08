@@ -27,6 +27,12 @@ struct fly_request_line{
 };
 typedef struct fly_request_line fly_reqline_t;
 
+
+enum fly_request_fase{
+	FLY_REQUEST_REQUEST_LINE,
+	FLY_REQUEST_HEADER,
+	FLY_REQUEST_BODY,
+};
 struct fly_request{
 	fly_pool_t *pool;
 	fly_connect_t *connect;
@@ -34,6 +40,7 @@ struct fly_request{
 	fly_hdr_ci *header;
 	fly_body_t *body;
 	fly_buffer_t *buffer;
+	enum fly_request_fase fase;
 };
 typedef struct fly_request fly_request_t;
 

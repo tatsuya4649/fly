@@ -1,40 +1,44 @@
 #include "route.h"
 #include "alloc.h"
 
-fly_pool_t *fly_route_pool = NULL;
-int fly_route_init(void)
-{
-	if (fly_route_pool != NULL)
-		return 0;
-	fly_route_pool = fly_create_pool(FLY_ROUTE_POOL_PAGE);
-	if (fly_route_pool == NULL)
-		return -1;
-	return 0;
-}
+//fly_pool_t *fly_route_pool = NULL;
+//int fly_route_init(void)
+//{
+//	if (fly_route_pool != NULL)
+//		return 0;
+//	fly_route_pool = fly_create_pool(FLY_ROUTE_POOL_PAGE);
+//	if (fly_route_pool == NULL)
+//		return -1;
+//	return 0;
+//}
 
 fly_route_reg_t *fly_route_reg_init(void)
 {
-	if (fly_route_pool == NULL)
+	fly_pool_t *pool;
+	fly_route_reg_t *reg;
+
+	pool = fly_create_pool(FLY_ROUTEREG_POOL_SIZE);
+	if (pool == NULL)
 		return NULL;
 
-	fly_route_reg_t *reg;
-	reg = fly_pballoc(fly_route_pool, sizeof(fly_route_reg_t));
+	reg = fly_pballoc(pool, sizeof(fly_route_reg_t));
 	if (reg == NULL)
 		return NULL;
 
-	reg->pool = fly_route_pool;
+	reg->pool = pool;
 	reg->regcount = 0;
 	reg->entry = NULL;
 	return reg;
 }
 
-int fly_route_release(void)
-{
-	if (fly_route_pool == NULL)
-		return -1;
-
-	return fly_delete_pool(&fly_route_pool);
-}
+//int fly_route_release(void)
+//{
+//	if (fly_route_pool == NULL)
+//		return -1;
+//
+//	return fly_delete_pool(&fly_route_pool);
+//}
+//
 int fly_route_reg_release(fly_route_reg_t *reg)
 {
 	if (reg == NULL)
@@ -45,7 +49,7 @@ int fly_route_reg_release(fly_route_reg_t *reg)
 
 int fly_register_route(
 	fly_route_reg_t *reg,
-	fly_route *func,
+	fly_route_handler *func,
 	fly_path *uri,
 	fly_method_e method,
 	fly_flag_t flag
