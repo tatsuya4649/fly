@@ -17,7 +17,7 @@ __noreturn void fly_worker_process(__unused fly_context_t *ctx, __unused void *d
 	if (!ctx)
 		goto error_end;
 
-	manager = fly_event_manager_init();
+	manager = fly_event_manager_init(ctx);
 	if (manager == NULL)
 		goto error_end;
 

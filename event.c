@@ -30,7 +30,7 @@ __fly_static int __fly_event_fd_init(void)
 /*
  *	create manager of events.
  */
-fly_event_manager_t *fly_event_manager_init(void)
+fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 {
 	fly_pool_t *pool;
 	fly_event_manager_t *manager;
@@ -50,6 +50,7 @@ fly_event_manager_t *fly_event_manager_init(void)
 	manager->pool = fly_event_pool;
 	manager->evlist = fly_pballoc(manager->pool, sizeof(struct epoll_event)*FLY_EVLIST_ELES);
 	manager->maxevents = FLY_EVLIST_ELES;
+	manager->ctx = ctx;
 	manager->efd = fd;
 	manager->first = NULL;
 	manager->last = NULL;
@@ -179,8 +180,9 @@ int fly_event_handler(fly_event_manager_t *manager)
 
 			/* remove event if not persistent */
 			if (!fly_nodelete(fly_event)){
-				if(fly_event_unregister(fly_event) == -1)
+				if(fly_event_unregister(fly_event) == -1){
 					return -1;
+				}
 			}
 		}
 	}
