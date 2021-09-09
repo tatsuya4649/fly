@@ -31,16 +31,21 @@ typedef struct fly_request_line fly_reqline_t;
 
 
 enum fly_request_fase{
-	FLY_REQUEST_REQUEST_LINE,
-	FLY_REQUEST_HEADER,
-	FLY_REQUEST_BODY,
+	EFLY_REQUEST_FASE_INIT,
+	EFLY_REQUEST_FASE_REQUEST_LINE,
+	EFLY_REQUEST_FASE_HEADER,
+	EFLY_REQUEST_FASE_BODY,
 };
+#define fly_event_fase(e, fase)			((e)->event_fase = (void *) EFLY_REQUEST_FASE_ ## fase)
+typedef enum fly_request_fase fly_request_fase_t;
 enum fly_request_state{
-	EFLY_REQUEST_INIT,
-	EFLY_REQUEST_CONT,
-	EFLY_REQUEST_END,
-	EFLY_REQUEST_TIMEOUT,
+	EFLY_REQUEST_STATE_INIT,
+	EFLY_REQUEST_STATE_RECEIVE,
+	EFLY_REQUEST_STATE_CONT,
+	EFLY_REQUEST_STATE_END,
+	EFLY_REQUEST_STATE_TIMEOUT,
 };
+#define fly_event_state(e, event)		((e)->event_state = (void *) EFLY_REQUEST_STATE_ ## event)
 typedef enum fly_request_state fly_request_state_t;
 struct fly_request{
 	fly_pool_t *pool;
@@ -50,7 +55,7 @@ struct fly_request{
 	fly_body_t *body;
 	fly_buffer_t *buffer;
 	fly_buffer_t *bptr;
-	enum fly_request_fase fase;
+	fly_request_fase_t fase;
 };
 typedef struct fly_request fly_request_t;
 

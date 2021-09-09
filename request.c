@@ -29,7 +29,7 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 	req->bptr = req->buffer;
 	memset(req->buffer, 0, FLY_BUFSIZE);
 	req->connect = conn;
-	req->fase = FLY_REQUEST_REQUEST_LINE;
+	req->fase = EFLY_REQUEST_FASE_REQUEST_LINE;
 
 	return req;
 }
@@ -46,68 +46,73 @@ fly_reqlinec_t *fly_get_request_line_ptr(char *buffer)
 	return buffer;
 }
 
-__fly_static int __fly_alpha(char c)
+__fly_static inline int __fly_alpha(char c)
 {
 	if ((c>='a' && c<='z') || (c>='A' && c<='Z'))
 		return 1;
 	else
 		return 0;
 }
-__fly_static int __fly_number(char c)
+__fly_static inline int __fly_number(char c)
 {
 	if (c>='0' && c<='9')
 		return 1;
 	else
 		return 0;
 }
-__fly_static int __fly_alpha_number(char c)
+__fly_static inline int __fly_alpha_number(char c)
 {
 	return (__fly_alpha(c) || __fly_number(c)) ? 1 : 0;
 }
-__fly_static int __fly_space(char c)
+__fly_static inline int __fly_space(char c)
 {
 	return (c == ' ') ? 1 : 0;
 }
-__fly_static int __fly_ht(char c)
+__fly_static inline int __fly_ht(char c)
 {
 	return (c == '\t' ? 1 : 0);
 }
-__fly_static int __fly_slash(char c)
+__fly_static inline int __fly_slash(char c)
 {
 	return (c == '/') ? 1 : 0;
 }
-__fly_static int __fly_dot(char c)
+__fly_static inline int __fly_dot(char c)
 {
 	return (c == '.') ? 1 : 0;
 }
-__fly_static int __fly_cr(char c)
+__fly_static inline int __fly_cr(char c)
 {
 	return (c == '\r') ? 1 : 0;
 }
-__fly_static int __fly_lf(char c)
+__fly_static inline int __fly_lf(char c)
 {
 	return (c == '\n') ? 1 : 0;
 }
-__fly_static int __fly_colon(char c)
+__fly_static inline int __fly_colon(char c)
 {
 	return (c == ':') ? 1 : 0;
 }
-__unused __fly_static int __fly_bracket(char c)
+__unused __fly_static inline int __fly_bracket(char c)
 {
 	return (c == '[' || c == ']') ? 1 : 0;
 }
-__unused __fly_static int __fly_gtlt(char c)
+__unused __fly_static inline int __fly_gtlt(char c)
 {
 	return (c == '<' || c == '>') ? 1 : 0;
 }
-__unused __fly_static int __fly_equal(char c)
+__unused __fly_static inline int __fly_equal(char c)
 {
 	return (c == '=') ? 1 : 0;
 }
-__fly_static int __fly_vchar(char c)
+__fly_static inline int __fly_vchar(char c)
 {
 	return (c >= 0x21 && c <= 0x7E) ? 1 : 0;
 }
+__fly_static inline int  __fly_zero(char c)
+{
+	return (c == '\0') ? 1 : 0;
+}
+
 //__fly_static int __fly_obs_text(char c)
 //{
 //	return (c >= 0x80 && c <= 0xFF) ? 1 : 0;
@@ -384,6 +389,7 @@ enum __fly_parse_type_result_type{
 	_FLY_PARSE_SUCCESS,
 	_FLY_PARSE_ERROR,
 	_FLY_PARSE_FATAL,
+	_FLY_PARSE_ITM,		/* in the middle */
 	_FLY_PARSE_END_OF_HEADER
 };
 struct __fly_parse_header_line_result{
@@ -415,6 +421,8 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 			if (!__fly_header_name_usable(*ptr)){
 				if (__fly_end_of_header(ptr))
 					goto end_of_header;
+				else if (__fly_zero(*ptr))
+					goto in_the_middle;
 				else
 					goto error;
 			}
@@ -429,10 +437,10 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 			else if (__fly_colon(*ptr)){
 				now = GAP;
 				prev = NAME;
-				/* end of name */
-				//*name = '\0';
 				continue;
-			}else
+			}else if (__fly_zero(*ptr))
+				goto in_the_middle;
+			else
 				goto error;
 
 			(*name_len)++;
@@ -452,8 +460,10 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				now = CR;
 			else if (__fly_lf(*ptr))
 				now = LF;
+			else if (__fly_zero(*ptr))
+				goto in_the_middle;
 			else
-				goto error;
+				goto in_the_middle;
 
 			prev = GAP;
 			break;
@@ -469,6 +479,8 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				now = CR;
 			else if (__fly_lf(*ptr))
 				now = LF;
+			else if (__fly_zero(*ptr))
+				goto in_the_middle;
 			else
 				goto error;
 			prev = GAP_SPACE;
@@ -478,15 +490,15 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				;
 			else if (__fly_cr(*ptr)){
 				now = CR;
-				//*value = '\0';
 				prev = VALUE;
 				continue;
 			}else if (__fly_lf(*ptr)){
 				now = LF;
-				//*value = '\0';
 				prev = VALUE;
 				continue;
-			}else
+			}else if (__fly_zero(*ptr))
+				goto in_the_middle;
+			else
 				goto error;
 
 			(*value_len)++;
@@ -495,12 +507,17 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 		case CR:
 			if (prev == VALUE && __fly_cr(*ptr))
 				now = LF;
+			else if (__fly_zero(*ptr))
+				goto in_the_middle;
 			else
 				goto error;
 
 			prev = CR;
 			break;
 		case LF:
+			if (__fly_zero(*ptr))
+				goto in_the_middle;
+
 			now = NEXT;
 
 			prev = LF;
@@ -516,11 +533,11 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 end_line:
 	res->ptr = ptr;
 	res->type = _FLY_PARSE_SUCCESS;
-	return 0;
+	return 1;
 end_of_header:
 	res->ptr = ptr;
 	res->type = _FLY_PARSE_END_OF_HEADER;
-	return 0;
+	return 1;
 error:
 	if (strchr(ptr, FLY_LF) == NULL){
 		res->ptr = ptr;
@@ -533,6 +550,10 @@ error:
 		res->type = _FLY_PARSE_ERROR;
 		return -1;
 	}
+in_the_middle:
+	res->ptr = ptr;
+	res->type = _FLY_PARSE_ITM;
+	return 0;
 }
 __fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_t *header)
 {
@@ -563,6 +584,8 @@ __fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_t *header)
 					goto fatal;
 				case _FLY_PARSE_ERROR:
 					break;
+				case _FLY_PARSE_ITM:
+					goto in_the_middle;
 				case _FLY_PARSE_SUCCESS:
 					if (fly_header_add(ci, name, name_len, value, value_len) == -1)
 						return -1;
@@ -580,12 +603,17 @@ __fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_t *header)
 		}
 	}
 
+#define __REQUEST_HEADER_SUCCESS			1
+#define __REQUEST_HEADER_IN_THE_MIDDLE		0
+#define __REQUEST_HEADER_ERROR				-1
 error:
-	return -1;
+	return __REQUEST_HEADER_ERROR;
 fatal:
-	return -1;
+	return __REQUEST_HEADER_ERROR;
 end:
-	return 0;
+	return __REQUEST_HEADER_SUCCESS;
+in_the_middle:
+	return __REQUEST_HEADER_IN_THE_MIDDLE;
 }
 
 int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *header)
@@ -690,13 +718,17 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_route_reg_t *route_reg;
 	fly_route_t *route;
 	__unused fly_request_state_t state;
+	__unused fly_request_fase_t fase;
 
 	state = (fly_request_state_t) event->event_state;
+	fase = (fly_request_fase_t) event->event_fase;
 	req = (fly_request_t *) event->event_data;
 
 	if (is_fly_event_timeout(event))
 		goto timeout;
 
+	fly_event_fase(event, REQUEST_LINE);
+	fly_event_state(event, RECEIVE);
 	switch (fly_request_receive(event->fd, req)){
 	case -1:
 		goto error;
@@ -706,7 +738,20 @@ int fly_request_event_handler(fly_event_t *event)
 	}
 
 	printf("%s\n", req->buffer);
+	switch(fase){
+	case EFLY_REQUEST_FASE_INIT:
+		break;
+	case EFLY_REQUEST_FASE_REQUEST_LINE:
+		goto __fase_request_line;
+	case EFLY_REQUEST_FASE_HEADER:
+		goto __fase_header;
+	case EFLY_REQUEST_FASE_BODY:
+		goto __fase_body;
+	default:
+		break;
+	}
 	/* parse request_line */
+__fase_request_line:
 	request_line_ptr = fly_get_request_line_ptr(req->buffer);
 	if (request_line_ptr == NULL)
 		goto error;
@@ -727,13 +772,28 @@ int fly_request_event_handler(fly_event_t *event)
 	}
 
 	/* parse header */
+__fase_header:
+	fly_event_fase(event, HEADER);
 	header_ptr = fly_get_header_lines_ptr(req->buffer);
 	if (header_ptr == NULL)
-		goto error;
-	if (fly_reqheader_operation(req, header_ptr) == -1)
+		goto continuation;
+
+	switch (fly_reqheader_operation(req, header_ptr)){
+	case __REQUEST_HEADER_ERROR:
 		goto response_400;
+	case __REQUEST_HEADER_IN_THE_MIDDLE:
+		goto continuation;
+	case __REQUEST_HEADER_SUCCESS:
+		break;
+	}
+
+	/* check of having body */
+	if (fly_content_length(req->header) == 0)
+		goto __fase_end_of_parse;
 
 	/* parse body */
+__fase_body:
+	fly_event_fase(event, BODY);
 	body = fly_body_init();
 	if (body == NULL)
 		goto error;
@@ -742,14 +802,16 @@ int fly_request_event_handler(fly_event_t *event)
 	if (fly_body_setting(body, body_ptr) == -1)
 		goto error;
 
+
+__fase_end_of_parse:
 	/* Success parse request */
-	/* TODO: success handler */
 	route_reg = event->manager->ctx->route_reg;
 	route = fly_found_route(route_reg, req->request_line->uri.uri, req->request_line->method->type);
 	if (route == NULL)
 		goto response_404;
 
 
+	/* TODO: success handler */
 	return 0;
 	goto continuation;
 
@@ -772,8 +834,8 @@ response_501:
 
 /* continuation event publish. */
 continuation:
-	event->event_state = (void *) EFLY_REQUEST_CONT;
-	event->flag = FLY_MODIFY;
+	event->event_state = (void *) EFLY_REQUEST_STATE_CONT;
+	event->flag = FLY_MODIFY|FLY_INHERITIME;
 	event->available = false;
 	if (fly_event_register(event) == -1)
 		goto error;
@@ -781,7 +843,7 @@ continuation:
 	return 0;
 
 disconnection:
-	event->event_state = (void *) EFLY_REQUEST_END;
+	event->event_state = (void *) EFLY_REQUEST_STATE_END;
 	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
 	event->handler = fly_request_disconnect_handler;
 	event->available = false;
@@ -792,8 +854,8 @@ disconnection:
 
 /* expired */
 timeout:
-	event->event_state = (void *) FLY_REQUEST_TIMEOUT;
-	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
+	event->event_state = (void *) EFLY_REQUEST_STATE_TIMEOUT;
+	event->flag = FLY_CLOSE_EV | FLY_MODIFY | FLY_INHERITIME;
 	event->handler = fly_request_timeout_handler;
 	event->available = false;
 	if (fly_event_register(event) == -1)

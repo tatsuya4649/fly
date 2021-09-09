@@ -150,6 +150,18 @@ char *fly_get_header_lines_ptr(char *buffer)
 	return *header != '\0' ? header : NULL;
 }
 
+long long fly_content_length(fly_hdr_ci *ci)
+{
+	if (ci->chain_length == 0)
+		return 0;
+
+	for (fly_hdr_c *c=ci->entry; c!=NULL; c=c->next){
+		if (strcmp(c->name, "Content-Length") == 0){
+			return c->value != NULL ? atoll(c->value) : 0;
+		}
+	}
+	return 0;
+}
 
 /*
  *		Builtin Header Function
