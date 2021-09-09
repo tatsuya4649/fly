@@ -41,6 +41,7 @@ struct fly_event{
 	int (*handler)(struct fly_event *);
 
 	void *event_data;
+	void *event_state;
 
 	/* event bit fields */
 	int expired: 1;
@@ -49,22 +50,14 @@ struct fly_event{
 typedef struct fly_event fly_event_t;
 #define fly_time(tptr)		gettimeofday((struct timeval *) tptr, NULL)
 
-#define fly_diff_time(new, old) (float) ((float) fly_diff_sec((now),(old)) - (float) fly_diff_usec((now), (old)))
-
-#define fly_sub_time(nptr, dptr)							\
-	do{														\
-		(nptr)->tv_sec  = (int) ((struct timeval *) (nptr))->tv_sec - (int) ((struct timeval *) (dptr))->tv_sec;		\
-		(nptr)->tv_usec = (long) ((struct timeval *) (nptr))->tv_usec - (long) ((struct timeval *) (dptr))->tv_usec;		\
-		if ((nptr)->tv_usec < 0){								\
-			(nptr)->tv_sec--;									\
-			(nptr)->tv_usec += 1000*1000;						\
-		}													\
-	} while(0)
 #define fly_time_null(t)									\
 	do {														\
 		(t).tv_sec = -1;									\
 		(t).tv_usec = -1;									\
 	} while(0)
+#define FLY_TIME_NULL			{ .tv_sec=-1, .tv_usec=-1 }
+#define is_fly_time_null(tptr)	\
+	((tptr)->tv_sec == -1 && (tptr)->tv_usec == -1 )
 
 #define fly_equal_time(t1, t2)								\
 	do{														\
@@ -85,15 +78,18 @@ typedef struct fly_event fly_event_t;
 #define FLY_INFINITY	1<<0
 #define FLY_TIMEOUT		1<<1
 #define FLY_WAITFIRST	1<<2
+#define fly_not_infinity(eptr)		(!((eptr)->tflag & FLY_INFINITY))
 /* flag(generary flag) */
 #define FLY_PERSISTENT	1<<0
 #define FLY_NODELETE	1<<1
-#define FLY_TIMER_NOW	1<<2
-#define FLY_CLOSE_EV	1<<3
+#define FLY_MODIFY		1<<2
+#define FLY_TIMER_NOW	1<<3
+#define FLY_CLOSE_EV	1<<4
 #define fly_nodelete(e)						\
 	(										\
 		((e)->flag & FLY_PERSISTENT)	||	\
 		((e)->flag & FLY_NODELETE)		||	\
+		((e)->flag & FLY_MODIFY)		||	\
 		((e)->flag & FLY_CLOSE_EV)			\
 	)
 
@@ -109,4 +105,8 @@ int fly_event_unregister(fly_event_t *event);
 
 /* event_timer */
 int fly_event_timer_init(fly_event_t *event);
+void fly_sec(fly_time_t *t, int sec);
+void fly_msec(fly_time_t *t, int msec);
+int is_fly_event_timeout(fly_event_t *e);
+float fly_diff_time(struct timeval new, struct timeval old);
 #endif
