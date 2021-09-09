@@ -55,6 +55,9 @@ fly_status_code responses[] = {
 	{-1, -1, NULL, NULL}
 };
 
+__fly_static void __fly_500_error(int c_sockfd, fly_version_e version);
+__fly_static void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcode_t code);
+
 fly_response_t *fly_response_init(void)
 {
 	fly_response_t *response;
@@ -312,40 +315,20 @@ __fly_static void __fly_4xx_error(int c_sockfd, fly_version_e version, fly_stcod
 	goto end;
 
 error:
-	fly_500_error(c_sockfd, V1_1);
+	__fly_500_error(c_sockfd, V1_1);
 end:
 	fly_header_release(ci);
 	fly_body_release(body);
 	fly_response_release(response);
 	return;
 }
-void __fly_400_error(int c_sockfd, fly_version_e version)
+
+__fly_static void __fly_500_error(int c_sockfd, fly_version_e version)
 {
-	return __fly_4xx_error(c_sockfd, version, _400);
-}
-void __fly_414_error(int c_sockfd, fly_version_e version)
-{
-	return __fly_4xx_error(c_sockfd, version, _414);
+	__fly_5xx_error(c_sockfd, version, _500);
 }
 
-#define __alias_fly_400_error		\
-	__attribute__ ((weak, alias("__fly_400_error")))
-__alias_fly_400_error void fly_400_error(int c_sockfd, fly_version_e version);
-__alias_fly_400_error void fly_notfound_request_line(int c_sockfd, fly_version_e version);
-__alias_fly_400_error void fly_notfound_request_method(int c_sockfd, fly_version_e version);
-__alias_fly_400_error  void fly_unmatch_request_method(int c_sockfd, fly_version_e version);
-__alias_fly_400_error void fly_notfound_uri(int c_sockfd, fly_version_e version);
-__alias_fly_400_error void fly_notfound_http_version(int c_sockfd, fly_version_e version);
-__alias_fly_400_error void fly_unmatch_http_version(int c_sockfd, fly_version_e version);
-__alias_fly_400_error void fly_nonumber_http_version(int c_sockfd, fly_version_e version);
-
-__attribute__ ((weak, alias("__fly_414_error"))) void fly_414_error(int c_sockfd, fly_version_e version);
-void fly_404_error(__unused int c_sockfd, __unused fly_version_e version)
-{
-	return __fly_4xx_error(c_sockfd, version, _404);
-}
-
-void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcode_t code)
+__fly_static void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcode_t code)
 {
 	fly_response_t *response;
 	fly_body_t *body;
@@ -355,30 +338,6 @@ void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcode_t code)
 		return;
 
 	response->status_code = code;
-	response->version = version;
-	response->header = NULL;
-
-	body = fly_body_init();
-	body->body = fly_stcode_explain(_500);
-	body->body_len = strlen(body->body);
-	response->body = body;
-
-	fly_response(c_sockfd, response, 0);
-
-	fly_body_release(body);
-	fly_response_release(response);
-}
-
-void fly_500_error(int c_sockfd, fly_version_e version)
-{
-	fly_response_t *response;
-	fly_body_t *body;
-
-	response = fly_response_init();
-	if (response == NULL)
-		return;
-
-	response->status_code = _500;
 	response->version = version;
 	response->header = NULL;
 
@@ -413,7 +372,7 @@ int fly_response(
 	return __fly_send(c_sockfd, send_start, send_len, 0);
 
 error_500:
-	fly_500_error(c_sockfd, V1_1);
+	__fly_500_error(c_sockfd, V1_1);
 	return -1;
 }
 
@@ -427,7 +386,6 @@ int fly_response_release(fly_response_t *response)
 
 __fly_static int __fly_4xx_error_handler(fly_event_t *e)
 {
-	printf("4xx\n");
 	fly_stcode_t code = (fly_stcode_t) e->event_data;
 
 	__fly_4xx_error(e->fd, FLY_DEFAULT_HTTP_VERSION, code);
@@ -437,7 +395,6 @@ __fly_static int __fly_4xx_error_handler(fly_event_t *e)
 }
 __fly_static int __fly_5xx_error_handler(fly_event_t *e)
 {
-	printf("5xx\n");
 	fly_stcode_t code = (fly_stcode_t) e->event_data;
 
 	__fly_5xx_error(e->fd, FLY_DEFAULT_HTTP_VERSION, code);

@@ -21,6 +21,9 @@ fly_context_t *fly_context_init(void)
 	ctx->listen_sock = __fly_listen_sock(pool);
 	if (ctx->listen_sock == NULL)
 		return NULL;
+	ctx->route_reg = fly_route_reg_init();
+	if (ctx->route_reg == NULL)
+		return NULL;
 
 	return ctx;
 }
