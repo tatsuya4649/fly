@@ -6,7 +6,10 @@ __fly_static fly_pool_t * __fly_event_pool_init(void);
 __fly_static int __fly_event_fd_init(void);
 __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager);
 __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager);
-inline float fly_diff_time(struct timeval new, struct timeval old);
+inline float fly_diff_time(fly_time_t new, fly_time_t old);
+__fly_static void __fly_event_inherit_time(fly_event_t *dist, fly_event_t *src);
+int fly_milli_time(fly_time_t t);
+__fly_static int __fly_expired_event(fly_event_manager_t *manager);
 
 __fly_static fly_pool_t *__fly_event_pool_init(void)
 {
@@ -92,6 +95,13 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	return event;
 }
 
+__fly_static void __fly_event_inherit_time(fly_event_t *dist, fly_event_t *src)
+{
+	dist->timeout.tv_sec = src->timeout.tv_sec;
+	dist->timeout.tv_usec = src->timeout.tv_usec;
+	return;
+}
+
 int fly_event_register(fly_event_t *event)
 {
 	struct epoll_event ev;
@@ -106,6 +116,8 @@ int fly_event_register(fly_event_t *event)
 			if (e->fd == event->fd){
 				/* if not same event */
 				if (e != event){
+					if (event->flag & FLY_INHERITIME)
+						__fly_event_inherit_time(event, e);
 					memcpy(e, event, sizeof(fly_event_t));
 					/* TODO: release event. */
 				}
@@ -167,7 +179,7 @@ int fly_event_unregister(fly_event_t *event)
  *		if t1<t2, return < 0
  */
 
-int fly_cmp_time(struct timeval t1, struct timeval t2)
+int fly_cmp_time(fly_time_t t1, fly_time_t t2)
 {
 	int delta_sec = (int) (t1).tv_sec - (int) (t2).tv_sec;
 	if (delta_sec > 0)
@@ -198,7 +210,7 @@ void fly_msec(fly_time_t *t, int msec)
 	return;
 }
 
-int fly_minus_time(struct timeval t1)
+int fly_minus_time(fly_time_t t1)
 {
 	return (int) t1.tv_sec < 0;
 }
@@ -220,7 +232,22 @@ __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager)
 	return near_timeout;
 }
 
-void fly_sub_time(struct timeval *t1, struct timeval *t2)
+__fly_static int __fly_expired_event(fly_event_manager_t *manager)
+{
+	if (__fly_update_event_timeout(manager) == -1)
+		return -1;
+
+	if (manager->first == NULL)
+		return 0;
+
+	for (fly_event_t *e=manager->first; e!=NULL; e=e->next){
+		if (e->expired)
+			e->handler(e);
+	}
+	return 0;
+}
+
+void fly_sub_time(fly_time_t *t1, fly_time_t *t2)
 {
 	t1->tv_sec = (int) t1->tv_sec - (int) t2->tv_sec;
 	t1->tv_usec = (long) t2->tv_usec - (long) t2->tv_usec;
@@ -232,17 +259,16 @@ void fly_sub_time(struct timeval *t1, struct timeval *t2)
 	return;
 }
 
-void fly_sub_time_from_sec(struct timeval *t1, float delta)
+void fly_sub_time_from_sec(fly_time_t *t1, float delta)
 {
 	t1->tv_sec = (int) t1->tv_sec - (int) delta;
-	t1->tv_usec = (long) t1->tv_usec - (long) ((float) (1000*1000)*(delta - (float)((int) delta)));
+	t1->tv_usec = (int) t1->tv_usec - (1000*1000*(delta - (float)((int) delta)));
 
 	if (t1->tv_usec < 0){
 		t1->tv_sec--;
 		t1->tv_usec += 1000*1000;
 	}
-	return;
-}
+	return; }
 
 __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager)
 {
@@ -276,6 +302,18 @@ __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager)
 	return 0;
 }
 
+int fly_milli_time(fly_time_t t)
+{
+	int msec = 0;
+	msec += (int) 1000*((int) t.tv_sec);
+
+	if (msec < 0)
+		return msec;
+
+	msec += (int) ((int) t.tv_usec/1000);
+	return msec;
+}
+
 int fly_event_handler(fly_event_manager_t *manager)
 {
 	int epoll_events;
@@ -285,14 +323,25 @@ int fly_event_handler(fly_event_manager_t *manager)
 		return -1;
 
 	for (;;){
+		int timeout_msec;
 		/* update event timeout */
 		__fly_update_event_timeout(manager);
-		/* the event with closest timeout */
 		near_timeout = __fly_nearest_event(manager);
-		epoll_events = epoll_wait(manager->efd, manager->evlist, manager->maxevents, near_timeout != NULL ? fly_milli_time(near_timeout->timeout) : -1);
+		if (near_timeout != NULL){
+			timeout_msec = fly_milli_time(near_timeout->timeout);
+			if (timeout_msec < 0)
+				timeout_msec = 0;
+		}else
+			timeout_msec = -1;
+
+		/* the event with closest timeout */
+		epoll_events = epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
 		switch(epoll_events){
 		case 0:
-			/* timeout */
+			/* trigger expired event */
+			if (__fly_expired_event(manager) == -1)
+				return -1;
+
 			break;
 		case -1:
 			/* epoll error */
@@ -326,7 +375,7 @@ inline int is_fly_event_timeout(fly_event_t *e)
 	return e->expired & 1;
 }
 
-float fly_diff_time(struct timeval new, struct timeval old)
+float fly_diff_time(fly_time_t new, fly_time_t old)
 {
 	int sec;
 	long usec;

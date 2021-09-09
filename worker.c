@@ -55,6 +55,8 @@ __fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager
 	e->eflag = 0;
 	fly_time_null(e->timeout);
 	e->event_data = ctx;
+	e->expired = false;
+	e->available = false;
 
 	return e;
 }
@@ -86,6 +88,8 @@ __fly_static int __fly_listen_socket_handler(__unused struct fly_event *event)
 	ne->eflag = 0;
 	fly_time_null(ne->timeout);
 	ne->event_data = __fly_connected(listen_sock, conn_sock, ne,(struct sockaddr *) &addr, addrlen);
+	ne->expired = false;
+	ne->available = false;
 	if (ne->event_data == NULL)
 		return -1;
 
@@ -131,7 +135,10 @@ __fly_static int __fly_listen_connected(fly_event_t *e)
 	fly_sec(&re->timeout, FLY_REQUEST_TIMEOUT);
 	re->eflag = 0;
 	re->handler = fly_request_event_handler;
-	re->event_state = (void *) EFLY_REQUEST_INIT;
+	re->event_state = (void *) EFLY_REQUEST_STATE_INIT;
+	re->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
+	re->expired = false;
+	re->available = false;
 
 	return fly_event_register(re);
 }

@@ -41,6 +41,7 @@ struct fly_event{
 	int (*handler)(struct fly_event *);
 
 	void *event_data;
+	void *event_fase;
 	void *event_state;
 
 	/* event bit fields */
@@ -66,12 +67,6 @@ typedef struct fly_event fly_event_t;
 	} while(0)
 #define fly_diff_sec(new, old)	((new).tv_sec-(old).tv_sec)
 #define fly_diff_usec(new, old)	((float) ((new).tv_usec-(old).tv_usec)/(1000.0*1000.0))
-#define fly_milli_time(t1)								\
-	({													\
-		int milli = 0;									\
-		milli += (int) 1000*((int) (t1).tv_sec);		\
-		milli += (int) ((int) (t1).tv_usec) / 1000;		\
-	})
 
 /* eflag(epoll flag) shown detail in epoll API */
 /* tflag(time flag) */
@@ -85,6 +80,7 @@ typedef struct fly_event fly_event_t;
 #define FLY_MODIFY		1<<2
 #define FLY_TIMER_NOW	1<<3
 #define FLY_CLOSE_EV	1<<4
+#define FLY_INHERITIME	1<<5
 #define fly_nodelete(e)						\
 	(										\
 		((e)->flag & FLY_PERSISTENT)	||	\
