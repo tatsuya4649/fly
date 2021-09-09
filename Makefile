@@ -45,7 +45,7 @@ pybuild:
 
 lib: $(SOURCE_FILES)
 	@mkdir -p $(LIBDIR)
-	@gcc -shared $(MACROS) -fPIC -Wl,-soname,$(LIBNAME) $(DEPEND_LIBS) -o $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(CFLAG) $(filter-out main.c, $^)
+	@gcc $(CFLAG) -shared $(MACROS) -fPIC -Wl,-soname,$(LIBNAME) $(DEPEND_LIBS) -o $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(filter-out main.c, $^)
 	@ldconfig -n $(LIBDIR)
 	@ln -s $(LIBNAME) $(LIBDIR)/lib$(TARGET).so
 
@@ -57,12 +57,12 @@ test_placeholder:
 $(TESTPRE)%.cpp:
 		@echo "Target: $@"
 		@echo "Source: $(subst $(TESTPRE),,$@)"
-		$(CPP) -g3 -O -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
+		$(CPP) -g3 -O0 -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
 		LD_LIBRARY_PATH=./lib ./$(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),,$@))
 $(TESTPRE)%.c:
 		@echo "Target: $@"
 		@echo "Source: $(subst $(TESTPRE),,$@)"
-		$(CC) -g3 -O -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
+		$(CC) -g3 -O0 -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
 		LD_LIBRARY_PATH=./lib ./$(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),,$@))
 
 %.o:	%.c

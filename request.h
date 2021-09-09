@@ -16,6 +16,8 @@
 #define FLY_BUFSIZE			(8*FLY_PAGESIZE)
 #define FLY_REQUEST_LINE_MAX			8000
 #define FLY_REQUEST_URI_MAX				6000
+#define FLY_REQUEST_TIMEOUT				(60)
+#define FLY_REQUEST_NOREADY				100
 
 typedef char fly_reqlinec_t;
 typedef char fly_buffer_t;
@@ -33,6 +35,13 @@ enum fly_request_fase{
 	FLY_REQUEST_HEADER,
 	FLY_REQUEST_BODY,
 };
+enum fly_request_state{
+	EFLY_REQUEST_INIT,
+	EFLY_REQUEST_CONT,
+	EFLY_REQUEST_END,
+	EFLY_REQUEST_TIMEOUT,
+};
+typedef enum fly_request_state fly_request_state_t;
 struct fly_request{
 	fly_pool_t *pool;
 	fly_connect_t *connect;
@@ -40,6 +49,7 @@ struct fly_request{
 	fly_hdr_ci *header;
 	fly_body_t *body;
 	fly_buffer_t *buffer;
+	fly_buffer_t *bptr;
 	enum fly_request_fase fase;
 };
 typedef struct fly_request fly_request_t;

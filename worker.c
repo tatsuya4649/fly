@@ -1,6 +1,6 @@
 #include "worker.h"
 
-__fly_static fly_event_t *__fly_listen_socked_event(fly_event_manager_t *manager, fly_context_t *ctx);
+__fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
 __fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen);
 __fly_static int __fly_listen_connected(fly_event_t *);
@@ -21,7 +21,8 @@ __noreturn void fly_worker_process(__unused fly_context_t *ctx, __unused void *d
 	if (manager == NULL)
 		goto error_end;
 
-	event = __fly_listen_socked_event(manager, ctx);
+	/* initial event */
+	event = __fly_listen_socket_event(manager, ctx);
 	if (event == NULL || fly_event_register(event) == -1)
 		goto error_end;
 
@@ -37,7 +38,7 @@ end:
 	exit(0);
 }
 
-__fly_static fly_event_t *__fly_listen_socked_event(fly_event_manager_t *manager, fly_context_t *ctx)
+__fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager, fly_context_t *ctx)
 {
 	fly_event_t *e;
 
@@ -50,6 +51,9 @@ __fly_static fly_event_t *__fly_listen_socked_event(fly_event_manager_t *manager
 	/* TODO: accept */
 	e->handler = __fly_listen_socket_handler;
 	e->flag = FLY_PERSISTENT;
+	e->tflag = FLY_INFINITY;
+	e->eflag = 0;
+	fly_time_null(e->timeout);
 	e->event_data = ctx;
 
 	return e;
@@ -78,6 +82,9 @@ __fly_static int __fly_listen_socket_handler(__unused struct fly_event *event)
 	ne->read_or_write = FLY_READ;
 	ne->handler = __fly_listen_connected;
 	ne->flag = FLY_NODELETE;
+	ne->tflag = FLY_INFINITY;
+	ne->eflag = 0;
+	fly_time_null(ne->timeout);
 	ne->event_data = __fly_connected(listen_sock, conn_sock, ne,(struct sockaddr *) &addr, addrlen);
 	if (ne->event_data == NULL)
 		return -1;
@@ -118,10 +125,13 @@ __fly_static int __fly_listen_connected(fly_event_t *e)
 	re->fd = e->fd;
 	re->read_or_write = FLY_READ;
 	re->event_data = req;
-	re->flag = FLY_NODELETE;
+	/* event only modify (no add, no delete) */
+	re->flag = FLY_MODIFY;
 	re->tflag = 0;
+	fly_sec(&re->timeout, FLY_REQUEST_TIMEOUT);
 	re->eflag = 0;
 	re->handler = fly_request_event_handler;
+	re->event_state = (void *) EFLY_REQUEST_INIT;
 
 	return fly_event_register(re);
 }

@@ -6,6 +6,8 @@
 #include "version.h"
 #include "util.h"
 
+int fly_request_disconnect_handler(fly_event_t *event);
+int fly_request_timeout_handler(fly_event_t *event);
 fly_request_t *fly_request_init(fly_connect_t *conn)
 {
 	fly_pool_t *pool;
@@ -24,6 +26,7 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 	req->buffer = fly_pballoc(pool, FLY_BUFSIZE);
 	if (req->buffer == NULL)
 		return NULL;
+	req->bptr = req->buffer;
 	memset(req->buffer, 0, FLY_BUFSIZE);
 	req->connect = conn;
 	req->fase = FLY_REQUEST_REQUEST_LINE;
@@ -290,12 +293,14 @@ int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_l
 {
     /* get request */
     int request_line_length;
+
+	/* not ready for request line */
+	if (strstr(request_line, "\r\n") == NULL)
+		goto not_ready;
+
 	/* request line parse check */
 	if (__fly_parse_reqline(request_line) == -1)
 		goto error_400;
-
-	if (strstr(request_line, "\r\n") == NULL)
-		goto error_not_found_request_line;
 
     request_line_length = strstr(request_line, "\r\n") - request_line;
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
@@ -330,14 +335,16 @@ error_400:
 error_414:
 	/* URI Too Long */
 	return FLY_REQUEST_ERROR(414);
-error_not_found_request_line:
-	return FLY_REQUEST_ERROR(400);
+//error_not_found_request_line:
+//	return FLY_REQUEST_ERROR(400);
 error_500:
 	/* Server Error */
 	return FLY_REQUEST_ERROR(500);
 error_501:
 	/* Request line Too long */
 	return FLY_REQUEST_ERROR(501);
+not_ready:
+	return FLY_REQUEST_NOREADY;
 }
 
 
@@ -595,7 +602,7 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *header)
 
 int fly_request_receive(fly_sock_t fd, fly_request_t *request)
 {
-	if (request == NULL)
+	if (request == NULL || request->buffer == NULL)
 		return -1;
 
 	int recvlen=0;
@@ -604,22 +611,28 @@ int fly_request_receive(fly_sock_t fd, fly_request_t *request)
 		/* buffer overflow */
 		if (FLY_BUFSIZE-recvlen == 0)
 			goto error;
-		recvlen += recv(fd, request->buffer+recvlen, FLY_BUFSIZE-recvlen, MSG_DONTWAIT);
+		recvlen = recv(fd, request->bptr, FLY_BUFSIZE-recvlen, MSG_DONTWAIT);
+		request->bptr += recvlen;
 		switch(recvlen){
 		case 0:
 			goto end_of_connection;
 		case -1:
 			if (errno == EINTR)
 				continue;
-			goto error;
+			else if (errno == EAGAIN || errno == EWOULDBLOCK)
+				goto continuation;
+			else
+				goto error;
 		default:
 			break;
 		}
-		break;
 	}
 end_of_connection:
-	request->buffer[recvlen-1] = '\0';
+	request->bptr = '\0';
 	return 0;
+continuation:
+	request->bptr = '\0';
+	return 1;
 error:
 	return -1;
 }
@@ -632,6 +645,41 @@ int fly_rheader_event_handler(fly_event_t *event);
 /* Parse Request Body Event*/
 int fly_rbody_event_handler(fly_event_t *event);
 
+
+int fly_request_disconnect_handler(fly_event_t *event)
+{
+	__unused fly_request_t *req;
+	fly_sock_t discon_sock;
+
+	req = (fly_request_t *) event->event_data;
+	discon_sock = event->fd;
+
+	/* TODO: release some resources */
+	if (fly_event_unregister(event) == -1)
+		return -1;
+	if (close(discon_sock) == -1)
+		return -1;
+
+	return 0;
+}
+
+int fly_request_timeout_handler(fly_event_t *event)
+{
+	__unused fly_request_t *req;
+	fly_sock_t discon_sock;
+
+	req = (fly_request_t *) event->event_data;
+	discon_sock = event->fd;
+
+	/* TODO: release some resources */
+	if (fly_event_unregister(event) == -1)
+		return -1;
+	if (close(discon_sock) == -1)
+		return -1;
+
+	return 0;
+}
+
 int fly_request_event_handler(fly_event_t *event)
 {
 	fly_request_t *req;
@@ -641,10 +689,21 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_bodyc_t *body_ptr;
 	fly_route_reg_t *route_reg;
 	fly_route_t *route;
+	__unused fly_request_state_t state;
 
+	state = (fly_request_state_t) event->event_state;
 	req = (fly_request_t *) event->event_data;
-	if (fly_request_receive(event->fd, req) == -1)
+
+	if (is_fly_event_timeout(event))
+		goto timeout;
+
+	switch (fly_request_receive(event->fd, req)){
+	case -1:
 		goto error;
+	case 0:
+		/* end of connection */
+		goto disconnection;
+	}
 
 	printf("%s\n", req->buffer);
 	/* parse request_line */
@@ -660,6 +719,9 @@ int fly_request_event_handler(fly_event_t *event)
 		goto response_500;
 	case FLY_REQUEST_ERROR(501):
 		goto response_501;
+	/* not ready for request line */
+	case FLY_REQUEST_NOREADY:
+		goto continuation;
 	default:
 		break;
 	}
@@ -689,6 +751,7 @@ int fly_request_event_handler(fly_event_t *event)
 
 
 	return 0;
+	goto continuation;
 
 /* TODO: error response event memory release */
 response_400:
@@ -706,6 +769,38 @@ response_500:
 response_501:
 	fly_5xx_error_event(event->manager, event->fd, _501);
 	goto error;
+
+/* continuation event publish. */
+continuation:
+	event->event_state = (void *) EFLY_REQUEST_CONT;
+	event->flag = FLY_MODIFY;
+	event->available = false;
+	if (fly_event_register(event) == -1)
+		goto error;
+
+	return 0;
+
+disconnection:
+	event->event_state = (void *) EFLY_REQUEST_END;
+	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
+	event->handler = fly_request_disconnect_handler;
+	event->available = false;
+	if (fly_event_register(event) == -1)
+		goto error;
+
+	return 0;
+
+/* expired */
+timeout:
+	event->event_state = (void *) FLY_REQUEST_TIMEOUT;
+	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
+	event->handler = fly_request_timeout_handler;
+	event->available = false;
+	if (fly_event_register(event) == -1)
+		goto error;
+
+	return 0;
+
 error:
 	return -1;
 }
