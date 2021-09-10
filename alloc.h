@@ -33,7 +33,8 @@ typedef enum fly_pool_size fly_pool_e;
 #define fly_page_convert(byte)		(byte/sysconf(_SC_PAGESIZE) + (byte%sysconf(_SC_PAGESIZE) ? 1 : 0))
 #define fly_max_size(size)			(10*(size))
 
-#define fly_align_size()				(sizeof(unsigned long))
+#define FLY_SIZEBIG(a, b)			(sizeof(a) > sizeof(b) ? sizeof(a) : sizeof(b))
+#define FLY_ALIGN_SIZE				(2*FLY_SIZEBIG(unsigned long, void *))
 #define fly_align_ptr(ptr, asize)		(void *) (((uintptr_t) ptr + ((uintptr_t) asize-1)) & ~((uintptr_t) asize-1))
 extern fly_pool_t *init_pool;
 

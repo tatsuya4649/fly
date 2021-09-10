@@ -128,7 +128,7 @@ __fly_static int __fly_listen_connected(fly_event_t *e)
 	re = fly_event_init(e->manager);
 	re->fd = e->fd;
 	re->read_or_write = FLY_READ;
-	re->event_data = req;
+	re->event_data = (void *) req;
 	/* event only modify (no add, no delete) */
 	re->flag = FLY_MODIFY;
 	re->tflag = 0;

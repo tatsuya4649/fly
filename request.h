@@ -35,6 +35,7 @@ enum fly_request_fase{
 	EFLY_REQUEST_FASE_REQUEST_LINE,
 	EFLY_REQUEST_FASE_HEADER,
 	EFLY_REQUEST_FASE_BODY,
+	EFLY_REQUEST_FASE_RESPONSE,
 };
 #define fly_event_fase(e, fase)			((e)->event_fase = (void *) EFLY_REQUEST_FASE_ ## fase)
 typedef enum fly_request_fase fly_request_fase_t;
@@ -42,6 +43,7 @@ enum fly_request_state{
 	EFLY_REQUEST_STATE_INIT,
 	EFLY_REQUEST_STATE_RECEIVE,
 	EFLY_REQUEST_STATE_CONT,
+	EFLY_REQUEST_STATE_RESPONSE,
 	EFLY_REQUEST_STATE_END,
 	EFLY_REQUEST_STATE_TIMEOUT,
 };
