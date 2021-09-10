@@ -45,5 +45,8 @@ size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info);
 
 char *fly_get_header_lines_ptr(char *buffer);
 long long fly_content_length(fly_hdr_ci *ci);
+int fly_connection(fly_hdr_ci *ci);
+#define FLY_CONNECTION_CLOSE			0
+#define	FLY_CONNECTION_KEEP_ALIVE		1
 
 #endif

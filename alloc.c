@@ -31,7 +31,7 @@ __fly_static ssize_t __fly_modify_memalign(ssize_t m)
 {
 	ssize_t a=1<<0;
 	while(1){
-		if (a>m)	break;
+		if (a>=m && a>=(ssize_t) FLY_ALIGN_SIZE)	break;
 		a <<= 1;
 	}
 
