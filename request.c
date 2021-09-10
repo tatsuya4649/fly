@@ -817,25 +817,26 @@ __fase_end_of_parse:
 
 /* TODO: error response event memory release */
 response_400:
-	fly_4xx_error_event(event->manager, event->fd, _400);
+	fly_4xx_error_event(event, event->fd, _400);
 	goto error;
 response_404:
-	fly_4xx_error_event(event->manager, event->fd, _404);
+	fly_4xx_error_event(event, event->fd, _404);
 	goto error;
 response_414:
-	fly_4xx_error_event(event->manager, event->fd, _414);
+	fly_4xx_error_event(event, event->fd, _414);
 	goto error;
 response_500:
-	fly_5xx_error_event(event->manager, event->fd, _500);
+	fly_5xx_error_event(event, event->fd, _500);
 	goto error;
 response_501:
-	fly_5xx_error_event(event->manager, event->fd, _501);
+	fly_5xx_error_event(event, event->fd, _501);
 	goto error;
 
 /* continuation event publish. */
 continuation:
 	event->event_state = (void *) EFLY_REQUEST_STATE_CONT;
-	event->flag = FLY_MODIFY|FLY_INHERITIME;
+	event->flag = FLY_MODIFY;
+	event->tflag = FLY_INHERIT;
 	event->available = false;
 	if (fly_event_register(event) == -1)
 		goto error;
@@ -855,7 +856,8 @@ disconnection:
 /* expired */
 timeout:
 	event->event_state = (void *) EFLY_REQUEST_STATE_TIMEOUT;
-	event->flag = FLY_CLOSE_EV | FLY_MODIFY | FLY_INHERITIME;
+	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
+	event->tflag = FLY_INHERIT;
 	event->handler = fly_request_timeout_handler;
 	event->available = false;
 	if (fly_event_register(event) == -1)

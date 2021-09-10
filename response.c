@@ -391,6 +391,10 @@ __fly_static int __fly_4xx_error_handler(fly_event_t *e)
 	__fly_4xx_error(e->fd, FLY_DEFAULT_HTTP_VERSION, code);
 	/* end_of_connection */
 	fly_socket_release(e->fd);
+
+	if (fly_event_unregister(e) == -1)
+		return -1;
+
 	return 0;
 }
 __fly_static int __fly_5xx_error_handler(fly_event_t *e)
@@ -400,39 +404,37 @@ __fly_static int __fly_5xx_error_handler(fly_event_t *e)
 	__fly_5xx_error(e->fd, FLY_DEFAULT_HTTP_VERSION, code);
 	/* end_of_connection */
 	fly_socket_release(e->fd);
+
+	if (fly_event_unregister(e) == -1)
+		return -1;
+
 	return 0;
 }
 
-int fly_4xx_error_event(fly_event_manager_t *m, fly_sock_t fd, fly_stcode_t code)
+int fly_4xx_error_event(fly_event_t *e, fly_sock_t fd, fly_stcode_t code)
 {
-	fly_event_t *re;
-
-	re = fly_event_init(m);
-	re->fd = fd;
-	re->read_or_write = FLY_WRITE;
-	re->event_data = (void *) code;
+	e->fd = fd;
+	e->read_or_write = FLY_WRITE;
+	e->event_data = (void *) code;
 	/* close socket in 4xx event */
-	re->flag = FLY_CLOSE_EV;
-	re->tflag = 0;
-	re->eflag = 0;
-	re->handler = __fly_4xx_error_handler;
+	e->flag = FLY_CLOSE_EV;
+	e->tflag = FLY_INHERIT;
+	e->eflag = 0;
+	e->handler = __fly_4xx_error_handler;
 
-	return fly_event_register(re);
+	return fly_event_register(e);
 }
 
-int fly_5xx_error_event(fly_event_manager_t *m, fly_sock_t fd, fly_stcode_t code)
+int fly_5xx_error_event(fly_event_t *e, fly_sock_t fd, fly_stcode_t code)
 {
-	fly_event_t *re;
-
-	re = fly_event_init(m);
-	re->fd = fd;
-	re->read_or_write = FLY_WRITE;
-	re->event_data = (void *) code;
+	e->fd = fd;
+	e->read_or_write = FLY_WRITE;
+	e->event_data = (void *) code;
 	/* close socket in 5xx event */
-	re->flag = FLY_CLOSE_EV;
-	re->tflag = 0;
-	re->eflag = 0;
-	re->handler = __fly_5xx_error_handler;
+	e->flag = FLY_CLOSE_EV;
+	e->tflag = FLY_INHERIT;
+	e->eflag = 0;
+	e->handler = __fly_5xx_error_handler;
 
-	return fly_event_register(re);
+	return fly_event_register(e);
 }

@@ -58,6 +58,7 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	manager->maxevents = FLY_EVLIST_ELES;
 	manager->ctx = ctx;
 	manager->efd = fd;
+	manager->evlen = 0;
 	manager->first = NULL;
 	manager->last = NULL;
 
@@ -116,7 +117,7 @@ int fly_event_register(fly_event_t *event)
 			if (e->fd == event->fd){
 				/* if not same event */
 				if (e != event){
-					if (event->flag & FLY_INHERITIME)
+					if (event->tflag & FLY_INHERIT)
 						__fly_event_inherit_time(event, e);
 					memcpy(e, event, sizeof(fly_event_t));
 					/* TODO: release event. */
@@ -133,6 +134,7 @@ int fly_event_register(fly_event_t *event)
 		else
 			event->manager->last->next = event;
 		event->manager->last = event;
+		event->manager->evlen++;
 	}
 	data.ptr = event;
 	ev.data = data;
@@ -162,6 +164,7 @@ int fly_event_unregister(fly_event_t *event)
 			}else
 				prev->next = e->next;
 
+			event->manager->evlen--;
 			e->next = NULL;
 			if (event->flag & FLY_CLOSE_EV)
 				return 0;

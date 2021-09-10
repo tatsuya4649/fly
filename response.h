@@ -85,6 +85,6 @@ int fly_response( int c_sockfd, fly_response_t *response, fly_flag_t flag);
 
 #define FLY_DEFAULT_HTTP_VERSION		V1_1
 
-int fly_4xx_error_event(fly_event_manager_t *, fly_sock_t, fly_stcode_t);
-int fly_5xx_error_event(fly_event_manager_t *, fly_sock_t, fly_stcode_t);
+int fly_4xx_error_event(fly_event_t *, fly_sock_t, fly_stcode_t);
+int fly_5xx_error_event(fly_event_t *, fly_sock_t, fly_stcode_t);
 #endif
