@@ -36,8 +36,13 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 
 int fly_request_release(fly_request_t *req)
 {
+	if (req == NULL)
+		return -1;
+
 	if (req->header != NULL)
-		fly_delete_pool(&req->header->pool);
+		fly_header_release(req->header);
+	if (req->body != NULL)
+		fly_body_release(req->body);
 	return fly_delete_pool(&req->pool);
 }
 
@@ -311,8 +316,10 @@ int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_l
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
 		goto error_501;
 
-	req->request_line = fly_pballoc(pool, sizeof(fly_reqline_t));
-    req->request_line->request_line = fly_pballoc(pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
+	if (req->request_line == NULL)
+		req->request_line = fly_pballoc(pool, sizeof(fly_reqline_t));
+	if (req->request_line != NULL && req->request_line->request_line == NULL)
+		req->request_line->request_line = fly_pballoc(pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
 	if (req->request_line == NULL)
 		goto error_500;
 	if (req->request_line->request_line == NULL)
@@ -634,13 +641,11 @@ int fly_request_receive(fly_sock_t fd, fly_request_t *request)
 		return -1;
 
 	int recvlen=0;
-
-	while(1){
+while(1){
 		/* buffer overflow */
 		if (FLY_BUFSIZE-recvlen == 0)
 			goto error;
 		recvlen = recv(fd, request->bptr, FLY_BUFSIZE-recvlen, MSG_DONTWAIT);
-		request->bptr += recvlen;
 		switch(recvlen){
 		case 0:
 			goto end_of_connection;
@@ -654,12 +659,13 @@ int fly_request_receive(fly_sock_t fd, fly_request_t *request)
 		default:
 			break;
 		}
+		request->bptr += recvlen;
 	}
 end_of_connection:
-	request->bptr = '\0';
+	*request->bptr = '\0';
 	return 0;
 continuation:
-	request->bptr = '\0';
+	*request->bptr = '\0';
 	return 1;
 error:
 	return -1;
@@ -710,7 +716,8 @@ int fly_request_timeout_handler(fly_event_t *event)
 
 int fly_request_event_handler(fly_event_t *event)
 {
-	fly_request_t *req;
+	fly_request_t *request;
+	fly_response_t *response;
 	fly_reqlinec_t *request_line_ptr;
 	char *header_ptr;
 	fly_body_t *body;
@@ -722,14 +729,14 @@ int fly_request_event_handler(fly_event_t *event)
 
 	state = (fly_request_state_t) event->event_state;
 	fase = (fly_request_fase_t) event->event_fase;
-	req = (fly_request_t *) event->event_data;
+	request = (fly_request_t *) event->event_data;
 
 	if (is_fly_event_timeout(event))
 		goto timeout;
 
 	fly_event_fase(event, REQUEST_LINE);
 	fly_event_state(event, RECEIVE);
-	switch (fly_request_receive(event->fd, req)){
+	switch (fly_request_receive(event->fd, request)){
 	case -1:
 		goto error;
 	case 0:
@@ -737,7 +744,7 @@ int fly_request_event_handler(fly_event_t *event)
 		goto disconnection;
 	}
 
-	printf("%s\n", req->buffer);
+	printf("%s\n", request->buffer);
 	switch(fase){
 	case EFLY_REQUEST_FASE_INIT:
 		break;
@@ -752,10 +759,10 @@ int fly_request_event_handler(fly_event_t *event)
 	}
 	/* parse request_line */
 __fase_request_line:
-	request_line_ptr = fly_get_request_line_ptr(req->buffer);
+	request_line_ptr = fly_get_request_line_ptr(request->buffer);
 	if (request_line_ptr == NULL)
 		goto error;
-	switch(fly_request_operation(event->fd, req->pool, request_line_ptr, req)){
+	switch(fly_request_operation(event->fd, request->pool, request_line_ptr, request)){
 	case FLY_REQUEST_ERROR(400):
 		goto response_400;
 	case FLY_REQUEST_ERROR(414):
@@ -774,11 +781,11 @@ __fase_request_line:
 	/* parse header */
 __fase_header:
 	fly_event_fase(event, HEADER);
-	header_ptr = fly_get_header_lines_ptr(req->buffer);
+	header_ptr = fly_get_header_lines_ptr(request->buffer);
 	if (header_ptr == NULL)
 		goto continuation;
 
-	switch (fly_reqheader_operation(req, header_ptr)){
+	switch (fly_reqheader_operation(request, header_ptr)){
 	case __REQUEST_HEADER_ERROR:
 		goto response_400;
 	case __REQUEST_HEADER_IN_THE_MIDDLE:
@@ -788,7 +795,7 @@ __fase_header:
 	}
 
 	/* check of having body */
-	if (fly_content_length(req->header) == 0)
+	if (fly_content_length(request->header) == 0)
 		goto __fase_end_of_parse;
 
 	/* parse body */
@@ -797,45 +804,50 @@ __fase_body:
 	body = fly_body_init();
 	if (body == NULL)
 		goto error;
-	req->body = body;
-	body_ptr = fly_get_body_ptr(req->buffer);
+	request->body = body;
+	body_ptr = fly_get_body_ptr(request->buffer);
 	if (fly_body_setting(body, body_ptr) == -1)
 		goto error;
 
 
 __fase_end_of_parse:
+	fly_event_fase(event, RESPONSE);
 	/* Success parse request */
 	route_reg = event->manager->ctx->route_reg;
-	route = fly_found_route(route_reg, req->request_line->uri.uri, req->request_line->method->type);
+	route = fly_found_route(route_reg, request->request_line->uri.uri, request->request_line->method->type);
 	if (route == NULL)
 		goto response_404;
 
+	/* defined handler */
+	response = route->function(request);
+	if (response == NULL)
+		goto response_500;
 
-	/* TODO: success handler */
-	return 0;
-	goto continuation;
-
+	response->request = request;
+	goto response;
 /* TODO: error response event memory release */
 response_400:
-	fly_4xx_error_event(event->manager, event->fd, _400);
+	fly_4xx_error_event(event, event->fd, _400);
 	goto error;
 response_404:
-	fly_4xx_error_event(event->manager, event->fd, _404);
+	fly_4xx_error_event(event, event->fd, _404);
 	goto error;
 response_414:
-	fly_4xx_error_event(event->manager, event->fd, _414);
+	fly_4xx_error_event(event, event->fd, _414);
 	goto error;
 response_500:
-	fly_5xx_error_event(event->manager, event->fd, _500);
+	fly_5xx_error_event(event, event->fd, _500);
 	goto error;
 response_501:
-	fly_5xx_error_event(event->manager, event->fd, _501);
+	fly_5xx_error_event(event, event->fd, _501);
 	goto error;
 
 /* continuation event publish. */
 continuation:
 	event->event_state = (void *) EFLY_REQUEST_STATE_CONT;
-	event->flag = FLY_MODIFY|FLY_INHERITIME;
+	event->read_or_write = FLY_READ;
+	event->flag = FLY_MODIFY;
+	event->tflag = FLY_INHERIT;
 	event->available = false;
 	if (fly_event_register(event) == -1)
 		goto error;
@@ -844,6 +856,7 @@ continuation:
 
 disconnection:
 	event->event_state = (void *) EFLY_REQUEST_STATE_END;
+	event->read_or_write = FLY_READ;
 	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
 	event->handler = fly_request_disconnect_handler;
 	event->available = false;
@@ -855,13 +868,28 @@ disconnection:
 /* expired */
 timeout:
 	event->event_state = (void *) EFLY_REQUEST_STATE_TIMEOUT;
-	event->flag = FLY_CLOSE_EV | FLY_MODIFY | FLY_INHERITIME;
+	event->read_or_write = FLY_READ;
+	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
+	event->tflag = FLY_INHERIT;
 	event->handler = fly_request_timeout_handler;
 	event->available = false;
 	if (fly_event_register(event) == -1)
 		goto error;
 
 	return 0;
+
+response:
+	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	event->read_or_write = FLY_WRITE;
+	event->flag = FLY_MODIFY;
+	event->tflag = FLY_INHERIT;
+	event->handler = fly_response_event;
+	event->available = false;
+	event->event_data = (void *) response;
+	if (fly_event_register(event) == -1)
+		goto error;
+
+	return  0;
 
 error:
 	return -1;

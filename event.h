@@ -19,6 +19,7 @@ struct fly_event_manager{
 	int efd;
 	struct epoll_event *evlist;
 	int maxevents;
+	int evlen;
 
 	struct fly_event *first;
 	struct fly_event *last;
@@ -73,6 +74,7 @@ typedef struct fly_event fly_event_t;
 #define FLY_INFINITY	1<<0
 #define FLY_TIMEOUT		1<<1
 #define FLY_WAITFIRST	1<<2
+#define FLY_INHERIT		1<<3
 #define fly_not_infinity(eptr)		(!((eptr)->tflag & FLY_INFINITY))
 /* flag(generary flag) */
 #define FLY_PERSISTENT	1<<0
@@ -80,7 +82,6 @@ typedef struct fly_event fly_event_t;
 #define FLY_MODIFY		1<<2
 #define FLY_TIMER_NOW	1<<3
 #define FLY_CLOSE_EV	1<<4
-#define FLY_INHERITIME	1<<5
 #define fly_nodelete(e)						\
 	(										\
 		((e)->flag & FLY_PERSISTENT)	||	\

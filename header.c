@@ -163,6 +163,31 @@ long long fly_content_length(fly_hdr_ci *ci)
 	return 0;
 }
 
+int fly_connection(fly_hdr_ci *ci)
+{
+	if (ci->chain_length == 0)
+		return -1;
+
+	fly_hdr_c *c;
+	for (c=ci->entry; c!=NULL; c=c->next){
+		if (strcmp(c->name, "Connection") == 0)
+			goto parse_connection;
+	}
+	return FLY_CONNECTION_CLOSE;
+
+parse_connection:
+	if (c->value == NULL)
+		return FLY_CONNECTION_CLOSE;
+
+	if (strcmp(c->value, "close") == 0){
+		return FLY_CONNECTION_CLOSE;
+	}else if (strcmp(c->value, "keep-alive") == 0){
+		return FLY_CONNECTION_KEEP_ALIVE;
+	}
+
+	return FLY_CONNECTION_CLOSE;
+}
+
 /*
  *		Builtin Header Function
  *
