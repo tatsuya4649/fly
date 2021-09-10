@@ -3,6 +3,7 @@
 #include <string.h>
 #include <sys/socket.h>
 #include "response.h"
+#include "request.h"
 #include "header.h"
 #include "alloc.h"
 #include "fs.h"
@@ -57,6 +58,8 @@ fly_status_code responses[] = {
 
 __fly_static void __fly_500_error(int c_sockfd, fly_version_e version);
 __fly_static void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcode_t code);
+__fly_static int __fly_response( int c_sockfd, fly_response_t *response);
+__fly_static int __fly_response_release_handler(fly_event_t *e);
 
 fly_response_t *fly_response_init(void)
 {
@@ -310,7 +313,7 @@ __fly_static void __fly_4xx_error(int c_sockfd, fly_version_e version, fly_stcod
 	response->version = version;
 	response->header = ci;
 	response->body = body;
-    if (fly_response( c_sockfd, response, 0) == -1)
+    if (__fly_response( c_sockfd, response) == -1)
 		goto error;
 	goto end;
 
@@ -346,33 +349,137 @@ __fly_static void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcod
 	body->body_len = strlen(body->body);
 	response->body = body;
 
-	fly_response(c_sockfd, response, 0);
+	__fly_response(c_sockfd, response);
 
 	fly_body_release(body);
 	fly_response_release(response);
 }
 
-int fly_response(
+__fly_static int __fly_response(
 	int c_sockfd,
-	fly_response_t *response,
-	__unused fly_flag_t flag
+	fly_response_t *response
 ){
 	int send_len;
 	char *send_start;
 
 	if (response == NULL)
-		goto error_500;
+		goto response_500;
 	if (response->pool == NULL)
-		goto error_500;
+		goto response_500;
 
 	if (__fly_response_required_header(response) == -1)
-		goto error_500;
+		goto response_500;
 
 	send_start = __fly_response_raw(response, &send_len);
 	return __fly_send(c_sockfd, send_start, send_len, 0);
 
-error_500:
+response_500:
 	__fly_500_error(c_sockfd, V1_1);
+	return -1;
+}
+
+__fly_static int __fly_response_release_handler(fly_event_t *e)
+{
+	fly_request_t *req;
+	fly_response_t *res;
+
+	res = (fly_response_t *) e->event_data;
+	req = res->request;
+
+	if (fly_request_release(req) == -1)
+		return -1;
+	if (fly_response_release(res) == -1)
+		return -1;
+
+	fly_socket_release(e->fd);
+	if (fly_event_unregister(e) == -1)
+		return -1;
+
+	return 0;
+}
+__fly_static int __fly_response_reuse_handler(fly_event_t *e)
+{
+	fly_response_t *res;
+	fly_request_t *req;
+
+	res = (fly_response_t *) e->event_data;
+	req= res->request;
+	req->bptr = req->buffer;
+
+	if (fly_response_release(res) == -1)
+		return -1;
+
+	if (req->header && fly_header_release(req->header) == -1)
+		return -1;
+	req->header = NULL;
+	if (req->body && fly_body_release(req->body) == -1)
+		return -1;
+	req->body = NULL;
+
+	e->read_or_write = FLY_READ;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	e->eflag = 0;
+	e->handler = fly_request_event_handler;
+	e->event_data = (void *) req;
+	e->available = false;
+	e->event_fase = EFLY_REQUEST_FASE_INIT;
+	e->event_state = EFLY_REQUEST_STATE_INIT;
+	if (fly_event_register(e) == -1)
+		return -1;
+
+	return 0;
+}
+
+int fly_response_event(fly_event_t *e)
+{
+	fly_response_t *response;
+
+	response = (fly_response_t *) e->event_data;
+	if (__fly_response(e->fd, response) == -1)
+		return -1;
+
+	switch (fly_connection(response->header)){
+	case FLY_CONNECTION_CLOSE:
+		e->event_state = (void *) EFLY_REQUEST_STATE_END;
+		e->event_data = response;
+		e->read_or_write = FLY_WRITE|FLY_READ;
+		e->flag = FLY_CLOSE_EV | FLY_MODIFY;
+		e->handler = __fly_response_release_handler;
+		e->available = false;
+		if (fly_event_register(e) == -1)
+			goto error;
+		return 0;
+
+	case FLY_CONNECTION_KEEP_ALIVE:
+		e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
+		e->event_fase = (void  *) EFLY_REQUEST_FASE_INIT;
+		e->event_data = (void *) response;
+		e->read_or_write = FLY_WRITE | FLY_READ;
+		e->flag = FLY_MODIFY;
+		fly_sec(&e->timeout, FLY_REQUEST_TIMEOUT);
+		e->tflag = 0;
+		e->eflag = 0;
+		e->handler = __fly_response_reuse_handler;
+		e->available = false;
+		e->expired = false;
+
+		if (fly_event_register(e) == -1)
+			goto error;
+		return 0;
+
+	default:
+		e->event_state = (void *) EFLY_REQUEST_STATE_END;
+		e->event_data = response;
+		e->read_or_write = FLY_WRITE|FLY_READ;
+		e->flag = FLY_CLOSE_EV | FLY_MODIFY;
+		e->handler = __fly_response_release_handler;
+		e->available = false;
+		if (fly_event_register(e) == -1)
+			goto error;
+		return -1;
+	}
+error:
 	return -1;
 }
 
@@ -380,6 +487,11 @@ int fly_response_release(fly_response_t *response)
 {
 	if (response == NULL)
 		return -1;
+
+	if (response->header != NULL)
+		fly_delete_pool(&response->header->pool);
+	if (response->body != NULL)
+		fly_delete_pool(&response->body->pool);
 
 	return fly_delete_pool(&response->pool);
 }

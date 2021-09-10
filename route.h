@@ -13,7 +13,7 @@
 	success: 0
 	failure: -1
  */
-typedef struct fly_http_response fly_response_t;
+typedef struct fly_response fly_response_t;
 typedef struct fly_request fly_request_t;
 typedef unsigned long long fly_flag_t;
 typedef fly_response_t *fly_route_handler(fly_request_t *request);

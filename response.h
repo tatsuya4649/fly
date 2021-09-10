@@ -59,15 +59,15 @@ enum status_code_type{
 };
 typedef enum status_code_type fly_stcode_t;
 
-struct fly_http_response{
+struct fly_response{
 	fly_pool_t *pool;
 	fly_stcode_t status_code;
 	fly_version_e version;
 	fly_hdr_ci *header;
 	fly_body_t *body;
+	fly_request_t *request;
 };
-
-typedef struct fly_http_response fly_response_t;
+typedef struct fly_response fly_response_t;
 
 fly_response_t *fly_response_init(void);
 int fly_response_release(fly_response_t *response);
@@ -81,7 +81,7 @@ typedef struct{
 
 char *fly_stcode_explain(fly_stcode_t type);
 
-int fly_response( int c_sockfd, fly_response_t *response, fly_flag_t flag);
+int fly_response_event(fly_event_t *e);
 
 #define FLY_DEFAULT_HTTP_VERSION		V1_1
 
