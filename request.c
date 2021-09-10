@@ -316,8 +316,10 @@ int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_l
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
 		goto error_501;
 
-	req->request_line = fly_pballoc(pool, sizeof(fly_reqline_t));
-    req->request_line->request_line = fly_pballoc(pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
+	if (req->request_line == NULL)
+		req->request_line = fly_pballoc(pool, sizeof(fly_reqline_t));
+	if (req->request_line != NULL && req->request_line->request_line == NULL)
+		req->request_line->request_line = fly_pballoc(pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
 	if (req->request_line == NULL)
 		goto error_500;
 	if (req->request_line->request_line == NULL)
@@ -639,13 +641,11 @@ int fly_request_receive(fly_sock_t fd, fly_request_t *request)
 		return -1;
 
 	int recvlen=0;
-
-	while(1){
+while(1){
 		/* buffer overflow */
 		if (FLY_BUFSIZE-recvlen == 0)
 			goto error;
 		recvlen = recv(fd, request->bptr, FLY_BUFSIZE-recvlen, MSG_DONTWAIT);
-		request->bptr += recvlen;
 		switch(recvlen){
 		case 0:
 			goto end_of_connection;
@@ -659,6 +659,7 @@ int fly_request_receive(fly_sock_t fd, fly_request_t *request)
 		default:
 			break;
 		}
+		request->bptr += recvlen;
 	}
 end_of_connection:
 	*request->bptr = '\0';

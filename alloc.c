@@ -27,35 +27,35 @@ void *fly_malloc(int size)
 	return malloc(size);
 }
 
-__fly_static ssize_t __fly_modify_memalign(ssize_t m)
-{
-	ssize_t a=1<<0;
-	while(1){
-		if (a>=m && a>=(ssize_t) FLY_ALIGN_SIZE)	break;
-		a <<= 1;
-	}
+//__fly_static ssize_t __fly_modify_memalign(ssize_t m)
+//{
+//	ssize_t a=1<<0;
+//	while(1){
+//		if (a>=m && a>=(ssize_t) FLY_ALIGN_SIZE)	break;
+//		a <<= 1;
+//	}
+//
+//	return (a%FLY_ALIGN_SIZE) != 0 ? (ssize_t) -1 : a;
+//}
 
-	return (a%FLY_ALIGN_SIZE) != 0 ? (ssize_t) -1 : a;
-}
-
-int fly_memalign_page(void **ptr, fly_page_t page_size)
-{
-	ssize_t psize, msize;
-	psize = fly_byte_convert(page_size);
-	msize = __fly_modify_memalign(psize);
-	if (msize < 0)
-		return -1;
-	return posix_memalign(ptr, FLY_ALIGN_SIZE, (size_t) msize);
-}
-
-int fly_memalign(void **ptr, int size)
-{
-	ssize_t msize;
-	msize = __fly_modify_memalign(size);
-	if (msize < 0)
-		return -1;
-	return posix_memalign(ptr, FLY_ALIGN_SIZE, (size_t) msize);
-}
+//int fly_memalign_page(void **ptr, fly_page_t page_size)
+//{
+//	ssize_t psize, msize;
+//	psize = fly_byte_convert(page_size);
+//	msize = __fly_modify_memalign(psize);
+//	if (msize < 0)
+//		return -1;
+//	return posix_memalign(ptr, FLY_ALIGN_SIZE, (size_t) msize);
+//}
+//
+//int fly_memalign(void **ptr, int size)
+//{
+//	ssize_t msize;
+//	msize = __fly_modify_memalign(size);
+//	if (msize < 0)
+//		return -1;
+//	return posix_memalign(ptr, FLY_ALIGN_SIZE, (size_t) msize);
+//}
 
 void fly_free(void *ptr)
 {
@@ -69,7 +69,8 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	if (new_block == NULL)
 		return NULL;
 
-	if (fly_memalign(&new_block->entry, size) != 0){
+	new_block->entry = fly_malloc(size);
+	if (new_block->entry == NULL){
 		fly_free(new_block);
 		return NULL;
 	}
