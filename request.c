@@ -8,6 +8,8 @@
 
 int fly_request_disconnect_handler(fly_event_t *event);
 int fly_request_timeout_handler(fly_event_t *event);
+__fly_static int __fly_request_operation(int c_sock, fly_request_t *req,fly_reqlinec_t *request_line);
+
 fly_request_t *fly_request_init(fly_connect_t *conn)
 {
 	fly_pool_t *pool;
@@ -299,7 +301,7 @@ __fly_static int __fly_parse_request_line(fly_pool_t *pool, __unused int c_sock,
     return 0;
 }
 
-int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_line, fly_request_t *req)
+__fly_static int __fly_request_operation(int c_sock, fly_request_t *req,fly_reqlinec_t *request_line)
 {
     /* get request */
     int request_line_length;
@@ -316,10 +318,9 @@ int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_l
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
 		goto error_501;
 
-	if (req->request_line == NULL)
-		req->request_line = fly_pballoc(pool, sizeof(fly_reqline_t));
-	if (req->request_line != NULL && req->request_line->request_line == NULL)
-		req->request_line->request_line = fly_pballoc(pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
+	req->request_line = fly_pballoc(req->pool, sizeof(fly_reqline_t));
+	req->request_line->request_line = fly_pballoc(req->pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
+
 	if (req->request_line == NULL)
 		goto error_500;
 	if (req->request_line->request_line == NULL)
@@ -329,7 +330,7 @@ int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_l
     /* get total line */
     req->request_line->request_line[request_line_length] = '\0';
 
-	switch(__fly_parse_request_line(pool, c_sock, req->request_line)){
+	switch(__fly_parse_request_line(req->pool, c_sock, req->request_line)){
 	case 0:
 		return 0;
 	case FLY_ERROR(400):
@@ -762,7 +763,7 @@ __fase_request_line:
 	request_line_ptr = fly_get_request_line_ptr(request->buffer);
 	if (request_line_ptr == NULL)
 		goto error;
-	switch(fly_request_operation(event->fd, request->pool, request_line_ptr, request)){
+	switch(__fly_request_operation(event->fd, request, request_line_ptr)){
 	case FLY_REQUEST_ERROR(400):
 		goto response_400;
 	case FLY_REQUEST_ERROR(414):

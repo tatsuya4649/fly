@@ -64,7 +64,6 @@ typedef struct fly_request fly_request_t;
 int fly_request_receive(fly_sock_t fd, fly_request_t *request);
 int fly_request_event_handler(fly_event_t *event);
 
-int fly_request_operation(int c_sock, fly_pool_t *pool,fly_reqlinec_t *request_line, fly_request_t *req);
 int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *header);
 
 #define FLY_REQUEST_POOL_SIZE		1
