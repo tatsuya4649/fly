@@ -427,6 +427,8 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->available = false;
 	e->event_fase = EFLY_REQUEST_FASE_INIT;
 	e->event_state = EFLY_REQUEST_STATE_INIT;
+	fly_event_socket(e);
+
 	if (fly_event_register(e) == -1)
 		return -1;
 
@@ -449,6 +451,8 @@ int fly_response_event(fly_event_t *e)
 		e->flag = FLY_CLOSE_EV | FLY_MODIFY;
 		e->handler = __fly_response_release_handler;
 		e->available = false;
+		fly_event_socket(e);
+
 		if (fly_event_register(e) == -1)
 			goto error;
 		return 0;
@@ -465,6 +469,7 @@ int fly_response_event(fly_event_t *e)
 		e->handler = __fly_response_reuse_handler;
 		e->available = false;
 		e->expired = false;
+		fly_event_socket(e);
 
 		if (fly_event_register(e) == -1)
 			goto error;
@@ -537,6 +542,7 @@ int fly_4xx_error_event(fly_event_t *e, fly_sock_t fd, fly_stcode_t code)
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	e->handler = __fly_4xx_error_handler;
+	fly_event_socket(e);
 
 	return fly_event_register(e);
 }
@@ -551,6 +557,7 @@ int fly_5xx_error_event(fly_event_t *e, fly_sock_t fd, fly_stcode_t code)
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	e->handler = __fly_5xx_error_handler;
+	fly_event_socket(e);
 
 	return fly_event_register(e);
 }
