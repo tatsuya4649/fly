@@ -850,6 +850,7 @@ continuation:
 	event->flag = FLY_MODIFY;
 	event->tflag = FLY_INHERIT;
 	event->available = false;
+	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
 		goto error;
 
@@ -861,6 +862,7 @@ disconnection:
 	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
 	event->handler = fly_request_disconnect_handler;
 	event->available = false;
+	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
 		goto error;
 
@@ -874,6 +876,7 @@ timeout:
 	event->tflag = FLY_INHERIT;
 	event->handler = fly_request_timeout_handler;
 	event->available = false;
+	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
 		goto error;
 
@@ -887,6 +890,7 @@ response:
 	event->handler = fly_response_event;
 	event->available = false;
 	event->event_data = (void *) response;
+	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
 		goto error;
 
