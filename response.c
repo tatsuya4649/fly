@@ -381,17 +381,20 @@ response_500:
 __fly_static int __fly_response_release_handler(fly_event_t *e)
 {
 	fly_request_t *req;
+	fly_connect_t *con;
 	fly_response_t *res;
 
 	res = (fly_response_t *) e->event_data;
 	req = res->request;
+	con = req->connect;
 
 	if (fly_request_release(req) == -1)
 		return -1;
 	if (fly_response_release(res) == -1)
 		return -1;
+	if (fly_connect_release(con) == -1)
+		return -1;
 
-	fly_socket_release(e->fd);
 	if (fly_event_unregister(e) == -1)
 		return -1;
 
@@ -401,20 +404,19 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 {
 	fly_response_t *res;
 	fly_request_t *req;
+	fly_connect_t *con;
 
 	res = (fly_response_t *) e->event_data;
-	req= res->request;
-	req->bptr = req->buffer;
+	req = res->request;
+	con = req->connect;
 
+	if (fly_request_release(req) == -1)
+		return -1;
 	if (fly_response_release(res) == -1)
 		return -1;
-
-	if (req->header && fly_header_release(req->header) == -1)
+	req = fly_request_init(con);
+	if (req == NULL)
 		return -1;
-	req->header = NULL;
-	if (req->body && fly_body_release(req->body) == -1)
-		return -1;
-	req->body = NULL;
 
 	e->read_or_write = FLY_READ;
 	e->flag = FLY_MODIFY;
@@ -488,10 +490,12 @@ int fly_response_release(fly_response_t *response)
 	if (response == NULL)
 		return -1;
 
+	if (response->request != NULL)
+		response->request = NULL;
 	if (response->header != NULL)
-		fly_delete_pool(&response->header->pool);
+		fly_header_release(response->header);
 	if (response->body != NULL)
-		fly_delete_pool(&response->body->pool);
+		fly_body_release(response->body);
 
 	return fly_delete_pool(&response->pool);
 }

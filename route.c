@@ -1,17 +1,6 @@
 #include "route.h"
 #include "alloc.h"
 
-//fly_pool_t *fly_route_pool = NULL;
-//int fly_route_init(void)
-//{
-//	if (fly_route_pool != NULL)
-//		return 0;
-//	fly_route_pool = fly_create_pool(FLY_ROUTE_POOL_PAGE);
-//	if (fly_route_pool == NULL)
-//		return -1;
-//	return 0;
-//}
-
 fly_route_reg_t *fly_route_reg_init(void)
 {
 	fly_pool_t *pool;

@@ -136,14 +136,16 @@ int fly_delete_pool(fly_pool_t **pool)
 		next = p->next;
 		if (p == *pool){
 			/* only init_pool */
-			if (next == NULL && p == init_pool)
+			if (next == NULL && prev == NULL)
 				init_pool = NULL;
 			/* init_pool */
-			else if (prev!=NULL)
-				prev->next = p->next;
+			else if (prev == NULL)
+				init_pool = p->next;
+			else if (next == NULL)
+				prev->next = NULL;
 			/* others */
 			else
-				init_pool = p->next;
+				prev->next = p->next;
 
 			fly_pool_b *nblock;
 			for (fly_pool_b *block=p->entry; block!=NULL;block=nblock){
@@ -152,8 +154,8 @@ int fly_delete_pool(fly_pool_t **pool)
 				fly_free(block);
 				p->block_size--;
 			}
+
 			fly_free(p);
-			*pool = NULL;
 			return 0;
 		}
 		prev = p;
