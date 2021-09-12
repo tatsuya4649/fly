@@ -1,5 +1,6 @@
 #include "log.h"
 #include <errno.h>
+#include "err.h"
 
 __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type);
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc);
@@ -146,7 +147,7 @@ __fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t)
 
 	if (fly_logtime(ftime, FLY_TIME_MAX, &t) == -1)
 		return -1;
-	return snprintf(plh, plh_size, "%s [%d]: ", ftime, getpid());
+	return snprintf(plh, plh_size, "%s (%d): ", ftime, getpid());
 }
 
 __fly_static int __fly_log_lock(fly_logfile_t file, struct flock *lock)
@@ -256,11 +257,11 @@ success:
 __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type)
 {
 	switch(type){
-	case ACCESS:
+	case FLY_LOG_ACCESS:
 		return lt->access;
-	case ERROR:
+	case FLY_LOG_ERROR:
 		return lt->error;
-	case NOTICE:
+	case FLY_LOG_NOTICE:
 		return lt->notice;
 	default:
 		return NULL;
@@ -303,6 +304,9 @@ fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type)
 
 	cont->log = log;
 	cont->type = type;
+	cont->content = NULL;
+	cont->contlen = 0;
+	fly_time_null(cont->when);
 	return cont;
 }
 

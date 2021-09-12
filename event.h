@@ -60,6 +60,11 @@ typedef struct fly_event fly_event_t;
 		(t).tv_sec = -1;									\
 		(t).tv_usec = -1;									\
 	} while(0)
+#define fly_time_zero(t)									\
+	do {														\
+		(t).tv_sec = 0;									\
+		(t).tv_usec = 0;									\
+	} while(0)
 #define FLY_TIME_NULL			{ .tv_sec=-1, .tv_usec=-1 }
 #define is_fly_time_null(tptr)	\
 	((tptr)->tv_sec == -1 && (tptr)->tv_usec == -1 )

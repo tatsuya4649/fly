@@ -15,6 +15,7 @@
 #include "route.h"
 #include "uri.h"
 #include "util.h"
+#include "err.h"
 
 #define FLY_BUFSIZE			(8*FLY_PAGESIZE)
 #define FLY_REQUEST_LINE_MAX			8000
