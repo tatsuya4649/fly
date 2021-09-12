@@ -28,7 +28,9 @@ int fly_master_daemon(void)
 
 	switch(fork()){
 	case -1:
-		return -1;
+		FLY_STDERR_ERROR(
+			"failure to fork process from baemon source process."
+		);
 	case 0:
 		break;
 	default:
@@ -37,12 +39,19 @@ int fly_master_daemon(void)
 
 	/* child process only */
 	if (setsid() == -1)
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"Process(%d) must not be process group leader.",
+			getpid()
+		);
 
 	/* for can't access tty */
 	switch(fork()){
 	case -1:
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"failure to fork process from baemon source process."
+		);
 	case 0:
 		break;
 	default:
@@ -51,24 +60,43 @@ int fly_master_daemon(void)
 	/* grandchild process only */
 	umask(0);
 	if (chdir(FLY_ROOT_DIR) == -1)
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"can't change directory. path(%s).",
+			FLY_ROOT_DIR
+		);
 
 	if (getrlimit(RLIMIT_NOFILE, &fd_limit) == -1)
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"can't get resource of RLIMIT_NOFILE."
+		);
 
 	for (int i=0; i<(int) fd_limit.rlim_cur; i++){
 		if (close(i) == -1 && errno != EBADF)
-			return -1;
+			FLY_EMERGENCY_ERROR(
+				FLY_EMERGENCY_STATUS_PROCS,
+				"can't close file (fd: %d)", i
+			);
 	}
 
 	nullfd = open(__FLY_DEVNULL, 0);
 	if (nullfd == -1 || nullfd != STDIN_FILENO)
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"can't open file (fd: %d)", nullfd
+		);
 
 	if (dup2(nullfd, STDOUT_FILENO) == -1)
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"can't duplicate file %d->%d", nullfd, STDOUT_FILENO
+		);
 	if (dup2(nullfd, STDERR_FILENO) == -1)
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"can't duplicate file %d->%d", nullfd, STDERR_FILENO
+		);
 	return 0;
 }
 
@@ -173,14 +201,26 @@ int fly_master_init(void)
 	fly_master_info.req_workers = __fly_get_req_workers();
 	fly_master_info.context = fly_context_init();
 	if (fly_master_info.req_workers <= 0)
-		return -1;
+		FLY_STDERR_ERROR(
+			"Workers environment(%s) value is invalid.",
+			FLY_WORKERS_ENV
+		);
 	if (fly_master_info.context == NULL)
-		return -1;
+		FLY_STDERR_ERROR(
+			"Master context setting error."
+		);
 
 	if (__fly_master_signal_init() == -1)
-		return -1;
+		FLY_STDERR_ERROR(
+			"Master signal setting error."
+		);
 
 	fly_master_info.pool = fly_create_pool(FLY_MASTER_POOL_SIZE);
+	if (fly_master_info.pool == NULL)
+		FLY_STDERR_ERROR(
+			"Making master pool error."
+		);
+
 	return 0;
 }
 
@@ -207,9 +247,12 @@ int fly_create_pidfile(void)
 	pid_t pid;
 	int pidfd, res;
 	char pidbuf[FLY_PID_MAXSTRLEN];
+
 	pidfd = open(FLY_PID_FILE, O_WRONLY|O_CREAT|O_EXCL, S_IRUSR|S_IWUSR);
 	if (pidfd == -1)
-		return -1;
+		FLY_STDERR_ERROR(
+			"open pid file error."
+		);
 
 	memset(pidbuf, 0, FLY_PID_MAXSTRLEN);
 	pid = fly_master_pid();
@@ -219,12 +262,16 @@ int fly_create_pidfile(void)
 	if (res < 0 || res >= FLY_PID_MAXSTRLEN)
 		return -1;
 
-	if (write(pidfd, pidbuf, strlen(pidbuf)) == -1){
-		perror("write: ");
-		return -1;
-	}
+	if (write(pidfd, pidbuf, strlen(pidbuf)) == -1)
+		FLY_STDERR_ERROR(
+			"write pid(%d) in pid file error.",
+			pid
+		);
 
-	if (close(pidfd) == -1) return -1;
+	if (close(pidfd) == -1)
+		FLY_STDERR_ERROR(
+			"close pid file error."
+		);
 	return 0;
 }
 
@@ -236,18 +283,22 @@ __destructor int fly_remove_pidfile(void)
 
 	pidfd = open(FLY_PID_FILE, O_RDONLY);
 	if (pidfd == -1)
-		return -1;
+		FLY_STDERR_ERROR(
+			"open pid file error for removing in destructor."
+		);
 
 	memset(pidbuf, 0, FLY_PID_MAXSTRLEN);
 	res = read(pidfd, pidbuf, FLY_PID_MAXSTRLEN);
 	if (res <= 0 || res >= FLY_PID_MAXSTRLEN)
-		return -1;
+		FLY_STDERR_ERROR(
+			"reading pid from pid file error in destructor."
+		);
 
 	pid = (pid_t) atol(pidbuf);
 	if (pid != getpid())
 		return 0;
 	else{
-		printf("Remove PID file\n");
+		printf("Remove PID file(%ld)\n", (long) pid);
 		return remove(FLY_PID_FILE);
 	}
 }
@@ -262,13 +313,15 @@ __fly_static int __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *)
 	for (int i=fly_master_info.now_workers;
 			i<fly_master_info.req_workers;
 			i=fly_master_info.now_workers){
-		printf("\tNow workers: %d\n", fly_master_info.now_workers);
-		printf("\tReq workers: %d\n", fly_master_info.req_workers);
+		printf("  Now workers: %d\n", fly_master_info.now_workers);
+		printf("  Req workers: %d\n", fly_master_info.req_workers);
 		fly_worker_i info;
 		info.id = __fly_get_worker_id();
 		info.start = time(NULL);
 		if (__fly_master_fork(WORKER, proc, fly_master_info.context, &info) == -1)
-			return -1;
+			FLY_STDERR_ERROR(
+				"spawn working process error."
+			);
 	}
 
 	return 0;
@@ -327,6 +380,7 @@ int __fly_master_fork(fly_proc_type type, void (*proc)(fly_context_t *, void *),
 	case 0:
 		break;
 	default:
+		/* parent */
 		fly_master_info.now_workers++;
 		goto child_register;
 	}

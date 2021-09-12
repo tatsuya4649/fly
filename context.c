@@ -2,6 +2,7 @@
 #include "context.h"
 
 __fly_static fly_sockinfo_t *__fly_listen_sock(fly_pool_t *pool);
+int fly_errsys_init(fly_context_t *ctx);
 
 fly_context_t *fly_context_init(void)
 {
@@ -26,6 +27,10 @@ fly_context_t *fly_context_init(void)
 		return NULL;
 	ctx->log = fly_log_init();
 	if (ctx->log == NULL)
+		return NULL;
+
+	/* ready for emergency error */
+	if (fly_errsys_init(ctx) == -1)
 		return NULL;
 
 	return ctx;
