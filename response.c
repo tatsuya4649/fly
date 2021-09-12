@@ -56,10 +56,13 @@ fly_status_code responses[] = {
 	{-1, -1, NULL, NULL}
 };
 
-__fly_static void __fly_500_error(int c_sockfd, fly_version_e version);
-__fly_static void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcode_t code);
-__fly_static int __fly_response( int c_sockfd, fly_response_t *response);
+__fly_static void __fly_500_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm);
+__fly_static void __fly_5xx_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm);
+__fly_static int __fly_response(fly_event_t *e, fly_response_t *response);
 __fly_static int __fly_response_release_handler(fly_event_t *e);
+#define FLY_RESPONSE_LOG_ITM_FLAG		(1)
+__fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e);
+__fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc, size_t maxlen);
 
 fly_response_t *fly_response_init(void)
 {
@@ -73,6 +76,7 @@ fly_response_t *fly_response_init(void)
 	response->pool = pool;
 	response->header = NULL;
 	response->body = NULL;
+	response->request = NULL;
 	return response;
 }
 
@@ -287,17 +291,20 @@ __fly_static int __fly_send(int c_sockfd, char *buffer, int send_len, int flag)
 	return 0;
 }
 
-__fly_static void __fly_4xx_error(int c_sockfd, fly_version_e version, fly_stcode_t status)
+__fly_static void __fly_4xx_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm)
 {
 	fly_response_t *response;
+	fly_stcode_t status;
 	fly_hdr_ci *ci;
 	char *contlen_str;
 	fly_body_t *body;
-	int contlen = strlen(fly_stcode_explain(status));
+	int contlen;
 
+	status = itm->status_code;
 	ci = fly_header_init();
 	response = fly_response_init();
 
+	contlen = strlen(fly_stcode_explain(status));
 	contlen_str = fly_pballoc(ci->pool, fly_number_digits(contlen)+1);
 	sprintf(contlen_str, "%d", contlen);
 	if (fly_header_add(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str)) == -1)
@@ -313,12 +320,15 @@ __fly_static void __fly_4xx_error(int c_sockfd, fly_version_e version, fly_stcod
 	response->version = version;
 	response->header = ci;
 	response->body = body;
-    if (__fly_response( c_sockfd, response) == -1)
+	response->request = itm->req;
+	if (__fly_response_log(response, e) == -1)
+		goto error;
+    if (__fly_response(e, response) == -1)
 		goto error;
 	goto end;
 
 error:
-	__fly_500_error(c_sockfd, V1_1);
+	__fly_500_error(e, V1_1, itm);
 end:
 	fly_header_release(ci);
 	fly_body_release(body);
@@ -326,21 +336,24 @@ end:
 	return;
 }
 
-__fly_static void __fly_500_error(int c_sockfd, fly_version_e version)
+__fly_static void __fly_500_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm)
 {
-	__fly_5xx_error(c_sockfd, version, _500);
+	itm->status_code = _500;
+	__fly_5xx_error(e, version, itm);
 }
 
-__fly_static void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcode_t code)
+__fly_static void __fly_5xx_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm)
 {
 	fly_response_t *response;
+	fly_stcode_t status_code;
 	fly_body_t *body;
 
+	status_code = itm->status_code;
 	response = fly_response_init();
 	if (response == NULL)
 		return;
 
-	response->status_code = code;
+	response->status_code = status_code;
 	response->version = version;
 	response->header = NULL;
 
@@ -348,33 +361,42 @@ __fly_static void __fly_5xx_error(int c_sockfd, fly_version_e version, fly_stcod
 	body->body = fly_stcode_explain(_500);
 	body->body_len = strlen(body->body);
 	response->body = body;
+	response->request = itm->req;
 
-	__fly_response(c_sockfd, response);
+	__fly_response_log(response, e);
+	__fly_response(e, response);
 
 	fly_body_release(body);
 	fly_response_release(response);
 }
 
 __fly_static int __fly_response(
-	int c_sockfd,
+	fly_event_t *e,
 	fly_response_t *response
 ){
 	int send_len;
 	char *send_start;
 
+	if (e == NULL)
+		return -1;
 	if (response == NULL)
-		goto response_500;
+		return -1;
 	if (response->pool == NULL)
-		goto response_500;
+		return -1;
 
 	if (__fly_response_required_header(response) == -1)
 		goto response_500;
 
 	send_start = __fly_response_raw(response, &send_len);
-	return __fly_send(c_sockfd, send_start, send_len, 0);
+	return __fly_send(e->fd, send_start, send_len, 0);
 
 response_500:
-	__fly_500_error(c_sockfd, V1_1);
+	fly_itm_response_t *itm;
+
+	itm = fly_pballoc(response->pool, sizeof(fly_itm_response_t));
+	itm->status_code = _500;
+	itm->req = response->request;
+	__fly_500_error(e, V1_1, itm);
 	return -1;
 }
 
@@ -427,18 +449,95 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->available = false;
 	e->event_fase = EFLY_REQUEST_FASE_INIT;
 	e->event_state = EFLY_REQUEST_STATE_INIT;
+	fly_event_socket(e);
+
 	if (fly_event_register(e) == -1)
 		return -1;
 
 	return 0;
 }
 
+__fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc, size_t maxlen)
+{
+#define __FLY_RESPONSE_LOGCONTENT_SUCCESS			1
+#define __FLY_RESPONSE_LOGCONTENT_ERROR				-1
+#define __FLY_RESPONSE_LOGCONTENT_OVERFLOW			0
+	/* TODO: configuable log design. */
+	/*
+	 *	Peer IP: Port ---> My IP: Port, Request Line, Response Code
+	 *
+	 */
+	int res;
+	res = snprintf(
+		(char *) lc->content,
+		(size_t) lc->contlen,
+		"%s:%s (%s) --> %s:%s (%d %s)\n",
+		/* peer hostname */
+		response->request->connect->hostname,
+		/* peer service */
+		response->request->connect->servname,
+		/* request_line */
+		response->request->request_line != NULL ? response->request->request_line->request_line : FLY_RESPONSE_NONSTRING,
+		/* hostname */
+		e->manager->ctx->listen_sock->hostname,
+		/* service */
+		e->manager->ctx->listen_sock->servname,
+		/* status code */
+		__fly_status_code_from_type(response->status_code),
+		/* explain of status code*/
+		fly_stcode_explain(response->status_code)
+	);
+	if (res >= (int) fly_maxlog_length(maxlen)){
+		memcpy(fly_maxlog_suffix_point(lc->content,lc->contlen), FLY_LOGMAX_SUFFIX, strlen(FLY_LOGMAX_SUFFIX));
+		return __FLY_RESPONSE_LOGCONTENT_OVERFLOW;
+	}
+	lc->contlen = res;
+	return __FLY_RESPONSE_LOGCONTENT_SUCCESS;
+}
+
+__fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e)
+{
+	/* TODO: register log event, make log body(request code, response code, header, header_len, body_len) */
+	fly_logcont_t *log_content;
+
+	fly_event_t *le;
+	le = fly_event_init(e->manager);
+	if (le == NULL)
+		return -1;
+
+	log_content = fly_logcont_init(fly_log_from_event(e), ACCESS);
+	if (log_content == NULL)
+		return -1;
+	if (fly_logcont_setting(log_content, FLY_RESPONSE_LOG_LENGTH) == -1)
+		return -1;
+
+	if (__fly_response_logcontent(res, e, log_content, FLY_RESPONSE_LOG_LENGTH) == -1)
+		return -1;
+	if (fly_log_now(&log_content->when) == -1)
+		return -1;
+
+	le->event_fase = EFLY_LOG_FASE_INIT;
+	le->event_state = EFLY_LOG_STATE_WAIT;
+	le->event_data = (void *) log_content;
+	le->handler = fly_log_event_handler;
+	le->flag = 0;
+	le->tflag = FLY_INFINITY;
+	/* regular file event */
+	fly_event_regular(le);
+
+	return fly_event_register(le);
+}
+
+
 int fly_response_event(fly_event_t *e)
 {
 	fly_response_t *response;
 
 	response = (fly_response_t *) e->event_data;
-	if (__fly_response(e->fd, response) == -1)
+	if (__fly_response(e, response) == -1)
+		return -1;
+
+	if (__fly_response_log(response, e) == -1)
 		return -1;
 
 	switch (fly_connection(response->header)){
@@ -449,6 +548,8 @@ int fly_response_event(fly_event_t *e)
 		e->flag = FLY_CLOSE_EV | FLY_MODIFY;
 		e->handler = __fly_response_release_handler;
 		e->available = false;
+		fly_event_socket(e);
+
 		if (fly_event_register(e) == -1)
 			goto error;
 		return 0;
@@ -465,6 +566,7 @@ int fly_response_event(fly_event_t *e)
 		e->handler = __fly_response_reuse_handler;
 		e->available = false;
 		e->expired = false;
+		fly_event_socket(e);
 
 		if (fly_event_register(e) == -1)
 			goto error;
@@ -502,9 +604,10 @@ int fly_response_release(fly_response_t *response)
 
 __fly_static int __fly_4xx_error_handler(fly_event_t *e)
 {
-	fly_stcode_t code = (fly_stcode_t) e->event_data;
+	fly_itm_response_t *itm;
 
-	__fly_4xx_error(e->fd, FLY_DEFAULT_HTTP_VERSION, code);
+	itm = (fly_itm_response_t *) e->event_data;
+	__fly_4xx_error(e, FLY_DEFAULT_HTTP_VERSION, itm);
 	/* end_of_connection */
 	fly_socket_release(e->fd);
 
@@ -515,9 +618,10 @@ __fly_static int __fly_4xx_error_handler(fly_event_t *e)
 }
 __fly_static int __fly_5xx_error_handler(fly_event_t *e)
 {
-	fly_stcode_t code = (fly_stcode_t) e->event_data;
+	fly_itm_response_t *itm;
 
-	__fly_5xx_error(e->fd, FLY_DEFAULT_HTTP_VERSION, code);
+	itm = (fly_itm_response_t *) e->event_data;
+	__fly_5xx_error(e, FLY_DEFAULT_HTTP_VERSION, itm);
 	/* end_of_connection */
 	fly_socket_release(e->fd);
 
@@ -527,30 +631,44 @@ __fly_static int __fly_5xx_error_handler(fly_event_t *e)
 	return 0;
 }
 
-int fly_4xx_error_event(fly_event_t *e, fly_sock_t fd, fly_stcode_t code)
+int fly_4xx_error_event(fly_event_t *e, fly_request_t *req, fly_stcode_t code)
 {
-	e->fd = fd;
+	fly_itm_response_t *itm;
+	itm = fly_pballoc(req->pool, sizeof(fly_itm_response_t));
+	if (itm == NULL)
+		return -1;
+	itm->status_code = code;
+	itm->req = req;
+
 	e->read_or_write = FLY_WRITE;
-	e->event_data = (void *) code;
+	e->event_data = (void *) itm;
 	/* close socket in 4xx event */
 	e->flag = FLY_CLOSE_EV;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	e->handler = __fly_4xx_error_handler;
+	fly_event_socket(e);
 
 	return fly_event_register(e);
 }
 
-int fly_5xx_error_event(fly_event_t *e, fly_sock_t fd, fly_stcode_t code)
+int fly_5xx_error_event(fly_event_t *e, fly_request_t *req, fly_stcode_t code)
 {
-	e->fd = fd;
+	fly_itm_response_t *itm;
+	itm = fly_pballoc(req->pool, sizeof(fly_itm_response_t));
+	if (itm == NULL)
+		return -1;
+	itm->status_code = code;
+	itm->req = req;
+
 	e->read_or_write = FLY_WRITE;
-	e->event_data = (void *) code;
+	e->event_data = (void *) itm;
 	/* close socket in 5xx event */
 	e->flag = FLY_CLOSE_EV;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	e->handler = __fly_5xx_error_handler;
+	fly_event_socket(e);
 
 	return fly_event_register(e);
 }

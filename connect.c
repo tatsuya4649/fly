@@ -35,20 +35,6 @@ int fly_connect_release(fly_connect_t *conn)
 	return fly_delete_pool(&conn->pool);
 }
 
-//int fly_connect_accept(fly_connect_t *conn)
-//{
-//	if (conn == NULL)
-//		return -1;
-//
-//	int c_sockfd;
-//	c_sockfd = accept(conn->sockfd, (struct sockaddr *) &conn->client_addr, &conn->addrlen);
-//	if (c_sockfd == -1){
-//		return -1;
-//	}
-//	conn->c_sockfd = c_sockfd;
-//	return 0;
-//}
-
 __fly_static int __fly_info_of_connect(fly_connect_t *conn)
 {
 	int gname_err;

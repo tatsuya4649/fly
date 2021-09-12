@@ -1,6 +1,11 @@
 #include "log.h"
 #include <errno.h>
 
+__fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type);
+__fly_static int __fly_log_write_logcont(fly_logcont_t *lc);
+__fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc);
+__fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t);
+
 fly_pool_t *fly_log_pool = NULL;
 __fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize);
 
@@ -33,7 +38,7 @@ __fly_static fly_path_t *__fly_notice_log_path(void)
 __fly_static __fly_log_t *__fly_logfile_init(const fly_path_t *fly_log_path)
 {
 	__fly_log_t *lt;
-	fly_log_fp *lfp;
+	fly_logfile_t lfile;
 
 	lt = fly_pballoc(fly_log_pool, sizeof(__fly_log_t));
 	if (lt == NULL)
@@ -42,11 +47,11 @@ __fly_static __fly_log_t *__fly_logfile_init(const fly_path_t *fly_log_path)
 	if (__fly_make_logdir((fly_path_t *) fly_log_path, strlen(fly_log_path)) < 0)
 		return NULL;
 
-	lfp = fopen(fly_log_path, "a");
-	if (lfp == NULL)
+	lfile = open(fly_log_path, O_RDWR|O_CREAT, FLY_LOGFILE_MODE);
+	if (lfile == -1)
 		return NULL;
 
-	lt->fp = lfp;
+	lt->file = lfile;
 	strcpy(lt->log_path, fly_log_path);
 	return lt;
 }
@@ -115,7 +120,7 @@ fly_log_t *fly_log_init(void)
 	lt->access = alp;
 	lt->error = elp;
 	lt->notice = nlp;
-	lt->pool = &fly_log_pool;
+	lt->pool = fly_log_pool;
 	return lt;
 error:
 	return NULL;
@@ -124,63 +129,128 @@ int fly_log_release(fly_log_t *lt)
 {
 	if (!lt || !lt->pool)
 			return -1;
-	if (fclose(lt->access->fp) == EOF)
+	if (close(lt->access->file) == -1)
 		return -1;
-	if (fclose(lt->error->fp) == EOF)
+	if (close(lt->error->file) == -1)
 		return -1;
-	if (fclose(lt->notice->fp) == EOF)
+	if (close(lt->notice->file) == -1)
 		return -1;
 
-	return fly_delete_pool(lt->pool);
+	return fly_delete_pool(&lt->pool);
 }
 
-__fly_static int __fly_placeholder(char *plh, size_t plh_size)
+#include "ftime.h"
+__fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t)
 {
 	char ftime[FLY_TIME_MAX];
 
-	if (fly_logtime(ftime, FLY_TIME_MAX) == -1)
+	if (fly_logtime(ftime, FLY_TIME_MAX, &t) == -1)
 		return -1;
-	return snprintf(plh, plh_size, "%s [%d]", ftime, getpid());
+	return snprintf(plh, plh_size, "%s [%d]: ", ftime, getpid());
 }
 
-__fly_static int __fly_log_write(fly_log_fp *lfp, char *logbody)
+__fly_static int __fly_log_lock(fly_logfile_t file, struct flock *lock)
 {
-	char plh[FLY_LOG_PLACE_SIZE], body[FLY_LOG_BODY_SIZE];
+#define FLY_LOG_LOCK_SUCCESS	1
+#define FLY_LOG_LOCK_WAIT		0
+#define FLY_LOG_LOCK_ERROR		-1
 	int res;
 
-	res = __fly_placeholder(plh, FLY_LOG_PLACE_SIZE);
-	if (res < 0 || res >= FLY_LOG_PLACE_SIZE)
-		goto error;
+	lock->l_type = F_WRLCK;
+	lock->l_whence = SEEK_END;
+	lock->l_start = 0;
+	/* lock from end of log file */
+	lock->l_len = 0;
 
-	res = snprintf(body, FLY_LOG_BODY_SIZE, "%s: %s\n", plh, logbody);
-	if (res < 0 || res >= FLY_LOG_BODY_SIZE)
-		goto error;
+	res = fcntl(file, F_SETLK, lock);
 
+	if (res == -1){
+		if (errno == EAGAIN || errno == EACCES)
+			return FLY_LOG_LOCK_WAIT;
+		else
+			return FLY_LOG_LOCK_ERROR;
+	}
+	return FLY_LOG_LOCK_SUCCESS;
+}
+
+__fly_static int __fly_log_unlock(fly_logfile_t file, struct flock *lock)
+{
+	return fcntl(file, F_SETLK, lock);
+}
+
+__fly_static int __fly_write(fly_logfile_t file, size_t length, fly_logc_t *content)
+{
+	size_t total = 0;
+
+	/* move to end of file */
+	if (lseek(file, 0, SEEK_END) == -1)
+		return -1;
 	while(true){
 #ifndef FLY_LOG_WRITE_SIZE
-#define FLY_LOG_WRITE_SIZE		1
+#define FLY_LOG_WRITE_SIZE		sizeof(fly_logc_t)
 #endif
-		int now_pos, n;
-		if ((now_pos = fseek(lfp, 0, SEEK_CUR)) != 0)
+		int now_pos, n, write_length;
+		write_length = length - total;
+		if ((now_pos = lseek(file, 0, SEEK_CUR)) == -1)
 				goto error;
 
-		if ((n=fwrite(body, res, FLY_LOG_WRITE_SIZE, lfp)) == FLY_LOG_WRITE_SIZE)
-			break;
-
-		if (n < 0){
+		n = write(file, content, FLY_LOG_WRITE_SIZE*write_length);
+		if (n == -1){
 			if (errno == EINTR){
-				if (fseek(lfp, 0, SEEK_CUR) != 0)
+				if (lseek(file, now_pos, SEEK_SET) == -1)
 					goto error;
 				else
 					continue;
 			}else
 				goto error;
 		}
-	}
+		total += n;
 
+		if (total == length)
+			break;
+	}
 	return 0;
 error:
 	return -1;
+}
+
+__fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc)
+{
+	char phd[FLY_LOG_PLACE_SIZE];
+	int phd_len;
+
+	phd_len = __fly_placeholder(phd, FLY_LOG_PLACE_SIZE, lc->when);
+	if (phd_len < 0 || phd_len >= FLY_LOG_PLACE_SIZE)
+		return -1;
+
+#define FLY_LOG_WRITE_SUCCESS			1
+#define FLY_LOG_WRITE_WAIT				0
+#define FLY_LOG_WRITE_ERROR				-1
+	switch (__fly_log_lock(file, &lc->lock)){
+	case FLY_LOG_LOCK_SUCCESS:
+		break;
+	case FLY_LOG_LOCK_WAIT:
+		return FLY_LOG_WRITE_WAIT;
+	case FLY_LOG_LOCK_ERROR:
+		return FLY_LOG_WRITE_ERROR;
+	}
+
+	/* getting file lock */
+	/* write to log place holder */
+	if (__fly_write(file, phd_len, phd) == -1)
+		goto error;
+	/* write to log body */
+	if (__fly_write(file, lc->contlen, lc->content) == -1)
+		goto error;
+
+	/* release file lock */
+	goto success;
+error:
+	__fly_log_unlock(file, &lc->lock);
+	return -1;
+success:
+	__fly_log_unlock(file, &lc->lock);
+	return 0;
 }
 
 __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type)
@@ -197,25 +267,64 @@ __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type)
 	}
 }
 
-int fly_log_write(fly_log_t *lt, fly_log_e type, char *logbody)
+__fly_static int __fly_log_write_logcont(fly_logcont_t *lc)
 {
-	__fly_log_t *l;
-	l = __fly_log_from_type(lt, type);
-	if (!l)
+	__fly_log_t *_lt;
+	_lt = __fly_log_from_type(lc->log, lc->type);
+	if (_lt == NULL)
 		return -1;
 
-	return __fly_log_write(l->fp, logbody);
+	return __fly_log_write(_lt->file, lc);
 }
 
-int fly_error_log_write(fly_log_t *lt, char *logbody)
+int fly_logcont_setting(fly_logcont_t *lc, size_t content_length)
 {
-	return fly_log_write(lt, ERROR, logbody);
+	if (lc == NULL)
+		return -1;
+
+	lc->contlen = content_length;
+	lc->content = fly_pballoc(lc->log->pool, content_length);
+	if (lc->content == NULL)
+		return -1;
+	memset(lc->content, '\0', content_length);
+
+	return 0;
 }
-int fly_access_log_write(fly_log_t *lt, char *logbody)
+
+fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type)
 {
-	return fly_log_write(lt, ACCESS, logbody);
+	if (!log || !log->pool)
+		return NULL;
+
+	fly_logcont_t *cont;
+	cont = fly_pballoc(log->pool, sizeof(fly_logcont_t));
+	if (cont == NULL)
+		return NULL;
+
+	cont->log = log;
+	cont->type = type;
+	return cont;
 }
-int fly_notice_log_write(fly_log_t *lt, char *logbody)
+
+int fly_logcont_release(fly_logcont_t *logcont)
 {
-	return fly_log_write(lt, NOTICE, logbody);
+	if (logcont == NULL)
+		return -1;
+
+	return 0;
+}
+
+int fly_log_event_handler(fly_event_t *e)
+{
+	__unused fly_logcont_t *content;
+
+	content = (fly_logcont_t *) e->event_data;
+	__fly_log_write_logcont(content);
+	fly_logcont_release(content);
+	return fly_event_unregister(e);
+}
+
+int fly_log_now(fly_time_t *t)
+{
+	return gettimeofday(t, NULL);
 }

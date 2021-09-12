@@ -310,10 +310,6 @@ __fly_static int __fly_request_operation(int c_sock, fly_request_t *req,fly_reql
 	if (strstr(request_line, "\r\n") == NULL)
 		goto not_ready;
 
-	/* request line parse check */
-	if (__fly_parse_reqline(request_line) == -1)
-		goto error_400;
-
     request_line_length = strstr(request_line, "\r\n") - request_line;
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
 		goto error_501;
@@ -329,6 +325,10 @@ __fly_static int __fly_request_operation(int c_sock, fly_request_t *req,fly_reql
     memcpy(req->request_line->request_line, request_line, request_line_length);
     /* get total line */
     req->request_line->request_line[request_line_length] = '\0';
+
+	/* request line parse check */
+	if (__fly_parse_reqline(request_line) == -1)
+		goto error_400;
 
 	switch(__fly_parse_request_line(req->pool, c_sock, req->request_line)){
 	case 0:
@@ -828,19 +828,19 @@ __fase_end_of_parse:
 	goto response;
 /* TODO: error response event memory release */
 response_400:
-	fly_4xx_error_event(event, event->fd, _400);
+	fly_4xx_error_event(event, request, _400);
 	goto error;
 response_404:
-	fly_4xx_error_event(event, event->fd, _404);
+	fly_4xx_error_event(event, request, _404);
 	goto error;
 response_414:
-	fly_4xx_error_event(event, event->fd, _414);
+	fly_4xx_error_event(event, request, _414);
 	goto error;
 response_500:
-	fly_5xx_error_event(event, event->fd, _500);
+	fly_5xx_error_event(event, request, _500);
 	goto error;
 response_501:
-	fly_5xx_error_event(event, event->fd, _501);
+	fly_5xx_error_event(event, request, _501);
 	goto error;
 
 /* continuation event publish. */
@@ -850,6 +850,7 @@ continuation:
 	event->flag = FLY_MODIFY;
 	event->tflag = FLY_INHERIT;
 	event->available = false;
+	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
 		goto error;
 
@@ -861,6 +862,7 @@ disconnection:
 	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
 	event->handler = fly_request_disconnect_handler;
 	event->available = false;
+	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
 		goto error;
 
@@ -874,6 +876,7 @@ timeout:
 	event->tflag = FLY_INHERIT;
 	event->handler = fly_request_timeout_handler;
 	event->available = false;
+	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
 		goto error;
 
@@ -887,6 +890,7 @@ response:
 	event->handler = fly_response_event;
 	event->available = false;
 	event->event_data = (void *) response;
+	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
 		goto error;
 

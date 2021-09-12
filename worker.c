@@ -57,6 +57,7 @@ __fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager
 	e->event_data = ctx;
 	e->expired = false;
 	e->available = false;
+	fly_event_socket(e);
 
 	return e;
 }
@@ -87,11 +88,12 @@ __fly_static int __fly_listen_socket_handler(__unused struct fly_event *event)
 	ne->tflag = FLY_INFINITY;
 	ne->eflag = 0;
 	fly_time_null(ne->timeout);
-	ne->event_data = __fly_connected(listen_sock, conn_sock, ne,(struct sockaddr *) &addr, addrlen);
 	ne->expired = false;
 	ne->available = false;
+	ne->event_data = __fly_connected(listen_sock, conn_sock, ne,(struct sockaddr *) &addr, addrlen);
 	if (ne->event_data == NULL)
 		return -1;
+	fly_event_socket(ne);
 
 	if (fly_event_register(ne) == -1)
 		return -1;
@@ -117,7 +119,6 @@ __fly_static int __fly_listen_connected(fly_event_t *e)
 {
 	fly_connect_t *conn;
 	fly_request_t *req;
-	fly_event_t *re;
 
 	conn = (fly_connect_t *) e->event_data;
 	/* ready for request */
@@ -125,21 +126,21 @@ __fly_static int __fly_listen_connected(fly_event_t *e)
 	if (req == NULL)
 		return -1;
 
-	re = fly_event_init(e->manager);
-	re->fd = e->fd;
-	re->read_or_write = FLY_READ;
-	re->event_data = (void *) req;
+	e->fd = e->fd;
+	e->read_or_write = FLY_READ;
+	e->event_data = (void *) req;
 	/* event only modify (no add, no delete) */
-	re->flag = FLY_MODIFY;
-	re->tflag = 0;
-	fly_sec(&re->timeout, FLY_REQUEST_TIMEOUT);
-	re->eflag = 0;
-	re->handler = fly_request_event_handler;
-	re->event_state = (void *) EFLY_REQUEST_STATE_INIT;
-	re->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
-	re->expired = false;
-	re->available = false;
+	e->flag = FLY_MODIFY;
+	e->tflag = 0;
+	fly_sec(&e->timeout, FLY_REQUEST_TIMEOUT);
+	e->eflag = 0;
+	e->handler = fly_request_event_handler;
+	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
+	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
+	e->expired = false;
+	e->available = false;
+	fly_event_socket(e);
 
-	return fly_event_register(re);
+	return fly_event_register(e);
 }
 
