@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include "version.h"
 #include "method.h"
 
@@ -16,6 +17,8 @@ struct fly_sockinfo{
 	fly_sock_t fd;
 	struct sockaddr_storage addr;
 	socklen_t addrlen;
+	char hostname[NI_MAXHOST];
+	char servname[NI_MAXSERV];
 };
 typedef struct fly_sockinfo fly_sockinfo_t;
 #define FLY_SOCKET_OPTION		1
@@ -25,6 +28,7 @@ int fly_socket_release(int sockfd);
 #define FLY_PORT_ENV			"FLY_PORT"
 #define FLY_BACKLOG_DEFAULT		1024
 #define FLY_PORTSTR_LEN			100
+#define FLY_LISTEN_SOCKINFO_FLAG		(NI_NUMERICSERV)
 const char *fly_sockport_env(void);
 int fly_socket_nonblocking(fly_sock_t s);
 

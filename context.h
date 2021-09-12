@@ -2,12 +2,12 @@
 #define _CONTEXT_H
 
 #include "alloc.h"
-#include "log.h"
 #include "server.h"
 #include "route.h"
 
 #define FLY_CONTEXT_POOL_SIZE			10
 
+#include "log.h"
 struct fly_context{
 	fly_pool_t *pool;
 	fly_sockinfo_t *listen_sock;

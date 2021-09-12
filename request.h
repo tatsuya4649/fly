@@ -2,7 +2,9 @@
 #define _REQUEST_H
 
 #include <string.h>
+#include <stdbool.h>
 #include <errno.h>
+#include "context.h"
 #include "connect.h"
 #include "alloc.h"
 #include "method.h"
@@ -10,6 +12,7 @@
 #include "header.h"
 #include "body.h"
 #include "server.h"
+#include "route.h"
 #include "uri.h"
 #include "util.h"
 
