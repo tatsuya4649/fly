@@ -1,10 +1,13 @@
 #ifndef _RESPONSE_H
 #define _RESPONSE_H
+
+#include "request.h"
 #include "header.h"
 #include "body.h"
 #include "version.h"
 #include "util.h"
 #include "event.h"
+#include "log.h"
 
 #define RESPONSE_LENGTH_PER		1024
 #define FLY_RESPONSE_POOL_PAGE		100
@@ -84,7 +87,14 @@ char *fly_stcode_explain(fly_stcode_t type);
 int fly_response_event(fly_event_t *e);
 
 #define FLY_DEFAULT_HTTP_VERSION		V1_1
+#define FLY_RESPONSE_LOG_LENGTH			300
+#define FLY_RESPONSE_NONSTRING			""
 
-int fly_4xx_error_event(fly_event_t *, fly_sock_t, fly_stcode_t);
-int fly_5xx_error_event(fly_event_t *, fly_sock_t, fly_stcode_t);
+struct fly_itm_response{
+	fly_stcode_t status_code;
+	fly_request_t *req;
+};
+typedef struct fly_itm_response fly_itm_response_t;
+int fly_4xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
+int fly_5xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
 #endif

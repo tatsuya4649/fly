@@ -1,12 +1,11 @@
 #ifndef _EVENT_H
 #define _EVENT_H
 
-
+#include <stdbool.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include <sys/time.h>
 #include "alloc.h"
-#include "context.h"
 #include "util.h"
 
 extern fly_pool_t *fly_event_pool;
@@ -14,6 +13,8 @@ extern fly_pool_t *fly_event_pool;
 #define FLY_READ		EPOLLIN
 #define FLY_WRITE		EPOLLOUT
 #define FLY_EVLIST_ELES			1000
+
+typedef struct fly_context fly_context_t;
 struct fly_event_manager{
 	fly_pool_t *pool;
 	fly_context_t *ctx;
