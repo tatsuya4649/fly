@@ -62,7 +62,7 @@ __fly_static int __fly_response(fly_event_t *e, fly_response_t *response);
 __fly_static int __fly_response_release_handler(fly_event_t *e);
 #define FLY_RESPONSE_LOG_ITM_FLAG		(1)
 __fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e);
-__fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc, size_t maxlen);
+__fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc);
 
 fly_response_t *fly_response_init(void)
 {
@@ -457,7 +457,7 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	return 0;
 }
 
-__fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc, size_t maxlen)
+__fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc)
 {
 #define __FLY_RESPONSE_LOGCONTENT_SUCCESS			1
 #define __FLY_RESPONSE_LOGCONTENT_ERROR				-1
@@ -487,7 +487,7 @@ __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t
 		/* explain of status code*/
 		fly_stcode_explain(response->status_code)
 	);
-	if (res >= (int) fly_maxlog_length(maxlen)){
+	if (res >= (int) fly_maxlog_length(lc->contlen)){
 		memcpy(fly_maxlog_suffix_point(lc->content,lc->contlen), FLY_LOGMAX_SUFFIX, strlen(FLY_LOGMAX_SUFFIX));
 		return __FLY_RESPONSE_LOGCONTENT_OVERFLOW;
 	}
@@ -505,13 +505,13 @@ __fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e)
 	if (le == NULL)
 		return -1;
 
-	log_content = fly_logcont_init(fly_log_from_event(e), ACCESS);
+	log_content = fly_logcont_init(fly_log_from_event(e), FLY_LOG_ACCESS);
 	if (log_content == NULL)
 		return -1;
 	if (fly_logcont_setting(log_content, FLY_RESPONSE_LOG_LENGTH) == -1)
 		return -1;
 
-	if (__fly_response_logcontent(res, e, log_content, FLY_RESPONSE_LOG_LENGTH) == -1)
+	if (__fly_response_logcontent(res, e, log_content) == -1)
 		return -1;
 	if (fly_log_now(&log_content->when) == -1)
 		return -1;

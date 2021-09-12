@@ -10,12 +10,11 @@
 #include "util.h"
 #include "fs.h"
 #include "alloc.h"
-#include "err.h"
 
 #define FLY_ACCESLOG_ENV				"FYL_ACCESLOG_ENV"
 #define FLY_ERRORLOG_ENV				"FYL_ERRORLOG_ENV"
 #define FLY_NOTICLOG_ENV				"FYL_NOTICLOG_ENV"
-#define FLY_DEFAULT_LOGDIR					"./log/"
+#define FLY_DEFAULT_LOGDIR				(fly_path_t *) 	"./log/"
 #define FLY_ACCESLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_access.log")
 #define FLY_ERRORLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_error.log")
 #define FLY_NOTICLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_notice.log")
@@ -35,9 +34,9 @@ struct fly_log{
 };
 
 enum fly_log_type{
-	ACCESS,
-	ERROR,
-	NOTICE,
+	FLY_LOG_ACCESS,
+	FLY_LOG_ERROR,
+	FLY_LOG_NOTICE,
 };
 typedef enum fly_log_type fly_log_e;
 
@@ -69,6 +68,10 @@ struct fly_logcont{
 typedef struct fly_logcont fly_logcont_t;
 
 #include "event.h"
+/*
+ *  fly_logcont is auto release resource.
+ *  if write log, this resource is released.
+ */
 fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type);
 int fly_logcont_setting(fly_logcont_t *lc, size_t content_length);
 #define fly_log_from_manager(m)		((m)->ctx->log)
