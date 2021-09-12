@@ -10,6 +10,8 @@ inline float fly_diff_time(fly_time_t new, fly_time_t old);
 __fly_static void __fly_event_inherit_time(fly_event_t *dist, fly_event_t *src);
 int fly_milli_time(fly_time_t t);
 __fly_static int __fly_expired_event(fly_event_manager_t *manager);
+__fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manager);
+__fly_static int __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
 
 __fly_static fly_pool_t *__fly_event_pool_init(void)
 {
@@ -140,7 +142,7 @@ int fly_event_register(fly_event_t *event)
 	ev.data = data;
 	ev.events = event->read_or_write | event->eflag;
 
-	if (epoll_ctl(event->manager->efd, op, event->fd, &ev) == -1)
+	if (fly_event_monitorable(event) && epoll_ctl(event->manager->efd, op, event->fd, &ev) == -1)
 		return -1;
 
 	return 0;
@@ -166,7 +168,7 @@ int fly_event_unregister(fly_event_t *event)
 
 			event->manager->evlen--;
 			e->next = NULL;
-			if (event->flag & FLY_CLOSE_EV)
+			if (event->flag & FLY_CLOSE_EV || !fly_event_monitorable(event))
 				return 0;
 			else
 				return epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL);
@@ -317,11 +319,49 @@ int fly_milli_time(fly_time_t t)
 	return msec;
 }
 
+__fly_static int __fly_event_handle_nomonitorable(__unused fly_event_manager_t *manager)
+{
+	if (manager->first == NULL)
+		return 0;
+
+	for (fly_event_t *e=manager->first; e; e=e->next){
+		if (fly_event_nomonitorable(e)){
+			e->handler(e);
+		}
+	}
+	return 0;
+}
+
+__fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
+{
+	struct epoll_event *event;
+	for (int i=0; i<epoll_events; i++){
+		fly_event_t *fly_event;
+		event = manager->evlist + i;
+
+		fly_event = (fly_event_t *) event->data.ptr;
+		fly_event->available = true;
+		/* TODO: handle */
+		if (fly_event->handler)
+			fly_event->handler(fly_event);
+
+		/* remove event if not persistent */
+		if (!fly_nodelete(fly_event)){
+			if(fly_event_unregister(fly_event) == -1){
+				return -1;
+			}
+		}
+	}
+
+	__fly_event_handle_nomonitorable(manager);
+
+	return 0;
+}
+
 int fly_event_handler(fly_event_manager_t *manager)
 {
 	int epoll_events;
 	fly_event_t *near_timeout;
-	struct epoll_event *event;
 	if (!manager || manager->efd < 0)
 		return -1;
 
@@ -353,23 +393,7 @@ int fly_event_handler(fly_event_manager_t *manager)
 			break;
 		}
 
-		for (int i=0; i<epoll_events; i++){
-			fly_event_t *fly_event;
-			event = manager->evlist + i;
-
-			fly_event = (fly_event_t *) event->data.ptr;
-			fly_event->available = true;
-			/*TODO: handle*/
-			if (fly_event->handler)
-				fly_event->handler(fly_event);
-
-			/* remove event if not persistent */
-			if (!fly_nodelete(fly_event)){
-				if(fly_event_unregister(fly_event) == -1){
-					return -1;
-				}
-			}
-		}
+		__fly_event_handle(epoll_events, manager);
 	}
 }
 

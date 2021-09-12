@@ -24,6 +24,9 @@ fly_context_t *fly_context_init(void)
 	ctx->route_reg = fly_route_reg_init();
 	if (ctx->route_reg == NULL)
 		return NULL;
+	ctx->log = fly_log_init();
+	if (ctx->log == NULL)
+		return NULL;
 
 	return ctx;
 }

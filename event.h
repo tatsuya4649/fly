@@ -1,18 +1,20 @@
 #ifndef _EVENT_H
 #define _EVENT_H
 
-
+#include <stdbool.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include <sys/time.h>
 #include "alloc.h"
-#include "context.h"
+#include "util.h"
 
 extern fly_pool_t *fly_event_pool;
 #define FLY_EVENT_POOL_SIZE			100
 #define FLY_READ		EPOLLIN
 #define FLY_WRITE		EPOLLOUT
 #define FLY_EVLIST_ELES			1000
+
+typedef struct fly_context fly_context_t;
 struct fly_event_manager{
 	fly_pool_t *pool;
 	fly_context_t *ctx;
@@ -46,8 +48,9 @@ struct fly_event{
 	void *event_state;
 
 	/* event bit fields */
-	int expired: 1;
-	int available: 1;
+	fly_bit_t file_type: 4;
+	fly_bit_t expired: 1;
+	fly_bit_t available: 1;
 };
 typedef struct fly_event fly_event_t;
 #define fly_time(tptr)		gettimeofday((struct timeval *) tptr, NULL)
@@ -89,6 +92,37 @@ typedef struct fly_event fly_event_t;
 		((e)->flag & FLY_MODIFY)		||	\
 		((e)->flag & FLY_CLOSE_EV)			\
 	)
+/* monitored event file type(4bit field) */
+#define __FLY_REGULAR		0x00
+#define __FLY_DIRECTORY		0x01
+#define __FLY_SOCKET		0x02
+#define __FLY_FIFO			0x03
+#define __FLY_DEVICE		0x04
+#define __FLY_SLINK			0x05
+#define __FLY_EPOLL			0x06
+
+#define	fly_event_is_file_type(e, type)	((e)->file_type == __FLY_ ## type)
+#define fly_event_file_type(e, type)			((e)->file_type = __FLY_ ## type)
+
+#define fly_event_is_regular(e)		fly_event_is_file_type((e), REGULAR)
+#define fly_event_is_dir(e)			fly_event_is_file_type((e), DIRECTORY)
+#define fly_event_is_socket(e)		fly_event_is_file_type((e), SOCKET)
+#define fly_event_is_fifo(e)		fly_event_is_file_type((e), FIFO)
+#define fly_event_is_device(e)		fly_event_is_file_type((e), DEVICE)
+#define fly_event_is_symlink(e)		fly_event_is_file_type((e), SLINK)
+#define fly_event_is_epoll(e)		fly_event_is_file_type((e), EPOLL)
+
+#define fly_event_regular(e)		fly_event_file_type((e), REGULAR)
+#define fly_event_dir(e)			fly_event_file_type((e), DIRECTORY)
+#define fly_event_socket(e)			fly_event_file_type((e), SOCKET)
+#define fly_event_fifo(e)			fly_event_file_type((e), FIFO)
+#define fly_event_device(e)			fly_event_file_type((e), DEVICE)
+#define fly_event_symlink(e)		fly_event_file_type((e), SLINK)
+#define fly_event_epoll(e)			fly_event_file_type((e), EPOLL)
+
+#define fly_event_monitorable(e)	\
+	(!fly_event_is_regular((e)) && !fly_event_is_dir((e)))
+#define fly_event_nomonitorable(e)	(!(fly_event_monitorable((e))))
 
 /* manager setting */
 fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx);
