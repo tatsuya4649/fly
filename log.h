@@ -11,6 +11,8 @@
 #include "fs.h"
 #include "alloc.h"
 
+#define FLY_STDOUT_ENV(name)			("FLY_STDOUT_" # name)
+#define FLY_STDERR_ENV(name)			("FLY_STDERR_" # name)
 #define FLY_ACCESLOG_ENV				"FYL_ACCESLOG_ENV"
 #define FLY_ERRORLOG_ENV				"FYL_ERRORLOG_ENV"
 #define FLY_NOTICLOG_ENV				"FYL_NOTICLOG_ENV"
@@ -44,8 +46,10 @@ typedef enum fly_log_type fly_log_e;
 #define FLY_LOG_BODY_SIZE					1000
 
 struct __fly_log{
-	fly_logfile_t file;
-	fly_path_t log_path[FLY_PATH_MAX];
+	fly_logfile_t	file;
+	fly_path_t		log_path[FLY_PATH_MAX];
+	int flag;
+	fly_bit_t		tty: 1;
 };
 
 fly_log_t *fly_log_init(void);
@@ -62,6 +66,7 @@ struct fly_logcont{
 	fly_time_t		when;
 
 	fly_log_t		*log;
+	__fly_log_t		*__log;
 
 	struct flock	lock;
 };

@@ -36,7 +36,9 @@ __fly_static fly_path_t *__fly_notice_log_path(void)
 	return path != NULL ? (fly_path_t *) path : FLY_NOTICLOG_DEFAULT;
 }
 
-__fly_static __fly_log_t *__fly_logfile_init(const fly_path_t *fly_log_path)
+#define __FLY_LOGFILE_INIT_STDOUT			1 << 0
+#define __FLY_LOGFILE_INIT_STDERR			1 << 1
+__fly_static __fly_log_t *__fly_logfile_init(const fly_path_t *fly_log_path, int flag)
 {
 	__fly_log_t *lt;
 	fly_logfile_t lfile;
@@ -45,14 +47,23 @@ __fly_static __fly_log_t *__fly_logfile_init(const fly_path_t *fly_log_path)
 	if (lt == NULL)
 		return NULL;
 
-	if (__fly_make_logdir((fly_path_t *) fly_log_path, strlen(fly_log_path)) < 0)
-		return NULL;
+	if (fly_log_path != NULL){
+		if (__fly_make_logdir((fly_path_t *) fly_log_path, strlen(fly_log_path)) < 0)
+			return NULL;
 
-	lfile = open(fly_log_path, O_RDWR|O_CREAT, FLY_LOGFILE_MODE);
-	if (lfile == -1)
-		return NULL;
+		lfile = open(fly_log_path, O_RDWR|O_CREAT, FLY_LOGFILE_MODE);
+		if (lfile == -1)
+			return NULL;
 
-	lt->file = lfile;
+		lt->file = lfile;
+	}else
+		lt->file = -1;
+
+	if (lt->file != -1 && isatty(lt->file))
+		lt->tty = true;
+	else
+		lt->tty = false;
+	lt->flag = flag;
 	strcpy(lt->log_path, fly_log_path);
 	return lt;
 }
@@ -97,6 +108,16 @@ __fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize)
 	return FLY_EBUFLEN;
 }
 
+__fly_static inline int __fly_log_stdout(const char *env)
+{
+	return getenv(env) != NULL ? __FLY_LOGFILE_INIT_STDOUT: 0;
+}
+
+__fly_static inline int __fly_log_stderr(const char *env)
+{
+	return getenv(env) != NULL ? __FLY_LOGFILE_INIT_STDERR: 0;
+}
+
 fly_log_t *fly_log_init(void)
 {
 	fly_log_t *lt;
@@ -112,9 +133,21 @@ fly_log_t *fly_log_init(void)
 	if (!lt)
 		goto error;
 
-	alp = __fly_logfile_init(__fly_log_path(access));
-	elp = __fly_logfile_init(__fly_log_path(error));
-	nlp = __fly_logfile_init(__fly_log_path(notice));
+	alp = __fly_logfile_init(
+		__fly_log_path(access),
+		__fly_log_stdout(FLY_STDOUT_ENV(ACCESS)) | \
+		__fly_log_stderr(FLY_STDERR_ENV(ACCESS))
+	);
+	elp = __fly_logfile_init(
+		__fly_log_path(error),
+		__fly_log_stdout(FLY_STDOUT_ENV(ERROR)) | \
+		__fly_log_stderr(FLY_STDERR_ENV(ERROR))
+	);
+	nlp = __fly_logfile_init(
+		__fly_log_path(notice),
+		__fly_log_stdout(FLY_STDOUT_ENV(NOTICE)) | \
+		__fly_log_stderr(FLY_STDERR_ENV(NOTICE))
+	);
 	if (!alp || !elp || !nlp)
 		goto error;
 
@@ -184,7 +217,7 @@ __fly_static int __fly_write(fly_logfile_t file, size_t length, fly_logc_t *cont
 	size_t total = 0;
 
 	/* move to end of file */
-	if (lseek(file, 0, SEEK_END) == -1)
+	if (!isatty(file) && (lseek(file, 0, SEEK_END) == -1))
 		return -1;
 	while(true){
 #ifndef FLY_LOG_WRITE_SIZE
@@ -192,13 +225,13 @@ __fly_static int __fly_write(fly_logfile_t file, size_t length, fly_logc_t *cont
 #endif
 		int now_pos, n, write_length;
 		write_length = length - total;
-		if ((now_pos = lseek(file, 0, SEEK_CUR)) == -1)
+		if (!isatty(file) && ((now_pos = lseek(file, 0, SEEK_CUR)) == -1))
 				goto error;
 
 		n = write(file, content, FLY_LOG_WRITE_SIZE*write_length);
 		if (n == -1){
 			if (errno == EINTR){
-				if (lseek(file, now_pos, SEEK_SET) == -1)
+				if (!isatty(file) && (lseek(file, now_pos, SEEK_SET) == -1))
 					goto error;
 				else
 					continue;
@@ -270,12 +303,12 @@ __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type)
 
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc)
 {
-	__fly_log_t *_lt;
-	_lt = __fly_log_from_type(lc->log, lc->type);
-	if (_lt == NULL)
-		return -1;
+	if (lc->log != NULL && (lc->__log->flag & __FLY_LOGFILE_INIT_STDOUT))
+		__fly_log_write(STDOUT_FILENO, lc);
+	if (lc->log != NULL && (lc->__log->flag & __FLY_LOGFILE_INIT_STDERR))
+		__fly_log_write(STDERR_FILENO, lc);
 
-	return __fly_log_write(_lt->file, lc);
+	return __fly_log_write(lc->__log->file, lc);
 }
 
 int fly_logcont_setting(fly_logcont_t *lc, size_t content_length)
@@ -303,6 +336,7 @@ fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type)
 		return NULL;
 
 	cont->log = log;
+	cont->__log = __fly_log_from_type(log, type);
 	cont->type = type;
 	cont->content = NULL;
 	cont->contlen = 0;

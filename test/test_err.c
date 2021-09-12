@@ -10,6 +10,10 @@ int main()
 
 	if (setenv(FLY_PORT_ENV, TEST_PORT, 1) == -1)
 		return -1;
+	if (setenv(FLY_STDOUT_ENV(ERROR), "Hello", 1) == -1)
+		return -1;
+	if (setenv(FLY_STDERR_ENV(ERROR), "Hello", 1) == -1)
+		return -1;
 
 	/* ready error system */
 	if (fly_errsys_init() == -1)
