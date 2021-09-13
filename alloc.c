@@ -1,5 +1,6 @@
 #include "alloc.h"
 #include "util.h"
+#include "err.h"
 
 fly_pool_t *init_pool = NULL;
 
@@ -24,38 +25,16 @@ ssize_t fly_bytes_from_size(fly_pool_s size)
 
 void *fly_malloc(int size)
 {
-	return malloc(size);
+	void *res;
+	res =  malloc(size);
+	/* if failure to allocate memory, process is end. */
+	if (res == NULL)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_NOMEM,
+			"no memory"
+		);
+	return res;
 }
-
-//__fly_static ssize_t __fly_modify_memalign(ssize_t m)
-//{
-//	ssize_t a=1<<0;
-//	while(1){
-//		if (a>=m && a>=(ssize_t) FLY_ALIGN_SIZE)	break;
-//		a <<= 1;
-//	}
-//
-//	return (a%FLY_ALIGN_SIZE) != 0 ? (ssize_t) -1 : a;
-//}
-
-//int fly_memalign_page(void **ptr, fly_page_t page_size)
-//{
-//	ssize_t psize, msize;
-//	psize = fly_byte_convert(page_size);
-//	msize = __fly_modify_memalign(psize);
-//	if (msize < 0)
-//		return -1;
-//	return posix_memalign(ptr, FLY_ALIGN_SIZE, (size_t) msize);
-//}
-//
-//int fly_memalign(void **ptr, int size)
-//{
-//	ssize_t msize;
-//	msize = __fly_modify_memalign(size);
-//	if (msize < 0)
-//		return -1;
-//	return posix_memalign(ptr, FLY_ALIGN_SIZE, (size_t) msize);
-//}
 
 void fly_free(void *ptr)
 {
