@@ -304,9 +304,11 @@ __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type)
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc)
 {
 	if (lc->log != NULL && (lc->__log->flag & __FLY_LOGFILE_INIT_STDOUT))
-		__fly_log_write(STDOUT_FILENO, lc);
+		if (__fly_log_write(STDOUT_FILENO, lc) == -1)
+			return -1;
 	if (lc->log != NULL && (lc->__log->flag & __FLY_LOGFILE_INIT_STDERR))
-		__fly_log_write(STDERR_FILENO, lc);
+		if (__fly_log_write(STDERR_FILENO, lc) == -1)
+			return -1;
 
 	return __fly_log_write(lc->__log->file, lc);
 }
@@ -344,7 +346,7 @@ fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type)
 	return cont;
 }
 
-int fly_logcont_release(fly_logcont_t *logcont)
+int __fly_logcont_release(fly_logcont_t *logcont)
 {
 	if (logcont == NULL)
 		return -1;
@@ -358,11 +360,52 @@ int fly_log_event_handler(fly_event_t *e)
 
 	content = (fly_logcont_t *) e->event_data;
 	__fly_log_write_logcont(content);
-	fly_logcont_release(content);
+	__fly_logcont_release(content);
 	return fly_event_unregister(e);
 }
 
 int fly_log_now(fly_time_t *t)
 {
 	return gettimeofday(t, NULL);
+}
+
+__attribute__ ((format (printf, 2, 3)))
+void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
+{
+	va_list va;
+	fly_logcont_t *lc;
+
+	lc = fly_logcont_init(log, FLY_LOG_NOTICE);
+	if (lc == NULL)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_ELOG,
+			"can't ready for log content."
+		);
+	if (fly_logcont_setting(lc, FLY_NOTICE_DIRECT_LOG_MAXLENGTH) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_ELOG,
+			"can't ready for setting of log content."
+		);
+
+	va_start(va, fmt);
+	vsnprintf(lc->content, lc->contlen, fmt, va);
+	va_end(va);
+
+	if (fly_log_now(&lc->when) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_ELOG,
+			"can't set log time."
+		);
+
+	if (__fly_log_write_logcont(lc) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_ELOG,
+			"log write error."
+		);
+
+	if (__fly_logcont_release(lc) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_ELOG,
+			"log resource release error."
+		);
 }

@@ -16,7 +16,7 @@ fly_signal_t fly_master_signals[] = {
 __fly_static int __fly_get_req_workers(void);
 __fly_static int __fly_master_signal_init(void);
 __fly_static int __fly_master_fork(fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data);
-__fly_static int __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
+__fly_static void __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
 __fly_static int __fly_insert_workerp(fly_worker_t *w);
 __fly_static fly_worker_id __fly_get_worker_id(void);
 __fly_static void __fly_remove_workerp(pid_t cpid);
@@ -114,16 +114,16 @@ __fly_static int __fly_refresh_signal(void)
  *  adjust workers number.
  *
  */
-__fly_static int __fly_workers_rebalance(int change)
+__fly_static void __fly_workers_rebalance(int change)
 {
 	/* after change */
 	fly_master_info.now_workers += change;
-	return fly_master_worker_spawn(
-			fly_master_info.worker_process
+	fly_master_worker_spawn(
+		fly_master_info.worker_process
 	);
 }
 
-__fly_static int __fly_sigchld(__unused siginfo_t *info)
+__fly_static void __fly_sigchld(__unused siginfo_t *info)
 {
 	switch(info->si_code){
 	case CLD_CONTINUED:
@@ -145,42 +145,57 @@ __fly_static int __fly_sigchld(__unused siginfo_t *info)
 		printf("trapped\n");
 		goto decrement;
 	default:
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"unknown signal code. (%d)",
+			info->si_code
+		);
 	}
 decrement:
+	/* worker process is gone */
+	FLY_NOTICE_DIRECT_LOG(
+		fly_master_info.context->log,
+		"worker process(pid: %d) is gone.\n",
+		info->si_pid
+	);
+
 	__fly_workers_rebalance(-1);
 	__fly_remove_workerp(info->si_pid);
-	return 0;
 }
 
-int fly_master_waiting_for_signal(void)
+__noreturn void fly_master_waiting_for_signal(void)
 {
 	sigset_t master_set;
 	siginfo_t master_info;
 	fly_signum_t recvsig;
 
 	if (sigemptyset(&master_set) == -1)
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"failure to emptry sigset"
+		);
 
 	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++){
 		if (sigaddset(&master_set, fly_master_signals[i].number) == -1)
-			return -1;
+			FLY_EMERGENCY_ERROR(
+				FLY_EMERGENCY_STATUS_PROCS,
+				"failure to add sigset (signal number %d)",
+				fly_master_signals[i].number
+			);
 	}
 
 	for (;;){
 		recvsig = sigwaitinfo(&master_set, &master_info);
 		switch(recvsig){
 		case SIGCHLD:
-			if (__fly_sigchld(&master_info) == -1)
-				return -1;
+			__fly_sigchld(&master_info);
 			break;
 		case SIGINT:
-			return 0;
+			exit(0);
 		default:
-			return -1;
+			exit(1);
 		}
 	}
-	return 0;
 }
 
 __fly_static int __fly_get_req_workers(void)
@@ -303,33 +318,36 @@ __destructor int fly_remove_pidfile(void)
 	}
 }
 
-__fly_static int __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *))
+__fly_static void __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *))
 {
 
 	if (fly_master_info.req_workers <= 0)
-		return -1;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"invalid required workers %d",
+			fly_master_info.req_workers
+		);
+
 
 	fly_master_info.worker_process = proc;
 	for (int i=fly_master_info.now_workers;
 			i<fly_master_info.req_workers;
 			i=fly_master_info.now_workers){
-		printf("  Now workers: %d\n", fly_master_info.now_workers);
-		printf("  Req workers: %d\n", fly_master_info.req_workers);
 		fly_worker_i info;
+
 		info.id = __fly_get_worker_id();
 		info.start = time(NULL);
 		if (__fly_master_fork(WORKER, proc, fly_master_info.context, &info) == -1)
-			FLY_STDERR_ERROR(
+			FLY_EMERGENCY_ERROR(
+				FLY_EMERGENCY_STATUS_PROCS,
 				"spawn working process error."
 			);
 	}
-
-	return 0;
 }
 
-int fly_master_worker_spawn(void (*proc)(fly_context_t *, void *))
+void fly_master_worker_spawn(void (*proc)(fly_context_t *, void *))
 {
-	return __fly_master_worker_spawn(proc);
+	__fly_master_worker_spawn(proc);
 }
 
 __fly_static int __fly_insert_workerp(fly_worker_t *w)
@@ -371,6 +389,17 @@ __fly_static void __fly_remove_workerp(pid_t cpid)
 	return;
 }
 
+const char *fly_proc_type_str(fly_proc_type type)
+{
+	switch(type){
+	case WORKER:
+		return "WORKER";
+	default:
+		return NULL;
+	}
+	return NULL;
+}
+
 int __fly_master_fork(fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data)
 {
 	pid_t pid;
@@ -397,8 +426,18 @@ child_register:
 			worker->pid = pid;
 			worker->ppid = getppid();
 			worker->next = NULL;
+
 			if (__fly_insert_workerp(worker) == -1)
 				goto error;
+
+			/* spawn process notice log */
+			FLY_NOTICE_DIRECT_LOG(
+				fly_master_info.context->log,
+				"spawn %s(pid: %d). there are %d worker processes.\n",
+				fly_proc_type_str(type),
+				worker->pid,
+				fly_master_info.now_workers
+			);
 		}
 		return 0;
 	default:
@@ -406,6 +445,11 @@ child_register:
 	}
 error:
 	kill(pid, SIGTERM);
+	FLY_EMERGENCY_ERROR(
+		FLY_EMERGENCY_STATUS_PROCS,
+		"try to spawn invalid process type %d",
+		(int) type
+	);
 	return -1;
 
 }

@@ -136,6 +136,7 @@ void fly_stderr_error(fly_errp_t *);
 enum fly_emergency_status{
 	FLY_EMERGENCY_STATUS_NOMEM,
 	FLY_EMERGENCY_STATUS_PROCS,
+	FLY_EMERGENCY_STATUS_ELOG,
 };
 
 __noreturn void fly_emergency_error(enum fly_emergency_status end_status, int __errno, const char *format, ...);
