@@ -15,6 +15,7 @@ void fly_sigint_handler(__unused int signo);
 int fly_signal_init(void);
 
 void __fly_only_recv(int, siginfo_t *, void *);
+int fly_refresh_signal(void);
 
 extern fly_signum_t fly_signals[];
 #endif

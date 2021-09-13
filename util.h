@@ -3,6 +3,7 @@
 
 #include <unistd.h>
 #include <string.h>
+#include <assert.h>
 
 #ifndef __GNUC__
 #define __attribute__((x))		/* NOTHING */
@@ -11,6 +12,7 @@
 #define __unused			__attribute__((unused))
 #define __noreturn			__attribute__((noreturn))
 #define __destructor		__attribute__((destructor))
+#define __direct_log
 
 #ifdef FLY_TEST
 #define __fly_static
@@ -27,4 +29,6 @@
 #define fly_bit_t				int
 
 int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr);
+
+#define FLY_NOT_COME_HERE		assert(0);
 #endif

@@ -4,38 +4,85 @@ __fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
 __fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen);
 __fly_static int __fly_listen_connected(fly_event_t *);
+__fly_static int __fly_worker_signal_init(void);
 
 
 /*
- * this function is called after fork from master process.
+ *  worker process signal info.
  */
-__noreturn void fly_worker_process(__unused fly_context_t *ctx, __unused void *data)
+static fly_signal_t fly_worker_signals[] = {
+	{SIGINT, NULL},
+	{SIGTERM, NULL},
+};
+
+__fly_static int __fly_worker_signal_init(void)
+{
+#define FLY_WORKER_SIG_COUNT				(sizeof(fly_worker_signals)/sizeof(fly_signal_t))
+	if (fly_refresh_signal() == -1)
+		return -1;
+
+	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++){
+		struct sigaction __action;
+
+		if (fly_worker_signals[i].handler == NULL)
+			__action.sa_sigaction = __fly_only_recv;
+		else
+			__action.sa_sigaction = fly_worker_signals[i].handler;
+		__action.sa_flags = SA_SIGINFO;
+		if (sigaction(fly_worker_signals[i].number, &__action, NULL) == -1)
+			return -1;
+	}
+	return 0;
+}
+
+/*
+ * this function is called after fork from master process.
+ * @params:
+ *		ctx:  passed from master process. include fly context info.
+ *		data: custom data.
+ */
+__direct_log __noreturn void fly_worker_process(__unused fly_context_t *ctx, __unused void *data)
 {
 	fly_event_manager_t *manager;
 	fly_event_t *event;
 
 	if (!ctx)
-		goto error_end;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_READY,
+			"invalid context(null context)."
+		);
+
+	/* signal setting */
+	if (__fly_worker_signal_init() == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_READY,
+			"initialize worker signal error."
+		);
 
 	manager = fly_event_manager_init(ctx);
 	if (manager == NULL)
-		goto error_end;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_READY,
+			"initialize event manager error."
+		);
 
 	/* initial event */
 	event = __fly_listen_socket_event(manager, ctx);
 	if (event == NULL || fly_event_register(event) == -1)
-		goto error_end;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"fail to register listen socket event."
+		);
 
+	/* log event start here */
 	if (fly_event_handler(manager) == -1)
-		goto error_end;
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"event handle error."
+		);
 
-	fly_event_manager_release(manager);
-
-	goto end;
-error_end:
-	exit(1);
-end:
-	exit(0);
+	/* will not come here. */
+	FLY_NOT_COME_HERE
 }
 
 __fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager, fly_context_t *ctx)
@@ -48,8 +95,7 @@ __fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager
 
 	e->fd = ctx->listen_sock->fd;
 	e->read_or_write = FLY_READ;
-	/* TODO: accept */
-	e->handler = __fly_listen_socket_handler;
+	FLY_EVENT_HANDLER(e, __fly_listen_socket_handler);
 	e->flag = FLY_PERSISTENT;
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
@@ -83,7 +129,7 @@ __fly_static int __fly_listen_socket_handler(__unused struct fly_event *event)
 		return -1;
 	ne->fd = conn_sock;
 	ne->read_or_write = FLY_READ;
-	ne->handler = __fly_listen_connected;
+	FLY_EVENT_HANDLER(ne, __fly_listen_connected);
 	ne->flag = FLY_NODELETE;
 	ne->tflag = FLY_INFINITY;
 	ne->eflag = 0;
@@ -134,7 +180,7 @@ __fly_static int __fly_listen_connected(fly_event_t *e)
 	e->tflag = 0;
 	fly_sec(&e->timeout, FLY_REQUEST_TIMEOUT);
 	e->eflag = 0;
-	e->handler = fly_request_event_handler;
+	FLY_EVENT_HANDLER(e, fly_request_event_handler);
 	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
 	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
 	e->expired = false;

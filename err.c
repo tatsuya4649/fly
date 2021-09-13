@@ -137,7 +137,7 @@ int fly_errlog_event_handler(fly_event_t *e)
 	e->tflag = FLY_INFINITY;
 	e->expired = false;
 	e->available = false;
-	e->handler = fly_log_event_handler;
+	FLY_EVENT_HANDLER(e, fly_log_event_handler);
 	fly_event_regular(e);
 
 	return fly_event_register(e);
@@ -160,7 +160,7 @@ int fly_errlog_event(fly_event_manager_t *manager, fly_err_t *err)
 	e->tflag = 0;
 	e->flag = 0;
 	e->eflag = 0;
-	e->handler = fly_errlog_event_handler;
+	FLY_EVENT_HANDLER(e, fly_errlog_event_handler);
 	e->event_data = (void *) err;
 	e->available = false;
 	e->expired = false;

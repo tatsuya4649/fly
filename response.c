@@ -422,6 +422,7 @@ __fly_static int __fly_response_release_handler(fly_event_t *e)
 
 	return 0;
 }
+
 __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 {
 	fly_response_t *res;
@@ -444,7 +445,7 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
-	e->handler = fly_request_event_handler;
+	FLY_EVENT_HANDLER(e, fly_request_event_handler);
 	e->event_data = (void *) req;
 	e->available = false;
 	e->event_fase = EFLY_REQUEST_FASE_INIT;
@@ -497,7 +498,6 @@ __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t
 
 __fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e)
 {
-	/* TODO: register log event, make log body(request code, response code, header, header_len, body_len) */
 	fly_logcont_t *log_content;
 
 	fly_event_t *le;
@@ -516,12 +516,16 @@ __fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e)
 	if (fly_log_now(&log_content->when) == -1)
 		return -1;
 
+	FLY_EVENT_HANDLER(le, fly_log_event_handler);
+	le->read_or_write = FLY_WRITE;
 	le->event_fase = EFLY_LOG_FASE_INIT;
 	le->event_state = EFLY_LOG_STATE_WAIT;
 	le->event_data = (void *) log_content;
-	le->handler = fly_log_event_handler;
 	le->flag = 0;
-	le->tflag = FLY_INFINITY;
+	le->tflag = 0;
+	le->eflag = 0;
+	le->expired = false;
+	fly_time_zero(le->timeout);
 	/* regular file event */
 	fly_event_regular(le);
 
@@ -546,7 +550,7 @@ int fly_response_event(fly_event_t *e)
 		e->event_data = response;
 		e->read_or_write = FLY_WRITE|FLY_READ;
 		e->flag = FLY_CLOSE_EV | FLY_MODIFY;
-		e->handler = __fly_response_release_handler;
+		FLY_EVENT_HANDLER(e, __fly_response_release_handler);
 		e->available = false;
 		fly_event_socket(e);
 
@@ -563,7 +567,7 @@ int fly_response_event(fly_event_t *e)
 		fly_sec(&e->timeout, FLY_REQUEST_TIMEOUT);
 		e->tflag = 0;
 		e->eflag = 0;
-		e->handler = __fly_response_reuse_handler;
+		FLY_EVENT_HANDLER(e, __fly_response_reuse_handler);
 		e->available = false;
 		e->expired = false;
 		fly_event_socket(e);
@@ -577,7 +581,7 @@ int fly_response_event(fly_event_t *e)
 		e->event_data = response;
 		e->read_or_write = FLY_WRITE|FLY_READ;
 		e->flag = FLY_CLOSE_EV | FLY_MODIFY;
-		e->handler = __fly_response_release_handler;
+		FLY_EVENT_HANDLER(e, __fly_response_release_handler);
 		e->available = false;
 		if (fly_event_register(e) == -1)
 			goto error;
@@ -646,7 +650,7 @@ int fly_4xx_error_event(fly_event_t *e, fly_request_t *req, fly_stcode_t code)
 	e->flag = FLY_CLOSE_EV;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
-	e->handler = __fly_4xx_error_handler;
+	FLY_EVENT_HANDLER(e, __fly_4xx_error_handler);
 	fly_event_socket(e);
 
 	return fly_event_register(e);
@@ -667,7 +671,7 @@ int fly_5xx_error_event(fly_event_t *e, fly_request_t *req, fly_stcode_t code)
 	e->flag = FLY_CLOSE_EV;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
-	e->handler = __fly_5xx_error_handler;
+	FLY_EVENT_HANDLER(e, __fly_5xx_error_handler);
 	fly_event_socket(e);
 
 	return fly_event_register(e);

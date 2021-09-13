@@ -672,15 +672,6 @@ error:
 	return -1;
 }
 
-/* TODO */
-/* Parse Request Line Event*/
-int fly_rline_event_handler(fly_event_t *event);
-/* Parse Request Header Event */
-int fly_rheader_event_handler(fly_event_t *event);
-/* Parse Request Body Event*/
-int fly_rbody_event_handler(fly_event_t *event);
-
-
 int fly_request_disconnect_handler(fly_event_t *event)
 {
 	__unused fly_request_t *req;
@@ -745,7 +736,6 @@ int fly_request_event_handler(fly_event_t *event)
 		goto disconnection;
 	}
 
-	printf("%s\n", request->buffer);
 	switch(fase){
 	case EFLY_REQUEST_FASE_INIT:
 		break;
@@ -762,7 +752,7 @@ int fly_request_event_handler(fly_event_t *event)
 __fase_request_line:
 	request_line_ptr = fly_get_request_line_ptr(request->buffer);
 	if (request_line_ptr == NULL)
-		goto error;
+		goto response_500;
 	switch(__fly_request_operation(event->fd, request, request_line_ptr)){
 	case FLY_REQUEST_ERROR(400):
 		goto response_400;
@@ -829,25 +819,26 @@ __fase_end_of_parse:
 /* TODO: error response event memory release */
 response_400:
 	fly_4xx_error_event(event, request, _400);
-	goto error;
+	return 0;
 response_404:
 	fly_4xx_error_event(event, request, _404);
-	goto error;
+	return 0;
 response_414:
 	fly_4xx_error_event(event, request, _414);
-	goto error;
+	return 0;
 response_500:
 	fly_5xx_error_event(event, request, _500);
-	goto error;
+	return 0;
 response_501:
 	fly_5xx_error_event(event, request, _501);
-	goto error;
+	return 0;
 
 /* continuation event publish. */
 continuation:
 	event->event_state = (void *) EFLY_REQUEST_STATE_CONT;
 	event->read_or_write = FLY_READ;
 	event->flag = FLY_MODIFY;
+	FLY_EVENT_HANDLER(event, fly_request_event_handler);
 	event->tflag = FLY_INHERIT;
 	event->available = false;
 	fly_event_socket(event);
@@ -860,7 +851,7 @@ disconnection:
 	event->event_state = (void *) EFLY_REQUEST_STATE_END;
 	event->read_or_write = FLY_READ;
 	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
-	event->handler = fly_request_disconnect_handler;
+	FLY_EVENT_HANDLER(event, fly_request_disconnect_handler);
 	event->available = false;
 	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
@@ -874,7 +865,7 @@ timeout:
 	event->read_or_write = FLY_READ;
 	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
 	event->tflag = FLY_INHERIT;
-	event->handler = fly_request_timeout_handler;
+	FLY_EVENT_HANDLER(event, fly_request_timeout_handler);
 	event->available = false;
 	fly_event_socket(event);
 	if (fly_event_register(event) == -1)
@@ -887,7 +878,7 @@ response:
 	event->read_or_write = FLY_WRITE;
 	event->flag = FLY_MODIFY;
 	event->tflag = FLY_INHERIT;
-	event->handler = fly_response_event;
+	FLY_EVENT_HANDLER(event, fly_response_event);
 	event->available = false;
 	event->event_data = (void *) response;
 	fly_event_socket(event);

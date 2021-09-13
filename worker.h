@@ -8,6 +8,7 @@
 #include "event.h"
 #include "connect.h"
 #include "request.h"
+#include "fsignal.h"
 
 struct fly_worker{
 	pid_t pid;
@@ -24,6 +25,8 @@ struct fly_worker_info{
 typedef struct fly_worker fly_worker_t;
 typedef struct fly_worker_info fly_worker_i;
 
-__noreturn void fly_worker_process(fly_context_t *ctx, void *data);
+__direct_log __noreturn void fly_worker_process(fly_context_t *ctx, void *data);
 
+#define FLY_WORKER_SUCCESS_EXIT			0
+void fly_worker_signal(void);
 #endif
