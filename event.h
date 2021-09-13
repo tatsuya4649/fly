@@ -1,6 +1,7 @@
 #ifndef _EVENT_H
 #define _EVENT_H
 
+#include <stdio.h>
 #include <stdbool.h>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
@@ -42,16 +43,44 @@ struct fly_event{
 	struct fly_event *next;
 
 	int (*handler)(struct fly_event *);
+	char *handler_name;
 
 	void *event_data;
 	void *event_fase;
 	void *event_state;
+
+	/*
+	 * if event handler fail, this function is called.
+	 * this function must close fd(event file).
+	 */
+	int (*fail_close)(int fd);
 
 	/* event bit fields */
 	fly_bit_t file_type: 4;
 	fly_bit_t expired: 1;
 	fly_bit_t available: 1;
 };
+
+#define FLY_EVENT_HANDLER(e, __handler)	\
+	do{									\
+		(e)->handler = (__handler);		\
+		(e)->handler_name = #__handler;	\
+	} while(0);
+
+#define FLY_HANDLE_EVENT(__event)									\
+	do{																\
+		int handle_result;											\
+		if ((__event)->handler != NULL)								\
+			handle_result = (__event)->handler(__event);			\
+		if (handle_result == FLY_EVENT_HANDLE_FAILURE)				\
+			/* log error handle in notice log. */					\
+			if (__fly_event_handle_failure_log((__event)) == -1)	\
+				FLY_EMERGENCY_ERROR(								\
+					FLY_EMERGENCY_STATUS_ELOG,						\
+					"failure to log event handler failure."			\
+				);													\
+	}while(0)
+
 typedef struct fly_event fly_event_t;
 #define fly_time(tptr)		gettimeofday((struct timeval *) tptr, NULL)
 
@@ -129,6 +158,8 @@ typedef struct fly_event fly_event_t;
 	(!fly_event_is_regular((e)) && !fly_event_is_dir((e)))
 #define fly_event_nomonitorable(e)	(!(fly_event_monitorable((e))))
 
+#define FLY_EVENT_HANDLE_FAILURE	(-1)
+#define FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN		100
 /* manager setting */
 fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx);
 int fly_event_manager_release(fly_event_manager_t *manager);

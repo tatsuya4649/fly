@@ -63,3 +63,13 @@ void __fly_only_recv(int, siginfo_t *, void *)
 {
 	return;
 }
+
+int fly_refresh_signal(void)
+{
+	for (fly_signum_t *__sig=fly_signals; *__sig>0; __sig++){
+		if (*__sig!=SIGKILL && *__sig!=SIGSTOP && signal(*__sig, SIG_DFL) == SIG_ERR)
+			return -1;
+	}
+	return 0;
+}
+

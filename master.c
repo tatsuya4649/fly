@@ -100,15 +100,6 @@ int fly_master_daemon(void)
 	return 0;
 }
 
-__fly_static int __fly_refresh_signal(void)
-{
-	for (fly_signum_t *__sig=fly_signals; *__sig>0; __sig++){
-		if (*__sig!=SIGKILL && *__sig!=SIGSTOP && signal(*__sig, SIG_DFL) == SIG_ERR)
-			return -1;
-	}
-	return 0;
-}
-
 
 /*
  *  adjust workers number.
@@ -134,7 +125,54 @@ __fly_static void __fly_sigchld(__unused siginfo_t *info)
 		goto decrement;
 	case CLD_EXITED:
 		printf("exited\n");
-		goto decrement;
+		/* end of worker process code */
+		switch(info->si_status){
+		case FLY_WORKER_SUCCESS_EXIT:
+			goto decrement;
+		case FLY_EMERGENCY_STATUS_NOMEM:
+			FLY_NOTICE_DIRECT_LOG(
+				fly_master_info.context->log,
+				"master process(%d) detect to end of worker process(%d).  because of no memory(exit status: %d)",
+				getpid(),
+				info->si_pid,
+				info->si_status
+			);
+			break;
+		case FLY_EMERGENCY_STATUS_PROCS:
+			FLY_NOTICE_DIRECT_LOG(
+				fly_master_info.context->log,
+				"master process(%d) detect to end of worker process(%d). because of process error (exit status: %d)",
+				getpid(),
+				info->si_pid,
+				info->si_status
+			);
+			break;
+		case FLY_EMERGENCY_STATUS_READY:
+			FLY_NOTICE_DIRECT_LOG(
+				fly_master_info.context->log,
+				"master process(%d) detect to end of worker process(%d). because of ready error (exit status: %d)",
+				getpid(),
+				info->si_pid,
+				info->si_status
+			);
+			break;
+		case FLY_EMERGENCY_STATUS_ELOG:
+			FLY_NOTICE_DIRECT_LOG(
+				fly_master_info.context->log,
+				"master process(%d) detect to end of worker process(%d). because of log error (exit status: %d)",
+				getpid(),
+				info->si_pid,
+				info->si_status
+			);
+			break;
+		default:
+			FLY_EMERGENCY_ERROR(
+				FLY_EMERGENCY_STATUS_PROCS,
+				"unknown worker exit status. (%d)",
+				info->si_status
+			);
+		}
+		FLY_NOT_COME_HERE
 	case CLD_KILLED:
 		printf("killed\n");
 		goto decrement;
@@ -151,12 +189,14 @@ __fly_static void __fly_sigchld(__unused siginfo_t *info)
 			info->si_code
 		);
 	}
+
 decrement:
 	/* worker process is gone */
 	FLY_NOTICE_DIRECT_LOG(
 		fly_master_info.context->log,
-		"worker process(pid: %d) is gone.\n",
-		info->si_pid
+		"worker process(pid: %d) is gone by %d(si_code).\n",
+		info->si_pid,
+		info->si_code
 	);
 
 	__fly_workers_rebalance(-1);
@@ -239,9 +279,9 @@ int fly_master_init(void)
 	return 0;
 }
 
-int __fly_master_signal_init(void)
+__fly_static int __fly_master_signal_init(void)
 {
-	if (__fly_refresh_signal() == -1)
+	if (fly_refresh_signal() == -1)
 		return -1;
 	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++){
 		struct sigaction __action;

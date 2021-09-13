@@ -13,6 +13,8 @@ struct fly_size_bytes fly_sizes[] = {
 	{-1, 0},
 };
 
+__direct_log __fly_static void *__fly_malloc(int size);
+
 ssize_t fly_bytes_from_size(fly_pool_s size)
 {
 	for (struct fly_size_bytes *s=fly_sizes; s->size>=0; s++){
@@ -23,7 +25,7 @@ ssize_t fly_bytes_from_size(fly_pool_s size)
 	return -1;
 }
 
-void *fly_malloc(int size)
+__direct_log __fly_static void *__fly_malloc(int size)
 {
 	void *res;
 	res =  malloc(size);
@@ -44,11 +46,11 @@ void fly_free(void *ptr)
 static void *__fly_palloc(fly_pool_t *pool, size_t size)
 {
 	fly_pool_b *new_block;
-	new_block = fly_malloc(sizeof(fly_pool_b));
+	new_block = __fly_malloc(sizeof(fly_pool_b));
 	if (new_block == NULL)
 		return NULL;
 
-	new_block->entry = fly_malloc(size);
+	new_block->entry = __fly_malloc(size);
 	if (new_block->entry == NULL){
 		fly_free(new_block);
 		return NULL;
@@ -70,7 +72,7 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 #include <stdio.h>
 static fly_pool_t *__fly_create_pool(size_t size){
 	fly_pool_t *pool;
-	pool = fly_malloc(sizeof(fly_pool_t));
+	pool = __fly_malloc(sizeof(fly_pool_t));
 	if (pool == NULL)
 		return NULL;
 	pool->max = fly_max_size(size);

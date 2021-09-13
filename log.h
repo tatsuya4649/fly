@@ -73,6 +73,7 @@ struct fly_logcont{
 typedef struct fly_logcont fly_logcont_t;
 
 #include "event.h"
+#include "context.h"
 /*
  *  fly_logcont is auto release resource.
  *  if write log, this resource is released.

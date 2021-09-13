@@ -1,4 +1,5 @@
 #include "event.h"
+#include "err.h"
 
 
 fly_pool_t *fly_event_pool = NULL;
@@ -12,6 +13,7 @@ int fly_milli_time(fly_time_t t);
 __fly_static int __fly_expired_event(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
+__fly_static int __fly_event_handle_failure_log(fly_event_t *e);
 
 __fly_static fly_pool_t *__fly_event_pool_init(void)
 {
@@ -95,6 +97,8 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	fly_time_null(event->timeout);
 	event->next = NULL;
 	event->handler = NULL;
+	event->handler_name = NULL;
+	event->fail_close = NULL;
 	return event;
 }
 
@@ -168,7 +172,7 @@ int fly_event_unregister(fly_event_t *event)
 
 			event->manager->evlen--;
 			e->next = NULL;
-			if (event->flag & FLY_CLOSE_EV || !fly_event_monitorable(event))
+			if (event->flag & FLY_CLOSE_EV || fly_event_nomonitorable(event))
 				return 0;
 			else
 				return epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL);
@@ -247,7 +251,7 @@ __fly_static int __fly_expired_event(fly_event_manager_t *manager)
 
 	for (fly_event_t *e=manager->first; e!=NULL; e=e->next){
 		if (e->expired)
-			e->handler(e);
+			FLY_HANDLE_EVENT(e);
 	}
 	return 0;
 }
@@ -325,9 +329,8 @@ __fly_static int __fly_event_handle_nomonitorable(__unused fly_event_manager_t *
 		return 0;
 
 	for (fly_event_t *e=manager->first; e; e=e->next){
-		if (fly_event_nomonitorable(e)){
-			e->handler(e);
-		}
+		if (fly_event_nomonitorable(e))
+			FLY_HANDLE_EVENT(e);
 	}
 	return 0;
 }
@@ -335,27 +338,21 @@ __fly_static int __fly_event_handle_nomonitorable(__unused fly_event_manager_t *
 __fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 {
 	struct epoll_event *event;
+
 	for (int i=0; i<epoll_events; i++){
 		fly_event_t *fly_event;
 		event = manager->evlist + i;
 
 		fly_event = (fly_event_t *) event->data.ptr;
 		fly_event->available = true;
-		/* TODO: handle */
-		if (fly_event->handler)
-			fly_event->handler(fly_event);
+		FLY_HANDLE_EVENT(fly_event);
 
 		/* remove event if not persistent */
-		if (!fly_nodelete(fly_event)){
-			if(fly_event_unregister(fly_event) == -1){
-				return -1;
-			}
-		}
+		if (!fly_nodelete(fly_event) && (fly_event_unregister(fly_event) == -1))
+			return -1;
 	}
 
-	__fly_event_handle_nomonitorable(manager);
-
-	return 0;
+	return __fly_event_handle_nomonitorable(manager);
 }
 
 int fly_event_handler(fly_event_manager_t *manager)
@@ -416,4 +413,62 @@ float fly_diff_time(fly_time_t new, fly_time_t old)
 		usec += 1000*1000;
 	}
 	return (float) sec + (float) usec/((float) 1000*1000);
+}
+
+#include "log.h"
+__fly_static int __fly_event_handler_failure_logcontent(fly_logcont_t *lc, fly_event_t *e)
+{
+#define __FLY_EVENT_HANDLER_FAILURE_LOGCONTENT_SUCCESS	1
+#define __FLY_EVENT_HANDLER_FAILURE_LOGCONTENT_ERROR	-1
+#define __FLY_EVENT_HANDLER_FAILURE_LOGCONTENT_OVERFLOW	0
+	int res;
+	res = snprintf(
+		(char *) lc->content,
+		(size_t) lc->contlen,
+		"event fd: %d. handler: %s",
+		e->fd,
+		e->handler_name!=NULL ? e->handler_name : "?"
+	);
+
+	if (res >= (int) fly_maxlog_length(lc->contlen)){
+		memcpy(fly_maxlog_suffix_point(lc->content,lc->contlen), FLY_LOGMAX_SUFFIX, strlen(FLY_LOGMAX_SUFFIX));
+		return __FLY_EVENT_HANDLER_FAILURE_LOGCONTENT_OVERFLOW;
+	}
+	lc->contlen = res;
+	return __FLY_EVENT_HANDLER_FAILURE_LOGCONTENT_SUCCESS;
+}
+
+__fly_static int __fly_event_handle_failure_log(fly_event_t *e)
+{
+	fly_logcont_t *lc;
+
+	lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_NOTICE);
+	if (lc == NULL)
+		return -1;
+
+	if (fly_logcont_setting(lc, FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN) == -1)
+		return -1;
+
+	if (__fly_event_handler_failure_logcontent(lc, e) == -1)
+		return -1;
+
+	if (fly_log_now(&lc->when) == -1)
+		return -1;
+
+	/* close failure fd*/
+	if ((e->fail_close != NULL ? e->fail_close(e->fd) : close(e->fd)) == -1)
+		return -1;
+
+	FLY_EVENT_HANDLER(e, fly_log_event_handler);
+	e->fd = fly_log_from_event(e)->notice->file;
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = 0;
+	e->eflag = 0;
+	e->available = false;
+	e->expired = false;
+	e->event_data = (void *) lc;
+	fly_time_zero(e->timeout); fly_event_regular(e);
+
+	return fly_event_register(e);
 }

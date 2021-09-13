@@ -35,7 +35,6 @@ extern fly_master_t fly_master_info;
 extern fly_signal_t fly_master_signals[];
 
 int fly_master_daemon(void);
-int fly_master_signal(void);
 int fly_create_pidfile(void);
 int fly_remove_pidfile(void);
 int fly_master_init(void);
