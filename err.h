@@ -1,8 +1,12 @@
 #ifndef _FLY_ERR_H
 #define _FLY_ERR_H
 
+#define _GNU_SOURCE
+#include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <errno.h>
+#include <string.h>
 #include "alloc.h"
 #include "event.h"
 #include "context.h"
@@ -78,8 +82,69 @@ typedef struct fly_err fly_err_t;
 #define FLY_NULL_ERRNO					-1
 #define FLY_NULL_ERRNO_DESC				"unknown error number(-1)"
 
-int fly_errsys_init(void);
+int fly_errsys_init(fly_context_t *ctx);
 fly_err_t *fly_err_init(fly_errc_t *content, int __errno, int level);
 int fly_errlog_event(fly_event_manager_t *manager, fly_err_t *err);
+
+/*
+ * structure for printing error
+ */
+struct fly_errp{
+	fly_errc_t *content;
+	int __errno;
+};
+typedef struct fly_errp fly_errp_t;
+
+void fly_stdout_error(fly_errp_t *);
+void fly_stderr_error(fly_errp_t *);
+#define FLY_END_PROCESS(number)				exit((number))
+#define FLY_ERRP_CONTENT_MAX				(100)
+
+#define FLY_STDOUT_ERROR(fmt, ...)			do{				\
+		fly_errp_t __fly_errp;								\
+		fly_errc_t __errp_content[FLY_ERRP_CONTENT_MAX];	\
+		snprintf(											\
+			(char *) __errp_content,							\
+			FLY_ERRP_CONTENT_MAX,							\
+			(fmt),											\
+			__VA_ARGS__										\
+		);													\
+		__fly_errp.content = (fly_errc_t *) __errp_content;	\
+		__fly_errp.__errno = (int) errno;					\
+		fly_stdout_error(&__fly_errp);						\
+		FLY_END_PROCESS(1);									\
+	} while(0)
+
+#define FLY_STDERR_ERROR(fmt, ...)			do{				\
+		fly_errp_t __fly_errp;								\
+		fly_errc_t __errp_content[FLY_ERRP_CONTENT_MAX];	\
+		snprintf(											\
+			(char *) __errp_content,						\
+			FLY_ERRP_CONTENT_MAX,							\
+			(const char *) (fmt),							\
+			## __VA_ARGS__										\
+		);													\
+		__fly_errp.content = __errp_content;				\
+		__fly_errp.__errno = (int) errno;					\
+		fly_stderr_error(&__fly_errp);						\
+		FLY_END_PROCESS(1);									\
+	} while(0)
+
+
+/* TODO: emergency error */
+#define FLY_EMERGENCY_LOG_LENGTH						200
+enum fly_emergency_status{
+	FLY_EMERGENCY_STATUS_NOMEM,
+	FLY_EMERGENCY_STATUS_PROCS,
+	FLY_EMERGENCY_STATUS_ELOG,
+};
+
+__noreturn void fly_emergency_error(enum fly_emergency_status end_status, int __errno, const char *format, ...);
+
+#define FLY_EMERGENCY_ERROR(es, fmt, ...)						\
+	do{															\
+		int __err = errno;										\
+		fly_emergency_error((es), __err, (fmt), ##__VA_ARGS__);	\
+	} while(0)
 
 #endif

@@ -39,8 +39,11 @@ int fly_master_signal(void);
 int fly_create_pidfile(void);
 int fly_remove_pidfile(void);
 int fly_master_init(void);
-int fly_master_waiting_for_signal(void);
-int fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
+/*
+ * waiting for signal foever. wait or end.
+ */
+__noreturn void fly_master_waiting_for_signal(void);
+void fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
 
 #define FLY_ROOT_DIR		("/")
 #define __FLY_DEVNULL		("/dev/null")
