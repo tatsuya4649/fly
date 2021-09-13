@@ -5,6 +5,7 @@
 #include "response.h"
 #include "version.h"
 #include "util.h"
+#include "encode.h"
 
 int fly_request_disconnect_handler(fly_event_t *event);
 int fly_request_timeout_handler(fly_event_t *event);
@@ -785,6 +786,9 @@ __fase_header:
 		break;
 	}
 
+	/* TODO: accept encoding parse */
+	if (fly_accept_encoding(request) == -1)
+		goto error;
 	/* check of having body */
 	if (fly_content_length(request->header) == 0)
 		goto __fase_end_of_parse;
