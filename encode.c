@@ -1,13 +1,13 @@
 #include "encode.h"
 
 __fly_static fly_encoding_type_t __fly_encodes[] = {
-	FLY_ENCODE_TYPE(gzip),
-	{ fly_gzip, "x-gzip" },
-	FLY_ENCODE_TYPE(compress),
-	{ fly_compress, "x-compress" },
-	FLY_ENCODE_TYPE(deflate),
-	FLY_ENCODE_TYPE(identity),
-	FLY_ENCODE_TYPE(br),
+	FLY_ENCODE_TYPE(gzip, 100),
+	{ fly_gzip, "x-gzip", 90, fly_gzip_encode, fly_gzip_decode },
+//	FLY_ENCODE_TYPE(compress, 50),
+//	{ fly_compress, "x-compress", 30 },
+	FLY_ENCODE_TYPE(deflate, 75),
+	FLY_ENCODE_TYPE(identity, 1),
+//	FLY_ENCODE_TYPE(br, 30),
 	FLY_ENCODE_ASTERISK,
 	FLY_ENCODE_NULL
 };
@@ -40,7 +40,7 @@ __fly_static inline bool __fly_point(char c);
 __fly_static inline bool __fly_comma(char c);
 __fly_static inline bool __fly_equal(char c);
 __fly_static int __fly_quality_value_from_str(char *qvalue);
-__fly_static int __fly_decide_encoding(fly_encoding_t encs);
+__fly_static int __fly_decide_encoding(fly_encoding_t *__e);
 
 __fly_static inline fly_encoding_type_t *__fly_asterisk(void)
 {
@@ -49,6 +49,17 @@ __fly_static inline fly_encoding_type_t *__fly_asterisk(void)
 			return e;
 	}
 	return NULL;
+}
+
+__fly_static inline fly_encoding_type_t *__fly_most_priority(void)
+{
+	fly_encoding_type_t *most = NULL;
+
+	for (fly_encoding_type_t *e=__fly_encodes; e->name; e++){
+		if (most != NULL ? (e->priority > most->priority): true)
+			most = e;
+	}
+	return most;
 }
 
 fly_encname_t *fly_encname_from_type(fly_encoding_e type)
@@ -129,12 +140,7 @@ int fly_gzip_decode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *decbuf
 	return 0;
 }
 
-int fly_gzip_encode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *decbuf, size_t decbuflen)
-{
-	int status, flush;
-	z_stream __zstream;
-
-	if (encbuf == NULL || !encbuflen || decbuf == NULL || !decbuflen)
+int fly_gzip_encode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *decbuf, size_t decbuflen) { int status, flush; z_stream __zstream; if (encbuf == NULL || !encbuflen || decbuf == NULL || !decbuflen)
 		return FLY_ENCODE_ERROR;
 
 	__zstream.zalloc = Z_NULL;
@@ -248,14 +254,14 @@ int fly_deflate_encode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *dec
 	return 0;
 }
 
-int fly_identify_decode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *decbuf, size_t decbuflen)
+int fly_identity_decode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *decbuf, size_t decbuflen)
 {
 	memset(decbuf, '\0', decbuflen);
 	memcpy(decbuf, encbuf, encbuflen);
 	return 0;
 }
 
-int fly_identify_encode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *decbuf, size_t decbuflen)
+int fly_identity_encode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *decbuf, size_t decbuflen)
 {
 	memset(encbuf, '\0', encbuflen);
 	memcpy(encbuf, decbuf, decbuflen);
@@ -535,6 +541,11 @@ __fly_static int __fly_parse_ae(fly_encoding_t *e, fly_hdr_value *ae_value)
 				continue;
 			}
 
+			if (__fly_zeros(*ptr)){
+				pstatus = __FLY_PARSE_AE_ADD;
+				continue;
+			}
+
 			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
 		case __FLY_PARSE_AE_NAME:
 			if (__fly_space(*ptr)){
@@ -740,7 +751,7 @@ __fly_static int __fly_parse_ae(fly_encoding_t *e, fly_hdr_value *ae_value)
 				if (ne == NULL)
 					return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
 
-				__fly_memcpy_name(encname, name, FLY_ENCNAME_MAXLEN);
+				__fly_memcpy_name(encname, name!=NULL ? name : "*", FLY_ENCNAME_MAXLEN);
 				encname[FLY_ENCNAME_MAXLEN-1] = '\0';
 
 				ne->type = fly_encoding_from_name(encname);
@@ -748,13 +759,15 @@ __fly_static int __fly_parse_ae(fly_encoding_t *e, fly_hdr_value *ae_value)
 				ne->use  = false;
 				ne->quality_value = __fly_quality_value_from_str(qvalue);
 
+				/* only add supported encoding */
 				if (ne->type == NULL)
-					return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+					goto end_of_add;
 
 				if (__fly_add_accept_encoding(e, ne) == -1)
 					return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
 			}
 
+end_of_add:
 			/* to reach end of Accept-Encoding header */
 			if (__fly_zeros(*ptr))
 				return __FLY_PARSE_ACCEPT_ENCODING_SUCCESS;
@@ -777,14 +790,24 @@ __fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_h
 	fly_hdr_value *ae_value;
 	ae_value = ae_header->value;
 
-	return __fly_parse_ae(req->encoding, ae_value);
+	switch(__fly_parse_ae(req->encoding, ae_value)){
+	case __FLY_PARSE_ACCEPT_ENCODING_SUCCESS:
+		break;
+	case __FLY_PARSE_ACCEPT_ENCODING_ERROR:
+		return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
+	case __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR:
+		return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+	}
+
+	/* decide to use which encodes */
+	return __fly_decide_encoding(req->encoding);
 }
 
 __fly_static int __fly_quality_value_from_str(char *qvalue)
 {
 	char qv_str[FLY_ENVQVALUE_MAXLEN], *qptr;
 	double quality_value;
-	if (qvalue == NULL && __fly_one(*qvalue))
+	if (qvalue == NULL || __fly_one(*qvalue))
 		return 100;
 
 	qptr = qv_str;
@@ -801,6 +824,34 @@ __fly_static int __fly_quality_value_from_str(char *qvalue)
 }
 
 
-__fly_static int __fly_decide_encoding(fly_encoding_t encs)
+__fly_static int __fly_decide_encoding(fly_encoding_t *__e)
 {
+	if (__e == NULL || !__e->actqty)
+		return 0;
+
+	int max_quality_value = 0;
+	struct __fly_encoding *maxt = NULL;
+	fly_encoding_type_t *__p;
+
+	for (struct __fly_encoding *accept=__e->accepts; accept; accept=accept->next){
+		accept->use = false;
+		if ((accept->quality_value > 0)								\
+				&& (accept->quality_value > max_quality_value)		\
+				&& (maxt != NULL ? accept->type->priority > maxt->type->priority : true)	\
+				){
+			if (maxt != NULL)
+				maxt->use = false;
+			max_quality_value = accept->quality_value;
+			maxt = accept;
+			accept->use = true;
+		}
+	}
+
+	/* if asterisk, select most priority encoding. */
+	if (maxt->type == __fly_asterisk()){
+		__p = __fly_most_priority();
+		maxt->type = __p;
+		maxt->use = true;
+	}
+	return 0;
 }

@@ -465,11 +465,13 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 				*value = ptr;
 				prev = GAP;
 				continue;
-			}else if (__fly_cr(*ptr))
+			}else if (__fly_cr(*ptr)){
 				now = CR;
-			else if (__fly_lf(*ptr))
+				prev = GAP;
+				continue;
+			}else if (__fly_lf(*ptr)){
 				now = LF;
-			else if (__fly_zero(*ptr))
+			}else if (__fly_zero(*ptr))
 				goto in_the_middle;
 			else
 				goto in_the_middle;
@@ -479,7 +481,7 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 		case GAP_SPACE:
 			if (__fly_header_gap_usable(*ptr))
 				;
-			else if (__fly_alpha_number(*ptr)){
+			else if (__fly_header_value_usable(*ptr)){
 				now = VALUE;
 				*value = ptr;
 				prev = GAP_SPACE;
@@ -515,6 +517,8 @@ __fly_static int __fly_parse_header_line(fly_buffer_t *header, struct __fly_pars
 			break;
 		case CR:
 			if (prev == VALUE && __fly_cr(*ptr))
+				now = LF;
+			else if (prev == GAP   && __fly_cr(*ptr))
 				now = LF;
 			else if (__fly_zero(*ptr))
 				goto in_the_middle;
