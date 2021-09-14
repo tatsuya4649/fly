@@ -12,25 +12,64 @@ __fly_static fly_encoding_type_t __fly_encodes[] = {
 	FLY_ENCODE_NULL
 };
 
+#include "header.h"
+#include "request.h"
+
+__fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encoding);
+__fly_static int __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_encoding *ne);
+__fly_static inline int __fly_quality_value(struct __fly_encoding *e, int qvalue);
+__fly_static int __fly_add_accept_asterisk(fly_request_t *req);
+__fly_static inline fly_encoding_type_t *__fly_asterisk(void);
+#define __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR		0
+#define __FLY_PARSE_ACCEPT_ENCODING_SUCCESS			1
+#define __FLY_PARSE_ACCEPT_ENCODING_ERROR			-1
+__fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_header);
+__fly_static void __fly_memcpy_name(char *dist, char *src, size_t maxlen);
+__fly_static inline bool __fly_number(char c);
+__fly_static inline bool __fly_vchar(char c);
+__fly_static inline bool __fly_tchar(char c);
+__fly_static inline bool __fly_alnum(char c);
+__fly_static inline bool __fly_delimit(char c);
+__fly_static inline bool __fly_space(char c);
+__fly_static inline bool __fly_semicolon(char c);
+__fly_static inline bool __fly_q(char c);
+__fly_static inline bool __fly_one(char c);
+__fly_static inline bool __fly_zero(char c);
+__fly_static inline bool __fly_zeros(char c);
+__fly_static inline bool __fly_point(char c);
+__fly_static inline bool __fly_comma(char c);
+__fly_static inline bool __fly_equal(char c);
+__fly_static int __fly_quality_value_from_str(char *qvalue);
+__fly_static int __fly_decide_encoding(fly_encoding_t encs);
+
+__fly_static inline fly_encoding_type_t *__fly_asterisk(void)
+{
+	for (fly_encoding_type_t *e=__fly_encodes; e->name; e++){
+		if (strcmp(e->name, "*") == 0)
+			return e;
+	}
+	return NULL;
+}
+
 fly_encname_t *fly_encname_from_type(fly_encoding_e type)
 {
-	for (fly_encoding_type_t *e=__fly_encodes; FLY_ENCODE_END(e); e++){
+	for (fly_encoding_type_t *e=__fly_encodes; !FLY_ENCODE_END(e); e++){
 		if (e->type == type)
 			return e->name;
 	}
 	return NULL;
 }
 
-fly_encoding_type_t *fly_encode_from_type(fly_encoding_e type)
+fly_encoding_type_t *fly_encoding_from_type(fly_encoding_e type)
 {
-	for (fly_encoding_type_t *e=__fly_encodes; FLY_ENCODE_END(e); e++){
+	for (fly_encoding_type_t *e=__fly_encodes; !FLY_ENCODE_END(e); e++){
 		if (e->type == type)
 			return e;
 	}
 	return NULL;
 }
 
-fly_encoding_type_t *fly_encode_from_name(fly_encname_t *name)
+fly_encoding_type_t *fly_encoding_from_name(fly_encname_t *name)
 {
 	#define FLY_ENCODE_NAME_LENGTH		20
 	fly_encname_t enc_name[FLY_ENCODE_NAME_LENGTH];
@@ -41,7 +80,7 @@ fly_encoding_type_t *fly_encode_from_name(fly_encname_t *name)
 		*ptr++ = tolower(*name);
 	*ptr = '\0';
 
-	for (fly_encoding_type_t *e=__fly_encodes; FLY_ENCODE_END(e); e++){
+	for (fly_encoding_type_t *e=__fly_encodes; !FLY_ENCODE_END(e); e++){
 		if (strcmp(e->name, enc_name) == 0)
 			return e;
 	}
@@ -223,13 +262,545 @@ int fly_identify_encode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *de
 	return 0;
 }
 
-#include "header.h"
+
+__fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encoding)
+{
+#define __FLY_ACCEPT_ENCODING_NOTFOUND		0
+#define __FLY_ACCEPT_ENCODING_FOUND			1
+#define __FLY_ACCEPT_ENCODING_ERROR			-1
+	if (ci->chain_length == 0)
+		return __FLY_ACCEPT_ENCODING_NOTFOUND;
+
+	for (fly_hdr_c *c=ci->entry; c!=NULL; c=c->next){
+		if (strcmp(c->name, FLY_ACCEPT_ENCODING_HEADER) == 0 && c->value != NULL){
+			*accept_encoding = c;
+			return __FLY_ACCEPT_ENCODING_FOUND;
+		}
+	}
+	return __FLY_ACCEPT_ENCODING_NOTFOUND;
+}
+
+__fly_static int __fly_encode_init(fly_request_t *req)
+{
+	__unused fly_encoding_t *enc;
+	enc = fly_pballoc(req->pool, sizeof(fly_encoding_t));
+
+	if (enc == NULL)
+		return -1;
+
+	enc->actqty = 0;
+	enc->request = req;
+	enc->accepts = NULL;
+	req->encoding = enc;
+	return 0;
+}
+
+#define __fly_incencoding(enc)			((enc)->actqty++)
+__fly_static int __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_encoding *ne)
+{
+	if (!enc || !ne)
+		return -1;
+
+	if (enc->accepts == NULL){
+		enc->accepts = ne;
+		ne->next = NULL;
+	}else{
+		struct __fly_encoding *e, *prev;
+		for (e=enc->accepts; e->next!=NULL; e=e->next){
+			/* if same enum __fly_encoding_type, overwrite */
+			if (e->type->type == ne->type->type){
+				ne->next = e->next;
+				if (prev)
+					prev->next = ne;
+				/* TODO: release e */
+				goto increment;
+			}
+			prev = e;
+		}
+		e->next = ne;
+	}
+
+increment:
+	__fly_incencoding(enc);
+	return 0;
+}
+
+__fly_static inline int __fly_quality_value(struct __fly_encoding *e, int qvalue)
+{
+	/* 0~100% */
+	if (qvalue < 0 || qvalue > 100)
+		return -1;
+	e->quality_value = qvalue;
+	return 0;
+}
+
+__fly_static void __fly_memcpy_name(char *dist, char *src, size_t maxlen)
+{
+	size_t i=0;
+	while(i++ < maxlen){
+		*dist++ = *src++;
+		if (__fly_space(*src) || __fly_semicolon(*src) || __fly_comma(*src)){
+			*dist = '\0';
+			return;
+		}
+	}
+}
+
+__fly_static int __fly_add_accept_asterisk(fly_request_t *req)
+{
+	struct __fly_encoding *__e;
+
+	__e = fly_pballoc(req->pool, sizeof(struct __fly_encoding));
+	if (__e == NULL)
+		return -1;
+
+	__e->type = __fly_asterisk();
+	__e->quality_value = 100;
+	__e->next = NULL;
+	if (__e->type == NULL)
+		return -1;
+
+	return __fly_add_accept_encoding(req->encoding, __e);
+}
+
 int fly_accept_encoding(fly_request_t *req)
 {
-	__unused fly_hdr_ci *header;
+	fly_hdr_ci *header;
+	fly_hdr_c  *accept_encoding;
 
 	header = req->header;
-	if (req == NULL || req->header == NULL)
+	if (req == NULL || req->pool == NULL || req->header == NULL)
 		return -1;
-	return 0;
+
+	if (__fly_encode_init(req) == -1)
+		return -1;
+
+	switch (__fly_accept_encoding(header, &accept_encoding)){
+	case __FLY_ACCEPT_ENCODING_ERROR:
+		req->encoding = NULL;
+		return -1;
+	case __FLY_ACCEPT_ENCODING_NOTFOUND:
+		if(__fly_add_accept_asterisk(req) == -1)
+			return -1;
+		return 0;
+	case __FLY_ACCEPT_ENCODING_FOUND:
+		return __fly_parse_accept_encoding(req, accept_encoding);
+	default:
+		return -1;
+	}
+	FLY_NOT_COME_HERE
+}
+
+__fly_static inline bool __fly_ualpha(char c)
+{
+	return (c >= 0x41 && c <= 0x5A) ? true : false;
+}
+
+__fly_static inline bool __fly_lalpha(char c)
+{
+	return (c >= 0x61 && c <= 0x7A) ? true : false;
+}
+
+__fly_static inline bool __fly_alpha(char c)
+{
+	return (__fly_ualpha(c) || __fly_lalpha(c)) ? true : false;
+}
+
+__fly_static inline char __fly_alpha_lower(char c)
+{
+	if (__fly_ualpha(c))
+		return c-0x20;
+	else
+		return c;
+}
+
+
+__fly_static inline bool __fly_number(char c)
+{
+	return (c >= 0x30 && c <= 0x39);
+}
+
+__fly_static inline bool __fly_vchar(char c)
+{
+	return (c >= 0x21 && c <= 0x7E);
+}
+
+__fly_static inline bool __fly_tchar(char c)
+{
+	return (																\
+		(__fly_alpha(c) || __fly_number(c) || c == '!' || c == '#' ||		\
+		c == '$' || c == '%' || c == '&' || c == 0x27 || c == '*' ||		\
+		c == '+' || c == '-' || c == '.' || c == '^' || c == '_' ||			\
+		c == '`' || c == '|' || c == '~' || (__fly_vchar(c) &&	c != ';')	\
+	) ? true : false);
+}
+
+__fly_static inline bool __fly_alnum(char c)
+{
+	return (__fly_alpha(c) || __fly_number(c)) ? true : false;
+}
+
+__fly_static inline bool __fly_delimit(char c)
+{
+	return (
+		c == 0x22 || c == '(' || c == ')' || c == ',' || c == '/' || \
+		c == ':'  || c == ';' || c == '<' || c == '=' || c == '>' || \
+		c == '?'  || c == '@' || c == '[' || c == '\\' || c == ']' || \
+		c == '{'  || c == '}' \
+	) ? true : false;
+}
+
+__fly_static inline bool __fly_space(char c)
+{
+	return (c == 0x20 || c == '\t') ? true : false;
+}
+
+__fly_static inline bool __fly_semicolon(char c)
+{
+	return (c == 0x3B) ? true : false;
+}
+
+__fly_static inline bool __fly_q(char c)
+{
+	return (c == 'q') ? true : false;
+}
+
+__fly_static inline bool __fly_one(char c)
+{
+	return (c == '1') ? true : false;
+}
+
+__fly_static inline bool __fly_zero(char c)
+{
+	return (c == '0') ? true : false;
+}
+
+__fly_static inline bool __fly_zeros(char c)
+{
+	return (c == '\0') ? true : false;
+}
+
+__fly_static inline bool __fly_point(char c)
+{
+	return (c == '.') ? true : false;
+}
+
+__fly_static inline bool __fly_equal(char c)
+{
+	return (c == '=') ? true : false;
+}
+
+__fly_static inline bool __fly_comma(char c)
+{
+	return (c == ',') ? true : false;
+}
+
+__fly_static int __fly_parse_ae(fly_encoding_t *e, fly_hdr_value *ae_value)
+{
+	fly_hdr_value *ptr;
+	fly_pool_t *__pool;
+	int decimal_places = 0;
+	char *name = NULL, *qvalue = NULL;
+	enum {
+		__FLY_PARSE_AE_INIT,
+		__FLY_PARSE_AE_NAME,
+		__FLY_PARSE_AE_WEIGHT_SPACE,
+		__FLY_PARSE_AE_WEIGHT_SEMICOLON,
+		__FLY_PARSE_AE_WEIGHT_SPACE_AFTER,
+		__FLY_PARSE_AE_WEIGHT_Q,
+		__FLY_PARSE_AE_WEIGHT_EQUAL,
+		__FLY_PARSE_AE_ZERO_INT,
+		__FLY_PARSE_AE_ONE_INT,
+		__FLY_PARSE_AE_ZERO_POINT,
+		__FLY_PARSE_AE_ONE_POINT,
+		__FLY_PARSE_AE_ZERO_DECIMAL_POINT,
+		__FLY_PARSE_AE_ONE_DECIMAL_POINT,
+		__FLY_PARSE_AE_LAST_SPACE,
+		__FLY_PARSE_AE_COMMA,
+		__FLY_PARSE_AE_ADD,
+	} pstatus;
+
+	__pool = e->request->pool;
+	for (pstatus=__FLY_PARSE_AE_INIT, ptr=ae_value; ptr;){
+		if (!__fly_tchar(*ptr) && !__fly_semicolon(*ptr) && !__fly_space(*ptr) && !__fly_zeros(*ptr))
+			/* not allowed character */
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+
+		switch(pstatus){
+		case __FLY_PARSE_AE_INIT:
+			decimal_places = 0;
+			if (__fly_tchar(*ptr)){
+				pstatus = __FLY_PARSE_AE_NAME;
+				name = ptr;
+				continue;
+			}
+
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_NAME:
+			if (__fly_space(*ptr)){
+				pstatus = __FLY_PARSE_AE_WEIGHT_SPACE;
+				continue;
+			}
+			if (__fly_semicolon(*ptr)){
+				pstatus = __FLY_PARSE_AE_WEIGHT_SEMICOLON;
+				continue;
+			}
+			if (__fly_comma(*ptr)){
+				pstatus = __FLY_PARSE_AE_COMMA;
+				continue;
+			}
+			if (__fly_zeros(*ptr)){
+				pstatus = __FLY_PARSE_AE_ADD;
+				continue;
+			}
+			if (__fly_tchar(*ptr) && !__fly_space(*ptr) && !__fly_semicolon(*ptr))
+				break;
+
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_WEIGHT_SPACE:
+			if (__fly_space(*ptr))
+				break;
+			if (__fly_semicolon(*ptr)){
+				pstatus = __FLY_PARSE_AE_WEIGHT_SEMICOLON;
+				continue;
+			}
+
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_WEIGHT_SEMICOLON:
+			if (__fly_semicolon(*ptr))
+				break;
+			if (__fly_space(*ptr)){
+				pstatus = __FLY_PARSE_AE_WEIGHT_SPACE_AFTER;
+				continue;
+			}
+			if (__fly_q(*ptr)){
+				pstatus = __FLY_PARSE_AE_WEIGHT_Q;
+				continue;
+			}
+
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_WEIGHT_SPACE_AFTER:
+			if (__fly_space(*ptr))
+				break;
+			if (__fly_q(*ptr)){
+				pstatus = __FLY_PARSE_AE_WEIGHT_Q;
+				continue;
+			}
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_WEIGHT_Q:
+			if (__fly_q(*ptr))
+				break;
+			if (__fly_equal(*ptr)){
+				pstatus = __FLY_PARSE_AE_WEIGHT_EQUAL;
+				continue;
+			}
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_WEIGHT_EQUAL:
+			if (__fly_equal(*ptr))
+				break;
+			if (__fly_one(*ptr)){
+				pstatus = __FLY_PARSE_AE_ONE_INT;
+				/* start of quality value */
+				qvalue = ptr;
+				continue;
+			}
+			if (__fly_zero(*ptr)){
+				pstatus = __FLY_PARSE_AE_ZERO_INT;
+				/* start of quality value */
+				qvalue = ptr;
+				continue;
+			}
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_ONE_INT:
+			if (__fly_one(*ptr))
+				break;
+			if (__fly_space(*ptr)){
+				pstatus = __FLY_PARSE_AE_LAST_SPACE;
+				continue;
+			}
+			if (__fly_point(*ptr)){
+				pstatus = __FLY_PARSE_AE_ONE_POINT;
+				continue;
+			}
+			if (__fly_zeros(*ptr)){
+				pstatus = __FLY_PARSE_AE_ADD;
+				continue;
+			}
+			if (__fly_comma(*ptr)){
+				pstatus = __FLY_PARSE_AE_COMMA;
+				continue;
+			}
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_ZERO_INT:
+			if (__fly_zero(*ptr))
+				break;
+			if (__fly_space(*ptr)){
+				pstatus = __FLY_PARSE_AE_LAST_SPACE;
+				continue;
+			}
+			if (__fly_point(*ptr)){
+				pstatus = __FLY_PARSE_AE_ZERO_POINT;
+				continue;
+			}
+			if (__fly_zeros(*ptr)){
+				pstatus = __FLY_PARSE_AE_ADD;
+				continue;
+			}
+			if (__fly_comma(*ptr)){
+				pstatus = __FLY_PARSE_AE_COMMA;
+				continue;
+			}
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_ONE_POINT:
+			if (__fly_point(*ptr))
+				break;
+			if (__fly_zero(*ptr)){
+				pstatus = __FLY_PARSE_AE_ONE_DECIMAL_POINT;
+				continue;
+			}
+
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_ZERO_POINT:
+			if (__fly_point(*ptr))
+				break;
+			if (__fly_number(*ptr)){
+				pstatus = __FLY_PARSE_AE_ZERO_DECIMAL_POINT;
+				continue;
+			}
+
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_ONE_DECIMAL_POINT:
+			if (__fly_zero(*ptr) && decimal_places++ < 3)
+				break;
+
+			if (__fly_zeros(*ptr)){
+				pstatus = __FLY_PARSE_AE_ADD;
+				continue;
+			}
+
+			if (__fly_space(*ptr)){
+				pstatus = __FLY_PARSE_AE_LAST_SPACE;
+				continue;
+			}
+
+			if (__fly_comma(*ptr)){
+				pstatus = __FLY_PARSE_AE_COMMA;
+				continue;
+			}
+
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_ZERO_DECIMAL_POINT:
+			if (__fly_number(*ptr) && decimal_places++ < 3)
+				break;
+
+			if (__fly_zeros(*ptr)){
+				pstatus = __FLY_PARSE_AE_ADD;
+				continue;
+			}
+
+			if (__fly_space(*ptr)){
+				pstatus = __FLY_PARSE_AE_LAST_SPACE;
+				continue;
+			}
+
+			if (__fly_comma(*ptr)){
+				pstatus = __FLY_PARSE_AE_COMMA;
+				continue;
+			}
+
+			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+		case __FLY_PARSE_AE_LAST_SPACE:
+			if (__fly_space(*ptr))
+				break;
+
+			if (__fly_comma(*ptr)){
+				pstatus = __FLY_PARSE_AE_COMMA;
+				continue;
+			}
+
+			if (__fly_zeros(*ptr)){
+				pstatus = __FLY_PARSE_AE_ADD;
+				continue;
+			}
+
+			pstatus = __FLY_PARSE_AE_ADD;
+			continue;
+		case __FLY_PARSE_AE_COMMA:
+			if (__fly_comma(*ptr) || __fly_space(*ptr))
+				break;
+
+			pstatus = __FLY_PARSE_AE_ADD;
+			continue;
+		case __FLY_PARSE_AE_ADD:
+			/* add accept encoding */
+			{
+				struct __fly_encoding *ne;
+				fly_encname_t encname[FLY_ENCNAME_MAXLEN];
+				ne = fly_pballoc(__pool, sizeof(struct __fly_encoding));
+				if (ne == NULL)
+					return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
+
+				__fly_memcpy_name(encname, name, FLY_ENCNAME_MAXLEN);
+				encname[FLY_ENCNAME_MAXLEN-1] = '\0';
+
+				ne->type = fly_encoding_from_name(encname);
+				ne->next = NULL;
+				ne->use  = false;
+				ne->quality_value = __fly_quality_value_from_str(qvalue);
+
+				if (ne->type == NULL)
+					return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+
+				if (__fly_add_accept_encoding(e, ne) == -1)
+					return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
+			}
+
+			/* to reach end of Accept-Encoding header */
+			if (__fly_zeros(*ptr))
+				return __FLY_PARSE_ACCEPT_ENCODING_SUCCESS;
+			pstatus = __FLY_PARSE_AE_INIT;
+			continue;
+		default:
+			/* unknown status */
+			return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
+		}
+		ptr++;
+	}
+	return __FLY_PARSE_ACCEPT_ENCODING_SUCCESS;
+}
+
+__fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_header)
+{
+	if (ae_header == NULL || req->encoding == NULL)
+		return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
+
+	fly_hdr_value *ae_value;
+	ae_value = ae_header->value;
+
+	return __fly_parse_ae(req->encoding, ae_value);
+}
+
+__fly_static int __fly_quality_value_from_str(char *qvalue)
+{
+	char qv_str[FLY_ENVQVALUE_MAXLEN], *qptr;
+	double quality_value;
+	if (qvalue == NULL && __fly_one(*qvalue))
+		return 100;
+
+	qptr = qv_str;
+	while(__fly_zero(*qvalue) || __fly_point(*qvalue) || __fly_number(*qvalue))
+		*qptr++ = *qvalue++;
+	*qptr = '\0';
+
+	quality_value = atof(qv_str);
+
+	if (quality_value < 0.0 || quality_value > 1.0)
+		return -1;
+
+	return (int) (quality_value*100);
+}
+
+
+__fly_static int __fly_decide_encoding(fly_encoding_t encs)
+{
 }

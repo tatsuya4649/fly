@@ -124,7 +124,7 @@ __fly_static inline int  __fly_zero(char c)
 //__fly_static int __fly_obs_text(char c)
 //{
 //	return (c >= 0x80 && c <= 0xFF) ? 1 : 0;
-//}
+	//}
 
 __fly_static int __fly_parse_reqline(fly_reqlinec_t *request_line)
 {
@@ -246,72 +246,72 @@ error:
 __fly_static int __fly_parse_request_line(fly_pool_t *pool, __unused int c_sock, fly_reqline_t *req)
 {
 	fly_reqlinec_t *request_line;
-    char *method;
-    char *space;
+	char *method;
+	char *space;
 
 	if (pool == NULL || req == NULL)
 		return -1;
 
 	request_line = req->request_line;
-    space = strstr(request_line, " ");
-    /* method only => response 400 Bad Request */
-    if (space == NULL)
-        return FLY_ERROR(400);
+	space = strstr(request_line, " ");
+	/* method only => response 400 Bad Request */
+	if (space == NULL)
+		return FLY_ERROR(400);
 
-    method = fly_pballoc(pool, space-request_line+1);
+	method = fly_pballoc(pool, space-request_line+1);
 	/* memory alloc error */
 	if (method == NULL)
 		return FLY_ERROR(500);
 
-    memcpy(method, request_line, space-request_line);
-    method[space-request_line] = '\0';
-    req->method = fly_match_method_name(method);
+	memcpy(method, request_line, space-request_line);
+	method[space-request_line] = '\0';
+	req->method = fly_match_method_name(method);
 	/* no match method */
-    if (req->method == NULL)
-        return FLY_ERROR(400);
+	if (req->method == NULL)
+		return FLY_ERROR(400);
 
-    char *uri_start = space+1;
-    char *next_space = strstr(uri_start," ");
+	char *uri_start = space+1;
+	char *next_space = strstr(uri_start," ");
 	/* not found http version */
 	if (next_space == NULL)
-        return FLY_ERROR(400);
+		return FLY_ERROR(400);
 
 	/* too long uri */
 	if (next_space-uri_start >= FLY_REQUEST_URI_MAX)
 		return FLY_ERROR(414);
 
-    req->uri.uri = fly_pballoc(pool, next_space-uri_start+1);
+	req->uri.uri = fly_pballoc(pool, next_space-uri_start+1);
 	if (req->uri.uri == NULL)
 		return FLY_ERROR(500);
 
-    memcpy(req->uri.uri, space+1, next_space-uri_start);
-    req->uri.uri[next_space-uri_start] = '\0';
+	memcpy(req->uri.uri, space+1, next_space-uri_start);
+	req->uri.uri[next_space-uri_start] = '\0';
 
-    char *version_start = next_space+1;
-    req->version = fly_match_version(version_start);
+	char *version_start = next_space+1;
+	req->version = fly_match_version(version_start);
 	/* unmatch version */
-    if (req->version == NULL)
+	if (req->version == NULL)
 		return FLY_ERROR(400);
 
-    char *slash_p = strchr(req->version->full,'/');
+	char *slash_p = strchr(req->version->full,'/');
 	/* http version number not found */
-    if (slash_p == NULL)
+	if (slash_p == NULL)
 		return FLY_ERROR(400);
 
-    req->version->number = slash_p + 1;
-    return 0;
+	req->version->number = slash_p + 1;
+	return 0;
 }
 
 __fly_static int __fly_request_operation(int c_sock, fly_request_t *req,fly_reqlinec_t *request_line)
 {
-    /* get request */
-    int request_line_length;
+	/* get request */
+	int request_line_length;
 
 	/* not ready for request line */
 	if (strstr(request_line, "\r\n") == NULL)
 		goto not_ready;
 
-    request_line_length = strstr(request_line, "\r\n") - request_line;
+	request_line_length = strstr(request_line, "\r\n") - request_line;
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
 		goto error_501;
 
@@ -323,9 +323,9 @@ __fly_static int __fly_request_operation(int c_sock, fly_request_t *req,fly_reql
 	if (req->request_line->request_line == NULL)
 		goto error_500;
 
-    memcpy(req->request_line->request_line, request_line, request_line_length);
-    /* get total line */
-    req->request_line->request_line[request_line_length] = '\0';
+	memcpy(req->request_line->request_line, request_line, request_line_length);
+	/* get total line */
+	req->request_line->request_line[request_line_length] = '\0';
 
 	/* request line parse check */
 	if (__fly_parse_reqline(request_line) == -1)
@@ -786,9 +786,10 @@ __fase_header:
 		break;
 	}
 
-	/* TODO: accept encoding parse */
+	/* accept encoding parse */
 	if (fly_accept_encoding(request) == -1)
 		goto error;
+
 	/* check of having body */
 	if (fly_content_length(request->header) == 0)
 		goto __fase_end_of_parse;
