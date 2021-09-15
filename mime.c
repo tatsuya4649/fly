@@ -16,6 +16,14 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 __fly_static int __fly_accept_type_from_str(fly_mime_t *mime, struct __fly_mime_type *type, fly_hdr_value *type_str);
 __fly_static int __fly_accept_subtype_from_str(struct __fly_mime_subtype *subtype, fly_hdr_value *subtype_str);
 __fly_static int __fly_accept_qvalue_from_str(fly_hdr_value *qptr);
+__fly_static void __fly_mime_ext_add(struct __fly_mime *mime, struct __fly_accept_ext *ext);
+__fly_static void __fly_mime_param_add(struct __fly_mime *mime, struct __fly_accept_param *param);
+__fly_static void __fly_ext_param_copyl(char *t1, char *t2, size_t maxlen);
+__fly_static void __fly_ext_param_copyr(char *t1, char *t2, size_t maxlen);
+__fly_static void __fly_param_copyl(char *t1, char *t2, size_t maxlen);
+__fly_static void __fly_param_copyr(char *t1, char *t2, size_t maxlen);
+__fly_static void __fly_param_copyql(char *t1, char *t2, size_t maxlen);
+__fly_static void __fly_param_copyqr(char *t1, char *t2, size_t maxlen);
 
 static inline bool __fly_digit(char c);
 static inline bool __fly_lalpha(char c);
@@ -319,9 +327,11 @@ __fly_static int __fly_accept_mime_parse(__unused fly_mime_t *mime, fly_hdr_valu
 		__FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_TOKENL,
 		__FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_EQUAL,
 		__FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_TOKENR,
+		__FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_TOKENEND,
 		__FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_STRINGL,
 		__FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_STRING,
 		__FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_STRINGR,
+		__FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_TOKENEND,
 		__FLY_ACCEPT_MIME_ACCEPT_PARAMS_WEIGHT_Q,
 		__FLY_ACCEPT_MIME_ACCEPT_PARAMS_WEIGHT_OWS2,
 		__FLY_ACCEPT_MIME_ACCEPT_PARAMS_WEIGHT_EQUAL,
@@ -477,7 +487,7 @@ __fly_static int __fly_accept_mime_parse(__unused fly_mime_t *mime, fly_hdr_valu
 		case __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_EQUAL:
 			if (__fly_quoted(*ptr)){
 				pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_STRINGL;
-				continue;
+				break;
 			}
 			if (__fly_token(*ptr)){
 				param_tokenr = ptr;
@@ -490,7 +500,24 @@ __fly_static int __fly_accept_mime_parse(__unused fly_mime_t *mime, fly_hdr_valu
 			if (__fly_token(*ptr))
 				break;
 
+			pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_TOKENEND;
+			continue;
+		case __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_TOKENEND:
 			/* TODO: Add params */
+			{
+				struct __fly_accept_param *param;
+
+				param = fly_pballoc(mime->request->pool, sizeof(struct __fly_accept_param));
+				if (param == NULL)
+					return FLY_MIME_PARSE_ERROR;
+
+				__fly_param_copyl(param->token_l, param_tokenl, FLY_ACCEPT_PARAM_MAXLEN);
+				__fly_param_copyr(param->token_r, param_tokenr, FLY_ACCEPT_PARAM_MAXLEN);
+				param->next = NULL;
+
+				__fly_mime_param_add(__nm, param);
+			}
+
 			if (__fly_zeros(*ptr)){
 				pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_END;
 				continue;
@@ -506,10 +533,8 @@ __fly_static int __fly_accept_mime_parse(__unused fly_mime_t *mime, fly_hdr_valu
 
 			goto perror;
 		case __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_STRINGL:
-			if (__fly_quoted(*ptr))
-				break;
-
 			if (__fly_quoted_string(ptr)){
+				param_tokenr = ptr;
 				pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_STRING;
 				continue;
 			}
@@ -525,8 +550,39 @@ __fly_static int __fly_accept_mime_parse(__unused fly_mime_t *mime, fly_hdr_valu
 
 			goto perror;
 		case __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_STRINGR:
-			pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_OWS1;
+			pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_TOKENEND;
 			continue;
+		case __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_QUOTED_TOKENEND:
+			/* TODO: Add params */
+			{
+				struct __fly_accept_param *param;
+
+				param = fly_pballoc(mime->request->pool, sizeof(struct __fly_accept_param));
+				if (param == NULL)
+					return FLY_MIME_PARSE_ERROR;
+
+				__fly_param_copyql(param->token_l, param_tokenl, FLY_ACCEPT_PARAM_MAXLEN);
+				__fly_param_copyqr(param->token_r, param_tokenr, FLY_ACCEPT_PARAM_MAXLEN);
+				param->next = NULL;
+
+				__fly_mime_param_add(__nm, param);
+			}
+
+			if (__fly_zeros(*ptr)){
+				pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_END;
+				continue;
+			}
+			if (__fly_space(*ptr)){
+				pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_OWS1;
+				continue;
+			}
+			if (__fly_semicolon(*ptr)){
+				pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_SEMICOLON;
+				break;
+			}
+
+			goto perror;
+
 		case __FLY_ACCEPT_MIME_ACCEPT_PARAMS_WEIGHT_Q:
 			pfase = ACCEPT_PARAMS;
 			if (__fly_q(*ptr))
@@ -692,6 +748,16 @@ __fly_static int __fly_accept_mime_parse(__unused fly_mime_t *mime, fly_hdr_valu
 
 		case __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_TOKENEND:
 			/* TODO: add extension attribute */
+			{
+				struct __fly_accept_ext *ext;
+				ext = fly_pballoc(mime->request->pool, sizeof(struct __fly_accept_ext));
+				__fly_ext_param_copyl(ext->token_l, ext_tokenl, FLY_ACCEPT_PARAM_MAXLEN);
+				__fly_ext_param_copyr(ext->token_r, ext_tokenr, FLY_ACCEPT_PARAM_MAXLEN);
+				if (ext == NULL)
+					return FLY_MIME_PARSE_ERROR;
+				ext->next = NULL;
+				__fly_mime_ext_add(__nm, ext);
+			}
 
 			if (__fly_comma(*ptr)){
 				pstatus = __FLY_ACCEPT_MIME_COMMA;
@@ -699,9 +765,11 @@ __fly_static int __fly_accept_mime_parse(__unused fly_mime_t *mime, fly_hdr_valu
 			}
 			pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_OWS1;
 			continue;
+
 		case __FLY_ACCEPT_MIME_COMMA:
 			pstatus = __FLY_ACCEPT_MIME_ADD;
 			continue;
+
 		case __FLY_ACCEPT_MIME_ADD:
 			/* TODO: add mime */
 			{
@@ -739,7 +807,7 @@ __fly_static int __fly_accept_mime_parse(__unused fly_mime_t *mime, fly_hdr_valu
 		ptr++;
 	}
 
-goto perror:
+perror:
 	/* TODO: release __nm */
 	return FLY_MIME_PARSE_PERROR;
 
@@ -861,4 +929,105 @@ __fly_static int __fly_accept_parse(fly_mime_t *mime, fly_hdr_c *c)
 		return -1;
 	}
 	FLY_NOT_COME_HERE
+}
+
+__fly_static void __fly_mime_param_add(struct __fly_mime *mime, struct __fly_accept_param *param)
+{
+	if (mime->params == NULL){
+		mime->params = param;
+	}else{
+		struct __fly_accept_param *__p;
+		for (__p=mime->params ; __p->next; __p=__p->next)
+			;
+		__p->next = param;
+	}
+	param->next = NULL;
+	mime->parqty++;
+	return;
+}
+
+__fly_static void __fly_mime_ext_add(struct __fly_mime *mime, struct __fly_accept_ext *ext)
+{
+	if (mime->extension == NULL){
+		mime->extension = ext;
+	}else{
+		struct __fly_accept_ext *__e;
+		for (__e=mime->extension; __e->next; __e=__e->next)
+			;
+		__e->next = ext;
+	}
+	ext->next = NULL;
+	mime->extqty++;
+	return;
+}
+
+__fly_static void __fly_param_copyl(char *dist, char *src, size_t maxlen)
+{
+	size_t i=0;
+	while(__fly_token(*src) && !__fly_equal(*src)){
+		if (i++ >= maxlen)
+			break;
+
+		*dist++ = *src++;
+	}
+	*dist = '\0';
+}
+
+__fly_static void __fly_param_copyr(char *dist, char *src, size_t maxlen)
+{
+	size_t i=0;
+	while(__fly_token(*src)){
+		if (i++ >= maxlen)
+			break;
+
+		*dist++ = *src++;
+	}
+	*dist = '\0';
+}
+
+__fly_static void __fly_param_copyql(char *dist, char *src, size_t maxlen)
+{
+	size_t i=0;
+	while(__fly_token(*src) && !__fly_equal(*src)){
+		if (i++ >= maxlen)
+			break;
+
+		*dist++ = *src++;
+	}
+	*dist = '\0';
+}
+
+__fly_static void __fly_param_copyqr(char *dist, char *src, size_t maxlen)
+{
+	size_t i=0;
+	while(__fly_token(*src) && !__fly_quoted(*src)){
+		if (i++ >= maxlen)
+			break;
+
+		if (*src != '\\')
+			*dist++ = *src++;
+	}
+	*dist = '\0';
+}
+__fly_static void  __fly_ext_param_copyl(char *dist, char *src, size_t maxlen)
+{
+	size_t i=0;
+	while(__fly_token(*src) && !__fly_equal(*src)){
+		if (i++ >= maxlen)
+			break;
+
+		*dist++ = *src++;
+	}
+	*dist = '\0';
+}
+__fly_static void  __fly_ext_param_copyr(char *dist, char *src, size_t maxlen)
+{
+	size_t i=0;
+	while(__fly_token(*src)){
+		if (i++ >= maxlen)
+			break;
+
+		*dist++ = *src++;
+	}
+	*dist = '\0';
 }

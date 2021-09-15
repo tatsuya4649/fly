@@ -16,7 +16,7 @@ int main()
 	req.body = NULL;
 	req.buffer = NULL;
 
-	fly_hdr_value *value = "text/plain; charset=utf_8; q=0.5; hello=world, text/html, text/x-dvi; q=0.8, text/x-c";
+	fly_hdr_value *value = "text/plain; charset=\"utf\\t_8\"; q=0.5; hello=world, text/html, text/x-dvi; q=0.8, text/x-c";
 	printf("%s\n", value);
 
 	mime.acqty = 0;

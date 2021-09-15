@@ -102,16 +102,17 @@ fly_mime_type_t *fly_mime_from_type(fly_mime_e type);
 struct fly_request;
 typedef struct fly_request fly_request_t;
 
-
+#define FLY_ACCEPT_PARAM_MAXLEN			(30)
+#define FLY_ACCEPT_EXT_MAXLEN			(30)
 struct __fly_accept_param{
-	char *left;
-	char *right;
+	char token_l[FLY_ACCEPT_PARAM_MAXLEN];
+	char token_r[FLY_ACCEPT_PARAM_MAXLEN];
 
 	struct __fly_accept_param		*next;
 };
 struct __fly_accept_ext{
-	char *left;
-	char *right;
+	char token_l[FLY_ACCEPT_EXT_MAXLEN];
+	char token_r[FLY_ACCEPT_EXT_MAXLEN];
 
 	struct __fly_accept_ext		*next;
 };
