@@ -16,6 +16,7 @@
 #include "uri.h"
 #include "util.h"
 #include "err.h"
+#include "mime.h"
 
 #define FLY_BUFSIZE			(8*FLY_PAGESIZE)
 #define FLY_REQUEST_LINE_MAX			8000
@@ -54,6 +55,7 @@ enum fly_request_state{
 #define fly_event_state(e, event)		((e)->event_state = (void *) EFLY_REQUEST_STATE_ ## event)
 typedef enum fly_request_state fly_request_state_t;
 #include "encode.h"
+#include "mime.h"
 struct fly_request{
 	fly_pool_t *pool;
 	fly_connect_t *connect;
@@ -64,6 +66,7 @@ struct fly_request{
 	fly_buffer_t *bptr;
 	fly_request_fase_t fase;
 	fly_encoding_t *encoding;
+	fly_mime_t *mime;
 };
 typedef struct fly_request fly_request_t;
 
