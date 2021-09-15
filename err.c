@@ -9,7 +9,7 @@ __fly_static fly_pool_t *fly_err_pool = NULL;
 __fly_static void *fly_errptr_for_emerge = NULL;
 __fly_static int fly_err_pool_init(void);
 __fly_static int __fly_err_logcont(fly_err_t *err, fly_logcont_t *lc);
-__fly_static inline const char *__fly_level_str(fly_err_t *err);
+static inline const char *__fly_level_str(fly_err_t *err);
 
 __fly_static struct {
 	pid_t pid;
@@ -66,7 +66,7 @@ fly_err_t *fly_err_init(fly_errc_t *content, int __errno, int level)
 	return err;
 }
 
-__fly_static inline const char *__fly_level_str(fly_err_t *err)
+static inline const char *__fly_level_str(fly_err_t *err)
 {
 	if (err == NULL)
 		return NULL;
