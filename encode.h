@@ -81,6 +81,6 @@ int fly_identity_encode(fly_encbuf_t *encbuf, size_t encbuflen, fly_encbuf_t *de
 
 #define FLY_ENCNAME_MAXLEN			(20)
 /* 6 = int and point and 3 decimal places */
-#define FLY_ENVQVALUE_MAXLEN		(6)
+#define FLY_ENCQVALUE_MAXLEN		(6)
 
 #endif

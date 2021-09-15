@@ -27,6 +27,8 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 	req->header = NULL;
 	req->body = NULL;
 	req->buffer = fly_pballoc(pool, FLY_BUFSIZE);
+	req->mime = NULL;
+	req->encoding = NULL;
 	if (req->buffer == NULL)
 		return NULL;
 	req->bptr = req->buffer;
@@ -54,77 +56,72 @@ fly_reqlinec_t *fly_get_request_line_ptr(char *buffer)
 	return buffer;
 }
 
-__fly_static inline int __fly_alpha(char c)
+static inline int __fly_alpha(char c)
 {
 	if ((c>='a' && c<='z') || (c>='A' && c<='Z'))
 		return 1;
 	else
 		return 0;
 }
-__fly_static inline int __fly_number(char c)
+static inline int __fly_number(char c)
 {
 	if (c>='0' && c<='9')
 		return 1;
 	else
 		return 0;
 }
-__fly_static inline int __fly_alpha_number(char c)
+static inline int __fly_alpha_number(char c)
 {
 	return (__fly_alpha(c) || __fly_number(c)) ? 1 : 0;
 }
-__fly_static inline int __fly_space(char c)
+static inline int __fly_space(char c)
 {
 	return (c == ' ') ? 1 : 0;
 }
-__fly_static inline int __fly_ht(char c)
+static inline int __fly_ht(char c)
 {
 	return (c == '\t' ? 1 : 0);
 }
-__fly_static inline int __fly_slash(char c)
+static inline int __fly_slash(char c)
 {
 	return (c == '/') ? 1 : 0;
 }
-__fly_static inline int __fly_dot(char c)
+static inline int __fly_dot(char c)
 {
 	return (c == '.') ? 1 : 0;
 }
-__fly_static inline int __fly_cr(char c)
+static inline int __fly_cr(char c)
 {
 	return (c == '\r') ? 1 : 0;
 }
-__fly_static inline int __fly_lf(char c)
+static inline int __fly_lf(char c)
 {
 	return (c == '\n') ? 1 : 0;
 }
-__fly_static inline int __fly_colon(char c)
+static inline int __fly_colon(char c)
 {
 	return (c == ':') ? 1 : 0;
 }
-__unused __fly_static inline int __fly_bracket(char c)
+__unused static inline int __fly_bracket(char c)
 {
 	return (c == '[' || c == ']') ? 1 : 0;
 }
-__unused __fly_static inline int __fly_gtlt(char c)
+__unused static inline int __fly_gtlt(char c)
 {
 	return (c == '<' || c == '>') ? 1 : 0;
 }
-__unused __fly_static inline int __fly_equal(char c)
+__unused static inline int __fly_equal(char c)
 {
 	return (c == '=') ? 1 : 0;
 }
-__fly_static inline int __fly_vchar(char c)
+static inline int __fly_vchar(char c)
 {
 	return (c >= 0x21 && c <= 0x7E) ? 1 : 0;
 }
-__fly_static inline int  __fly_zero(char c)
+static inline int  __fly_zero(char c)
 {
 	return (c == '\0') ? 1 : 0;
 }
-
-//__fly_static int __fly_obs_text(char c)
-//{
-//	return (c >= 0x80 && c <= 0xFF) ? 1 : 0;
-	//}
 
 __fly_static int __fly_parse_reqline(fly_reqlinec_t *request_line)
 {
@@ -792,6 +789,10 @@ __fase_header:
 
 	/* accept encoding parse */
 	if (fly_accept_encoding(request) == -1)
+		goto error;
+
+	/* accept parse(mime) */
+	if (fly_accept_mime(request) == -1)
 		goto error;
 
 	/* check of having body */

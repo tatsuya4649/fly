@@ -108,12 +108,12 @@ __fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize)
 	return FLY_EBUFLEN;
 }
 
-__fly_static inline int __fly_log_stdout(const char *env)
+static inline int __fly_log_stdout(const char *env)
 {
 	return getenv(env) != NULL ? __FLY_LOGFILE_INIT_STDOUT: 0;
 }
 
-__fly_static inline int __fly_log_stderr(const char *env)
+static inline int __fly_log_stderr(const char *env)
 {
 	return getenv(env) != NULL ? __FLY_LOGFILE_INIT_STDERR: 0;
 }
