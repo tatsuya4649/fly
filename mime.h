@@ -2,8 +2,10 @@
 #define _MIME_H
 
 #include <stddef.h>
+#include "alloc.h"
+#include "util.h"
 
-enum fly_mime_type{
+enum __fly_mime_list{
 	/* text */
 	text_plain,
 	text_csv,
@@ -35,7 +37,7 @@ enum fly_mime_type{
 	application_rtf,
 	application_mac_binhex40,
 	application_java_archive,
-	
+
 	/* image */
 	image_jpeg,
 	image_png,
@@ -83,20 +85,97 @@ enum fly_mime_type{
 	video_x_ms_wmv,
 	video_x_sgi_movie,
 };
-typedef enum fly_mime_type fly_mime_e;
+typedef enum __fly_mime_list fly_mime_e;
 
 typedef char fly_mime_c;
 typedef char fly_ext_t;
 #define FLY_MIME_NAME_LENGTH		50
-struct fly_mime{
+struct fly_mime_type{
 	fly_mime_e type;
 	fly_mime_c name[FLY_MIME_NAME_LENGTH];
 	fly_ext_t **extensions;
 };
+typedef struct fly_mime_type fly_mime_type_t;
+
+fly_mime_type_t *fly_mime_from_type(fly_mime_e type);
+
+struct fly_request;
+typedef struct fly_request fly_request_t;
+
+#define FLY_ACCEPT_PARAM_MAXLEN			(30)
+#define FLY_ACCEPT_EXT_MAXLEN			(30)
+struct __fly_accept_param{
+	char token_l[FLY_ACCEPT_PARAM_MAXLEN];
+	char token_r[FLY_ACCEPT_PARAM_MAXLEN];
+
+	struct __fly_accept_param		*next;
+};
+struct __fly_accept_ext{
+	char token_l[FLY_ACCEPT_EXT_MAXLEN];
+	char token_r[FLY_ACCEPT_EXT_MAXLEN];
+
+	struct __fly_accept_ext		*next;
+};
+
+struct __fly_mime_type{
+	enum {
+		fly_mime_type_text,
+		fly_mime_type_image,
+		fly_mime_type_application,
+		fly_mime_type_asterisk,
+		fly_mime_type_unknown,
+	} type;
+	char *type_name;
+};
+#define FLY_MIME_TYPE(n)				(fly_mime_type_ ## n)
+#define __FLY_MIME_TYPE(n)				{fly_mime_type_ ## n, #n}
+#define __FLY_MIME_NULL					{ -1, NULL }
+#define FLY_MIME_TYPE_MAXLEN				30
+#define FLY_MIME_SUBTYPE_MAXLEN				30
+struct __fly_mime_subtype{
+	char subtype[FLY_MIME_SUBTYPE_MAXLEN];
+	fly_bit_t asterisk: 1;
+};
+#define FLY_MIME_ASTERISK(am)			\
+	do{													\
+		(am)->type.type = FLY_MIME_TYPE(asterisk);		\
+		(am)->subtype.asterisk = true;					\
+		(am)->next = NULL;								\
+	} while(0)
+
+/*
+ * quality default value is 100.
+ */
+struct __fly_mime{
+	struct __fly_mime_type		type;
+	struct __fly_mime_subtype	subtype;
+	/* 0~100% */
+	int							 quality_value;
+	/* parametess */
+	struct __fly_accept_param	*params;
+	int							parqty;
+	/* extensions */
+	struct __fly_accept_ext		*extension;
+	int							extqty;
+
+	struct __fly_mime			*next;
+};
+#define fly_same_type(m1, m2)		\
+		(((m1)->type.type == (m2)->type.type) && (strcmp((m1)->subtype.subtype, (m2)->subtype.subtype)))
+
+#define FLY_ACCEPT_HEADER		"Accept"
+
+struct fly_mime{
+	fly_request_t				*request;
+
+	struct __fly_mime			*accepts;
+	/* accept quantity */
+	int							acqty;
+};
+
 typedef struct fly_mime fly_mime_t;
-extern fly_mime_t mimes[];
+int fly_accept_mime(fly_request_t *request);
 
-
-fly_mime_t *fly_mime_from_type(fly_mime_e type);
+#define FLY_MIMQVALUE_MAXLEN	(6)
 
 #endif

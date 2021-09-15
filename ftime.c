@@ -1,10 +1,10 @@
 #include "ftime.h"
 
-__fly_static inline time_t __fly_abssec(time_t t);
+static inline time_t __fly_abssec(time_t t);
 __fly_static size_t __fly_time_format(char *buffer, size_t maxlen, const struct tm *timeptr);
 __fly_static time_t __fly_time_diffsec(struct tm *t1, struct tm *t2);
 
-__fly_static inline time_t __fly_abssec(time_t t)
+static inline time_t __fly_abssec(time_t t)
 {
 	return t < 0 ? -1*t : t;
 }

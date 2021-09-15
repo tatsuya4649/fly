@@ -17,32 +17,32 @@ __fly_static fly_encoding_type_t __fly_encodes[] = {
 
 __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encoding);
 __fly_static int __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_encoding *ne);
-__fly_static inline int __fly_quality_value(struct __fly_encoding *e, int qvalue);
-__fly_static int __fly_add_accept_asterisk(fly_request_t *req);
-__fly_static inline fly_encoding_type_t *__fly_asterisk(void);
+static inline int __fly_quality_value(struct __fly_encoding *e, int qvalue);
+__fly_static int __fly_add_accept_encode_asterisk(fly_request_t *req);
+static inline fly_encoding_type_t *__fly_asterisk(void);
 #define __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR		0
 #define __FLY_PARSE_ACCEPT_ENCODING_SUCCESS			1
 #define __FLY_PARSE_ACCEPT_ENCODING_ERROR			-1
 __fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_header);
-__fly_static void __fly_memcpy_name(char *dist, char *src, size_t maxlen);
-__fly_static inline bool __fly_number(char c);
-__fly_static inline bool __fly_vchar(char c);
-__fly_static inline bool __fly_tchar(char c);
-__fly_static inline bool __fly_alnum(char c);
-__fly_static inline bool __fly_delimit(char c);
-__fly_static inline bool __fly_space(char c);
-__fly_static inline bool __fly_semicolon(char c);
-__fly_static inline bool __fly_q(char c);
-__fly_static inline bool __fly_one(char c);
-__fly_static inline bool __fly_zero(char c);
-__fly_static inline bool __fly_zeros(char c);
-__fly_static inline bool __fly_point(char c);
-__fly_static inline bool __fly_comma(char c);
-__fly_static inline bool __fly_equal(char c);
-__fly_static int __fly_quality_value_from_str(char *qvalue);
-__fly_static int __fly_decide_encoding(fly_encoding_t *__e);
+static void __fly_memcpy_name(char *dist, char *src, size_t maxlen);
+static inline bool __fly_number(char c);
+static inline bool __fly_vchar(char c);
+static inline bool __fly_tchar(char c);
+static inline bool __fly_alnum(char c);
+static inline bool __fly_delimit(char c);
+static inline bool __fly_space(char c);
+static inline bool __fly_semicolon(char c);
+static inline bool __fly_q(char c);
+static inline bool __fly_one(char c);
+static inline bool __fly_zero(char c);
+static inline bool __fly_zeros(char c);
+static inline bool __fly_point(char c);
+static inline bool __fly_comma(char c);
+static inline bool __fly_equal(char c);
+static int __fly_quality_value_from_str(char *qvalue);
+static int __fly_decide_encoding(fly_encoding_t *__e);
 
-__fly_static inline fly_encoding_type_t *__fly_asterisk(void)
+static inline fly_encoding_type_t *__fly_asterisk(void)
 {
 	for (fly_encoding_type_t *e=__fly_encodes; e->name; e++){
 		if (strcmp(e->name, "*") == 0)
@@ -51,7 +51,7 @@ __fly_static inline fly_encoding_type_t *__fly_asterisk(void)
 	return NULL;
 }
 
-__fly_static inline fly_encoding_type_t *__fly_most_priority(void)
+static inline fly_encoding_type_t *__fly_most_priority(void)
 {
 	fly_encoding_type_t *most = NULL;
 
@@ -352,7 +352,7 @@ __fly_static void __fly_memcpy_name(char *dist, char *src, size_t maxlen)
 	}
 }
 
-__fly_static int __fly_add_accept_asterisk(fly_request_t *req)
+__fly_static int __fly_add_accept_encode_asterisk(fly_request_t *req)
 {
 	struct __fly_encoding *__e;
 
@@ -386,7 +386,7 @@ int fly_accept_encoding(fly_request_t *req)
 		req->encoding = NULL;
 		return -1;
 	case __FLY_ACCEPT_ENCODING_NOTFOUND:
-		if(__fly_add_accept_asterisk(req) == -1)
+		if(__fly_add_accept_encode_asterisk(req) == -1)
 			return -1;
 		return 0;
 	case __FLY_ACCEPT_ENCODING_FOUND:
@@ -397,22 +397,22 @@ int fly_accept_encoding(fly_request_t *req)
 	FLY_NOT_COME_HERE
 }
 
-__fly_static inline bool __fly_ualpha(char c)
+static inline bool __fly_ualpha(char c)
 {
 	return (c >= 0x41 && c <= 0x5A) ? true : false;
 }
 
-__fly_static inline bool __fly_lalpha(char c)
+static inline bool __fly_lalpha(char c)
 {
 	return (c >= 0x61 && c <= 0x7A) ? true : false;
 }
 
-__fly_static inline bool __fly_alpha(char c)
+static inline bool __fly_alpha(char c)
 {
 	return (__fly_ualpha(c) || __fly_lalpha(c)) ? true : false;
 }
 
-__fly_static inline char __fly_alpha_lower(char c)
+static inline char __fly_alpha_lower(char c)
 {
 	if (__fly_ualpha(c))
 		return c-0x20;
@@ -421,17 +421,17 @@ __fly_static inline char __fly_alpha_lower(char c)
 }
 
 
-__fly_static inline bool __fly_number(char c)
+static inline bool __fly_number(char c)
 {
 	return (c >= 0x30 && c <= 0x39);
 }
 
-__fly_static inline bool __fly_vchar(char c)
+static inline bool __fly_vchar(char c)
 {
 	return (c >= 0x21 && c <= 0x7E);
 }
 
-__fly_static inline bool __fly_tchar(char c)
+static inline bool __fly_tchar(char c)
 {
 	return (																\
 		(__fly_alpha(c) || __fly_number(c) || c == '!' || c == '#' ||		\
@@ -441,12 +441,12 @@ __fly_static inline bool __fly_tchar(char c)
 	) ? true : false);
 }
 
-__fly_static inline bool __fly_alnum(char c)
+static inline bool __fly_alnum(char c)
 {
 	return (__fly_alpha(c) || __fly_number(c)) ? true : false;
 }
 
-__fly_static inline bool __fly_delimit(char c)
+static inline bool __fly_delimit(char c)
 {
 	return (
 		c == 0x22 || c == '(' || c == ')' || c == ',' || c == '/' || \
@@ -456,47 +456,47 @@ __fly_static inline bool __fly_delimit(char c)
 	) ? true : false;
 }
 
-__fly_static inline bool __fly_space(char c)
+static inline bool __fly_space(char c)
 {
 	return (c == 0x20 || c == '\t') ? true : false;
 }
 
-__fly_static inline bool __fly_semicolon(char c)
+static inline bool __fly_semicolon(char c)
 {
 	return (c == 0x3B) ? true : false;
 }
 
-__fly_static inline bool __fly_q(char c)
+static inline bool __fly_q(char c)
 {
 	return (c == 'q') ? true : false;
 }
 
-__fly_static inline bool __fly_one(char c)
+static inline bool __fly_one(char c)
 {
 	return (c == '1') ? true : false;
 }
 
-__fly_static inline bool __fly_zero(char c)
+static inline bool __fly_zero(char c)
 {
 	return (c == '0') ? true : false;
 }
 
-__fly_static inline bool __fly_zeros(char c)
+static inline bool __fly_zeros(char c)
 {
 	return (c == '\0') ? true : false;
 }
 
-__fly_static inline bool __fly_point(char c)
+static inline bool __fly_point(char c)
 {
 	return (c == '.') ? true : false;
 }
 
-__fly_static inline bool __fly_equal(char c)
+static inline bool __fly_equal(char c)
 {
 	return (c == '=') ? true : false;
 }
 
-__fly_static inline bool __fly_comma(char c)
+static inline bool __fly_comma(char c)
 {
 	return (c == ',') ? true : false;
 }
@@ -569,8 +569,8 @@ __fly_static int __fly_parse_ae(fly_encoding_t *e, fly_hdr_value *ae_value)
 
 			return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
 		case __FLY_PARSE_AE_WEIGHT_SPACE:
-			if (__fly_space(*ptr))
-				break;
+			if (__fly_space(*ptr))	break;
+
 			if (__fly_semicolon(*ptr)){
 				pstatus = __FLY_PARSE_AE_WEIGHT_SEMICOLON;
 				continue;
@@ -805,7 +805,7 @@ __fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_h
 
 __fly_static int __fly_quality_value_from_str(char *qvalue)
 {
-	char qv_str[FLY_ENVQVALUE_MAXLEN], *qptr;
+	char qv_str[FLY_ENCQVALUE_MAXLEN], *qptr;
 	double quality_value;
 	if (qvalue == NULL || __fly_one(*qvalue))
 		return 100;

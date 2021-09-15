@@ -219,7 +219,7 @@ int fly_date_header(fly_hdr_ci *ci)
 int fly_content_type_header(fly_hdr_ci *ci, fly_mime_e type)
 {
 	#define FLY_CONTENT_TYPE_LENGTH		100
-	fly_mime_t *mime;
+	fly_mime_type_t *mime;
 
 	mime = fly_mime_from_type(type);
 	if (mime == NULL || mime->name == NULL)
