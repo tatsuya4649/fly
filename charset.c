@@ -48,7 +48,7 @@ __fly_static int __fly_accept_charset(fly_hdr_ci *header, fly_hdr_value **value)
 		}
 	}
 
-	return __FLY_ACCEPT_CHARSET_FOUND;
+	return __FLY_ACCEPT_CHARSET_NOTFOUND;
 }
 
 __fly_static void __fly_accept_add(fly_charset_t *cs, struct __fly_charset *__nc)

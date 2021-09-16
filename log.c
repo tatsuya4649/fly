@@ -90,14 +90,14 @@ __fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize)
 			strncpy(path, dir, path_length);
 			path[path_length] = '\0';
 
-			if (fly_fs_isdir(path) <= 0)
+			if (fly_isdir(path) <= 0)
 				return FLY_ENFOUNDDIR;
 
 			only_word = false;
 		}
 
 		if (*ptr == '\0'){
-			if (only_word && fly_fs_isdir(dir) <= 0)
+			if (only_word && fly_isdir(dir) <= 0)
 				return FLY_ENFOUNDDIR;
 			return FLY_SUCCESS;
 		}

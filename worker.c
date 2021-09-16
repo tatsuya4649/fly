@@ -1,12 +1,15 @@
 #include "worker.h"
+#include "fsignal.h"
 
 __fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
 __fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen);
 __fly_static int __fly_listen_connected(fly_event_t *);
-__fly_static int __fly_worker_signal_init(void);
+__fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
+__fly_static int __fly_worker_signal_handler(fly_event_t *e);
 
 
+#define FLY_WORKER_SIG_COUNT				(sizeof(fly_worker_signals)/sizeof(fly_signal_t))
 /*
  *  worker process signal info.
  */
@@ -15,24 +18,81 @@ static fly_signal_t fly_worker_signals[] = {
 	{SIGTERM, NULL},
 };
 
-__fly_static int __fly_worker_signal_init(void)
+__fly_static int __fly_wsignal_handle(__unused struct signalfd_siginfo *info)
 {
-#define FLY_WORKER_SIG_COUNT				(sizeof(fly_worker_signals)/sizeof(fly_signal_t))
+	for (int i=0;(int) FLY_WORKER_SIG_COUNT; i++){
+		fly_signal_t *__s = &fly_worker_signals[i];
+		if (__s->number == (fly_signum_t) info->ssi_signo){
+			if (__s->handler)
+				__s->handler(info);
+			else
+				fly_signal_default_handler(info);
+		}
+	}
+	return 0;
+}
+
+__fly_static int __fly_worker_signal_handler(__unused fly_event_t *e)
+{
+	struct signalfd_siginfo info;
+	ssize_t res;
+
+	while(1){
+		res = read(e->fd, (void *) &info,sizeof(struct signalfd_siginfo));
+		if (res == -1){
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				break;
+			else
+				return -1;
+		}
+		if (__fly_wsignal_handle(&info) == -1)
+			return -1;
+	}
+
+	return 0;
+}
+
+__fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx)
+{
+	sigset_t sset;
+	int sigfd;
+	fly_event_t *e;
+
+	if (!manager ||  !manager->pool || !ctx)
+		return -1;
+
 	if (fly_refresh_signal() == -1)
+		return -1;
+	if (sigemptyset(&sset) == -1)
 		return -1;
 
 	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++){
-		struct sigaction __action;
-
-		if (fly_worker_signals[i].handler == NULL)
-			__action.sa_sigaction = __fly_only_recv;
-		else
-			__action.sa_sigaction = fly_worker_signals[i].handler;
-		__action.sa_flags = SA_SIGINFO;
-		if (sigaction(fly_worker_signals[i].number, &__action, NULL) == -1)
+		if (sigaddset(&sset, fly_worker_signals[i].number) == -1)
 			return -1;
 	}
-	return 0;
+
+	sigfd = fly_signal_register(&sset);
+	if (sigfd == -1)
+		return -1;
+
+	e = fly_event_init(manager);
+	if (e == NULL)
+		return -1;
+
+	e->fd = sigfd;
+	e->read_or_write = FLY_READ;
+	e->tflag = FLY_INFINITY;
+	e->eflag = 0;
+	e->flag = FLY_PERSISTENT;
+	e->event_fase = NULL;
+	e->event_state = NULL;
+	e->expired = false;
+	e->available = false;
+	e->handler = __fly_worker_signal_handler;
+
+	fly_time_null(e->timeout);
+	fly_event_file_type(e, SIGNAL);
+	return fly_event_register(e);
 }
 
 /*
@@ -41,7 +101,7 @@ __fly_static int __fly_worker_signal_init(void)
  *		ctx:  passed from master process. include fly context info.
  *		data: custom data.
  */
-__direct_log __noreturn void fly_worker_process(__unused fly_context_t *ctx, __unused void *data)
+__direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused void *data)
 {
 	fly_event_manager_t *manager;
 	fly_event_t *event;
@@ -52,13 +112,6 @@ __direct_log __noreturn void fly_worker_process(__unused fly_context_t *ctx, __u
 			"invalid context(null context)."
 		);
 
-	/* signal setting */
-	if (__fly_worker_signal_init() == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"initialize worker signal error."
-		);
-
 	manager = fly_event_manager_init(ctx);
 	if (manager == NULL)
 		FLY_EMERGENCY_ERROR(
@@ -67,6 +120,13 @@ __direct_log __noreturn void fly_worker_process(__unused fly_context_t *ctx, __u
 		);
 
 	/* initial event */
+	/* signal setting */
+	if (__fly_worker_signal_event(manager, ctx) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_READY,
+			"initialize worker signal error."
+		);
+
 	event = __fly_listen_socket_event(manager, ctx);
 	if (event == NULL || fly_event_register(event) == -1)
 		FLY_EMERGENCY_ERROR(

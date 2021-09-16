@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "fsignal.h"
-#include "fs.h"
+#include "mount.h"
 #include "err.h"
 
 fly_signum_t fly_signals[] = {
@@ -54,7 +54,6 @@ int fly_signal_init(void)
 __attribute__((noreturn)) void fly_sigint_handler(__unused int signo)
 {
     fprintf(stderr, "Interrupt now (Ctrl+C)...\n");
-	fly_fs_release();
     exit(0);
 }
 
@@ -73,3 +72,18 @@ int fly_refresh_signal(void)
 	return 0;
 }
 
+int fly_signal_register(sigset_t *mask)
+{
+	int sigfd;
+
+	if (sigprocmask(SIG_BLOCK, mask, NULL) == -1)
+		return -1;
+
+	sigfd = signalfd(-1, mask, SFD_CLOEXEC|SFD_NONBLOCK);
+	return sigfd;
+}
+
+__noreturn int fly_signal_default_handler(struct signalfd_siginfo *)
+{
+	exit(0);
+}
