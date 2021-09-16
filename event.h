@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <sys/epoll.h>
+#include <sys/signalfd.h>
 #include <sys/timerfd.h>
 #include <sys/time.h>
 #include "alloc.h"
@@ -134,6 +135,7 @@ typedef struct fly_event fly_event_t;
 #define __FLY_DEVICE		0x04
 #define __FLY_SLINK			0x05
 #define __FLY_EPOLL			0x06
+#define __FLY_SIGNAL		0x07
 
 #define	fly_event_is_file_type(e, type)	((e)->file_type == __FLY_ ## type)
 #define fly_event_file_type(e, type)			((e)->file_type = __FLY_ ## type)

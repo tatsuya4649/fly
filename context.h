@@ -13,6 +13,7 @@ struct fly_context{
 	fly_sockinfo_t *listen_sock;
 	fly_log_t *log;
 	fly_route_reg_t *route_reg;
+	fly_mount_t *mount;
 };
 typedef struct fly_context fly_context_t;
 

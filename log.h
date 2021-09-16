@@ -8,7 +8,7 @@
 #include <fcntl.h>
 #include <sys/time.h>
 #include "util.h"
-#include "fs.h"
+#include "mount.h"
 #include "alloc.h"
 
 #define FLY_STDOUT_ENV(name)			("FLY_STDOUT_" # name)

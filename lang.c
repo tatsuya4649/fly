@@ -4,7 +4,7 @@
 
 __fly_static int __fly_accept_lang_init(fly_request_t *req);
 __fly_static int __fly_accept_lang_add_asterisk(fly_request_t *req);
-__fly_static void __fly_accept_lang_add(fly_lang_t *cs, struct __fly_lang *__nc);
+__fly_static void __fly_accept_lang_add(fly_lang_t *l, struct __fly_lang *__nc);
 static inline bool __fly_digit(char c);
 static inline bool __fly_lalpha(char c);
 static inline bool __fly_ualpha(char c);
@@ -24,7 +24,7 @@ static inline bool __fly_equal(char c);
 static inline bool __fly_point(char c);
 static inline bool __fly_comma(char c);
 
-__fly_static int __fly_al_parse(fly_lang_t *cs, fly_hdr_value *accept_lang);
+__fly_static int __fly_al_parse(fly_lang_t *l, fly_hdr_value *accept_lang);
 __fly_static int __fly_accept_lang_parse(fly_request_t *req, fly_hdr_value *accept_lang);
 static float __fly_qvalue_from_str(char *qvalue);
 __fly_static void __fly_lname_cpy(char *dist, char *src);
@@ -48,26 +48,26 @@ __fly_static int __fly_accept_lang(fly_hdr_ci *header, fly_hdr_value **value)
 		}
 	}
 
-	return __FLY_ACCEPT_LANG_FOUND;
+	return __FLY_ACCEPT_LANG_NOTFOUND;
 }
 
-__fly_static void __fly_accept_lang_add(fly_lang_t *cs, struct __fly_lang *__nc)
+__fly_static void __fly_accept_lang_add(fly_lang_t *l, struct __fly_lang *__nl)
 {
-	if (cs->langqty == 0){
-		cs->langs = __nc;
-		__nc->next = NULL;
+	if (l->langqty == 0){
+		l->langs = __nl;
+		__nl->next = NULL;
 	}else{
-		struct __fly_lang *__c;
-		for (__c=cs->langs; __c->next; __c=__c->next){
-			if (strcmp(__c->lname, __nc->lname) == 0)
+		struct __fly_lang *__l;
+		for (__l=l->langs; __l->next; __l=__l->next){
+			if (strcmp(__l->lname, __nl->lname) == 0)
 				return;
 		}
 
-		__c->next = __nc;
-		__nc->next = NULL;
+		__l->next = __nl;
+		__nl->next = NULL;
 	}
 
-	cs->langqty++;
+	l->langqty++;
 }
 
 __fly_static int __fly_accept_lang_add_asterisk(fly_request_t *req)
@@ -200,7 +200,7 @@ static inline bool __fly_comma(char c)
 	return (c == 0x2C) ? true : false;
 }
 
-__fly_static int __fly_al_parse(fly_lang_t *cs, fly_hdr_value *accept_lang)
+__fly_static int __fly_al_parse(fly_lang_t *l, fly_hdr_value *accept_lang)
 {
 #define __FLY_AL_PARSE_SUCCESS		1
 #define __FLY_AL_PARSE_PERROR		0
@@ -347,15 +347,15 @@ __fly_static int __fly_al_parse(fly_lang_t *cs, fly_hdr_value *accept_lang)
 		case ADD:
 			/* add new lang */
 			{
-				struct __fly_lang *__nc;
-				__nc = fly_pballoc(cs->request->pool, sizeof(struct __fly_lang));
-				if (__nc == NULL)
+				struct __fly_lang *__nl;
+				__nl = fly_pballoc(l->request->pool, sizeof(struct __fly_lang));
+				if (__nl == NULL)
 					return __FLY_AL_PARSE_ERROR;
-				__nc->next = NULL;
-				__nc->quality_value = __fly_qvalue_from_str(qvalue);
-				__fly_lname_cpy(__nc->lname, lang_str);
-				__fly_check_of_asterisk(__nc);
-				__fly_accept_lang_add(cs, __nc);
+				__nl->next = NULL;
+				__nl->quality_value = __fly_qvalue_from_str(qvalue);
+				__fly_lname_cpy(__nl->lname, lang_str);
+				__fly_check_of_asterisk(__nl);
+				__fly_accept_lang_add(l, __nl);
 			}
 			__FLY_AL_PARSE_PCSTATUS(ADD_END);
 		case ADD_END:
@@ -379,10 +379,10 @@ perror:
 
 __fly_static int __fly_accept_lang_parse(fly_request_t *req, fly_hdr_value *accept_lang)
 {
-	fly_lang_t *cs;
+	fly_lang_t *l;
 
-	cs = req->language;
-	return __fly_al_parse(cs, accept_lang);
+	l = req->language;
+	return __fly_al_parse(l, accept_lang);
 }
 
 int fly_accept_language(fly_request_t *req)
