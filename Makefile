@@ -3,7 +3,7 @@ CPP = g++
 CFLAG := -g3 -O0 -W -Wall -Werror -Wcast-align
 DEBUG_CFLAG := -g3 -O0
 TARGET = fly
-BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o
+BUILD_FILES := server.o response.o header.o alloc.o fs.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o lang.o
 PYBUILD_FILES := pyroute.o
 SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
 PYSOURCE_FILES := $(PYBUILD_FILES:%.o=%.c)

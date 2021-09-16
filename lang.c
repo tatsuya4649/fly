@@ -1,10 +1,10 @@
-#include "charset.h"
+#include "lang.h"
 #include "request.h"
 #include "header.h"
 
-__fly_static int __fly_accept_charset_init(fly_request_t *req);
-__fly_static int __fly_accept_add_asterisk(fly_request_t *req);
-__fly_static void __fly_accept_add(fly_charset_t *cs, struct __fly_charset *__nc);
+__fly_static int __fly_accept_lang_init(fly_request_t *req);
+__fly_static int __fly_accept_lang_add_asterisk(fly_request_t *req);
+__fly_static void __fly_accept_lang_add(fly_lang_t *cs, struct __fly_lang *__nc);
 static inline bool __fly_digit(char c);
 static inline bool __fly_lalpha(char c);
 static inline bool __fly_ualpha(char c);
@@ -24,42 +24,42 @@ static inline bool __fly_equal(char c);
 static inline bool __fly_point(char c);
 static inline bool __fly_comma(char c);
 
-__fly_static int __fly_ac_parse(fly_charset_t *cs, fly_hdr_value *accept_charset);
-__fly_static int __fly_accept_charset_parse(fly_request_t *req, fly_hdr_value *accept_charset);
+__fly_static int __fly_al_parse(fly_lang_t *cs, fly_hdr_value *accept_lang);
+__fly_static int __fly_accept_lang_parse(fly_request_t *req, fly_hdr_value *accept_lang);
 static float __fly_qvalue_from_str(char *qvalue);
-__fly_static void __fly_cname_cpy(char *dist, char *src);
-static inline void __fly_check_of_asterisk(struct __fly_charset *__nc);
-#define __FLY_ACCEPT_CHARSET_FOUND			(1)
-#define __FLY_ACCEPT_CHARSET_NOTFOUND		(0)
-#define __FLY_ACCEPT_CHARSET_ERROR			(-1)
-__fly_static int __fly_accept_charset(fly_hdr_ci *header, fly_hdr_value **value);
+__fly_static void __fly_lname_cpy(char *dist, char *src);
+static inline void __fly_check_of_asterisk(struct __fly_lang *__nc);
+#define __FLY_ACCEPT_LANG_FOUND			(1)
+#define __FLY_ACCEPT_LANG_NOTFOUND		(0)
+#define __FLY_ACCEPT_LANG_ERROR			(-1)
+__fly_static int __fly_accept_lang(fly_hdr_ci *header, fly_hdr_value **value);
 
-__fly_static int __fly_accept_charset(fly_hdr_ci *header, fly_hdr_value **value)
+__fly_static int __fly_accept_lang(fly_hdr_ci *header, fly_hdr_value **value)
 {
 	fly_hdr_c *__h;
 
 	if (header->chain_length == 0)
-		return __FLY_ACCEPT_CHARSET_FOUND;
+		return __FLY_ACCEPT_LANG_FOUND;
 
 	for (__h=header->entry; __h; __h=__h->next){
-		if (strcmp(__h->name, FLY_ACCEPT_CHARSET) == 0){
+		if (strcmp(__h->name, FLY_ACCEPT_LANG) == 0){
 			*value = __h->value;
-			return __FLY_ACCEPT_CHARSET_FOUND;
+			return __FLY_ACCEPT_LANG_FOUND;
 		}
 	}
 
-	return __FLY_ACCEPT_CHARSET_FOUND;
+	return __FLY_ACCEPT_LANG_FOUND;
 }
 
-__fly_static void __fly_accept_add(fly_charset_t *cs, struct __fly_charset *__nc)
+__fly_static void __fly_accept_lang_add(fly_lang_t *cs, struct __fly_lang *__nc)
 {
-	if (cs->charqty == 0){
-		cs->charsets = __nc;
+	if (cs->langqty == 0){
+		cs->langs = __nc;
 		__nc->next = NULL;
 	}else{
-		struct __fly_charset *__c;
-		for (__c=cs->charsets; __c->next; __c=__c->next){
-			if (strcmp(__c->cname, __nc->cname) == 0)
+		struct __fly_lang *__c;
+		for (__c=cs->langs; __c->next; __c=__c->next){
+			if (strcmp(__c->lname, __nc->lname) == 0)
 				return;
 		}
 
@@ -67,43 +67,42 @@ __fly_static void __fly_accept_add(fly_charset_t *cs, struct __fly_charset *__nc
 		__nc->next = NULL;
 	}
 
-	cs->charqty++;
+	cs->langqty++;
 }
 
-__fly_static int __fly_accept_add_asterisk(fly_request_t *req)
+__fly_static int __fly_accept_lang_add_asterisk(fly_request_t *req)
 {
-	struct __fly_charset *__cs;
+	struct __fly_lang *__l;
 
-	__cs = fly_pballoc(req->pool, sizeof(struct __fly_charset));
-	if (__cs == NULL)
+	__l = fly_pballoc(req->pool, sizeof(struct __fly_lang));
+	if (__l == NULL)
 		return -1;
 
-	strcpy(__cs->cname, "*");
-	__cs->quality_value = FLY_CHARSET_QVALUE_MAX;
-	__cs->next = NULL;
-	__cs->asterisk = true;
-
-	__fly_accept_add(req->charset, __cs);
+	strcpy(__l->lname, "*");
+	__l->next = NULL;
+	__l->quality_value = FLY_LANG_QVALUE_MAX;
+	__l->asterisk = true;
+	__fly_accept_lang_add(req->language, __l);
 	return 0;
 }
 
-__fly_static int __fly_accept_charset_init(fly_request_t *req)
+__fly_static int __fly_accept_lang_init(fly_request_t *req)
 {
-	fly_charset_t *charset;
+	fly_lang_t *lang;
 	fly_pool_t *pool;
 
 	pool = req->pool;
 	if (!pool)
 		return -1;
 
-	charset = fly_pballoc(pool, sizeof(fly_charset_t));
-	if (charset == NULL)
+	lang = fly_pballoc(pool, sizeof(fly_lang_t));
+	if (lang == NULL)
 		return -1;
 
-	charset->charqty = 0;
-	charset->charsets = NULL;
-	charset->request = req;
-	req->charset = charset;
+	lang->langqty = 0;
+	lang->langs = NULL;
+	lang->request = req;
+	req->language = lang;
 
 	return 0;
 }
@@ -146,7 +145,7 @@ static inline bool __fly_token(char c)
 	return __fly_tchar(c) ? true : false;
 }
 
-static inline bool __fly_charset(char c)
+static inline bool __fly_lang(char c)
 {
 	return __fly_token(c) ? true : false;
 }
@@ -201,17 +200,17 @@ static inline bool __fly_comma(char c)
 	return (c == 0x2C) ? true : false;
 }
 
-__fly_static int __fly_ac_parse(fly_charset_t *cs, fly_hdr_value *accept_charset)
+__fly_static int __fly_al_parse(fly_lang_t *cs, fly_hdr_value *accept_lang)
 {
-#define __FLY_AC_PARSE_SUCCESS		1
-#define __FLY_AC_PARSE_PERROR		0
-#define __FLY_AC_PARSE_ERROR		-1
-#define __FLY_AC_PARSE_PBSTATUS(s)		\
+#define __FLY_AL_PARSE_SUCCESS		1
+#define __FLY_AL_PARSE_PERROR		0
+#define __FLY_AL_PARSE_ERROR		-1
+#define __FLY_AL_PARSE_PBSTATUS(s)		\
 	{									\
 		pstatus = (s);					\
 		break;							\
 	}
-#define __FLY_AC_PARSE_PCSTATUS(s)		\
+#define __FLY_AL_PARSE_PCSTATUS(s)		\
 	{									\
 		pstatus = (s);					\
 		continue;							\
@@ -219,7 +218,7 @@ __fly_static int __fly_ac_parse(fly_charset_t *cs, fly_hdr_value *accept_charset
 	fly_hdr_value *ptr;
 	enum{
 		INIT,
-		CHARSET,
+		LANG,
 		WOWS1,
 		WSEMICOLON,
 		WOWS2,
@@ -237,174 +236,174 @@ __fly_static int __fly_ac_parse(fly_charset_t *cs, fly_hdr_value *accept_charset
 		ADD_END,
 		END,
 	} pstatus;
-	char *charset_str=NULL, *qvalue=NULL;
+	char *lang_str=NULL, *qvalue=NULL;
 	int decimal_places=0;
 
-	ptr = accept_charset;
+	ptr = accept_lang;
 	pstatus = INIT;
 	while(true)
 	{
 		switch(pstatus){
 		case INIT:
-			charset_str = NULL;
+			lang_str = NULL;
 			qvalue = NULL;
 			decimal_places = 0;
-			if (__fly_charset(*ptr)){
-				charset_str = ptr;
-				__FLY_AC_PARSE_PCSTATUS(CHARSET);
+			if (__fly_lang(*ptr)){
+				lang_str = ptr;
+				__FLY_AL_PARSE_PCSTATUS(LANG);
 			}
 
 			goto perror;
-		case CHARSET:
+		case LANG:
 			if (__fly_comma(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(COMMA);
+				__FLY_AL_PARSE_PCSTATUS(COMMA);
 			if (__fly_zeros(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(ADD);
+				__FLY_AL_PARSE_PCSTATUS(ADD);
 			if (__fly_semicolon(*ptr))
-				__FLY_AC_PARSE_PBSTATUS(WSEMICOLON);
+				__FLY_AL_PARSE_PBSTATUS(WSEMICOLON);
 			if (__fly_space(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(WOWS1);
+				__FLY_AL_PARSE_PCSTATUS(WOWS1);
 
-			if (__fly_charset(*ptr)) break;
+			if (__fly_lang(*ptr)) break;
 			goto perror;
 		case WOWS1:
 			if (__fly_space(*ptr))	break;
 			if (__fly_semicolon(*ptr))
-					__FLY_AC_PARSE_PBSTATUS(WSEMICOLON);
+					__FLY_AL_PARSE_PBSTATUS(WSEMICOLON);
 			goto perror;
 		case WSEMICOLON:
 			if (__fly_space(*ptr))
-				__FLY_AC_PARSE_PBSTATUS(WOWS2);
+				__FLY_AL_PARSE_PBSTATUS(WOWS2);
 			if (__fly_q(*ptr))
-				__FLY_AC_PARSE_PBSTATUS(WQ);
+				__FLY_AL_PARSE_PBSTATUS(WQ);
 
 			goto perror;
 		case WOWS2:
 			if (__fly_space(*ptr))	break;
 			if (__fly_q(*ptr))
-				__FLY_AC_PARSE_PBSTATUS(WQ);
+				__FLY_AL_PARSE_PBSTATUS(WQ);
 
 			goto perror;
 		case WQ:
 			if (__fly_equal(*ptr))
-				__FLY_AC_PARSE_PBSTATUS(WQEQUAL);
+				__FLY_AL_PARSE_PBSTATUS(WQEQUAL);
 
 			goto perror;
 		case WQEQUAL:
 			if (__fly_one(*ptr)){
 				/* start of quality value */
 				qvalue = ptr;
-				__FLY_AC_PARSE_PBSTATUS(WQ_ONE_INT);
+				__FLY_AL_PARSE_PBSTATUS(WQ_ONE_INT);
 			}
 			if (__fly_zero(*ptr)){
 				/* start of quality value */
 				qvalue = ptr;
-				__FLY_AC_PARSE_PBSTATUS(WQ_ZERO_INT);
+				__FLY_AL_PARSE_PBSTATUS(WQ_ZERO_INT);
 			}
 
 			goto perror;
 		case WQ_ONE_INT:
 			if (__fly_point(*ptr))
-				__FLY_AC_PARSE_PBSTATUS(WQ_ONE_POINT);
+				__FLY_AL_PARSE_PBSTATUS(WQ_ONE_POINT);
 			if (__fly_comma(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(COMMA);
+				__FLY_AL_PARSE_PCSTATUS(COMMA);
 			if (__fly_zeros(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(ADD);
+				__FLY_AL_PARSE_PCSTATUS(ADD);
 			goto perror;
 		case WQ_ONE_POINT:
 			if (__fly_zero(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(WQ_ONE_DECIMAL_PLACE);
+				__FLY_AL_PARSE_PCSTATUS(WQ_ONE_DECIMAL_PLACE);
 			goto perror;
 		case WQ_ONE_DECIMAL_PLACE:
 			if (__fly_zero(*ptr) && decimal_places++ < 3)	break;
 			if (__fly_comma(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(COMMA);
+				__FLY_AL_PARSE_PCSTATUS(COMMA);
 			if (__fly_zeros(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(ADD);
+				__FLY_AL_PARSE_PCSTATUS(ADD);
 			goto perror;
 		case WQ_ZERO_INT:
 			if (__fly_point(*ptr))
-				__FLY_AC_PARSE_PBSTATUS(WQ_ZERO_POINT);
+				__FLY_AL_PARSE_PBSTATUS(WQ_ZERO_POINT);
 			if (__fly_comma(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(COMMA);
+				__FLY_AL_PARSE_PCSTATUS(COMMA);
 			if (__fly_zeros(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(ADD);
+				__FLY_AL_PARSE_PCSTATUS(ADD);
 			goto perror;
 		case WQ_ZERO_POINT:
 			if (__fly_digit(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(WQ_ZERO_DECIMAL_PLACE);
+				__FLY_AL_PARSE_PCSTATUS(WQ_ZERO_DECIMAL_PLACE);
 
 			goto perror;
 		case WQ_ZERO_DECIMAL_PLACE:
 			if (__fly_digit(*ptr) && decimal_places++ < 3)	break;
 			if (__fly_comma(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(COMMA);
+				__FLY_AL_PARSE_PCSTATUS(COMMA);
 			if (__fly_zeros(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(ADD);
+				__FLY_AL_PARSE_PCSTATUS(ADD);
 
 			goto perror;
 		case COMMA:
-			__FLY_AC_PARSE_PCSTATUS(ADD);
+			__FLY_AL_PARSE_PCSTATUS(ADD);
 		case ADD:
-			/* add new charset */
+			/* add new lang */
 			{
-				struct __fly_charset *__nc;
-				__nc = fly_pballoc(cs->request->pool, sizeof(struct __fly_charset));
+				struct __fly_lang *__nc;
+				__nc = fly_pballoc(cs->request->pool, sizeof(struct __fly_lang));
 				if (__nc == NULL)
-					return __FLY_AC_PARSE_ERROR;
+					return __FLY_AL_PARSE_ERROR;
 				__nc->next = NULL;
 				__nc->quality_value = __fly_qvalue_from_str(qvalue);
-				__fly_cname_cpy(__nc->cname, charset_str);
+				__fly_lname_cpy(__nc->lname, lang_str);
 				__fly_check_of_asterisk(__nc);
-				__fly_accept_add(cs, __nc);
+				__fly_accept_lang_add(cs, __nc);
 			}
-			__FLY_AC_PARSE_PCSTATUS(ADD_END);
+			__FLY_AL_PARSE_PCSTATUS(ADD_END);
 		case ADD_END:
 			if (__fly_space(*ptr))	break;
 			if (__fly_comma(*ptr))	break;
 			if (__fly_zeros(*ptr))
-				__FLY_AC_PARSE_PCSTATUS(END);
+				__FLY_AL_PARSE_PCSTATUS(END);
 
 			/* back to init */
-			__FLY_AC_PARSE_PCSTATUS(INIT);
+			__FLY_AL_PARSE_PCSTATUS(INIT);
 		case END:
-			return __FLY_AC_PARSE_SUCCESS;
+			return __FLY_AL_PARSE_SUCCESS;
 		default:
-			return __FLY_AC_PARSE_ERROR;
+			return __FLY_AL_PARSE_ERROR;
 		}
 		ptr++;
 	}
 perror:
-	return __FLY_AC_PARSE_PERROR;
+	return __FLY_AL_PARSE_PERROR;
 }
 
-__fly_static int __fly_accept_charset_parse(fly_request_t *req, fly_hdr_value *accept_charset)
+__fly_static int __fly_accept_lang_parse(fly_request_t *req, fly_hdr_value *accept_lang)
 {
-	fly_charset_t *cs;
+	fly_lang_t *cs;
 
-	cs = req->charset;
-	return __fly_ac_parse(cs, accept_charset);
+	cs = req->language;
+	return __fly_al_parse(cs, accept_lang);
 }
 
-int fly_accept_charset(fly_request_t *req)
+int fly_accept_language(fly_request_t *req)
 {
 	fly_hdr_ci *header;
-	fly_hdr_value *accept_charset;
+	fly_hdr_value *accept_lang;
 
 	header = req->header;
 	if (header == NULL)
 		return -1;
 
-	if (__fly_accept_charset_init(req) == -1)
+	if (__fly_accept_lang_init(req) == -1)
 		return -1;
-	switch(__fly_accept_charset(header, &accept_charset)){
-	case __FLY_ACCEPT_CHARSET_FOUND:
-		return __fly_accept_charset_parse(req, accept_charset);
-	case __FLY_ACCEPT_CHARSET_NOTFOUND:
-		if (__fly_accept_add_asterisk(req))
+	switch(__fly_accept_lang(header, &accept_lang)){
+	case __FLY_ACCEPT_LANG_FOUND:
+		return __fly_accept_lang_parse(req, accept_lang);
+	case __FLY_ACCEPT_LANG_NOTFOUND:
+		if (__fly_accept_lang_add_asterisk(req))
 			return -1;
 		return 0;
-	case __FLY_ACCEPT_CHARSET_ERROR:
+	case __FLY_ACCEPT_LANG_ERROR:
 		return -1;
 	default:
 		FLY_NOT_COME_HERE
@@ -415,23 +414,23 @@ int fly_accept_charset(fly_request_t *req)
 static float __fly_qvalue_from_str(char *qvalue)
 {
 	if (!qvalue || __fly_one(*qvalue))
-		return FLY_CHARSET_QVALUE_MAX;
+		return FLY_LANG_QVALUE_MAX;
 	return atof(qvalue);
 }
 
-__fly_static void __fly_cname_cpy(char *dist, char *src)
+__fly_static void __fly_lname_cpy(char *dist, char *src)
 {
 	int i=0;
 
-	while (__fly_charset(*src) && !__fly_comma(*src) && i++ < FLY_CHARSET_MAXLEN)
+	while (__fly_lang(*src) && !__fly_comma(*src) && i++ < FLY_LANG_MAXLEN)
 		*dist++ = *src++;
 
 	*dist = '\0';
 }
 
-static inline void __fly_check_of_asterisk(struct __fly_charset *__nc)
+static inline void __fly_check_of_asterisk(struct __fly_lang *__nc)
 {
-	if (strcmp(__nc->cname, "*") == 0)
+	if (strcmp(__nc->lname, "*") == 0)
 		__nc->asterisk = true;
 	else
 		__nc->asterisk = false;
