@@ -823,10 +823,15 @@ static struct __fly_mime_type __fly_mime_type_list[] = {
 	__FLY_MIME_NULL
 };
 
+static inline char __fly_lu_ignore(char c)
+{
+	return __fly_ualpha(c) ? (c+0x20) : c;
+}
+
 __fly_static int __fly_same_type(char *t1, char *t2)
 {
 	while(!__fly_slash(*t2))
-		if (*t1++ != *t2++)
+		if (__fly_lu_ignore(*t1++) != __fly_lu_ignore(*t2++))
 			return -1;
 
 	return 0;

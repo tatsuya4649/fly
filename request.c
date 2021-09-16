@@ -791,8 +791,12 @@ __fase_header:
 	if (fly_accept_encoding(request) == -1)
 		goto error;
 
-	/* accept parse(mime) */
+	/* accept mime parse */
 	if (fly_accept_mime(request) == -1)
+		goto error;
+
+	/* accept charset parse */
+	if (fly_accept_charset(request) == -1)
 		goto error;
 
 	/* check of having body */
