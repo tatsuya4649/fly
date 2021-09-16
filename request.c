@@ -799,6 +799,10 @@ __fase_header:
 	if (fly_accept_charset(request) == -1)
 		goto error;
 
+	/* accept language parse */
+	if (fly_accept_language(request) == -1)
+		goto error;
+
 	/* check of having body */
 	if (fly_content_length(request->header) == 0)
 		goto __fase_end_of_parse;

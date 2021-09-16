@@ -57,6 +57,7 @@ typedef enum fly_request_state fly_request_state_t;
 #include "encode.h"
 #include "mime.h"
 #include "charset.h"
+#include "lang.h"
 struct fly_request{
 	fly_pool_t *pool;
 	fly_connect_t *connect;
@@ -69,6 +70,7 @@ struct fly_request{
 	fly_encoding_t *encoding;
 	fly_mime_t *mime;
 	fly_charset_t *charset;
+	fly_lang_t *language;
 };
 typedef struct fly_request fly_request_t;
 

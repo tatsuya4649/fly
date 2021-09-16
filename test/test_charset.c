@@ -13,7 +13,7 @@ int main()
 	cs.charqty = 0;
 	cs.request = &req;
 
-	char *value = "iso-8859-5, unicode-1-1;q=0.8";
+	char *value = "*, iso-8859-5, unicode-1-1;q=0.8";
 
 	assert(__fly_ac_parse(&cs, value));
 }
