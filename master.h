@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/resource.h>
+#include <sys/inotify.h>
 #include "fsignal.h"
 #include "config.h"
 #include "alloc.h"
@@ -37,13 +38,13 @@ extern fly_signal_t fly_master_signals[];
 int fly_master_daemon(void);
 int fly_create_pidfile(void);
 int fly_remove_pidfile(void);
-int fly_master_init(void);
+fly_context_t *fly_master_init(void);
 /*
  * waiting for signal foever. wait or end.
  */
-//__noreturn void fly_master_waiting_for_signal(void);
 __direct_log __noreturn void fly_master_process(fly_context_t *ctx);
 void fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
+void fly_master_process(fly_context_t *ctx);
 
 #define FLY_ROOT_DIR		("/")
 #define __FLY_DEVNULL		("/dev/null")

@@ -31,4 +31,8 @@
 int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr);
 
 #define FLY_NOT_COME_HERE		assert(0);
+#define fly_unlikely(x)			(__builtin_expect(!!(x), 0))
+#define fly_likely(x)			(__builtin_expect(!!(x), 1))
+#define fly_unlikely_null(x)		(fly_unlikely(!(x)))
+#define fly_unlikely_minus_one(x)		(fly_unlikely((x) == -1))
 #endif

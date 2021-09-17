@@ -8,17 +8,19 @@ fly_master_t fly_master_info = {
 	.pool = NULL,
 };
 __fly_static int __fly_get_req_workers(void);
-__fly_static int __fly_master_signal_init(void);
 __fly_static int __fly_master_fork(fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data);
 __fly_static void __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
 __fly_static int __fly_insert_workerp(fly_worker_t *w);
 __fly_static fly_worker_id __fly_get_worker_id(void);
 __fly_static void __fly_remove_workerp(pid_t cpid);
 __fly_static int __fly_master_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
-__fly_static int __fly_msignal_handler(struct signalfd_siginfo *info);
+__fly_static int __fly_msignal_handle(struct signalfd_siginfo *info);
 __fly_static int __fly_master_signal_handler(fly_event_t *);
 __fly_static void __fly_workers_rebalance(int change);
 __fly_static void __fly_sigchld(__unused struct signalfd_siginfo *info);
+__fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
+__fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
+__fly_static int __fly_master_inotify_handler(fly_event_t *);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 
 fly_signal_t fly_master_signals[] = {
@@ -277,10 +279,10 @@ __fly_static int __fly_master_signal_event(fly_event_manager_t *manager, __unuse
 	e->event_state = NULL;
 	e->expired = false;
 	e->available = false;
-	e->handler = __fly_master_signal_handler;
+	FLY_EVENT_HANDLER(e, __fly_master_signal_handler);
 
 	fly_time_null(e->timeout);
-	fly_event_file_type(e, SIGNAL);
+	fly_event_signal(e);
 	return fly_event_register(e);
 }
 
@@ -295,7 +297,7 @@ __fly_static int __fly_get_req_workers(void)
 	return atoi(reqworkers_env);
 }
 
-int fly_master_init(void)
+fly_context_t *fly_master_init(void)
 {
 	fly_master_info.pid = getpid();
 	fly_master_info.now_workers = 0;
@@ -311,18 +313,13 @@ int fly_master_init(void)
 			"Master context setting error."
 		);
 
-	if (__fly_master_signal_init() == -1)
-		FLY_STDERR_ERROR(
-			"Master signal setting error."
-		);
-
 	fly_master_info.pool = fly_create_pool(FLY_MASTER_POOL_SIZE);
 	if (fly_master_info.pool == NULL)
 		FLY_STDERR_ERROR(
 			"Making master pool error."
 		);
 
-	return 0;
+	return fly_master_info.context;
 }
 
 __direct_log __noreturn void fly_master_process(fly_context_t *ctx)
@@ -342,6 +339,11 @@ __direct_log __noreturn void fly_master_process(fly_context_t *ctx)
 			FLY_EMERGENCY_STATUS_READY,
 			"initialize worker signal error."
 		);
+	if (__fly_master_inotify_event(manager, ctx) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_READY,
+			"initialize worker inotify error."
+		);
 
 	/* event handler start here */
 	if (fly_event_handler(manager) == -1)
@@ -353,24 +355,6 @@ __direct_log __noreturn void fly_master_process(fly_context_t *ctx)
 	/* will not come here. */
 	FLY_NOT_COME_HERE
 }
-
-//__fly_static int __fly_master_signal_init(void)
-//{
-//	if (fly_refresh_signal() == -1)
-//		return -1;
-//	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++){
-//		struct sigaction __action;
-//
-//		if (fly_master_signals[i].handler == NULL)
-//			__action.sa_sigaction = __fly_only_recv;
-//		else
-//			__action.sa_sigaction = fly_master_signals[i].handler;
-//		__action.sa_flags = SA_SIGINFO;
-//		if (sigaction(fly_master_signals[i].number, &__action, NULL) == -1)
-//			return -1;
-//	}
-//	return 0;
-//}
 
 int fly_create_pidfile(void)
 {
@@ -576,4 +560,43 @@ __fly_static fly_worker_id __fly_get_worker_id(void)
 	for (fly_worker_t *w=fly_master_info.workers; w!=NULL; w=w->next)
 		i++;
 	return i;
+}
+
+__fly_static int __fly_master_inotify_handler(fly_event_t *)
+{
+	return 0;
+}
+
+__fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, fly_context_t *ctx)
+{
+	fly_event_t *e;
+	int inofd;
+
+	e = fly_event_init(manager);
+	if (fly_unlikely_null(e))
+		return -1;
+
+	if (!ctx || !ctx->mount)
+		return -1;
+
+	inofd = inotify_init1(IN_CLOEXEC|IN_NONBLOCK);
+	if (inofd == -1)
+		return -1;
+
+	/* TODO: add watch */
+	if (fly_mount_inotify(ctx->mount, inofd) == -1)
+		return -1;
+
+	e->fd = inofd;
+	e->read_or_write = FLY_READ;
+	e->eflag = 0;
+	fly_time_null(e->timeout);
+	e->flag = FLY_PERSISTENT;
+	e->tflag = FLY_INFINITY;
+	FLY_EVENT_HANDLER(e, __fly_master_inotify_handler);
+	e->expired = false;
+	e->available = false;
+	fly_event_inotify(e);
+
+	return fly_event_register(e);
 }
