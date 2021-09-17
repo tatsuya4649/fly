@@ -8,6 +8,7 @@
 #include "mount.h"
 #include "alloc.h"
 #include "err.h"
+#include "cache.h"
 
 __fly_static int __fly_send_file(int c_sockfd, struct fly_mount_parts_file *__f, off_t *offset, size_t count);
 
@@ -147,6 +148,9 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path)
 		strcpy(pfile->filename, __ent->d_name);
 		pfile->parts = parts;
 		pfile->next = NULL;
+		pfile->wd = -1;
+		if (fly_hash_from_parts_file(pfile) == -1)
+			return -1;
 
 		__fly_parts_file_add(parts, pfile);
 	}
@@ -154,12 +158,20 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path)
 	return 0;
 }
 
-int fly_mount(fly_mount_t *mnt, const char *path)
+int fly_mount(fly_context_t *ctx, const char *path)
 {
+	fly_mount_t *mnt;
 	fly_mount_parts_t *parts;
 	fly_pool_t *pool;
+	char rpath[FLY_PATH_MAX];
+
+	if (!ctx || !ctx->mount)
+		return -1;
+	mnt = ctx->mount;
 
 	if (path == NULL || strlen(path) > FLY_PATH_MAX)
+		return FLY_EARG;
+	if (!fly_isdir(path))
 		return FLY_EARG;
 
 	pool = mnt->ctx->pool;
@@ -167,10 +179,13 @@ int fly_mount(fly_mount_t *mnt, const char *path)
 	if (parts == NULL)
 		return -1;
 
-	__fly_mount_path_cpy(parts->mount_path, path);
+	if (realpath(path, rpath) == NULL)
+		return -1;
+	__fly_mount_path_cpy(parts->mount_path, rpath);
 	parts->mount_number = mnt->mount_count;
 	parts->mount = mnt;
 	parts->next = NULL;
+	parts->wd = -1;
 
 	if (__fly_mount_add(mnt, parts) == -1){
 		/* TODO: release parts */
@@ -285,5 +300,36 @@ __fly_static int __fly_send_file(int c_sockfd, struct fly_mount_parts_file *__f,
 			return -1;
 	}
 
+	return 0;
+}
+
+int fly_mount_inotify(fly_mount_t *mount, int ifd)
+{
+	for (int i=0; i<mount->mount_count; i++){
+		fly_mount_parts_t *parts;
+		parts = &mount->parts[i];
+		if (parts->file_count == 0)
+			continue;
+		/* inotify add watch dir */
+		int dwd;
+		dwd = inotify_add_watch(ifd, parts->mount_path, IN_CREATE|IN_DELETE|IN_DELETE_SELF|IN_MOVE|IN_MOVE_SELF);
+		if (dwd == -1)
+			return -1;
+		parts->wd = dwd;
+
+		/* inotify add watch file */
+		for (struct fly_mount_parts_file *__pf=parts->files; __pf; __pf=__pf->next){
+			int wd;
+			char rpath[FLY_PATH_MAX];
+
+			if (fly_join_path(rpath, parts->mount_path, __pf->filename) == -1)
+				continue;
+			wd = inotify_add_watch(ifd, rpath, IN_MODIFY|IN_DELETE_SELF|IN_MOVE_SELF|IN_ATTRIB);
+			if (wd == -1)
+				return -1;
+
+			__pf->wd = wd;
+		}
+	}
 	return 0;
 }

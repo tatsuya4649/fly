@@ -20,13 +20,14 @@ static void worker(__unused fly_context_t *ctx, void *workers)
 
 int main()
 {
+	fly_context_t *ctx;
 	pid_t pid;
 
 	if (setenv(FLY_PORT_ENV, PORT,1) == -1)
 		return -1;
 	assert(setenv(FLY_WORKERS_ENV, WORKERS, 1) != -1);
 	/* master signal test */
-	assert(fly_master_init() == 0);
+	assert((ctx=fly_master_init()) != NULL);
 
 	/* create pid */
 	assert(fly_create_pidfile() != -1);
@@ -34,5 +35,8 @@ int main()
 	/* master fork process */
 	fly_master_worker_spawn(worker);
 
-	fly_master_waiting_for_signal();
+	/* mount setting */
+	assert(fly_mount_init(ctx) != -1);
+	assert(fly_mount(ctx, "./test") != -1);
+	fly_master_process(ctx);
 }
