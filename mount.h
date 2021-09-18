@@ -13,6 +13,7 @@
 struct fly_mount_parts_file{
 	int fd;
 	int wd;
+	int infd;
 	char filename[FLY_PATHNAME_MAX];
 	struct fly_mount_parts *parts;
 	struct fly_file_hash *hash;
@@ -22,6 +23,7 @@ struct fly_mount_parts_file{
 
 struct fly_mount_parts{
 	int wd;
+	int infd;
 	char mount_path[FLY_PATH_MAX];
 	int mount_number;
 
@@ -56,5 +58,24 @@ int fly_join_path(char *buffer, char *join1, char *join2);
 int fly_from_path(int c_sockfd, fly_mount_t *mnt, int mount_number, char *filename, off_t *offset, size_t count);
 
 int fly_mount_inotify(fly_mount_t *mount, int ifd);
+
+struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts);
+fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt);
+struct fly_mount_parts_file *fly_wd_from_mount(int wd, fly_mount_t *mnt);
+int fly_inotify_add_watch(__unused fly_mount_parts_t *parts, __unused char *path);
+#define FLY_INOTIFY_RM_WATCH_PF				(1<<0)
+#define FLY_INOTIFY_RM_WATCH_MP				(1<<1)
+#define FLY_INOTIFY_RM_WATCH_IGNORED		(1<<2)
+#define FLY_INOTIFY_RM_WATCH_DELETED		(1<<3)
+
+int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, int mask);
+int fly_inotify_rmmp(fly_mount_parts_t *parts);
+
+#define FLY_INOTIFY_WATCH_FLAG_PF	(IN_MODIFY|IN_ATTRIB)
+#define FLY_INOTIFY_WATCH_FLAG_MP	(IN_CREATE|IN_DELETE_SELF|IN_DELETE|IN_MOVE|IN_MOVE_SELF|IN_ONLYDIR)
+#define FLY_NUMBER_OF_INOBUF				(100)
+#define is_fly_myself(ie)				((ie)->len == 0)
+
+int fly_parts_file_remove(fly_mount_parts_t *parts, char *filename);
 
 #endif

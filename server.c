@@ -54,6 +54,10 @@ int fly_socket_init(int port, fly_sockinfo_t *info){
 		close(sockfd);
 	}
 
+	/* can't bind to port */
+	if (rp == NULL)
+		return -1;
+
 	if (getnameinfo((const struct sockaddr *) rp->ai_addr, (socklen_t) rp->ai_addrlen, info->hostname, NI_MAXHOST, info->servname, NI_MAXSERV, FLY_LISTEN_SOCKINFO_FLAG) != 0)
 		goto error;
 	if (listen(sockfd, FLY_BACKLOG_DEFAULT) == -1)

@@ -58,7 +58,7 @@ __attribute__((noreturn)) void fly_sigint_handler(__unused int signo)
 }
 
 
-void __fly_only_recv(int, siginfo_t *, void *)
+void __fly_only_recv(fly_context_t *, struct signalfd_siginfo *)
 {
 	return;
 }

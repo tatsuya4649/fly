@@ -5,6 +5,7 @@
 /build/
 /lib/
 /log/
+/mnt/
 __pycache__/
 /server
 /GPATH

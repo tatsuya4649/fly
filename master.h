@@ -43,7 +43,7 @@ fly_context_t *fly_master_init(void);
  * waiting for signal foever. wait or end.
  */
 __direct_log __noreturn void fly_master_process(fly_context_t *ctx);
-void fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
+void fly_master_worker_spawn(fly_context_t *ctx, void (*proc)(fly_context_t *, void *));
 void fly_master_process(fly_context_t *ctx);
 
 #define FLY_ROOT_DIR		("/")

@@ -1,5 +1,6 @@
 #include "master.h"
 #include "util.h"
+#include "cache.h"
 
 fly_master_t fly_master_info = {
 	.req_workers = -1,
@@ -14,10 +15,10 @@ __fly_static int __fly_insert_workerp(fly_worker_t *w);
 __fly_static fly_worker_id __fly_get_worker_id(void);
 __fly_static void __fly_remove_workerp(pid_t cpid);
 __fly_static int __fly_master_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
-__fly_static int __fly_msignal_handle(struct signalfd_siginfo *info);
+__fly_static int __fly_msignal_handle(fly_context_t *ctx, struct signalfd_siginfo *info);
 __fly_static int __fly_master_signal_handler(fly_event_t *);
-__fly_static void __fly_workers_rebalance(int change);
-__fly_static void __fly_sigchld(__unused struct signalfd_siginfo *info);
+__fly_static void __fly_workers_rebalance(fly_context_t *ctx, int change);
+__fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *info);
 __fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
 __fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
 __fly_static int __fly_master_inotify_handler(fly_event_t *);
@@ -113,16 +114,17 @@ int fly_master_daemon(void)
  *  adjust workers number.
  *
  */
-__fly_static void __fly_workers_rebalance(int change)
+__fly_static void __fly_workers_rebalance(fly_context_t *ctx,int change)
 {
 	/* after change */
 	fly_master_info.now_workers += change;
 	fly_master_worker_spawn(
+		ctx,
 		fly_master_info.worker_process
 	);
 }
 
-__fly_static void __fly_sigchld(__unused struct signalfd_siginfo *info)
+__fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *info)
 {
 	switch(info->ssi_code){
 	case CLD_CONTINUED:
@@ -207,18 +209,18 @@ decrement:
 		info->ssi_code
 	);
 
-	__fly_workers_rebalance(-1);
+	__fly_workers_rebalance(ctx, -1);
 	__fly_remove_workerp(info->ssi_pid);
 }
 
-__fly_static int __fly_msignal_handle(struct signalfd_siginfo *info)
+__fly_static int __fly_msignal_handle(fly_context_t *ctx, struct signalfd_siginfo *info)
 {
 
 	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++){
 		fly_signal_t *__s = &fly_master_signals[i];
 		if (__s->number == (fly_signum_t) info->ssi_signo){
 			if (__s->handler)
-				__s->handler(info);
+				__s->handler(ctx, info);
 			else
 				fly_signal_default_handler(info);
 		}
@@ -239,7 +241,7 @@ __fly_static int __fly_master_signal_handler(fly_event_t *e)
 			else
 				return -1;
 		}
-		if (__fly_msignal_handle(&info) == -1)
+		if (__fly_msignal_handle(e->manager->ctx, &info) == -1)
 			return -1;
 	}
 
@@ -444,8 +446,13 @@ __fly_static void __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *
 	}
 }
 
-void fly_master_worker_spawn(void (*proc)(fly_context_t *, void *))
+void fly_master_worker_spawn(fly_context_t *ctx, void (*proc)(fly_context_t *, void *))
 {
+	if (!ctx || !ctx->mount)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"not found mounts info. need one or more mount points."
+		);
 	__fly_master_worker_spawn(proc);
 }
 
@@ -562,8 +569,111 @@ __fly_static fly_worker_id __fly_get_worker_id(void)
 	return i;
 }
 
-__fly_static int __fly_master_inotify_handler(fly_event_t *)
+__fly_static int __fly_inotify_in_mp(fly_mount_parts_t *parts, __unused struct inotify_event *ie)
 {
+	int mask;
+
+	mask = ie->mask;
+	if (mask & IN_CREATE){
+		if (fly_inotify_add_watch(parts, ie->name) == -1)
+			return -1;
+	}
+	if (mask & IN_DELETE){
+		if (fly_inotify_rm_watch(parts, ie->name, mask) == -1)
+			return -1;
+	}
+	if (mask & IN_DELETE_SELF){
+		if (fly_inotify_rmmp(parts) == -1)
+			return -1;
+	}
+	if (mask & IN_MOVED_FROM){
+		if (fly_inotify_rm_watch(parts, ie->name, mask) == -1)
+			return -1;
+	}
+	if (mask & IN_MOVED_TO){
+		if (fly_inotify_add_watch(parts, ie->name) == -1)
+			return -1;
+	}
+	if (mask & IN_MOVE_SELF){
+		if (fly_inotify_rmmp(parts) == -1)
+			return -1;
+	}
+	return 0;
+}
+
+__fly_static int __fly_inotify_in_pf(__unused struct fly_mount_parts_file *pf, struct inotify_event *ie)
+{
+	int mask;
+	char rpath[FLY_PATH_MAX];
+
+	if (fly_join_path(rpath, pf->parts->mount_path, pf->filename) == -1)
+		return -1;
+
+	mask = ie->mask;
+	if (mask & IN_MODIFY){
+		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+			return -1;
+	}
+	if (mask & IN_ATTRIB){
+		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+			return -1;
+	}
+	return 0;
+}
+
+__fly_static int __fly_inotify_handle(fly_context_t *ctx, __unused struct inotify_event *ie)
+{
+	int wd;
+	fly_mount_parts_t *parts = NULL;
+	struct fly_mount_parts_file *pf = NULL;
+
+	wd = ie->wd;
+	/* occurred in mount point directory */
+	parts = fly_wd_from_parts(wd, ctx->mount);
+	if (parts)
+		return __fly_inotify_in_mp(parts, ie);
+
+	pf = fly_wd_from_mount(wd, ctx->mount);
+	if (pf)
+		return __fly_inotify_in_pf(pf, ie);
+
+	return 0;
+}
+
+__fly_static int __fly_master_inotify_handler(fly_event_t *e)
+{
+	int inofd, num_read;
+	size_t inobuf_size;
+	void *inobuf;
+	char *__ptr;
+	fly_context_t *ctx;
+	struct inotify_event *__e;
+
+	ctx = (fly_context_t *) e->event_data;
+	inofd = e->fd;
+	inobuf_size = FLY_NUMBER_OF_INOBUF*(sizeof(struct inotify_event) + NAME_MAX + 1);
+	inobuf = fly_pballoc(e->manager->pool, inobuf_size);
+	if (fly_unlikely_null(inobuf))
+		return -1;
+
+	while(true){
+		num_read = read(inofd, inobuf, inobuf_size);
+		if (num_read == -1){
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				break;
+			else
+				return -1;
+		}
+
+		for (__ptr=inobuf; __ptr < (char *) (inobuf+num_read);){
+			__e = (struct inotify_event *) __ptr;
+			if (__fly_inotify_handle(ctx, __e) == -1)
+				return -1;
+			__ptr += sizeof(struct inotify_event) + __e->len;
+		}
+	}
+
+	/* TODO: release buf */
 	return 0;
 }
 
@@ -583,7 +693,6 @@ __fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, fly_co
 	if (inofd == -1)
 		return -1;
 
-	/* TODO: add watch */
 	if (fly_mount_inotify(ctx->mount, inofd) == -1)
 		return -1;
 
@@ -593,6 +702,7 @@ __fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, fly_co
 	fly_time_null(e->timeout);
 	e->flag = FLY_PERSISTENT;
 	e->tflag = FLY_INFINITY;
+	e->event_data = (void *) ctx;
 	FLY_EVENT_HANDLER(e, __fly_master_inotify_handler);
 	e->expired = false;
 	e->available = false;
