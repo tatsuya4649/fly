@@ -391,6 +391,7 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 	vsnprintf(lc->content, lc->contlen, fmt, va);
 	va_end(va);
 
+	lc->contlen = strlen(lc->content);
 	if (fly_log_now(&lc->when) == -1)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_ELOG,

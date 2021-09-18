@@ -15,6 +15,7 @@ __fly_static void FLY_SIGNAL_MODF_HANDLER(__unused fly_context_t *ctx, __unused 
 __fly_static void FLY_SIGNAL_ADDF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_DELF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
+__fly_static int __fly_worker_open_file(fly_context_t *ctx);
 
 
 #define FLY_WORKER_SIG_COUNT				(sizeof(fly_worker_signals)/sizeof(fly_signal_t))
@@ -165,7 +166,8 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __unused char *pa
 				prev->next = __pf->next;
 			/* TODO: release pf */
 			if (__pf->fd != -1)
-				close(__pf->fd);
+				if (close(__pf->fd) == -1)
+					return -1;
 			parts->file_count--;
 		}
 		prev = __pf;
@@ -185,17 +187,17 @@ __fly_static int __fly_work_unmount(fly_mount_parts_t *parts)
 	return fly_unmount(parts->mount, parts->mount_path);
 }
 
-__fly_static void __fly_add_file_by_signal(fly_mount_parts_t *parts __unused)
+__fly_static void __fly_add_file_by_signal(fly_mount_parts_t *parts)
 {
 	__fly_work_add_nftw(parts, parts->mount_path, parts->mount_path);
 }
 
-__fly_static void __fly_del_file_by_signal(fly_mount_parts_t *parts __unused)
+__fly_static void __fly_del_file_by_signal(fly_mount_parts_t *parts)
 {
 	__fly_work_del_nftw(parts, parts->mount_path, parts->mount_path);
 }
 
-__fly_static void __fly_unmount_by_signal(fly_mount_parts_t *parts __unused)
+__fly_static void __fly_unmount_by_signal(fly_mount_parts_t *parts)
 {
 	__fly_work_unmount(parts);
 }
@@ -364,6 +366,12 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 			"invalid context(null context)."
 		);
 
+	if (__fly_worker_open_file(ctx) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_READY,
+			"worker open file error."
+		);
+
 	manager = fly_event_manager_init(ctx);
 	if (manager == NULL)
 		FLY_EMERGENCY_ERROR(
@@ -502,3 +510,22 @@ __fly_static int __fly_listen_connected(fly_event_t *e)
 	return fly_event_register(e);
 }
 
+__fly_static int __fly_worker_open_file(fly_context_t *ctx)
+{
+	if (!ctx->mount || !ctx->mount->mount_count)
+		return -1;
+
+	char rpath[FLY_PATH_MAX];
+	for (fly_mount_parts_t *__p=ctx->mount->parts; __p; __p=__p->next){
+		if (__p->file_count == 0)
+			continue;
+
+		for (struct fly_mount_parts_file *__pf=__p->files; __pf; __pf=__pf->next){
+			if (fly_join_path(rpath, __p->mount_path, __pf->filename) == -1)
+				continue;
+
+			__pf->fd = open(rpath, O_RDONLY);
+		}
+	}
+	return 0;
+}
