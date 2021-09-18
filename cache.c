@@ -114,8 +114,5 @@ int fly_hash_update_from_parts_file_path(char *path, struct fly_mount_parts_file
 	struct stat statbuf;
 	if (stat(path, &statbuf) == -1)
 		return -1;
-//	if (fly_unlikely(!S_ISREG(statbuf.st_mode)))
-//		return -1;
-
 	return __fly_hash_update(&statbuf, pf);
 }
