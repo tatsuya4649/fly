@@ -335,10 +335,6 @@ int fly_join_path(char *buffer, char *join1, char *join2)
  */
 int fly_from_path(int c_sockfd, fly_mount_t *mnt, int mount_number, char *filename, off_t *offset, size_t count)
 {
-	/* no mount point */
-	if (mnt->mount_count == 0)
-		return -1;
-
 	for (fly_mount_parts_t *__p=mnt->parts; __p; __p=__p->next){
 		/* no file, this mount point */
 		if (__p->file_count == 0)
@@ -358,6 +354,51 @@ int fly_from_path(int c_sockfd, fly_mount_t *mnt, int mount_number, char *filena
 
 	/* TODO: not found(404) */
 	return -1;
+}
+
+int fly_send_from_pf(int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count)
+{
+	if (__fly_send_file(c_sockfd, pf, offset, count) == -1)
+		return -1;
+	else
+		return 0;
+}
+
+#define FLY_FOUND_CONTENT_FROM_PATH_FOUND		1
+#define FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND	0
+#define FLY_FOUND_CONTENT_FROM_PATH_ERROR		-1
+__fly_static int __fly_uri_matching(char *filename, char *uri)
+{
+	if (*uri == '/')
+		uri++;
+
+	if (*uri == '\0')
+		uri = FLY_URI_INDEX_NAME;
+
+	while(*filename++ == *uri++){
+		if (*filename == '\0' && *uri == '\0')
+			return 0;
+	}
+
+	return -1;
+}
+
+int fly_found_content_from_path(fly_mount_t *mnt, fly_http_uri_t *uri, struct fly_mount_parts_file **res)
+{
+	for (fly_mount_parts_t *__p=mnt->parts; __p; __p=__p->next){
+		if (fly_unlikely(__p->file_count == 0))
+			continue;
+
+		for (struct fly_mount_parts_file *__pf=__p->files; __pf; __pf=__pf->next){
+			if (__fly_uri_matching(__pf->filename, uri->uri) == 0){
+				*res = __pf;
+				return FLY_FOUND_CONTENT_FROM_PATH_FOUND;
+			}
+		}
+	}
+
+	*res = NULL;
+	return FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND;
 }
 
 __fly_static int __fly_send_file(int c_sockfd, struct fly_mount_parts_file *__f, off_t *offset, size_t count)

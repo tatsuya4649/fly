@@ -525,6 +525,8 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 				continue;
 
 			__pf->fd = open(rpath, O_RDONLY);
+			if (fstat(__pf->fd, &__pf->fs) == -1)
+				return -1;
 		}
 	}
 	return 0;

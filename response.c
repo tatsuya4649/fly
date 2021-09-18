@@ -195,14 +195,13 @@ __fly_static int __fly_status_line(char *status_line, fly_version_e version,fly_
 	char verstr[FLY_VERSION_MAXLEN];
 	if (fly_version_str(verstr, version) == -1)
 		return -1;
-	sprintf(
+	return sprintf(
 		status_line,
-		"%s %d %s",
+		"%s %d %s\r\n",
 		verstr,
 		__fly_status_code_from_type(stcode),
 		fly_stcode_explain(stcode)
 	);
-	return 0;
 }
 
 __fly_static char *__fly_response_raw(fly_response_t *res, int *send_len)
@@ -222,13 +221,6 @@ __fly_static char *__fly_response_raw(fly_response_t *res, int *send_len)
 	if (__fly_status_line(&response_content[pos], res->version, res->status_code) == -1)
 		return NULL;
 	pos += (int) strlen(&response_content[pos]);
-	__fly_add_cr_lf(
-		res->pool,
-		response_content,
-		&pos,
-		total_length,
-		RESPONSE_LENGTH_PER
-	);
 	/* header */
 	header_length = fly_hdrlen_from_chain(res->header);
 	if (header_length == -1)
@@ -532,6 +524,107 @@ __fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e)
 	return fly_event_register(le);
 }
 
+__fly_static int __fly_send_until_header(fly_response_t *response)
+{
+	enum{
+		STATUS_LINE,
+		HEADER_LINE,
+		HEADER_END,
+	} state;
+
+	state = STATUS_LINE;
+	while(true){
+		switch(state){
+		case STATUS_LINE:
+			{
+				int result, total=0, numsend;
+				char __status_line[FLY_STATUS_LINE_MAX];
+				result = __fly_status_line(__status_line, response->version, response->status_code);
+				if (result == -1)	return -1;
+
+				while(result > total){
+					numsend = send(response->request->connect->c_sockfd, __status_line, result, 0);
+					if (numsend == -1)
+						return -1;
+
+					total += numsend;
+				}
+
+				state = HEADER_LINE;
+				continue;
+			}
+		case HEADER_LINE:
+			{
+				char __header_line[FLY_HEADER_LINE_MAX];
+				int result, total=0, numsend;
+
+				for (fly_hdr_c *__c=response->header->entry; __c; __c=__c->next){
+					total = 0;
+					result = snprintf(__header_line, FLY_HEADER_LINE_MAX, "%s: %s\r\n", __c->name, __c->value != NULL ? __c->value : "");
+					if (result < 0 || result >= FLY_HEADER_LINE_MAX)
+						continue;
+
+					while(result > total){
+						numsend = send(response->request->connect->c_sockfd, __header_line, result, 0);
+						if (numsend == -1)
+							return -1;
+
+						total += numsend;
+					}
+				}
+
+				state = HEADER_END;
+				continue;
+			}
+		case HEADER_END:
+			{
+				int numsend, total;
+				total = 0;
+				while((int) FLY_CRLF_LENGTH > total){
+					numsend = send(response->request->connect->c_sockfd, FLY_CRLF+total, FLY_CRLF_LENGTH-total, 0);
+					total += numsend;
+				}
+				break;
+			}
+		}
+		break;
+	}
+
+	return 0;
+}
+
+int fly_response_content_event(fly_event_t *e)
+{
+	fly_response_t *response;
+	struct fly_response_content *rc;
+	int c_sockfd;
+	off_t offset;
+
+	rc = (struct fly_response_content *) e->event_data;
+
+	c_sockfd = rc->request->connect->c_sockfd;
+	response = fly_response_init();
+	if (fly_unlikely_null(response))
+		return -1;
+
+	response->request = rc->request;
+	response->status_code = _200;
+	response->version = V1_1;
+	response->header = fly_header_init();
+
+	fly_content_length_stat(response->header, &rc->pf->fs);
+	fly_content_etag(response->header, rc->pf);
+	fly_date_header(response->header);
+
+	if (__fly_send_until_header(response) == -1)
+		return -1;
+
+	offset = 0;
+	if (fly_send_from_pf(c_sockfd, rc->pf, &offset, rc->pf->fs.st_size) == -1)
+		return -1;
+
+	return 0;
+}
 
 int fly_response_event(fly_event_t *e)
 {
