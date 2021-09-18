@@ -18,13 +18,13 @@ static fly_signal_t fly_worker_signals[] = {
 	{SIGTERM, NULL},
 };
 
-__fly_static int __fly_wsignal_handle(__unused struct signalfd_siginfo *info)
+__fly_static int __fly_wsignal_handle(fly_context_t *ctx, struct signalfd_siginfo *info)
 {
 	for (int i=0;(int) FLY_WORKER_SIG_COUNT; i++){
 		fly_signal_t *__s = &fly_worker_signals[i];
 		if (__s->number == (fly_signum_t) info->ssi_signo){
 			if (__s->handler)
-				__s->handler(info);
+				__s->handler(ctx, info);
 			else
 				fly_signal_default_handler(info);
 		}
@@ -45,7 +45,7 @@ __fly_static int __fly_worker_signal_handler(__unused fly_event_t *e)
 			else
 				return -1;
 		}
-		if (__fly_wsignal_handle(&info) == -1)
+		if (__fly_wsignal_handle(e->manager->ctx, &info) == -1)
 			return -1;
 	}
 

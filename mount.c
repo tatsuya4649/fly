@@ -11,6 +11,8 @@
 #include "cache.h"
 
 __fly_static int __fly_send_file(int c_sockfd, struct fly_mount_parts_file *__f, off_t *offset, size_t count);
+__fly_static int __fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
+__fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point);
 
 int fly_mount_init(fly_context_t *ctx)
 {
@@ -102,7 +104,55 @@ __fly_static void __fly_parts_file_add(fly_mount_parts_t *parts, struct fly_moun
 	return;
 }
 
-__fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path)
+int fly_parts_file_remove(fly_mount_parts_t *parts, char *filename)
+{
+	if (parts->file_count == 0)
+		return -1;
+
+	for (struct fly_mount_parts_file *__pf=parts->files; __pf; __pf=__pf->next){
+		if (strcmp(__pf->filename, filename) == 0)
+			return __fly_parts_file_remove(parts, __pf);
+	}
+	return -1;
+}
+
+__fly_static int __fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf)
+{
+	if (parts->file_count == 0)
+		return -1;
+
+	struct fly_mount_parts_file *prev = NULL;
+	for (struct fly_mount_parts_file *__pf=parts->files; __pf; __pf=__pf->next){
+		if (__pf == pf){
+			if (prev == NULL)
+				parts->files = __pf->next;
+			else{
+				prev->next = __pf->next;
+				/* TODO: release __pf */
+			}
+			parts->file_count--;
+			return 0;
+		}
+
+		prev = __pf;
+	}
+
+	/* not found */
+	return -1;
+}
+
+__fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point)
+{
+	/* ignore up to mount point */
+	while (*src++ == *mount_point++)
+		;
+
+	if (*src == '/')	src++;
+	while (*src)
+		*dist++ = *src++;
+}
+
+__fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const char *mount_point, int infd)
 {
 	DIR *__pathd;
 	struct fly_mount_parts_file *pfile;
@@ -133,29 +183,42 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path)
 			continue;
 		/* recursion */
 		if (S_ISDIR(sb.st_mode))
-			if (__fly_nftw(parts, __path) == -1)
-				return -1;
+			if (__fly_nftw(parts, __path, mount_point, infd) == -1)
+				goto error;
 
 		/* if not regular file */
-		if (!S_ISREG(sb.st_mode))
-			continue;
+//		if (!S_ISREG(sb.st_mode))
+//			continue;
 
 		/* only regular file */
 		pfile = fly_pballoc(pool, sizeof(struct fly_mount_parts_file));
 		if (pfile == NULL)
-			return -1;
-		pfile->fd = open(__path, O_RDONLY);
-		strcpy(pfile->filename, __ent->d_name);
+			goto error;
+//		pfile->fd = open(__path, O_RDONLY);
+		pfile->fd = -1;
+		__fly_path_cpy_with_mp(pfile->filename, __path, mount_point);
 		pfile->parts = parts;
 		pfile->next = NULL;
-		pfile->wd = -1;
-		if (fly_hash_from_parts_file(pfile) == -1)
-			return -1;
+		pfile->infd = parts->infd;
+		if (infd >= 0){
+			if (strcmp(path, mount_point) == 0)
+				pfile->wd = inotify_add_watch(infd, __path, FLY_INOTIFY_WATCH_FLAG_MP);
+			else
+				pfile->wd = inotify_add_watch(infd, __path, FLY_INOTIFY_WATCH_FLAG_PF);
+			if (pfile->wd == -1)
+				goto error;
+		}else
+			pfile->wd = -1;
+		if (fly_hash_from_parts_file_path(__path, pfile) == -1)
+			goto error;
 
 		__fly_parts_file_add(parts, pfile);
 	}
 
-	return 0;
+	return closedir(__pathd);
+error:
+	closedir(__pathd);
+	return -1;
 }
 
 int fly_mount(fly_context_t *ctx, const char *path)
@@ -167,11 +230,13 @@ int fly_mount(fly_context_t *ctx, const char *path)
 
 	if (!ctx || !ctx->mount)
 		return -1;
+	if (realpath(path, rpath) == NULL)
+		return -1;
 	mnt = ctx->mount;
 
 	if (path == NULL || strlen(path) > FLY_PATH_MAX)
 		return FLY_EARG;
-	if (!fly_isdir(path))
+	if (fly_isdir(rpath) != 1)
 		return FLY_EARG;
 
 	pool = mnt->ctx->pool;
@@ -179,8 +244,6 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	if (parts == NULL)
 		return -1;
 
-	if (realpath(path, rpath) == NULL)
-		return -1;
 	__fly_mount_path_cpy(parts->mount_path, rpath);
 	parts->mount_number = mnt->mount_count;
 	parts->mount = mnt;
@@ -191,7 +254,7 @@ int fly_mount(fly_context_t *ctx, const char *path)
 		/* TODO: release parts */
 		return -1;
 	}
-	if (__fly_nftw(parts, path) == -1)
+	if (__fly_nftw(parts, rpath, rpath, -1) == -1)
 		/* TODO: release parts */
 		return -1;
 
@@ -203,20 +266,32 @@ int fly_unmount(fly_mount_t *mnt, const char *path)
 	if (mnt->mount_count == 0){
 		return 0;
 	}else{
-		fly_mount_parts_t *__p, *prev;
-		for (__p=mnt->parts; __p->next; __p=__p->next){
+		fly_mount_parts_t *__p, *prev = NULL;
+		for (__p=mnt->parts; __p; __p=__p->next){
 			/* if same mount point, ignore */
 			if (strcmp(__p->mount_path, path) == 0){
-				prev->next = __p->next;
+				if (prev)
+					prev->next = __p->next;
+				else
+					mnt->parts = __p->next;
 				/* TODO: release parts */
 				mnt->mount_count--;
-				return 0;
+				goto check_total_mount_count;
 			}
 
 			prev = __p;
 		}
 	}
 	/* not found */
+	return 0;
+check_total_mount_count:
+	/* no mount point */
+	if (mnt->mount_count == 0)
+		/* emergency error. log and end process. */
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_NOMOUNT,
+			"There is no mount point."
+		);
 	return 0;
 }
 
@@ -308,15 +383,16 @@ int fly_mount_inotify(fly_mount_t *mount, int ifd)
 	for (int i=0; i<mount->mount_count; i++){
 		fly_mount_parts_t *parts;
 		parts = &mount->parts[i];
-		if (parts->file_count == 0)
-			continue;
 		/* inotify add watch dir */
 		int dwd;
-		dwd = inotify_add_watch(ifd, parts->mount_path, IN_CREATE|IN_DELETE|IN_DELETE_SELF|IN_MOVE|IN_MOVE_SELF);
+		dwd = inotify_add_watch(ifd, parts->mount_path, FLY_INOTIFY_WATCH_FLAG_MP);
 		if (dwd == -1)
 			return -1;
 		parts->wd = dwd;
+		parts->infd = ifd;
 
+		if (parts->file_count == 0)
+			continue;
 		/* inotify add watch file */
 		for (struct fly_mount_parts_file *__pf=parts->files; __pf; __pf=__pf->next){
 			int wd;
@@ -324,12 +400,130 @@ int fly_mount_inotify(fly_mount_t *mount, int ifd)
 
 			if (fly_join_path(rpath, parts->mount_path, __pf->filename) == -1)
 				continue;
-			wd = inotify_add_watch(ifd, rpath, IN_MODIFY|IN_DELETE_SELF|IN_MOVE_SELF|IN_ATTRIB);
+			wd = inotify_add_watch(ifd, rpath, FLY_INOTIFY_WATCH_FLAG_PF);
 			if (wd == -1)
 				return -1;
 
 			__pf->wd = wd;
+			__pf->infd = ifd;
 		}
 	}
+	return 0;
+}
+
+struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts)
+{
+	if (parts->file_count == 0)
+		return NULL;
+
+	for (struct fly_mount_parts_file *__pf=parts->files; __pf; __pf=__pf->next){
+		if (__pf->wd == wd)
+			return __pf;
+	}
+	return NULL;
+}
+
+struct fly_mount_parts_file *fly_wd_from_mount(int wd, fly_mount_t *mnt)
+{
+	struct fly_mount_parts_file *pf;
+	if (mnt->mount_count == 0)
+		return NULL;
+
+	for (fly_mount_parts_t *__p=mnt->parts; __p; __p=__p->next){
+		pf = fly_wd_from_pf(wd, __p);
+		if (pf)
+			return pf;
+	}
+	return NULL;
+}
+
+fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt)
+{
+	if (mnt->mount_count == 0)
+		return NULL;
+
+	for (fly_mount_parts_t *__p=mnt->parts; __p; __p=__p->next){
+		if (__p->wd == wd)
+			return __p;
+	}
+	return NULL;
+}
+
+int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path)
+{
+	struct fly_mount_parts_file *__npf;
+	char rpath[FLY_PATH_MAX];
+
+	if (fly_join_path(rpath, parts->mount_path, path) == -1)
+		return -1;
+
+	if (fly_isdir(rpath))
+		if (__fly_nftw(parts, (const char *) rpath, parts->mount_path, parts->infd) == -1)
+			return -1;
+
+	__npf = fly_pballoc(parts->mount->ctx->pool, sizeof(struct fly_mount_parts_file));
+	if (fly_unlikely_null(__npf))
+		return -1;
+
+	__npf->infd = parts->infd;
+	__npf->fd = -1;
+	__npf->wd = inotify_add_watch(__npf->infd, rpath, FLY_INOTIFY_WATCH_FLAG_PF);
+	__npf->parts = parts;
+	strcpy(__npf->filename, path);
+	if (fly_hash_from_parts_file_path(rpath, __npf) == -1)
+		return -1;
+	__fly_parts_file_add(parts, __npf);
+	return 0;
+}
+
+__fly_static int __fly_samedir_cmp(char *s1, char *s2)
+{
+	bool slash = false;
+	while(*s1 == *s2 && *s1 != '\0'){
+		if (*s1 == '/')
+			slash = true;
+		s1++;
+		s2++;
+	}
+	if ((slash && *s1 == '\0') || *s1 == '/' || (*s1 == '\0' && *s2 == '\0'))
+		return 0;
+	return -1;
+}
+
+int fly_inotify_rmmp(fly_mount_parts_t *parts)
+{
+	/* remove mount point */
+	for (struct fly_mount_parts_file *__pf=parts->files; __pf;__pf=__pf->next){
+		if(inotify_rm_watch(__pf->infd, __pf->wd) == -1)
+			return -1;
+		if (__fly_parts_file_remove(parts, __pf) == -1)
+			return -1;
+	}
+
+	struct stat statb;
+	if (stat(parts->mount_path, &statb) == 0 && \
+			inotify_rm_watch(parts->infd, parts->wd) == -1)
+		return -1;
+
+	if (fly_unmount(parts->mount, parts->mount_path) == -1)
+		return -1;
+	return 0;
+}
+
+int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, int mask)
+{
+	/* remove mount point elements */
+	if (parts->file_count == 0)
+		return -1;
+	for (struct fly_mount_parts_file *__pf=parts->files; __pf; __pf=__pf->next){
+		if (__fly_samedir_cmp(__pf->filename, path) == 0){
+			if (mask & IN_MOVED_FROM && \
+					inotify_rm_watch(__pf->infd, __pf->wd) == -1)
+				return -1;
+			if (__fly_parts_file_remove(parts, __pf) == -1)
+				return -1;
+		}
+	}
+
 	return 0;
 }

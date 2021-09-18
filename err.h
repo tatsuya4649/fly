@@ -138,6 +138,7 @@ enum fly_emergency_status{
 	FLY_EMERGENCY_STATUS_PROCS,
 	FLY_EMERGENCY_STATUS_READY,
 	FLY_EMERGENCY_STATUS_ELOG,
+	FLY_EMERGENCY_STATUS_NOMOUNT,
 };
 
 __noreturn void fly_emergency_error(enum fly_emergency_status end_status, int __errno, const char *format, ...);
