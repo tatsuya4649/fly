@@ -87,3 +87,8 @@ __noreturn int fly_signal_default_handler(struct signalfd_siginfo *)
 {
 	exit(0);
 }
+
+int fly_send_signal(pid_t pid, int signumber, int value)
+{
+	return sigqueue(pid, signumber, (const union sigval) value);
+}

@@ -89,7 +89,7 @@ __fly_static int __fly_mount_add(fly_mount_t *mnt, fly_mount_parts_t *parts)
 	return 0;
 }
 
-__fly_static void __fly_parts_file_add(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf)
+void fly_parts_file_add(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf)
 {
 	if (parts->file_count == 0){
 		parts->files = pf;
@@ -170,9 +170,9 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 
 	while((__ent=readdir(__pathd)) != NULL){
 		if (strcmp(__ent->d_name, ".") == 0 || \
-				strcmp(__ent->d_name, "..") == 0){
+				strcmp(__ent->d_name, "..") == 0)
 			continue;
-		}
+
 		res = snprintf(__path, FLY_PATH_MAX, "%s/%s", path, __ent->d_name);
 		if (res < 0 || res == FLY_PATH_MAX)
 			continue;
@@ -212,7 +212,7 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 		if (fly_hash_from_parts_file_path(__path, pfile) == -1)
 			goto error;
 
-		__fly_parts_file_add(parts, pfile);
+		fly_parts_file_add(parts, pfile);
 	}
 
 	return closedir(__pathd);
@@ -249,6 +249,7 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	parts->mount = mnt;
 	parts->next = NULL;
 	parts->wd = -1;
+	parts->infd = -1;
 
 	if (__fly_mount_add(mnt, parts) == -1){
 		/* TODO: release parts */
@@ -411,6 +412,23 @@ int fly_mount_inotify(fly_mount_t *mount, int ifd)
 	return 0;
 }
 
+struct fly_mount_parts_file *fly_pf_from_parts(char *path, fly_mount_parts_t *parts)
+{
+	char __path[FLY_PATH_MAX];
+	int res;
+	if (parts->file_count == 0)
+		return NULL;
+
+	for (struct fly_mount_parts_file *__pf=parts->files; __pf; __pf=__pf->next){
+		res = snprintf(__path, FLY_PATH_MAX, "%s/%s", parts->mount_path, __pf->filename);
+		if (res < 0 || res >= FLY_PATH_MAX)
+			return NULL;
+		if (strcmp(path, __path) == 0)
+			return __pf;
+	}
+	return NULL;
+}
+
 struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts)
 {
 	if (parts->file_count == 0)
@@ -472,7 +490,7 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path)
 	strcpy(__npf->filename, path);
 	if (fly_hash_from_parts_file_path(rpath, __npf) == -1)
 		return -1;
-	__fly_parts_file_add(parts, __npf);
+	fly_parts_file_add(parts, __npf);
 	return 0;
 }
 

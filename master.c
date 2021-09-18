@@ -25,9 +25,9 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 
 fly_signal_t fly_master_signals[] = {
-	{ SIGCHLD, __fly_sigchld },
-	{ SIGINT, NULL },
-	{ SIGTERM, NULL },
+	{ SIGCHLD, __fly_sigchld, NULL },
+	{ SIGINT, NULL, NULL },
+	{ SIGTERM, NULL, NULL },
 };
 
 int fly_master_daemon(void)
@@ -572,32 +572,45 @@ __fly_static fly_worker_id __fly_get_worker_id(void)
 __fly_static int __fly_inotify_in_mp(fly_mount_parts_t *parts, __unused struct inotify_event *ie)
 {
 	int mask;
+	__unused int signum = 0;
 
 	mask = ie->mask;
 	if (mask & IN_CREATE){
+		signum |= FLY_SIGNAL_ADDF;
 		if (fly_inotify_add_watch(parts, ie->name) == -1)
 			return -1;
 	}
 	if (mask & IN_DELETE){
+		signum |= FLY_SIGNAL_DELF;
 		if (fly_inotify_rm_watch(parts, ie->name, mask) == -1)
 			return -1;
 	}
 	if (mask & IN_DELETE_SELF){
+		signum |= FLY_SIGNAL_UMOU;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVED_FROM){
+		signum |= FLY_SIGNAL_DELF;
 		if (fly_inotify_rm_watch(parts, ie->name, mask) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVED_TO){
+		signum |= FLY_SIGNAL_ADDF;
 		if (fly_inotify_add_watch(parts, ie->name) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVE_SELF){
+		signum |= FLY_SIGNAL_UMOU;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 	}
+
+	for (fly_worker_t *__w=fly_master_info.workers; __w; __w=__w->next){
+		if (fly_send_signal(__w->pid, signum, parts->mount_number) == -1)
+			return -1;
+	}
+
 	return 0;
 }
 

@@ -4,6 +4,10 @@
 #define _GNU_SOURCE
 #include <unistd.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <dirent.h>
 #include "context.h"
 #include "event.h"
 #include "connect.h"
