@@ -97,4 +97,10 @@ struct fly_itm_response{
 typedef struct fly_itm_response fly_itm_response_t;
 int fly_4xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
 int fly_5xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
+
+int fly_response_content_event(fly_event_t *e __unused);
+struct fly_response_content{
+	fly_request_t *request;
+	struct fly_mount_parts_file *pf;
+};
 #endif

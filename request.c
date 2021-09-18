@@ -6,6 +6,7 @@
 #include "version.h"
 #include "util.h"
 #include "encode.h"
+#include "mount.h"
 
 int fly_request_disconnect_handler(fly_event_t *event);
 int fly_request_timeout_handler(fly_event_t *event);
@@ -718,6 +719,8 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_bodyc_t *body_ptr;
 	fly_route_reg_t *route_reg;
 	fly_route_t *route;
+	fly_mount_t *mount;
+	struct fly_mount_parts_file *pf;
 	__unused fly_request_state_t state;
 	__unused fly_request_fase_t fase;
 
@@ -824,6 +827,11 @@ __fase_end_of_parse:
 	/* Success parse request */
 	route_reg = event->manager->ctx->route_reg;
 	route = fly_found_route(route_reg, request->request_line->uri.uri, request->request_line->method->type);
+
+	mount = event->manager->ctx->mount;
+	if (route == NULL && fly_found_content_from_path(mount, &request->request_line->uri, &pf))
+		goto response_path;
+
 	if (route == NULL)
 		goto response_404;
 
@@ -891,6 +899,25 @@ timeout:
 
 	return 0;
 
+response_path:
+	struct fly_response_content *rc;
+	rc = fly_pballoc(request->pool, sizeof(struct fly_response_content));
+	if (fly_unlikely_null(rc))
+		return -1;
+	rc->pf = pf;
+	rc->request = request;
+	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	event->read_or_write = FLY_WRITE;
+	event->flag = FLY_MODIFY;
+	event->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(event, fly_response_content_event);
+	event->available = false;
+	event->event_data = (void *) rc;
+	fly_event_socket(event);
+	if (fly_event_register(event) == -1)
+		goto error;
+
+	return  0;
 response:
 	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	event->read_or_write = FLY_WRITE;

@@ -34,8 +34,14 @@ int main()
 		return -1;
 
 	ctx = fly_context_init();
+
+	if (fly_mount_init(ctx) == -1)
+		return -1;
+	if (fly_mount(ctx, "./mnt") == -1)
+		return -1;
+
 	reg = ctx->route_reg;
-	if (fly_register_route(reg, hello, "/", GET, 0) == -1)
-			return -1;
+//	if (fly_register_route(reg, hello, "/", GET, 0) == -1)
+//			return -1;
 	fly_worker_process(ctx, NULL);
 }

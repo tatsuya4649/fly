@@ -20,6 +20,7 @@ __fly_static int __fly_md5_from_hash(struct fly_file_hash *hash)
 {
 	MD5_CTX c;
 	char *md5_src;
+	char __preload[FLY_MD5_LENGTH+1];
 	int mtime_len, ctime_len, res, md5_len;
 
 	mtime_len = __fly_number_of_digits_time(hash->mtime);
@@ -39,8 +40,14 @@ __fly_static int __fly_md5_from_hash(struct fly_file_hash *hash)
 	if (MD5_Update(&c, md5_src, strlen(md5_src)) == -1)
 		return -1;
 
-	if (MD5_Final((unsigned char *) hash->md5, &c) == -1)
+	if (MD5_Final((unsigned char *) __preload, &c) == -1)
 		return -1;
+
+	for (int i=0; i<FLY_MD5_LENGTH; i++){
+		if (snprintf((char *) &hash->md5[2*i], 3, "%02x", __preload[i]) == -1)
+			return -1;
+	}
+	hash->md5[2*FLY_MD5_LENGTH+1] = '\0';
 
 	/* TODO: release md5_src */
 	return 0;

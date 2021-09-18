@@ -1,8 +1,10 @@
 #ifndef _HEADER_H
 #define _HEADER_H
 #include <string.h>
+#include <sys/stat.h>
 #include "alloc.h"
 #include "util.h"
+#include "mount.h"
 
 typedef char fly_hdr_value;
 typedef char fly_hdr_name;
@@ -49,4 +51,8 @@ int fly_connection(fly_hdr_ci *ci);
 #define FLY_CONNECTION_CLOSE			0
 #define	FLY_CONNECTION_KEEP_ALIVE		1
 
+int fly_content_length_stat(fly_hdr_ci *ci, struct stat *sb);
+int fly_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
+
+int fly_date_header(fly_hdr_ci *ci);
 #endif

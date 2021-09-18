@@ -5,6 +5,8 @@
 #include "header.h"
 #include "body.h"
 #include "mime.h"
+#include "math.h"
+#include "cache.h"
 
 fly_hdr_ci *fly_header_init(void)
 {
@@ -241,4 +243,24 @@ int fly_content_length_heaedr(fly_hdr_ci *ci, fly_body_t *body)
 
 	return fly_header_add(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
 	#undef FLY_CONTENT_LENGTH_LENGTH
+}
+
+int fly_content_length_stat(fly_hdr_ci *ci, struct stat *sb)
+{
+	char *contlen_str;
+	int len;
+
+	len = fly_number_ldigits(sb->st_size)+1;
+	contlen_str = fly_pballoc(ci->pool, (sizeof(char)*len));
+	if (fly_unlikely_null(contlen_str))
+		return -1;
+
+	if (snprintf(contlen_str, len, "%ld", (long) sb->st_size) == -1)
+		return -1;
+	return fly_header_add(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
+}
+
+int fly_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)
+{
+	return fly_header_add(ci, fly_header_name_length("ETag"), (char *) pf->hash->md5, FLY_MD5_LENGTH);
 }
