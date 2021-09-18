@@ -175,6 +175,24 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 				info->ssi_status
 			);
 			break;
+		case FLY_EMERGENCY_STATUS_NOMOUNT:
+			FLY_NOTICE_DIRECT_LOG(
+				fly_master_info.context->log,
+				"master process(%d) detect to end of worker process(%d). because of mount error (exit status: %d)",
+				getpid(),
+				info->ssi_pid,
+				info->ssi_status
+			);
+			break;
+		case FLY_EMERGENCY_STATUS_MODF:
+			FLY_NOTICE_DIRECT_LOG(
+				fly_master_info.context->log,
+				"master process(%d) detect to end of worker process(%d). because of modify file(hash update) error (exit status: %d)",
+				getpid(),
+				info->ssi_pid,
+				info->ssi_status
+			);
+			break;
 		default:
 			FLY_EMERGENCY_ERROR(
 				FLY_EMERGENCY_STATUS_PROCS,
