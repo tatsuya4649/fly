@@ -260,3 +260,16 @@ int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)
 {
 	return fly_header_add(ci, fly_header_name_length("Last-Modified"), fly_header_value_length((char *) pf->last_modified));
 }
+
+int fly_add_connection(fly_hdr_ci *ci, enum fly_header_connection_e connection)
+{
+	switch(connection){
+	case KEEP_ALIVE:
+		return fly_header_add(ci, fly_header_name_length("Connection"), fly_header_value_length("keep-alive"));
+	case CLOSE:
+		return fly_header_add(ci, fly_header_name_length("Connection"), fly_header_value_length("close"));
+	default:
+		return -1;
+	}
+	return -1;
+}

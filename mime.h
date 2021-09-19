@@ -146,7 +146,9 @@ struct __fly_mime_subtype{
 /*
  * quality default value is 100.
  */
+struct fly_mime;
 struct __fly_mime{
+	struct fly_mime				*mime;
 	struct __fly_mime_type		type;
 	struct __fly_mime_subtype	subtype;
 	/* 0~100% */
@@ -166,6 +168,7 @@ struct __fly_mime{
 #define FLY_ACCEPT_HEADER		"Accept"
 
 struct fly_mime{
+	fly_pool_t					*pool;
 	fly_request_t				*request;
 
 	struct __fly_mime			*accepts;

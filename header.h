@@ -62,5 +62,11 @@ int fly_add_date(fly_hdr_ci *ci);
 int fly_add_content_type_header(fly_hdr_ci *ci, fly_mime_e type);
 #include "body.h"
 int fly_add_content_length_heaedr(fly_hdr_ci *ci, fly_body_t *body);
+enum fly_header_connection_e{
+	KEEP_ALIVE,
+	CLOSE,
+};
+int fly_add_connection(fly_hdr_ci *ci, enum fly_header_connection_e connection);
+
 
 #endif

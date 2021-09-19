@@ -126,7 +126,8 @@ int fly_event_register(fly_event_t *event)
 					if (event->tflag & FLY_INHERIT)
 						__fly_event_inherit_time(event, e);
 					memcpy(e, event, sizeof(fly_event_t));
-					/* TODO: release event. */
+					/* release event. */
+					fly_pbfree(event->manager->pool, event);
 				}
 				op = EPOLL_CTL_MOD;
 				break;
@@ -159,6 +160,7 @@ int fly_event_unregister(fly_event_t *event)
 	for (e=event->manager->first; e!=NULL; e=e->next){
 		/* same fd event */
 		if (event->fd == e->fd){
+			int efd;
 			if (event == event->manager->first && event == event->manager->last){
 				event->manager->first = NULL;
 				event->manager->last = NULL;
@@ -172,10 +174,15 @@ int fly_event_unregister(fly_event_t *event)
 
 			event->manager->evlen--;
 			e->next = NULL;
+
+			efd = event->manager->efd;
+
+			/* release event */
+			fly_pbfree(event->manager->pool, event);
 			if (event->flag & FLY_CLOSE_EV || fly_event_nomonitorable(event))
 				return 0;
 			else
-				return epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL);
+				return epoll_ctl(efd, EPOLL_CTL_DEL, event->fd, NULL);
 		}
 		prev = e;
 	}
