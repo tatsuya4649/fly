@@ -16,6 +16,7 @@ typedef char fly_hdr_name;
 #define FLY_HEADER_ELES_MAX		1000
 #define FLY_REQHEADER_POOL_SIZE	10
 #define fly_name_hdr_gap()		": "
+#define FLY_DATE_LENGTH			(50)
 
 #define FLY_NAME	"fly-server"
 #define fly_server_name()	(FLY_NAME)
@@ -51,8 +52,15 @@ int fly_connection(fly_hdr_ci *ci);
 #define FLY_CONNECTION_CLOSE			0
 #define	FLY_CONNECTION_KEEP_ALIVE		1
 
-int fly_content_length_stat(fly_hdr_ci *ci, struct stat *sb);
-int fly_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
+struct fly_mount_parts_file;
+int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb);
+int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
+int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 
-int fly_date_header(fly_hdr_ci *ci);
+int fly_add_date(fly_hdr_ci *ci);
+#include "mime.h"
+int fly_add_content_type_header(fly_hdr_ci *ci, fly_mime_e type);
+#include "body.h"
+int fly_add_content_length_heaedr(fly_hdr_ci *ci, fly_body_t *body);
+
 #endif

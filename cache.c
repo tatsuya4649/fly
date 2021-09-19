@@ -123,3 +123,37 @@ int fly_hash_update_from_parts_file_path(char *path, struct fly_mount_parts_file
 		return -1;
 	return __fly_hash_update(&statbuf, pf);
 }
+
+int fly_if_none_match(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)
+{
+	if (ci->chain_length == 0)
+		return 0;
+
+	fly_hdr_c *c;
+	for (c=ci->entry; c; c=c->next){
+		if (strcmp(c->name, FLY_IF_NONE_MATCH) == 0){
+			if (strcmp(c->value, (char * ) pf->hash->md5) == 0)
+				return 1;
+		}
+
+	}
+	return 0;
+}
+
+int fly_if_modified_since(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)
+{
+	if (ci->chain_length == 0)
+		return 0;
+
+	fly_hdr_c *c;
+	for (c=ci->entry; c; c=c->next){
+		if (strcmp(c->name, FLY_IF_MODIFIED_SINCE) == 0){
+			/* check time */
+			if (fly_cmp_imt_fixdate(c->value, strlen(c->value), (char *) pf->last_modified, strlen((char *) pf->last_modified)) >= 0)
+				return 1;
+			else
+				return 0;
+		}
+	}
+	return 0;
+}

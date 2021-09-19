@@ -1,15 +1,17 @@
 #ifndef _MOUNT_H
 #define _MOUNT_H
 
-#include "alloc.h"
 #include <dirent.h>
 #include <limits.h>
 #include <sys/stat.h>
 #include <sys/inotify.h>
+#include "alloc.h"
+#include "header.h"
 #define FLY_PATHNAME_MAX	_POSIX_NAME_MAX
 #define FLY_PATH_MAX	_POSIX_PATH_MAX
 #define FLY_MOUNT_POOL_PAGE		((fly_page_t) 10)
 #define FLY_MOUNT_INIT_NUMBER		0
+#define FLY_DATE_LENGTH			(50)
 
 struct fly_mount_parts_file{
 	int fd;
@@ -17,6 +19,7 @@ struct fly_mount_parts_file{
 	int infd;
 	struct stat fs;
 	char filename[FLY_PATHNAME_MAX];
+	char last_modified[FLY_DATE_LENGTH];
 	struct fly_mount_parts *parts;
 	struct fly_file_hash *hash;
 

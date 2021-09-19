@@ -194,31 +194,22 @@ parse_connection:
  *		Builtin Header Function
  *
  */
-int fly_date_header(fly_hdr_ci *ci)
+#include "ftime.h"
+int fly_add_date(fly_hdr_ci *ci)
 {
-	#define FLY_DATE_LENGTH			50
 	time_t now;
-	int length;
 	char value_field[FLY_DATE_LENGTH];
-	now = time(NULL);
 
+	now = time(NULL);
 	if (now == -1)
 		return -1;
-    length = strftime(
-		value_field,
-		(size_t) FLY_DATE_LENGTH,
-		"%a, %d %b %Y %H:%M:%S GMT",
-		gmtime(&now)
-	);
-	if (length == 0)
+	if (fly_imt_fixdate(value_field, FLY_DATE_LENGTH, &now))
 		return -1;
 
-	value_field[length] = '\0';
 	return fly_header_add(ci, fly_header_name_length("Date"), fly_header_value_length(value_field));
-	#undef FLY_DATE_LENGTH
 }
 
-int fly_content_type_header(fly_hdr_ci *ci, fly_mime_e type)
+int fly_add_content_type_header(fly_hdr_ci *ci, fly_mime_e type)
 {
 	#define FLY_CONTENT_TYPE_LENGTH		100
 	fly_mime_type_t *mime;
@@ -231,7 +222,7 @@ int fly_content_type_header(fly_hdr_ci *ci, fly_mime_e type)
 	#undef FLY_CONTENT_TYPE_LENGTH
 }
 
-int fly_content_length_heaedr(fly_hdr_ci *ci, fly_body_t *body)
+int fly_add_content_length_heaedr(fly_hdr_ci *ci, fly_body_t *body)
 {
 	#define FLY_CONTENT_LENGTH_LENGTH	100
 	char contlen_str[FLY_CONTENT_LENGTH_LENGTH];
@@ -245,7 +236,7 @@ int fly_content_length_heaedr(fly_hdr_ci *ci, fly_body_t *body)
 	#undef FLY_CONTENT_LENGTH_LENGTH
 }
 
-int fly_content_length_stat(fly_hdr_ci *ci, struct stat *sb)
+int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb)
 {
 	char *contlen_str;
 	int len;
@@ -260,7 +251,12 @@ int fly_content_length_stat(fly_hdr_ci *ci, struct stat *sb)
 	return fly_header_add(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
 }
 
-int fly_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)
+int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)
 {
-	return fly_header_add(ci, fly_header_name_length("ETag"), (char *) pf->hash->md5, FLY_MD5_LENGTH);
+	return fly_header_add(ci, fly_header_name_length("ETag"), (char *) pf->hash->md5, 2*FLY_MD5_LENGTH);
+}
+
+int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)
+{
+	return fly_header_add(ci, fly_header_name_length("Last-Modified"), fly_header_value_length((char *) pf->last_modified));
 }

@@ -527,6 +527,8 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 			__pf->fd = open(rpath, O_RDONLY);
 			if (fstat(__pf->fd, &__pf->fs) == -1)
 				return -1;
+			if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
+				return -1;
 		}
 	}
 	return 0;
