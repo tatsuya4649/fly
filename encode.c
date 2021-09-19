@@ -288,12 +288,16 @@ __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encodi
 
 __fly_static int __fly_encode_init(fly_request_t *req)
 {
-	__unused fly_encoding_t *enc;
-	enc = fly_pballoc(req->pool, sizeof(fly_encoding_t));
+	fly_encoding_t *enc;
+	fly_pool_t *pool;
 
-	if (enc == NULL)
+	pool = req->pool;
+	enc = fly_pballoc(pool, sizeof(fly_encoding_t));
+
+	if (fly_unlikely_null(enc))
 		return -1;
 
+	enc->pool = pool;
 	enc->actqty = 0;
 	enc->request = req;
 	enc->accepts = NULL;
@@ -307,6 +311,7 @@ __fly_static int __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_enc
 	if (!enc || !ne)
 		return -1;
 
+	ne->encoding = enc;
 	if (enc->accepts == NULL){
 		enc->accepts = ne;
 		ne->next = NULL;
@@ -318,7 +323,8 @@ __fly_static int __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_enc
 				ne->next = e->next;
 				if (prev)
 					prev->next = ne;
-				/* TODO: release e */
+				/* release e */
+				fly_pbfree(e->encoding->pool, e);
 				goto increment;
 			}
 			prev = e;
@@ -355,9 +361,11 @@ __fly_static void __fly_memcpy_name(char *dist, char *src, size_t maxlen)
 __fly_static int __fly_add_accept_encode_asterisk(fly_request_t *req)
 {
 	struct __fly_encoding *__e;
+	fly_pool_t *pool;
 
-	__e = fly_pballoc(req->pool, sizeof(struct __fly_encoding));
-	if (__e == NULL)
+	pool = req->pool;
+	__e = fly_pballoc(pool, sizeof(struct __fly_encoding));
+	if (fly_unlikely_null(__e))
 		return -1;
 
 	__e->type = __fly_asterisk();
@@ -757,6 +765,7 @@ __fly_static int __fly_parse_ae(fly_encoding_t *e, fly_hdr_value *ae_value)
 				ne->type = fly_encoding_from_name(encname);
 				ne->next = NULL;
 				ne->use  = false;
+				ne->encoding = e;
 				ne->quality_value = __fly_quality_value_from_str(qvalue);
 
 				/* only add supported encoding */

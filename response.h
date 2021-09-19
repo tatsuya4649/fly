@@ -27,10 +27,7 @@ enum status_code_type{
 	_204,
 	_205,
 	/* 3xx Redirect */
-	_300,
-	_301,
-	_302,
-	_303,
+	_300, _301, _302, _303,
 	_304,
 	_307,
 	/* 4xx Client Error */
@@ -62,13 +59,29 @@ enum status_code_type{
 };
 typedef enum status_code_type fly_stcode_t;
 
+#include "mount.h"
 struct fly_response{
-	fly_pool_t *pool;
-	fly_stcode_t status_code;
-	fly_version_e version;
-	fly_hdr_ci *header;
-	fly_body_t *body;
-	fly_request_t *request;
+	/* use pool: pool, header, body */
+	fly_pool_t					*pool;
+	fly_stcode_t				 status_code;
+	fly_version_e				 version;
+	fly_hdr_ci					*header;
+	fly_body_t					*body;
+	fly_request_t				*request;
+
+	enum{
+		FLY_RESPONSE_READY,
+		FLY_RESPONSE_STATUS_LINE,
+		FLY_RESPONSE_HEADER,
+		FLY_RESPONSE_CRLF,
+		FLY_RESPONSE_BODY,
+		FLY_RESPONSE_RELEASE,
+	} fase;
+	void						*send_ptr;
+	int							 byte_from_start;
+	struct fly_mount_parts_file *pf;
+	off_t						 offset;
+	size_t						 count;
 };
 typedef struct fly_response fly_response_t;
 
@@ -99,10 +112,15 @@ int fly_4xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
 int fly_5xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
 struct fly_response_content;
 int fly_304_event(fly_event_t *e, struct fly_response_content *rc);
+int fly_408_event(fly_event_t *e);
 
 int fly_response_content_event_handler(fly_event_t *e);
 struct fly_response_content{
 	fly_request_t *request;
 	struct fly_mount_parts_file *pf;
 };
+
+#define FLY_RESPONSE_SUCCESS			1
+#define FLY_RESPONSE_BLOCKING			0
+#define FLY_RESPONSE_ERROR				-1
 #endif

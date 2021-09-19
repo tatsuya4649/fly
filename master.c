@@ -679,11 +679,13 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 	char *__ptr;
 	fly_context_t *ctx;
 	struct inotify_event *__e;
+	fly_pool_t *pool;
 
 	ctx = (fly_context_t *) e->event_data;
 	inofd = e->fd;
 	inobuf_size = FLY_NUMBER_OF_INOBUF*(sizeof(struct inotify_event) + NAME_MAX + 1);
-	inobuf = fly_pballoc(e->manager->pool, inobuf_size);
+	pool = e->manager->pool;
+	inobuf = fly_pballoc(pool, inobuf_size);
 	if (fly_unlikely_null(inobuf))
 		return -1;
 
@@ -704,7 +706,8 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 		}
 	}
 
-	/* TODO: release buf */
+	/* release buf */
+	fly_pbfree(pool, inobuf);
 	return 0;
 }
 

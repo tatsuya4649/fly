@@ -6,6 +6,7 @@
 #include <string.h>
 #include <zlib.h>
 #include "util.h"
+#include "alloc.h"
 
 #define FLY_ENCODE_TYPE(x, p)		\
 	{ fly_ ## x, #x, p, fly_ ## x ## _encode, fly_ ## x ## _decode }
@@ -43,7 +44,9 @@ fly_encoding_type_t *fly_encoding_from_type(fly_encoding_e);
 fly_encoding_type_t *fly_encoding_from_name(fly_encname_t *name);
 fly_encname_t *fly_encname_from_type(fly_encoding_e type);
 
+struct fly_encoding;
 struct __fly_encoding{
+	struct fly_encoding		*encoding;
 	fly_encoding_type_t		*type;
 	/* 0~100% */
 	int						quality_value;
@@ -55,6 +58,7 @@ struct fly_request;
 typedef struct fly_request fly_request_t;
 
 struct fly_encoding{
+	fly_pool_t *pool;
 	struct __fly_encoding		*accepts;
 	struct fly_request			*request;
 	/* acceptable quantity */
