@@ -1,4 +1,5 @@
 #include "ftime.h"
+#include <time.h>
 
 static inline time_t __fly_abssec(time_t t);
 __fly_static size_t __fly_time_format(char *buffer, size_t maxlen, const struct tm *timeptr);
@@ -61,4 +62,38 @@ int fly_logtime(char *buffer, int bufsize, fly_time_t *t)
 		return -1;
 
 	return snprintf(buffer, bufsize, "%s [UTC%s%d:%s%d]", tformat_buf, minus ? "+" : "-", __fly_hms.H, __fly_hms.M < 10 ? "0" : "", __fly_hms.M);
+}
+
+int fly_imt_fixdate(char *buf, size_t buflen, time_t *time)
+{
+	size_t len;
+	struct tm gmtm;
+
+	if (gmtime_r(time, &gmtm) == NULL)
+		return -1;
+
+	len = strftime(buf, buflen, FLY_IMT_FIXDATE_FORMAT, &gmtm);
+	if (len == 0)
+		return -1;
+	buf[buflen] = '\0';
+	return 0;
+}
+
+int fly_cmp_imt_fixdate(char *t1, __unused size_t t1_len, char *t2, __unused size_t t2_len)
+{
+	struct tm t1_tm, t2_tm;
+	time_t t1_time, t2_time;
+
+	if (strptime(t1, FLY_IMT_FIXDATE_FORMAT, &t1_tm) == NULL)
+		return -1;
+	if (strptime(t2, FLY_IMT_FIXDATE_FORMAT, &t2_tm) == NULL)
+		return -1;
+
+	t1_time = mktime(&t1_tm);
+	t2_time = mktime(&t2_tm);
+
+	if (t1_time == (time_t) -1 || t2_time == (time_t) -1)
+		return -1;
+
+	return t1_time >= t2_time ? 1 : 0;
 }

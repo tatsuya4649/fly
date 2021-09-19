@@ -593,7 +593,7 @@ __fly_static int __fly_send_until_header(fly_response_t *response)
 	return 0;
 }
 
-int fly_response_content_event(fly_event_t *e)
+int fly_response_content_event_handler(fly_event_t *e)
 {
 	fly_response_t *response;
 	struct fly_response_content *rc;
@@ -612,9 +612,10 @@ int fly_response_content_event(fly_event_t *e)
 	response->version = V1_1;
 	response->header = fly_header_init();
 
-	fly_content_length_stat(response->header, &rc->pf->fs);
-	fly_content_etag(response->header, rc->pf);
-	fly_date_header(response->header);
+	fly_add_content_length_from_stat(response->header, &rc->pf->fs);
+	fly_add_content_etag(response->header, rc->pf);
+	fly_add_date(response->header);
+	fly_add_last_modified(response->header, rc->pf);
 
 	if (__fly_send_until_header(response) == -1)
 		return -1;
@@ -765,6 +766,55 @@ int fly_5xx_error_event(fly_event_t *e, fly_request_t *req, fly_stcode_t code)
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	FLY_EVENT_HANDLER(e, __fly_5xx_error_handler);
+	fly_event_socket(e);
+
+	return fly_event_register(e);
+}
+
+__fly_static int __fly_until_header_handler(fly_event_t *e)
+{
+	fly_response_t *res;
+
+	res = (fly_response_t *) e->event_data;
+	if (__fly_send_until_header(res) == -1)
+		return -1;
+	if (__fly_response_log(res, e) == -1)
+		return -1;
+
+	/* TODO: release response content. */
+
+	return 0;
+}
+
+int fly_304_event(fly_event_t *e, struct fly_response_content *rc)
+{
+	fly_response_t *res;
+	fly_request_t *req;
+	struct fly_mount_parts_file *pf;
+
+	req = rc->request;
+	pf = rc->pf;
+
+	res = fly_response_init();
+	if (fly_unlikely_null(res))
+		return -1;
+
+	res->status_code = _304;
+	res->version = V1_1;
+	res->header = fly_header_init();
+	res->request = req;
+	res->body = NULL;
+
+	fly_add_content_etag(res->header, pf);
+	fly_add_date(res->header);
+
+	e->read_or_write = FLY_WRITE;
+	e->event_data = (void *) res;
+	/* close socket in 5xx event */
+	e->flag = FLY_CLOSE_EV;
+	e->tflag = FLY_INHERIT;
+	e->eflag = 0;
+	FLY_EVENT_HANDLER(e, __fly_until_header_handler);
 	fly_event_socket(e);
 
 	return fly_event_register(e);

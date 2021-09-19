@@ -709,6 +709,7 @@ int fly_request_timeout_handler(fly_event_t *event)
 	return 0;
 }
 
+#include "cache.h"
 int fly_request_event_handler(fly_event_t *event)
 {
 	fly_request_t *request;
@@ -900,17 +901,22 @@ timeout:
 	return 0;
 
 response_path:
+
+	if (fly_if_none_match(request->header, pf))
+		goto response_304;
+	if (fly_if_modified_since(request->header, pf))
+		goto response_304;
 	struct fly_response_content *rc;
 	rc = fly_pballoc(request->pool, sizeof(struct fly_response_content));
 	if (fly_unlikely_null(rc))
-		return -1;
+		goto error;
 	rc->pf = pf;
 	rc->request = request;
 	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	event->read_or_write = FLY_WRITE;
 	event->flag = FLY_MODIFY;
 	event->tflag = FLY_INHERIT;
-	FLY_EVENT_HANDLER(event, fly_response_content_event);
+	FLY_EVENT_HANDLER(event, fly_response_content_event_handler);
 	event->available = false;
 	event->event_data = (void *) rc;
 	fly_event_socket(event);
@@ -918,6 +924,18 @@ response_path:
 		goto error;
 
 	return  0;
+
+response_304:
+	struct fly_response_content *rc_304;
+
+	rc_304 = fly_pballoc(request->pool, sizeof(struct fly_response_content));
+	if (fly_unlikely_null(rc_304))
+		goto error;
+	rc_304->pf = pf;
+	rc_304->request = request;
+	if (fly_304_event(event, rc_304) == -1)
+		goto error;
+	return 0;
 response:
 	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	event->read_or_write = FLY_WRITE;
