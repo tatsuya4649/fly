@@ -24,17 +24,20 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 		return NULL;
 
 	req->pool = pool;
-	req->request_line = NULL;
-	req->header = NULL;
-	req->body = NULL;
-	req->buffer = fly_pballoc(pool, FLY_BUFSIZE);
-	req->mime = NULL;
-	req->encoding = NULL;
-	if (req->buffer == NULL)
+	req->request_line = NULL;		/* use request pool */
+	req->header = NULL;				/* use hedaer pool */
+	req->body = NULL;				/* use body pool */
+	req->buffer = fly_pballoc(pool, FLY_BUFSIZE); /* usr request pool */
+	if (fly_unlikely_null(req->buffer))
 		return NULL;
+
+	req->mime = NULL;				/* use request pool */
+	req->encoding = NULL;			/* use request pool */
+	req->language = NULL;			/* use request pool */
+	req->charset = NULL;			/* use request pool */
 	req->bptr = req->buffer;
 	memset(req->buffer, 0, FLY_BUFSIZE);
-	req->connect = conn;
+	req->connect = conn;			/* use connect pool */
 	req->fase = EFLY_REQUEST_FASE_REQUEST_LINE;
 
 	return req;
@@ -45,10 +48,10 @@ int fly_request_release(fly_request_t *req)
 	if (req == NULL)
 		return -1;
 
-	if (req->header != NULL)
-		fly_header_release(req->header);
-	if (req->body != NULL)
-		fly_body_release(req->body);
+	if (req->header && (fly_header_release(req->header) == -1))
+		return -1;
+	if (req->body && (fly_body_release(req->body) == -1))
+		return -1;
 	return fly_delete_pool(&req->pool);
 }
 
@@ -171,7 +174,7 @@ __fly_static int __fly_parse_reqline(fly_reqlinec_t *request_line)
 				prev = METHOD_SPACE;
 				break;
 			case URI:
-				if (__fly_alpha(*ptr) || __fly_number(*ptr) || __fly_slash(*ptr))
+				if (__fly_alpha(*ptr) || __fly_dot(*ptr) || __fly_number(*ptr) || __fly_slash(*ptr))
 					;
 				else if (__fly_space(*ptr))
 					now = URI_SPACE;
@@ -686,7 +689,7 @@ int fly_request_disconnect_handler(fly_event_t *event)
 	/* TODO: release some resources */
 	if (fly_event_unregister(event) == -1)
 		return -1;
-	if (close(discon_sock) == -1)
+	if (fly_socket_close(discon_sock, FLY_SOCK_CLOSE) == -1)
 		return -1;
 
 	return 0;
@@ -694,18 +697,20 @@ int fly_request_disconnect_handler(fly_event_t *event)
 
 int fly_request_timeout_handler(fly_event_t *event)
 {
-	__unused fly_request_t *req;
-	fly_sock_t discon_sock;
-
+	fly_request_t *req;
+	fly_connect_t *conn;
 	req = (fly_request_t *) event->event_data;
-	discon_sock = event->fd;
 
-	/* TODO: release some resources */
+	conn = req->connect;
+
+	/* release some resources */
+	/* close socket and release resources. */
+	if (fly_request_release(req) == -1)
+		return -1;
 	if (fly_event_unregister(event) == -1)
 		return -1;
-	if (close(discon_sock) == -1)
+	if (fly_connect_release(conn) == -1)
 		return -1;
-
 	return 0;
 }
 
@@ -888,16 +893,8 @@ disconnection:
 
 /* expired */
 timeout:
-	event->event_state = (void *) EFLY_REQUEST_STATE_TIMEOUT;
-	event->read_or_write = FLY_READ;
-	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
-	event->tflag = FLY_INHERIT;
-	FLY_EVENT_HANDLER(event, fly_request_timeout_handler);
-	event->available = false;
-	fly_event_socket(event);
-	if (fly_event_register(event) == -1)
+	if (fly_request_timeout(event) == -1)
 		goto error;
-
 	return 0;
 
 response_path:
@@ -952,4 +949,17 @@ response:
 
 error:
 	return -1;
+}
+
+
+int fly_request_timeout(fly_event_t *event)
+{
+	event->event_state = (void *) EFLY_REQUEST_STATE_TIMEOUT;
+	event->read_or_write = FLY_WRITE;
+	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
+	event->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(event, fly_request_timeout_handler);
+	event->available = false;
+	fly_event_socket(event);
+	return fly_event_register(event);
 }

@@ -140,16 +140,16 @@ error:
 	return -1;
 }
 
-__fly_static int __fly_strcmp_mp(char *filename, char *fullpath, const char *mount_point)
-{
-	while(*fullpath++ == *mount_point++)
-		;
-
-	while(*filename++ == *fullpath++)
-		if (*filename == '\0')	return 0;
-
-	return -1;
-}
+//__fly_static int __fly_strcmp_mp(char *filename, char *fullpath, const char *mount_point)
+//{
+//	while(*fullpath++ == *mount_point++)
+//		;
+//
+//	while(*filename++ == *fullpath++)
+//		if (*filename == '\0')	return 0;
+//
+//	return -1;
+//}
 
 __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __unused char *path, const char *mount_point)
 {
@@ -164,7 +164,8 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __unused char *pa
 				parts->files = __pf->next;
 			else
 				prev->next = __pf->next;
-			/* TODO: release pf */
+			/* release pf */
+			fly_pbfree(parts->pool, __pf);
 			if (__pf->fd != -1)
 				if (close(__pf->fd) == -1)
 					return -1;

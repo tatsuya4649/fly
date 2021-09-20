@@ -6,7 +6,6 @@
 #include "fly.h"
 #include "server.h"
 #include "err.h"
-
 int fly_socket_nonblocking(fly_sock_t s)
 {
 	int val = 1;
@@ -82,4 +81,11 @@ int fly_socket_release(int sockfd)
 const char *fly_sockport_env(void)
 {
 	return getenv(FLY_PORT_ENV);
+}
+
+
+int fly_socket_close(int fd, int how __unused)
+{
+	return close (fd);
+	//return shutdown(fd, how);
 }

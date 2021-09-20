@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <assert.h>
+#include <errno.h>
 
 #ifndef __GNUC__
 #define __attribute__((x))		/* NOTHING */
@@ -35,4 +36,8 @@ int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr
 #define fly_likely(x)			(__builtin_expect(!!(x), 1))
 #define fly_unlikely_null(x)		(fly_unlikely(!(x)))
 #define fly_unlikely_minus_one(x)		(fly_unlikely((x) == -1))
+
+#define FLY_BLOCKING(res)				\
+	((res) == (int) -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
+
 #endif
