@@ -14,6 +14,7 @@ struct fly_size_bytes fly_sizes[] = {
 };
 
 __direct_log __fly_static void *__fly_malloc(int size);
+__fly_static void __fly_free(void *ptr);
 
 ssize_t fly_bytes_from_size(fly_pool_s size)
 {
@@ -38,7 +39,7 @@ __direct_log __fly_static void *__fly_malloc(int size)
 	return res;
 }
 
-void fly_free(void *ptr)
+__fly_static void __fly_free(void *ptr)
 {
 	free(ptr);
 }
@@ -52,7 +53,7 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 
 	new_block->entry = __fly_malloc(size);
 	if (new_block->entry == NULL){
-		fly_free(new_block);
+		__fly_free(new_block);
 		return NULL;
 	}
 	new_block->last = new_block->entry+size-1;
@@ -98,6 +99,29 @@ fly_pool_t *fly_create_poolb(size_t	size){
 	return __fly_create_pool(size);
 }
 
+void fly_pbfree(fly_pool_t *pool, void *ptr)
+{
+	if (pool->block_size == 0)
+		return;
+
+	fly_pool_b *__b, *__prev=NULL;
+	for (__b=pool->entry; __b; __b=__b->next){
+		/* not match */
+		if (__b->entry != ptr){
+			__prev = __b;
+			continue;
+		}
+
+		if (__prev != NULL)
+			__prev->next = __b->next;
+		else
+			pool->entry = __b->next;
+
+		/* free block */
+		__fly_free(__b->entry);
+		__fly_free(__b);
+	}
+}
 
 void *fly_palloc(fly_pool_t *pool, fly_page_t psize)
 {
@@ -128,23 +152,20 @@ int fly_delete_pool(fly_pool_t **pool)
 			else
 				prev->next = p->next;
 
-			fly_pool_b *nblock;
-			for (fly_pool_b *block=p->entry; block!=NULL;block=nblock){
-				nblock = block->next;
-				fly_free(block->entry);
-				fly_free(block);
-				p->block_size--;
+			if (p->block_size){
+				fly_pool_b *nblock;
+				for (fly_pool_b *block=p->entry; block!=NULL;block=nblock){
+					nblock = block->next;
+					__fly_free(block->entry);
+					__fly_free(block);
+					p->block_size--;
+				}
 			}
 
-			fly_free(p);
+			__fly_free(p);
 			return 0;
 		}
 		prev = p;
 	}
 	return -1;
-}
-
-int fly_pfree(__unused fly_pool_t *pool, __unused void *ptr)
-{
-	return 0;
 }

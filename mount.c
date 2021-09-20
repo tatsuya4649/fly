@@ -9,10 +9,13 @@
 #include "alloc.h"
 #include "err.h"
 #include "cache.h"
+#include "response.h"
 
-__fly_static int __fly_send_file(int c_sockfd, struct fly_mount_parts_file *__f, off_t *offset, size_t count);
 __fly_static int __fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point);
+__fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response);
+__fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response);
+int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count);
 
 int fly_mount_init(fly_context_t *ctx)
 {
@@ -126,10 +129,10 @@ __fly_static int __fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mo
 		if (__pf == pf){
 			if (prev == NULL)
 				parts->files = __pf->next;
-			else{
+			else
 				prev->next = __pf->next;
-				/* TODO: release __pf */
-			}
+			/* release __pf */
+			fly_pbfree(parts->mount->ctx->pool, __pf);
 			parts->file_count--;
 			return 0;
 		}
@@ -250,16 +253,17 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	parts->next = NULL;
 	parts->wd = -1;
 	parts->infd = -1;
+	parts->pool = pool;
 
-	if (__fly_mount_add(mnt, parts) == -1){
-		/* TODO: release parts */
-		return -1;
-	}
+	if (__fly_mount_add(mnt, parts) == -1)
+		goto error;
 	if (__fly_nftw(parts, rpath, rpath, -1) == -1)
-		/* TODO: release parts */
-		return -1;
+		goto error;
 
 	return 0;
+error:
+	fly_pbfree(pool, parts);
+	return -1;
 }
 
 int fly_unmount(fly_mount_t *mnt, const char *path)
@@ -275,7 +279,8 @@ int fly_unmount(fly_mount_t *mnt, const char *path)
 					prev->next = __p->next;
 				else
 					mnt->parts = __p->next;
-				/* TODO: release parts */
+				/* release parts */
+				fly_pbfree(__p->pool, __p);
 				mnt->mount_count--;
 				goto check_total_mount_count;
 			}
@@ -333,35 +338,87 @@ int fly_join_path(char *buffer, char *join1, char *join2)
  * if there are same name file on some mount points,
  * send file that found first.
  */
-int fly_from_path(int c_sockfd, fly_mount_t *mnt, int mount_number, char *filename, off_t *offset, size_t count)
+//int fly_from_path(int c_sockfd, fly_mount_t *mnt, int mount_number, char *filename, off_t *offset, size_t count)
+//{
+//	for (fly_mount_parts_t *__p=mnt->parts; __p; __p=__p->next){
+//		/* no file, this mount point */
+//		if (__p->file_count == 0)
+//			continue;
+//		if (mount_number < 0 || mount_number != __p->mount_number)
+//			continue;
+//
+//		for (struct fly_mount_parts_file *__pf; __pf; __pf=__pf->next){
+//			if (strcmp(filename, __pf->filename) == 0){
+//				if (__fly_send_file(c_sockfd, __pf, offset, count) == -1)
+//					return -1;
+//				else
+//					return 0;
+//			}
+//		}
+//	}
+//
+//	/* TODO: not found(404) */
+//	return -1;
+//}
+
+__fly_static int __fly_send_from_pf_blocking_handler(fly_event_t *e)
 {
-	for (fly_mount_parts_t *__p=mnt->parts; __p; __p=__p->next){
-		/* no file, this mount point */
-		if (__p->file_count == 0)
-			continue;
-		if (mount_number < 0 || mount_number != __p->mount_number)
-			continue;
+	fly_response_t *res;
 
-		for (struct fly_mount_parts_file *__pf; __pf; __pf=__pf->next){
-			if (strcmp(filename, __pf->filename) == 0){
-				if (__fly_send_file(c_sockfd, __pf, offset, count) == -1)
-					return -1;
-				else
-					return 0;
-			}
-		}
-	}
-
-	/* TODO: not found(404) */
-	return -1;
+	res = (fly_response_t *) e->event_data;
+	return fly_send_from_pf(e, e->fd, res->pf, &res->offset, res->count);
 }
 
-int fly_send_from_pf(int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count)
+__fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response)
 {
-	if (__fly_send_file(c_sockfd, pf, offset, count) == -1)
-		return -1;
+	e->event_data = (void *) response;
+	e->read_or_write = FLY_WRITE;
+	e->eflag = 0;
+	e->tflag = FLY_INHERIT;
+	e->flag = FLY_NODELETE;
+	e->available = false;
+	FLY_EVENT_HANDLER(e, __fly_send_from_pf_blocking_handler);
+	return fly_event_register(e);
+}
+
+int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count)
+{
+	fly_response_t *response;
+	size_t total;
+	int *bfs;
+	ssize_t numsend;
+
+	response = (fly_response_t *) e->event_data;
+	bfs = &response->byte_from_start;
+	response = (fly_response_t *) e->event_data;
+	response->fase = FLY_RESPONSE_BODY;
+	response->pf = pf;
+	response->offset = *offset;
+	response->count = count;
+
+	if (*bfs)
+		total = (size_t) *bfs;
 	else
-		return 0;
+		total = 0;
+
+	while(total < count){
+		numsend = sendfile(c_sockfd, pf->fd, offset, count);
+		response->offset = *offset;
+		if (FLY_BLOCKING(numsend)){
+			/* event register */
+			if (__fly_send_from_pf_blocking(e, response) == -1)
+				return FLY_RESPONSE_ERROR;
+			return FLY_RESPONSE_BLOCKING;
+		}else if (numsend == -1)
+			return FLY_RESPONSE_ERROR;
+
+		total += numsend;
+		*bfs = total;
+	}
+
+	*bfs = 0;
+	response->fase = FLY_RESPONSE_RELEASE;
+	return FLY_RESPONSE_SUCCESS;
 }
 
 #define FLY_FOUND_CONTENT_FROM_PATH_FOUND		1
@@ -399,25 +456,6 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_http_uri_t *uri, struct fl
 
 	*res = NULL;
 	return FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND;
-}
-
-__fly_static int __fly_send_file(int c_sockfd, struct fly_mount_parts_file *__f, off_t *offset, size_t count)
-{
-	ssize_t res, left;
-
-	/* invalid file descriptor */
-	if (__f->fd == -1)
-		return -1;
-
-	left = count;
-	res = 0;
-	while ((left-=res)){
-		res = sendfile(c_sockfd, __f->fd, offset, count);
-		if (res == -1)
-			return -1;
-	}
-
-	return 0;
 }
 
 int fly_mount_inotify(fly_mount_t *mount, int ifd)

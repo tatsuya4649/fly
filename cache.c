@@ -49,7 +49,7 @@ __fly_static int __fly_md5_from_hash(struct fly_file_hash *hash)
 	}
 	hash->md5[2*FLY_MD5_LENGTH+1] = '\0';
 
-	/* TODO: release md5_src */
+	fly_pbfree(hash->pf->parts->mount->ctx->pool, md5_src);
 	return 0;
 }
 

@@ -42,6 +42,7 @@ typedef struct fly_hdr_chain_info fly_hdr_ci;
 fly_hdr_ci *fly_header_init(void);
 int fly_header_release(fly_hdr_ci *info);
 int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
+int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 int fly_header_delete(fly_hdr_ci *chain_info, char *name);
 char *fly_header_from_chain(fly_hdr_ci *chain_info);
 size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info);
@@ -53,6 +54,7 @@ int fly_connection(fly_hdr_ci *ci);
 #define	FLY_CONNECTION_KEEP_ALIVE		1
 
 struct fly_mount_parts_file;
+int fly_add_content_length(fly_hdr_ci *ci, size_t cl);
 int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb);
 int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
@@ -60,7 +62,14 @@ int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_add_date(fly_hdr_ci *ci);
 #include "mime.h"
 int fly_add_content_type_header(fly_hdr_ci *ci, fly_mime_e type);
-#include "body.h"
-int fly_add_content_length_heaedr(fly_hdr_ci *ci, fly_body_t *body);
+enum fly_header_connection_e{
+	KEEP_ALIVE,
+	CLOSE,
+};
+int fly_add_connection(fly_hdr_ci *ci, enum fly_header_connection_e connection);
+#include "encode.h"
+int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e);
+int fly_add_content_length(fly_hdr_ci *ci, size_t cl);
+
 
 #endif

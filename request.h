@@ -59,18 +59,19 @@ typedef enum fly_request_state fly_request_state_t;
 #include "charset.h"
 #include "lang.h"
 struct fly_request{
-	fly_pool_t *pool;
-	fly_connect_t *connect;
-	fly_reqline_t *request_line;
-	fly_hdr_ci *header;
-	fly_body_t *body;
-	fly_buffer_t *buffer;
-	fly_buffer_t *bptr;
-	fly_request_fase_t fase;
-	fly_encoding_t *encoding;
-	fly_mime_t *mime;
-	fly_charset_t *charset;
-	fly_lang_t *language;
+	/* use pool: request, connect, header, body */
+	fly_pool_t			*pool;
+	fly_connect_t		*connect;
+	fly_reqline_t		*request_line;
+	fly_hdr_ci			*header;
+	fly_body_t			*body;
+	fly_buffer_t		*buffer;
+	fly_buffer_t		*bptr;
+	fly_request_fase_t	 fase;
+	fly_encoding_t		*encoding;
+	fly_mime_t			*mime;
+	fly_charset_t		*charset;
+	fly_lang_t			*language;
 };
 typedef struct fly_request fly_request_t;
 
@@ -84,4 +85,5 @@ fly_request_t *fly_request_init(fly_connect_t *conn);
 int fly_request_release(fly_request_t *req);
 
 fly_reqlinec_t *fly_get_request_line_ptr(char *buffer);
+int fly_request_timeout(fly_event_t *event);
 #endif

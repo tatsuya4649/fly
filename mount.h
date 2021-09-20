@@ -30,13 +30,11 @@ struct fly_mount_parts{
 	int wd;
 	int infd;
 	char mount_path[FLY_PATH_MAX];
-	int mount_number;
-
-	struct fly_mount_parts_file *files;
-	int file_count;
+	int mount_number; struct fly_mount_parts_file *files; int file_count;
 
 	struct fly_mount_parts *next;
 	struct fly_mount *mount;
+	fly_pool_t *pool;
 };
 
 struct fly_context;
@@ -60,7 +58,7 @@ ssize_t fly_file_size(const char *path);
 int fly_mount_number(fly_mount_t *mnt, const char *path);
 char *fly_content_from_path(int mount_number, char *filepath);
 int fly_join_path(char *buffer, char *join1, char *join2);
-int fly_from_path(int c_sockfd, fly_mount_t *mnt, int mount_number, char *filename, off_t *offset, size_t count);
+//int fly_from_path(int c_sockfd, fly_mount_t *mnt, int mount_number, char *filename, off_t *offset, size_t count);
 
 int fly_mount_inotify(fly_mount_t *mount, int ifd);
 
@@ -87,5 +85,7 @@ struct fly_mount_parts_file *fly_pf_from_parts(char *path, fly_mount_parts_t *pa
 void fly_parts_file_add(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 #include "uri.h"
 int fly_found_content_from_path(fly_mount_t *mnt, fly_http_uri_t *uri, struct fly_mount_parts_file **res);
-int fly_send_from_pf(int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count);
+#include "event.h"
+int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count);
+
 #endif

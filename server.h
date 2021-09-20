@@ -31,5 +31,9 @@ int fly_socket_release(int sockfd);
 #define FLY_LISTEN_SOCKINFO_FLAG		(NI_NUMERICSERV)
 const char *fly_sockport_env(void);
 int fly_socket_nonblocking(fly_sock_t s);
+#define FLY_SOCK_READ_CLOSE				(SHUT_RD)
+#define FLY_SOCK_WRTITE_CLOSE			(SHUT_WR)
+#define FLY_SOCK_CLOSE					(SHUT_RDWR)
+int fly_socket_close(int fd, int how);
 
 #endif

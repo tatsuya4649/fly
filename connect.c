@@ -1,6 +1,7 @@
 #include "connect.h"
 #include <stdio.h>
 #include <sys/socket.h>
+#include "server.h"
 
 __fly_static int __fly_info_of_connect(fly_connect_t *conn);
 
@@ -31,7 +32,10 @@ int fly_connect_release(fly_connect_t *conn)
 {
 	if (conn == NULL)
 		return -1;
-	close(conn->c_sockfd);
+
+	if (fly_socket_close(conn->c_sockfd, FLY_SOCK_CLOSE) == -1)
+		return -1;
+
 	return fly_delete_pool(&conn->pool);
 }
 
