@@ -90,6 +90,8 @@ fly_response_t *fly_response_init(void)
 	response->pf = NULL;
 	response->offset = 0;
 	response->count = 0;
+	response->encoding = NULL;
+	response->de = NULL;
 	return response;
 }
 
@@ -760,6 +762,7 @@ int fly_response_content_event_handler(fly_event_t *e)
 	struct fly_response_content *rc;
 	int c_sockfd;
 	off_t offset;
+	fly_encoding_type_t *enctype=NULL;
 
 	rc = (struct fly_response_content *) e->event_data;
 
@@ -777,12 +780,50 @@ int fly_response_content_event_handler(fly_event_t *e)
 	response->status_code = _200;
 	response->version = V1_1;
 	response->header = fly_header_init();
+	response->encoding = rc->request->encoding;
 
 	fly_add_content_length_from_stat(response->header, &rc->pf->fs);
 	fly_add_content_etag(response->header, rc->pf);
 	fly_add_date(response->header);
 	fly_add_last_modified(response->header, rc->pf);
 	fly_add_connection(response->header, KEEP_ALIVE);
+	fly_add_content_encoding(response->header, rc->request->encoding);
+
+
+	offset = 0;
+	if (response->encoding != NULL && response->encoding->actqty){
+		enctype = fly_decided_encoding_type(response->encoding);
+		if (fly_unlikely_null(enctype))
+			return -1;
+
+		fly_de_t *__de;
+
+		__de = fly_pballoc(response->pool, sizeof(fly_de_t));
+		__de->pool = response->pool;
+		__de->type = FLY_DE_ESEND_FROM_PATH;
+		__de->encbuflen = 0;
+		__de->decbuflen = 0;
+		__de->encbuf = fly_e_buf_add(__de);
+		__de->decbuf = fly_d_buf_add(__de);
+		__de->fd = rc->pf->fd;
+		__de->offset = offset;
+		__de->count = rc->pf->fs.st_size;
+		__de->event = e;
+		__de->response = response;
+		__de->send = send;
+		__de->c_sockfd = e->fd;
+		__de->etype = enctype;
+		__de->fase = FLY_DE_INIT;
+		__de->bfs = 0;
+		__de->end = false;
+		response->de = __de;
+
+		if (fly_unlikely_null(__de->decbuf) || \
+				fly_unlikely_null(__de->encbuf))
+			return -1;
+		if (enctype->encode(__de) == -1)
+			return -1;
+	}
 
 	switch (__fly_send_until_header(e, response)){
 	case FLY_RESPONSE_SUCCESS:
@@ -794,16 +835,26 @@ int fly_response_content_event_handler(fly_event_t *e)
 		return -1;
 	}
 
-	offset = 0;
 	e->event_data = (fly_response_t *) response;
-	switch (fly_send_from_pf(e, c_sockfd, rc->pf, &offset, rc->pf->fs.st_size)){
-	case FLY_RESPONSE_SUCCESS:
-		break;
-	case FLY_RESPONSE_BLOCKING:
-		/* event register in fly_send_from_pf */
-		return 0;
-	case FLY_RESPONSE_ERROR:
-		return -1;
+	if (response->encoding == NULL){
+		switch (fly_send_from_pf(e, c_sockfd, rc->pf, &offset, rc->pf->fs.st_size)){
+		case FLY_RESPONSE_SUCCESS:
+			break;
+		case FLY_RESPONSE_BLOCKING:
+			/* event register in fly_send_from_pf */
+			return 0;
+		case FLY_RESPONSE_ERROR:
+			return -1;
+		}
+	}else{
+		switch(fly_esend_body(e, response)){
+		case FLY_RESPONSE_SUCCESS:
+			break;
+		case FLY_RESPONSE_ERROR:
+			return -1;
+		case FLY_RESPONSE_BLOCKING:
+			return 0;
+		}
 	}
 
 	/* release response resource */
