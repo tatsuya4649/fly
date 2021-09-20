@@ -65,8 +65,8 @@ struct fly_response{
 	fly_pool_t					*pool;
 	fly_stcode_t				 status_code;
 	fly_version_e				 version;
-	fly_hdr_ci					*header;
-	fly_body_t					*body;
+	fly_hdr_ci					*header;	/* use header pool */
+	fly_body_t					*body;		/* usr body pool */
 	fly_request_t				*request;
 
 	enum{
@@ -82,6 +82,10 @@ struct fly_response{
 	struct fly_mount_parts_file *pf;
 	off_t						 offset;
 	size_t						 count;
+	fly_encoding_t				*encoding;
+	fly_de_t					*de;			/* use response pool */
+
+	fly_bit_t					 encoded: 1;
 };
 typedef struct fly_response fly_response_t;
 

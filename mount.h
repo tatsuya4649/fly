@@ -30,10 +30,7 @@ struct fly_mount_parts{
 	int wd;
 	int infd;
 	char mount_path[FLY_PATH_MAX];
-	int mount_number;
-
-	struct fly_mount_parts_file *files;
-	int file_count;
+	int mount_number; struct fly_mount_parts_file *files; int file_count;
 
 	struct fly_mount_parts *next;
 	struct fly_mount *mount;

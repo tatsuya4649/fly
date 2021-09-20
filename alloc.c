@@ -14,7 +14,7 @@ struct fly_size_bytes fly_sizes[] = {
 };
 
 __direct_log __fly_static void *__fly_malloc(int size);
-__fly_static void fly_free(void *ptr);
+__fly_static void __fly_free(void *ptr);
 
 ssize_t fly_bytes_from_size(fly_pool_s size)
 {

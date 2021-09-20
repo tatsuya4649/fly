@@ -174,7 +174,7 @@ __fly_static int __fly_parse_reqline(fly_reqlinec_t *request_line)
 				prev = METHOD_SPACE;
 				break;
 			case URI:
-				if (__fly_alpha(*ptr) || __fly_number(*ptr) || __fly_slash(*ptr))
+				if (__fly_alpha(*ptr) || __fly_dot(*ptr) || __fly_number(*ptr) || __fly_slash(*ptr))
 					;
 				else if (__fly_space(*ptr))
 					now = URI_SPACE;

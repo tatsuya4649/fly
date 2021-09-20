@@ -458,26 +458,6 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_http_uri_t *uri, struct fl
 	return FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND;
 }
 
-//__fly_static int __fly_send_file(int c_sockfd, struct fly_mount_parts_file *__f, off_t *offset, size_t count)
-//{
-//	ssize_t res, left;
-//
-//	/* invalid file descriptor */
-//	if (__f->fd == -1)
-//		return -1;
-//
-//	left = count;
-//	res = 0;
-//	while ((left-=res)){
-//		res = sendfile(c_sockfd, __f->fd, offset, count);
-//		if (FLY_BLOCKING(res)){
-//		}if (res == -1)
-//			return -1;
-//	}
-//
-//	return 0;
-//}
-
 int fly_mount_inotify(fly_mount_t *mount, int ifd)
 {
 	for (int i=0; i<mount->mount_count; i++){
