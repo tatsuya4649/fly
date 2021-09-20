@@ -373,6 +373,12 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 			"worker open file error."
 		);
 
+	if (__fly_worker_open_default_content(ctx) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_READY,
+			"worker open default content error."
+		);
+
 	manager = fly_event_manager_init(ctx);
 	if (manager == NULL)
 		FLY_EMERGENCY_ERROR(
@@ -530,6 +536,39 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 				return -1;
 			if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
 				return -1;
+		}
+	}
+	return 0;
+}
+
+__fly_static void __fly_add_rcbs(fly_context_t *ctx,'fly_rcbs_t *__r)
+{
+	if (ctx->rcbs == NULL)
+		ctx->rcbs = __r;
+	else{
+		for (fly_rcbs_t *r; r->next; r=r->next){
+			r->next = __r;
+		}
+	}
+}
+
+/* open worker default content by status code */
+__fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
+{
+	for (fly_status_code *__res=responses; __res->status_code<0; __res++){
+		/* there is a default content path */
+		if (__res->default_path){
+			struct fly_response_content_by_stcode *__frc;
+			__frc = fly_pballoc(ctx->pool, sizeof(struct fly_response_content_by_stcode));
+			if (fly_unlikely_null(__ftc))
+				return -1;
+			__frc->status_code = __res->type;
+			__frc->content_path = __res->default_path;
+			__frc->next = NULL;
+			__frc->fd = open(__frc->content_path, O_RDONLY);
+			if (__frc->fd == -1)
+				return -1;
+			__fly_add_rcbs(ctx, __frc);
 		}
 	}
 	return 0;

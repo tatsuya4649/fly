@@ -29,7 +29,7 @@ typedef char fly_buffer_t;
 struct fly_request_line{
 	fly_reqlinec_t *request_line;
 	fly_http_method_t *method;
-	fly_http_uri_t uri;
+	fly_uri_t uri;
 	fly_http_version_t *version;
 };
 typedef struct fly_request_line fly_reqline_t;
@@ -60,6 +60,7 @@ typedef enum fly_request_state fly_request_state_t;
 #include "lang.h"
 struct fly_request{
 	/* use pool: request, connect, header, body */
+	fly_context_t       *ctx;
 	fly_pool_t			*pool;
 	fly_connect_t		*connect;
 	fly_reqline_t		*request_line;

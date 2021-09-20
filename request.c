@@ -39,6 +39,7 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 	memset(req->buffer, 0, FLY_BUFSIZE);
 	req->connect = conn;			/* use connect pool */
 	req->fase = EFLY_REQUEST_FASE_REQUEST_LINE;
+	req->ctx = conn->event->manager->ctx;
 
 	return req;
 }
@@ -728,7 +729,7 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_mount_t *mount;
 	struct fly_mount_parts_file *pf;
 	__unused fly_request_state_t state;
-	__unused fly_request_fase_t fase;
+	fly_request_fase_t fase;
 
 	state = (fly_request_state_t) event->event_state;
 	fase = (fly_request_fase_t) event->event_fase;
@@ -813,7 +814,9 @@ __fase_header:
 		goto error;
 
 	/* check of having body */
-	if (fly_content_length(request->header) == 0)
+	size_t content_length;
+	content_length = fly_content_length(request->header);
+	if (!content_length)
 		goto __fase_end_of_parse;
 
 	/* parse body */
@@ -824,22 +827,42 @@ __fase_body:
 		goto error;
 	request->body = body;
 	body_ptr = fly_get_body_ptr(request->buffer);
-	if (fly_body_setting(body, body_ptr) == -1)
-		goto error;
+	/* content-encoding */
+	fly_hdr_value *ev;
+	fly_encoding_type_t *et;
+	ev = fly_content_encoding(request->header);
+	if (ev){
+		/* not supported encoding */
+		et = fly_supported_content_encoding(ev);
+		if (!et)
+			goto response_415;
+		if (fly_decode_body(body_ptr, et, body, content_length) == NULL)
+			goto error;
+	}else{
+		if (fly_body_setting(body, body_ptr, content_length) == -1)
+			goto error;
+	}
 
 
 __fase_end_of_parse:
 	fly_event_fase(event, RESPONSE);
 	/* Success parse request */
+	enum method_type __mtype;
+	__mtype = request->request_line->method->type;
 	route_reg = event->manager->ctx->route_reg;
-	route = fly_found_route(route_reg, request->request_line->uri.uri, request->request_line->method->type);
-
+	/* search from registerd route uri */
+	route = fly_found_route(route_reg, request->request_line->uri.uri, __mtype);
 	mount = event->manager->ctx->mount;
-	if (route == NULL && fly_found_content_from_path(mount, &request->request_line->uri, &pf))
-		goto response_path;
-
-	if (route == NULL)
+	if (route == NULL){
+		int found_res;
+		/* search from uri */
+		found_res = fly_found_content_from_path(mount, &request->request_line->uri, &pf);
+		if (__mtype != GET && found_res){
+			goto response_405;
+		}else if (__mtype == GET && found_res)
+			goto response_path;
 		goto response_404;
+	}
 
 	/* defined handler */
 	response = route->function(request);
@@ -855,8 +878,15 @@ response_400:
 response_404:
 	fly_4xx_error_event(event, request, _404);
 	return 0;
+response_405:
+	if (fly_405_event(event, request) == -1)
+		goto error;
+	return 0;
 response_414:
 	fly_4xx_error_event(event, request, _414);
+	return 0;
+response_415:
+	fly_4xx_error_event(event, request, _415);
 	return 0;
 response_500:
 	fly_5xx_error_event(event, request, _500);
@@ -920,7 +950,7 @@ response_path:
 	if (fly_event_register(event) == -1)
 		goto error;
 
-	return  0;
+	return 0;
 
 response_304:
 	struct fly_response_content *rc_304;
@@ -933,6 +963,7 @@ response_304:
 	if (fly_304_event(event, rc_304) == -1)
 		goto error;
 	return 0;
+
 response:
 	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	event->read_or_write = FLY_WRITE;

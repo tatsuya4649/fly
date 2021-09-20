@@ -28,6 +28,7 @@ fly_context_t *fly_context_init(void)
 	ctx->log = fly_log_init();
 	if (ctx->log == NULL)
 		return NULL;
+	ctx->rcbs = NULL;
 
 	/* ready for emergency error */
 	if (fly_errsys_init(ctx) == -1)

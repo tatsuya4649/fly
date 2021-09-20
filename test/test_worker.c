@@ -18,7 +18,7 @@ fly_response_t *hello(fly_request_t *request)
 		return NULL;
 	if (fly_header_add(res->header, fly_header_name_length("Connection"), fly_header_value_length("keep-alive")) == -1)
 		return NULL;
-	if (fly_body_setting(res->body, "Hello Body") == -1)
+	if (fly_body_setting(res->body, "Hello Body", strlen("Hello Body")) == -1)
 		return NULL;
 	res->status_code = _200;
 	res->version = V1_1;
