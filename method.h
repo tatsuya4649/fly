@@ -24,6 +24,12 @@ struct fly_http_method{
 };
 typedef struct fly_http_method fly_http_method_t;
 
+struct fly_http_method_chain{
+	struct fly_http_method *method;
+	int chain_length;
+	struct fly_http_method_chain *next;
+};
+
 extern fly_http_method_t methods[];
 
 fly_http_method_t *fly_match_method_name(char *method_name);

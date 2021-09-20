@@ -11,49 +11,49 @@
 
 fly_status_code responses[] = {
 	/* 1xx Info */
-	{100, _100, "Continue",						NULL},
-	{101, _101, "Switching Protocols",			FLY_STRING_ARRAY("Upgrade", NULL)},
+	{100, _100, "Continue", NULL,				NULL},
+	{101, _101, "Switching Protocols", NULL,			FLY_STRING_ARRAY("Upgrade", NULL)},
 	/* 2xx Success */
-	{200, _200, "OK",							NULL},
-	{201, _201, "Created",						NULL},
-	{202, _202, "Accepted",						NULL},
-	{203, _203, "Non-Authoritative Information",NULL},
-	{204, _204, "No Content",					NULL},
-	{205, _205, "Reset Content",				NULL},
+	{200, _200, "OK", NULL, 					NULL},
+	{201, _201, "Created", NULL,				NULL},
+	{202, _202, "Accepted", NULL, 				NULL},
+	{203, _203, "Non-Authoritative Information", NULL, NULL},
+	{204, _204, "No Content", NULL, 					NULL},
+	{205, _205, "Reset Content", NULL,				NULL},
 	/* 3xx Redirect */
-	{300, _300, "Multiple Choices",				NULL},
-	{301, _301, "Moved Permanently",			FLY_STRING_ARRAY("Location", NULL)},
-	{302, _302, "Found",						FLY_STRING_ARRAY("Location", NULL)},
-	{303, _303, "See Other",					FLY_STRING_ARRAY("Location", NULL)},
-	{304, _304, "Not Modified",					NULL},
-	{307, _307, "Temporary Redirect",			FLY_STRING_ARRAY("Location", NULL)},
+	{300, _300, "Multiple Choices", NULL, 				NULL},
+	{301, _301, "Moved Permanently", NULL,			FLY_STRING_ARRAY("Location", NULL)},
+	{302, _302, "Found", NULL,						FLY_STRING_ARRAY("Location", NULL)},
+	{303, _303, "See Other", NULL,					FLY_STRING_ARRAY("Location", NULL)},
+	{304, _304, "Not Modified",	NULL,				NULL},
+	{307, _307, "Temporary Redirect", NULL,			FLY_STRING_ARRAY("Location", NULL)},
 	/* 4xx Client Error */
-	{400, _400, "Bad Request",					NULL},
-	{401, _401, "Unauthorized",					NULL},
-	{402, _402, "Payment Required",				NULL},
-	{403, _403, "Forbidden",					NULL},
-	{404, _404, "Not Found",					NULL},
-	{405, _405, "Method Not Allowed",			FLY_STRING_ARRAY("Allow", NULL)},
-	{406, _406, "Not Acceptable",				NULL},
-	{407, _407, "Proxy Authentication Required",NULL},
-	{408, _408, "Request Timeout",				FLY_STRING_ARRAY("Connection", NULL)},
-	{409, _409, "Conflict",						NULL},
-	{409, _410, "Gone",							NULL},
-	{410, _411, "Length Required",				NULL},
-	{413, _413, "Payload Too Large",			FLY_STRING_ARRAY("Retry-After", NULL)},
-	{414, _414, "URI Too Long",					NULL},
-	{415, _415, "Unsupported Media Type",		NULL},
-	{416, _416, "Range Not Satisfiable",		NULL},
-	{417, _417, "Expectation Failed",			NULL},
-	{426, _426, "Upgrade Required",				FLY_STRING_ARRAY("Upgrade", NULL)},
+	{400, _400, "Bad Request", NULL,					NULL},
+	{401, _401, "Unauthorized",	NULL,				NULL},
+	{402, _402, "Payment Required", NULL,				NULL},
+	{403, _403, "Forbidden", NULL,					NULL},
+	{404, _404, "Not Found", NULL,					NULL},
+	{405, _405, "Method Not Allowed", NULL,			FLY_STRING_ARRAY("Allow", NULL)},
+	{406, _406, "Not Acceptable", NULL,				NULL},
+	{407, _407, "Proxy Authentication Required", NULL, NULL},
+	{408, _408, "Request Timeout", NULL,				FLY_STRING_ARRAY("Connection", NULL)},
+	{409, _409, "Conflict", NULL,						NULL},
+	{409, _410, "Gone", NULL,							NULL},
+	{410, _411, "Length Required", NULL,				NULL},
+	{413, _413, "Payload Too Large", NULL,			FLY_STRING_ARRAY("Retry-After", NULL)},
+	{414, _414, "URI Too Long", NULL,					NULL},
+	{415, _415, "Unsupported Media Type", NULL,		NULL},
+	{416, _416, "Range Not Satisfiable", NULL,		NULL},
+	{417, _417, "Expectation Failed", NULL,			NULL},
+	{426, _426, "Upgrade Required", NULL,				FLY_STRING_ARRAY("Upgrade", NULL)},
 	/* 5xx Server Error */
-	{500, _500, "Internal Server Error",		NULL},
-	{501, _501, "Not Implemented",				NULL},
-	{502, _502, "Bad Gateway",					NULL},
-	{503, _503, "Service Unavailable",			NULL},
-	{504, _504, "Gateway Timeout",				NULL},
-	{505, _505, "HTTP Version Not SUpported",	NULL},
-	{-1, -1, NULL, NULL}
+	{500, _500, "Internal Server Error", NULL,		NULL},
+	{501, _501, "Not Implemented", NULL,				NULL},
+	{502, _502, "Bad Gateway", NULL,			NULL},
+	{503, _503, "Service Unavailable", NULL,		NULL},
+	{504, _504, "Gateway Timeout", NULL,				NULL},
+	{505, _505, "HTTP Version Not SUpported", NULL,	NULL},
+	{-1, -1, NULL, NULL, NULL}
 };
 
 __fly_static void __fly_500_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm);
@@ -70,6 +70,7 @@ __fly_static int __fly_send_body_blocking_handler(fly_event_t *e);
 __fly_static int __fly_send_body_blocking(fly_event_t *e, fly_response_t *response);
 __fly_static int __fly_send_body(fly_event_t *e, fly_response_t *response);
 __fly_static int __fly_after_response(fly_event_t *e, fly_response_t *response);
+inline static int __fly_encode_do(fly_response_t *res);
 
 fly_response_t *fly_response_init(void)
 {
@@ -791,10 +792,13 @@ int fly_response_content_event_handler(fly_event_t *e)
 
 
 	offset = 0;
-	if (response->encoding != NULL && response->encoding->actqty){
+	if (__fly_encode_do(response)){
 		enctype = fly_decided_encoding_type(response->encoding);
 		if (fly_unlikely_null(enctype))
 			return -1;
+
+		if (enctype->type == fly_identity)
+			goto end_of_encoding;
 
 		fly_de_t *__de;
 
@@ -824,7 +828,7 @@ int fly_response_content_event_handler(fly_event_t *e)
 		if (enctype->encode(__de) == -1)
 			return -1;
 	}
-
+end_of_encoding:
 	switch (__fly_send_until_header(e, response)){
 	case FLY_RESPONSE_SUCCESS:
 		break;
@@ -1080,7 +1084,6 @@ int fly_304_event(fly_event_t *e, struct fly_response_content *rc)
 	return fly_event_register(e);
 }
 
-
 __fly_static int __fly_408_event_handler(fly_event_t *e)
 {
 	fly_request_t *req;
@@ -1104,6 +1107,30 @@ __fly_static int __fly_408_event_handler(fly_event_t *e)
 		return -1;
 
 	return 0;
+}
+
+int fly_405_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+	res= fly_response_init();
+	res->header = fly_header_init();
+	res->version = V1_1;
+	res->status_code = _405;
+	res->request = req;
+	res->encoded = false;
+	fly_add_allow(res->header, req);
+	fly_add_date(res->header);
+	fly_add_server(res->header);
+
+	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
+	e->event_data = (void *) res;
+	fly_event_socket(e);
+	return fly_event_register(e);
 }
 
 int fly_408_event(fly_event_t *e)
@@ -1136,4 +1163,9 @@ int fly_408_event(fly_event_t *e)
 	fly_event_socket(e);
 
 	return fly_event_register(e);
+}
+
+inline static int __fly_encode_do(fly_response_t *res)
+{
+	return (res->encoding && res->encoding->actqty);
 }

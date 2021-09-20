@@ -440,7 +440,7 @@ __fly_static int __fly_uri_matching(char *filename, char *uri)
 	return -1;
 }
 
-int fly_found_content_from_path(fly_mount_t *mnt, fly_http_uri_t *uri, struct fly_mount_parts_file **res)
+int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mount_parts_file **res)
 {
 	for (fly_mount_parts_t *__p=mnt->parts; __p; __p=__p->next){
 		if (fly_unlikely(__p->file_count == 0))

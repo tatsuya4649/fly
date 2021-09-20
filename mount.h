@@ -84,7 +84,7 @@ int fly_parts_file_remove(fly_mount_parts_t *parts, char *filename);
 struct fly_mount_parts_file *fly_pf_from_parts(char *path, fly_mount_parts_t *parts);
 void fly_parts_file_add(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 #include "uri.h"
-int fly_found_content_from_path(fly_mount_t *mnt, fly_http_uri_t *uri, struct fly_mount_parts_file **res);
+int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mount_parts_file **res);
 #include "event.h"
 int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count);
 

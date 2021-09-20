@@ -1,15 +1,15 @@
 #include "method.h"
 
 fly_http_method_t methods[] = {
-	{"get", GET},
-	{"head", HEAD},
-	{"post", POST},
-	{"put", PUT},
-	{"delete", DELETE},
-	{"connect", CONNECT},
-	{"options", OPTIONS},
-	{"trace", TRACE},
-	{"patch", PATCH},
+	{"GET", GET},
+	{"HEAD", HEAD},
+	{"POST", POST},
+	{"PUT", PUT},
+	{"DELETE", DELETE},
+	{"CONNECT", CONNECT},
+	{"OPTIONS", OPTIONS},
+	{"TRACE", TRACE},
+	{"PATCH", PATCH},
 	{NULL}
 };
 
@@ -17,9 +17,9 @@ fly_http_method_t *fly_match_method_name(char *method_name)
 {
 	if (method_name == NULL)
 		return NULL;
-    /* method name should be lower */
+    /* method name should be upper */
     for (char *n=method_name; *n!='\0'; n++){
-        *n = (char) tolower((int) *n);
+        *n = (char) toupper((int) *n);
 	}
 
 	fly_http_method_t *m;

@@ -18,7 +18,7 @@ typedef char fly_hdr_name;
 #define fly_name_hdr_gap()		": "
 #define FLY_DATE_LENGTH			(50)
 
-#define FLY_NAME	"fly-server"
+#define FLY_SERVER_NAME	("fly")
 #define fly_server_name()	(FLY_NAME)
 
 #define FLY_HEADER_POOL_PAGESIZE		2
@@ -70,6 +70,9 @@ int fly_add_connection(fly_hdr_ci *ci, enum fly_header_connection_e connection);
 #include "encode.h"
 int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e);
 int fly_add_content_length(fly_hdr_ci *ci, size_t cl);
-
+fly_hdr_value *fly_content_encoding(fly_hdr_ci *ci);
+struct fly_request;
+int fly_add_allow(fly_hdr_ci *ci, struct fly_request *req);
+int fly_add_server(fly_hdr_ci *ci);
 
 #endif

@@ -7,6 +7,8 @@
 #include "mime.h"
 #include "math.h"
 #include "cache.h"
+#include "request.h"
+#include "uri.h"
 
 fly_hdr_ci *fly_header_init(void)
 {
@@ -230,6 +232,24 @@ parse_connection:
 	return FLY_CONNECTION_CLOSE;
 }
 
+fly_hdr_value *fly_content_encoding(fly_hdr_ci *ci)
+{
+	if (ci->chain_length == 0)
+		return NULL;
+
+	fly_hdr_c *__c;
+	for (__c=ci->entry; __c; __c=__c->next){
+		if (strcmp(__c->name, "Content-Encoding") == 0){
+			if (!__c->value)
+				return NULL;
+
+			return __c->value;
+		}
+	}
+
+	return NULL;
+}
+
 /*
  *		Builtin Header Function
  *
@@ -324,4 +344,47 @@ int fly_add_content_length(fly_hdr_ci *ci, size_t cl)
 	if (snprintf(contlen_str, len, "%ld", (long) cl) == -1)
 		return -1;
 	return fly_header_addmodify(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
+}
+
+int fly_add_allow(fly_hdr_ci *ci, fly_request_t *req)
+{
+	fly_uri_t *uri;
+	fly_route_reg_t *route_reg;
+	struct fly_http_method_chain *__c, *c;
+	size_t vallen;
+	fly_hdr_value *value, *ptr;
+
+	uri = &req->request_line->uri;
+	route_reg = req->ctx->route_reg;
+
+	/* found valid method from registered route */
+	__c = fly_valid_method(ci->pool, route_reg, uri->uri);
+	if (fly_unlikely_null(__c))
+		return -1;
+	/* method->method str */
+	vallen = 0;
+	for (c=__c; c; c=c->next){
+		vallen += strlen(c->method->name);
+		if (c->next)
+			vallen += strlen(", ");
+	}
+	value = fly_pballoc(ci->pool, sizeof(fly_hdr_value)*(vallen+1));
+	ptr = value;
+	for (c=__c; c; c=c->next){
+		memcpy(ptr, c->method->name, strlen(c->method->name));
+		ptr += strlen(c->method->name);
+		if (c->next){
+			memcpy(ptr , ", ", strlen(", "));
+			ptr += strlen(", ");
+		}
+	}
+	value[vallen] = '\0';
+
+	/* add header */
+	return fly_header_add(ci, fly_header_name_length("Allow"), fly_header_value_length(value));
+}
+
+int fly_add_server(fly_hdr_ci *ci)
+{
+	return fly_header_add(ci, fly_header_name_length("Server"), fly_header_value_length(FLY_SERVER_NAME));
 }

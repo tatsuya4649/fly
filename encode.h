@@ -47,7 +47,12 @@ struct fly_de_buf{
 #define FLY_DE_BUF_FULL				0x01
 #define FLY_DE_BUF_HALF				0x02
 #define FLY_DE_BUF_EMPTY			0x03
-#define fly_de_buf_full(b)			((b)->status = FLY_DE_BUF_FULL)
+#define fly_de_buf_full(b)			\
+	do{										\
+		(b)->status = FLY_DE_BUF_FULL;		\
+		(b)->uselen = (b)->buflen;			\
+	} while(0)
+
 #define fly_de_buf_half(b)			((b)->status = FLY_DE_BUF_HALF)
 #define fly_de_buf_empty(b)			((b)->status = FLY_DE_BUF_EMPTY)
 
@@ -85,10 +90,15 @@ struct fly_de{
 	fly_event_t *event;
 	struct fly_response *response;
 
+	char *already_ptr;
+	size_t already_len;
+
 	size_t				contlen;
 	fly_bit_t			end : 1;
+	fly_bit_t			target_already_alloc: 1;
 };
 typedef struct fly_de fly_de_t;
+struct fly_de *fly_de_init(fly_pool_t *pool);
 
 typedef int (*fly_encode_t)(fly_de_t *de);
 typedef int (*fly_decode_t)(fly_de_t *de);
@@ -157,4 +167,10 @@ struct fly_de_buf *fly_d_buf_add(fly_de_t *de);
 struct fly_de_buf *fly_e_buf_add(fly_de_t *de);
 struct fly_response;
 int fly_esend_body(fly_event_t *e, struct fly_response *response);
+struct fly_response;
+int fly_encode_do(struct fly_response *res);
+#include "header.h"
+fly_encoding_type_t *fly_supported_content_encoding(fly_hdr_value *value);
+void fly_de_release(fly_de_t *de);
+
 #endif

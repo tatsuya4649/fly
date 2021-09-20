@@ -96,6 +96,7 @@ typedef struct{
 	int status_code;
 	enum status_code_type type;
 	char *explain;
+	char *default_path;
 	char **required_header;
 } fly_status_code;
 
@@ -117,6 +118,7 @@ int fly_5xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
 struct fly_response_content;
 int fly_304_event(fly_event_t *e, struct fly_response_content *rc);
 int fly_408_event(fly_event_t *e);
+int fly_405_event(fly_event_t *e, fly_request_t *req);
 
 int fly_response_content_event_handler(fly_event_t *e);
 struct fly_response_content{
@@ -127,4 +129,13 @@ struct fly_response_content{
 #define FLY_RESPONSE_SUCCESS			1
 #define FLY_RESPONSE_BLOCKING			0
 #define FLY_RESPONSE_ERROR				-1
+
+/* default response content(static content) */
+struct fly_response_content_by_stcode{
+	fly_stcode_t status_code;
+	char *content_path;
+	int fd;
+	struct fly_respnse_content_by_stcode *next;
+};
+typedef struct fly_response_content_by_stcode fly_rcbs_t;
 #endif

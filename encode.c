@@ -25,6 +25,8 @@ static inline fly_encoding_type_t *__fly_asterisk(void);
 #define __FLY_PARSE_ACCEPT_ENCODING_SUCCESS			1
 #define __FLY_PARSE_ACCEPT_ENCODING_ERROR			-1
 __fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_header);
+__fly_static int __fly_esend_blocking_handler(fly_event_t *e);
+__fly_static int __fly_esend_blocking(fly_event_t *e, fly_response_t *res);
 static void __fly_memcpy_name(char *dist, char *src, size_t maxlen);
 static inline bool __fly_number(char c);
 static inline bool __fly_vchar(char c);
@@ -105,7 +107,7 @@ int fly_gzip_decode(fly_de_t *de)
 	int status;
 	z_stream __zstream;
 
-	if (de->encbuf == NULL || !de->encbuflen || de->decbuf == NULL || !de->decbuflen)
+	if ((!de->target_already_alloc && (de->encbuf == NULL || !de->encbuflen)) || de->decbuf == NULL || !de->decbuflen)
 		return FLY_ENCODE_ERROR;
 
 	__zstream.zalloc = Z_NULL;
@@ -122,20 +124,43 @@ int fly_gzip_decode(fly_de_t *de)
 
 	status = Z_OK;
 
+	int i=0;
 	while(status != Z_STREAM_END){
 		if (__zstream.avail_in == 0){
-			/* point to encoded buf */
-			__zstream.next_in = de->encbuf->buf;
-			__zstream.avail_in = de->encbuf->buflen;
+			if (de->target_already_alloc){
+				__zstream.next_in = (fly_encbuf_t *) de->already_ptr;
+				__zstream.avail_in = de->already_len;
+			}else{
+				__zstream.next_in = de->encbuf[i].buf;
+				__zstream.avail_in = de->encbuf[i].uselen;
+			}
+			i++;
 		}
 		status = inflate(&__zstream, Z_NO_FLUSH);
 		if (status == Z_STREAM_END)
 			break;
 		if (status != Z_OK)
 			return FLY_ENCODE_ERROR;
-		if (__zstream.avail_out == 0)
-			return FLY_ENCODE_OVERFLOW;
+
+		if (de->ldecbuf->buflen-__zstream.avail_out)
+			fly_de_buf_half(de->ldecbuf);
+
+		if (__zstream.avail_out == 0){
+			fly_de_buf_full(de->ldecbuf);
+			if (de->target_already_alloc)
+				return FLY_ENCODE_OVERFLOW;
+
+			if (!fly_d_buf_add(de))
+				return -1;
+			__zstream.next_out = de->ldecbuf->buf;
+			__zstream.avail_out = de->ldecbuf->buflen;
+		}
 	}
+	if (de->ldecbuf->buflen-__zstream.avail_out){
+		fly_de_buf_half(de->ldecbuf);
+		de->ldecbuf->uselen = de->ldecbuf->buflen-__zstream.avail_out;
+	}
+	de->end = true;
 	if (inflateEnd(&__zstream) != Z_OK)
 		return FLY_ENCODE_ERROR;
 	return 0;
@@ -174,7 +199,6 @@ int fly_gzip_encode(fly_de_t *de)
 
 	flush = Z_NO_FLUSH;
 	while(status != Z_STREAM_END){
-		int numread = 0;
 		if (__zstream.avail_in == 0){
 			switch(de->type){
 			case FLY_DE_ENCODE:
@@ -187,6 +211,7 @@ int fly_gzip_encode(fly_de_t *de)
 				break;
 			case FLY_DE_ESEND_FROM_PATH:
 				{
+					int numread = 0;
 					if ((numread=read(de->fd, de->decbuf, de->decbuf->buflen)) == -1)
 						return -1;
 					__zstream.next_in = de->decbuf->buf;
@@ -205,13 +230,13 @@ int fly_gzip_encode(fly_de_t *de)
 		if (status != Z_OK)
 			return FLY_ENCODE_ERROR;
 
-		if (__zstream.avail_out != de->lencbuf->buflen)
+		if (de->lencbuf->buflen-__zstream.avail_out)
 			fly_de_buf_half(de->lencbuf);
 
 		if (__zstream.avail_out == 0){
 			fly_de_buf_full(de->lencbuf);
 			de->lencbuf->uselen = de->lencbuf->buflen;
-			if (fly_e_buf_add(de) == NULL)
+			if (fly_unlikely_null(fly_e_buf_add(de)))
 				return -1;
 			__zstream.next_out = de->lencbuf->buf;
 			__zstream.avail_out = de->lencbuf->buflen;
@@ -241,56 +266,6 @@ int fly_gzip_encode(fly_de_t *de)
 		fly_add_content_length(de->response->header, enc_contlen);
 	}
 	return 0;
-
-//	de->fase = FLY_DE_ENDING;
-//	switch (de->type){
-//	case FLY_DE_ENCODE:
-//		break;
-//	case FLY_DE_ESEND:
-//	case FLY_DE_ESEND_FROM_PATH:
-//		de->send_ptr = de->encbuf;
-//		int numsend;
-//		size_t total = 0;
-//
-//		/* get actual content length and modify header */
-//		size_t enc_contlen=0;
-//		struct fly_de_buf *__b=de->encbuf;
-//		while(__b){
-//			if (__b->status == FLY_DE_BUF_FULL)
-//				enc_contlen += __b->buflen;
-//			else
-//				enc_contlen += __b->uselen;
-//			__b = __b->next;
-//		}
-//		fly_add_content_length(de->response->header, enc_contlen);
-//		while(de->send_ptr){
-//			numsend = de->send(de->c_sockfd, de->send_ptr->buf, de->send_ptr->uselen, 0);
-//			if (FLY_BLOCKING(numsend))
-//				goto blocking;
-//			else if (numsend == -1)
-//				return FLY_RESPONSE_ERROR;
-//
-//			total += numsend;
-//			de->send_ptr->ptr += numsend;
-//			if (de->send_ptr->ptr-(de->send_ptr->buf+de->send_ptr->buflen)>=0)
-//				de->send_ptr = de->send_ptr->next;
-//
-//			/* send all content */
-//			if (total >= enc_contlen)
-//				break;
-//		}
-//		break;
-//	default:
-//		FLY_NOT_COME_HERE
-//	}
-//	de->fase = FLY_DE_END;
-//	return FLY_RESPONSE_SUCCESS;
-//
-///* TODO: blocking handle */
-//blocking:
-//	if (__fly_esend_blocking(de->event, de) == -1)
-//		return FLY_RESPONSE_ERROR;
-//	return FLY_RESPONSE_BLOCKING;
 }
 
 __fly_static int __fly_esend_blocking_handler(fly_event_t *e)
@@ -397,22 +372,21 @@ int fly_deflate_decode(fly_de_t *de)
 
 int fly_deflate_encode(fly_de_t *de)
 {
-	switch(de->type){
-	case FLY_DE_ENCODE:
-		break;
+	switch (de->type){
 	case FLY_DE_DECODE:
 		return -1;
-	case FLY_DE_ESEND:
-		break;
 	case FLY_DE_ESEND_FROM_PATH:
-		break;
+		if (lseek(de->fd, de->offset, SEEK_SET) == -1)
+			return -1;
 	default:
+		break;
 	}
 
 	int status, flush;
 	z_stream __zstream;
 
-	if (de->decbuf == NULL || !de->decbuf->buflen)
+	if (de->decbuf == NULL || !de->decbuf->buflen || \
+			de->encbuf == NULL || !de->encbuflen)
 		return FLY_ENCODE_ERROR;
 
 	__zstream.zalloc = Z_NULL;
@@ -440,61 +414,68 @@ int fly_deflate_encode(fly_de_t *de)
 				__zstream.avail_in = de->decbuf->buflen;
 				break;
 			case FLY_DE_ESEND_FROM_PATH:
-				__zstream.avail_in = de->decbuf->buflen;
-				__zstream.next_in = de->decbuf->buf;
+				{
+					int numread = 0;
+					numread = read(de->fd, de->decbuf->buf, de->decbuf->buflen);
+					if (numread == -1)
+						return -1;
 
-				if (read(de->fd, de->decbuf->buf, de->decbuf->buflen) == -1)
-					return -1;
+					__zstream.next_in = de->decbuf->buf;
+					__zstream.avail_in = numread;
+				}
 				break;
-			default: return -1;
+			default:
+				FLY_NOT_COME_HERE
 			}
+			if (__zstream.avail_in < de->decbuf->buflen)
+				flush = Z_FINISH;
 		}
 		status = deflate(&__zstream, flush);
 		if (status == Z_STREAM_END)
 			break;
 		if (status != Z_OK)
 			return FLY_ENCODE_ERROR;
-		if (de->type == FLY_DE_ENCODE && __zstream.avail_out == 0)
-			return FLY_ENCODE_OVERFLOW;
-		else if (de->type == FLY_DE_ESEND && __zstream.avail_out == 0){
-			int numsend;
-			while(true){
-				numsend = de->send(de->c_sockfd, de->encbuf->buf, de->encbuf->buflen, 0);
-				if (FLY_BLOCKING(numsend)){
-					/* TODO: blocking handle */
-				}else if (numsend == -1)
-					return -1;
-			}
+
+		if (__zstream.avail_out != de->lencbuf->buflen)
+			fly_de_buf_half(de->lencbuf);
+
+		if (__zstream.avail_out == 0){
+			fly_de_buf_full(de->lencbuf);
+			de->lencbuf->uselen = de->lencbuf->buflen;
+			if (fly_unlikely_null(fly_e_buf_add(de)))
+				return -1;
+			__zstream.next_out = de->lencbuf->buf;
+			__zstream.avail_out = de->lencbuf->buflen;
 		}
 	}
+
+	if (de->lencbuf->buflen - __zstream.avail_out){
+		fly_de_buf_half(de->lencbuf);
+		de->lencbuf->uselen = de->lencbuf->buflen - __zstream.avail_out;
+	}
+
+	de->end = true;
 	if (deflateEnd(&__zstream) != Z_OK)
 		return FLY_ENCODE_ERROR;
+
+	if (de->type == FLY_DE_ESEND || de->type == FLY_DE_ESEND_FROM_PATH){
+		size_t enc_contlen=0;
+		struct fly_de_buf *__b=de->encbuf;
+		while(__b){
+			if (__b->status == FLY_DE_BUF_FULL)
+				enc_contlen += __b->buflen;
+			else
+				enc_contlen += __b->uselen;
+			__b = __b->next;
+		}
+		de->contlen = enc_contlen;
+		fly_add_content_length(de->response->header, enc_contlen);
+	}
 	return 0;
 }
 
-int fly_identity_decode(fly_de_t *de)
-{
-	switch (de->type){
-	case FLY_DE_DECODE:
-		memset(de->decbuf->buf, '\0', de->decbuf->buflen);
-		memcpy(de->decbuf, de->encbuf->buf, de->encbuf->buflen);
-		return 0;
-	default:
-		return -1;
-	}
-}
-
-int fly_identity_encode(fly_de_t *de)
-{
-	switch(de->type){
-	case FLY_DE_ENCODE:
-		memset(de->encbuf->buf, '\0', de->encbuf->buflen);
-		memcpy(de->encbuf->buf, de->decbuf->buf, de->decbuf->buflen);
-		return 0;
-	default:
-		return -1;
-	}
-}
+__unused int fly_identity_decode(__unused fly_de_t *de){ return 0; }
+__unused int fly_identity_encode(__unused fly_de_t *de){ return 0; }
 
 
 __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encoding)
@@ -536,9 +517,7 @@ __fly_static int __fly_encode_init(fly_request_t *req)
 #define __fly_incencoding(enc)			((enc)->actqty++)
 __fly_static int __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_encoding *ne)
 {
-	if (!enc || !ne)
-		return -1;
-
+	if (!enc || !ne) return -1;
 	ne->encoding = enc;
 	if (enc->accepts == NULL){
 		enc->accepts = ne;
@@ -1169,4 +1148,68 @@ struct fly_de_buf *fly_d_buf_add(fly_de_t *de)
 	de->decbuflen++;
 	de->ldecbuf = __buf;
 	return __buf;
+}
+
+int fly_encode_do(fly_response_t *res)
+{
+	return (res->encoding != NULL && res->encoding->actqty);
+}
+
+
+fly_encoding_type_t *fly_supported_content_encoding(fly_hdr_value *value)
+{
+	for (fly_encoding_type_t *__t=__fly_encodes; __t; __t++){
+		if (strcmp(__t->name, value) == 0){
+			return __t;
+		}
+	}
+	return NULL;
+}
+
+struct fly_de *fly_de_init(fly_pool_t *pool)
+{
+	struct fly_de *de;
+	de = fly_pballoc(pool, sizeof(struct fly_de));
+	if (fly_unlikely_null(de))
+		return NULL;
+
+	de->pool = pool;
+	de->fase = FLY_DE_INIT;
+	de->encbuf = NULL;
+	de->encbuflen = 0;
+	de->decbuf = NULL;
+	de->decbuflen = 0;
+	de->ldecbuf = NULL;
+	de->lencbuf = NULL;
+	de->offset = 0;
+	de->count = 0;
+	de->fd = -1;
+	de->c_sockfd = -1;
+	de->bfs = 0;
+	de->send = NULL;
+	de->send_ptr = NULL;
+	de->event = NULL;
+	de->response = NULL;
+	de->contlen = 0;
+	de->end = false;
+	de->already_ptr = NULL;
+	de->already_len = 0;
+	de->target_already_alloc = false;
+
+	return de;
+}
+
+void fly_de_release(fly_de_t *de)
+{
+	fly_pool_t *__pool;
+
+	__pool = de->pool;
+
+	for (int i=0; i<de->decbuflen; i++)
+		fly_pbfree(__pool, &de->decbuf[i]);
+	for (int i=0; i<de->encbuflen; i++)
+		fly_pbfree(__pool, &de->encbuf[i]);
+
+	fly_pbfree(__pool, de);
+	return;
 }
