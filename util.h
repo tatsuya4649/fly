@@ -40,4 +40,7 @@ int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr
 #define FLY_BLOCKING(res)				\
 	((res) == (int) -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
 
+#define FLY_SPACE				(0x20)
+#define FLY_CR					(0xD)
+
 #endif

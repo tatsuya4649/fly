@@ -33,6 +33,7 @@ struct fly_http_method_chain{
 extern fly_http_method_t methods[];
 
 fly_http_method_t *fly_match_method_name(char *method_name);
+fly_http_method_t *fly_match_method_name_with_end(char *method_name, char end_of_char);
 fly_http_method_t *fly_match_method_type(fly_method_e method);
 fly_method_e *fly_match_method_name_e(char *name);
 

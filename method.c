@@ -17,10 +17,6 @@ fly_http_method_t *fly_match_method_name(char *method_name)
 {
 	if (method_name == NULL)
 		return NULL;
-    /* method name should be upper */
-    for (char *n=method_name; *n!='\0'; n++){
-        *n = (char) toupper((int) *n);
-	}
 
 	fly_http_method_t *m;
     for (m=methods; m->name!=NULL; m++){
@@ -31,6 +27,25 @@ fly_http_method_t *fly_match_method_name(char *method_name)
     return NULL;
 }
 
+fly_http_method_t *fly_match_method_name_with_end(char *method_name, char end_of_char)
+{
+	if (method_name == NULL)
+		return NULL;
+
+	fly_http_method_t *m;
+	char *__ptr;
+    for (m=methods; m->name!=NULL; m++){
+		char *ptr;
+
+		ptr = m->name;
+		__ptr = method_name;
+		while(*__ptr++ == *ptr++){
+			if (*__ptr == end_of_char)
+				return m;
+		}
+    }
+    return NULL;
+}
 
 fly_http_method_t *fly_match_method_type(fly_method_e method)
 {

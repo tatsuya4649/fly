@@ -447,7 +447,7 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mou
 			continue;
 
 		for (struct fly_mount_parts_file *__pf=__p->files; __pf; __pf=__pf->next){
-			if (__fly_uri_matching(__pf->filename, uri->uri) == 0){
+			if (__fly_uri_matching(__pf->filename, uri->ptr) == 0){
 				*res = __pf;
 				return FLY_FOUND_CONTENT_FROM_PATH_FOUND;
 			}
