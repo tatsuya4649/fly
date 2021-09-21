@@ -8,10 +8,12 @@
 #include "util.h"
 #include "event.h"
 #include "log.h"
+#include "fly.h"
 
 #define RESPONSE_LENGTH_PER		1024
 #define FLY_RESPONSE_POOL_PAGE		100
 #define DEFAULT_RESPONSE_VERSION			"1.1"
+#define FLY_DEFAULT_CONTENT_PATH_LEN		(30)
 
 typedef unsigned long long fly_flag_t;
 
@@ -58,6 +60,7 @@ enum status_code_type{
 	_505
 };
 typedef enum status_code_type fly_stcode_t;
+#define FLY_PATH_FROM_STATIC(p)			(__FLY_PATH_FROM_ROOT(static) "/" # p)
 
 #include "mount.h"
 struct fly_response{
@@ -118,6 +121,7 @@ int fly_5xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
 struct fly_response_content;
 int fly_304_event(fly_event_t *e, struct fly_response_content *rc);
 int fly_408_event(fly_event_t *e);
+int fly_404_event(fly_event_t *e, fly_request_t *req);
 int fly_405_event(fly_event_t *e, fly_request_t *req);
 
 int fly_response_content_event_handler(fly_event_t *e);
@@ -135,7 +139,9 @@ struct fly_response_content_by_stcode{
 	fly_stcode_t status_code;
 	char *content_path;
 	int fd;
-	struct fly_respnse_content_by_stcode *next;
+	fly_mime_type_t *mime;
+
+	struct fly_response_content_by_stcode *next;
 };
 typedef struct fly_response_content_by_stcode fly_rcbs_t;
 #endif

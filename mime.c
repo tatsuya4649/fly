@@ -2,9 +2,27 @@
 #include "request.h"
 
 fly_mime_type_t mimes[] = {
-	{text_plain, "text/plain", FLY_STRING_ARRAY("txt", NULL)},
-	{0, "", NULL}
+	{__FLY_MTYPE_SET(text, plain), FLY_STRING_ARRAY("txt", NULL)},
+	{__FLY_MTYPE_SET(text, csv), FLY_STRING_ARRAY("csv", NULL)},
+	{__FLY_MTYPE_SET(text, html), FLY_STRING_ARRAY("html", "htm", NULL)},
+	{__FLY_MTYPE_SET(text, css), FLY_STRING_ARRAY("css", "css", NULL)},
+	{__FLY_MTYPE_SET(text, xml), FLY_STRING_ARRAY("xml", NULL)},
+	{__FLY_MTYPE_SET(text, javascript), FLY_STRING_ARRAY("js", NULL)},
+	{__FLY_MTYPE_SET(text, richtext), FLY_STRING_ARRAY("rtf", NULL)},
+	{-1, "", NULL}
 };
+fly_mime_type_t unknown_mime = {
+	.type = fly_mime_unknown,
+	.extensions = NULL,
+};
+fly_mime_type_t noext_mime = {
+	.type = fly_mime_noextension,
+	.extensions = NULL,
+};
+bool fly_mime_invalid(fly_mime_type_t *type)
+{
+	return (type==&unknown_mime || type==&noext_mime) ? true : false;
+}
 
 __fly_static int __fly_mime_init(fly_request_t *req);
 __fly_static int __fly_add_accept_mime(fly_mime_t *m, struct __fly_mime *nm);
@@ -58,12 +76,7 @@ fly_mime_type_t *fly_mime_from_type(fly_mime_e type)
 	for (fly_mime_type_t *m=mimes; m->extensions!=NULL; m++){
 		if (m->type == type)
 			return m;
-	}
-	return NULL;
-}
-
-__fly_static int __fly_mime_init(fly_request_t *req)
-{
+	} return NULL; } __fly_static int __fly_mime_init(fly_request_t *req) {
 	fly_mime_t *mime;
 
 	mime = fly_pballoc(req->pool, sizeof(fly_mime_t));
@@ -1045,4 +1058,28 @@ __fly_static void  __fly_ext_param_copyr(char *dist, char *src, size_t maxlen)
 		*dist++ = *src++;
 	}
 	*dist = '\0';
+}
+
+/* TODO: mime type from path name for default content */
+fly_mime_type_t *fly_mime_type_from_path_name(char *path)
+{
+	char *ptr, *__next;
+	if (strchr(path, FLY_DOT) == NULL)
+		return &noext_mime;
+
+	ptr = path;
+	while(*ptr && (__next=strchr(ptr, FLY_DOT)))
+		ptr = __next+1;
+
+	/* ptr display extension */
+	for (fly_mime_type_t *__m=mimes; __m->type>=0; __m++){
+		if (__m->extensions == NULL)
+			continue;
+
+		for (fly_ext_t **__e=__m->extensions; *__e; __e++){
+			if (strcmp(*__e, ptr) == 0)
+				return __m;
+		}
+	}
+	return &unknown_mime;
 }

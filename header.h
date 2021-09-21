@@ -56,12 +56,13 @@ int fly_connection(fly_hdr_ci *ci);
 struct fly_mount_parts_file;
 int fly_add_content_length(fly_hdr_ci *ci, size_t cl);
 int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb);
+int fly_add_content_length_from_fd(fly_hdr_ci *ci, int fd);
 int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 
 int fly_add_date(fly_hdr_ci *ci);
 #include "mime.h"
-int fly_add_content_type_header(fly_hdr_ci *ci, fly_mime_e type);
+int fly_add_content_type(fly_hdr_ci *ci, fly_mime_type_t *type);
 enum fly_header_connection_e{
 	KEEP_ALIVE,
 	CLOSE,

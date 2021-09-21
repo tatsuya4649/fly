@@ -876,7 +876,8 @@ response_400:
 	fly_4xx_error_event(event, request, _400);
 	return 0;
 response_404:
-	fly_4xx_error_event(event, request, _404);
+	if (fly_404_event(event, request) == -1)
+		goto error;
 	return 0;
 response_405:
 	if (fly_405_event(event, request) == -1)

@@ -32,8 +32,8 @@ fly_status_code responses[] = {
 	{401, _401, "Unauthorized",	NULL,				NULL},
 	{402, _402, "Payment Required", NULL,				NULL},
 	{403, _403, "Forbidden", NULL,					NULL},
-	{404, _404, "Not Found", NULL,					NULL},
-	{405, _405, "Method Not Allowed", NULL,			FLY_STRING_ARRAY("Allow", NULL)},
+	{404, _404, "Not Found", FLY_PATH_FROM_STATIC(404.html),	NULL},
+	{405, _405, "Method Not Allowed", FLY_PATH_FROM_STATIC(405.html),			FLY_STRING_ARRAY("Allow", NULL)},
 	{406, _406, "Not Acceptable", NULL,				NULL},
 	{407, _407, "Proxy Authentication Required", NULL, NULL},
 	{408, _408, "Request Timeout", NULL,				FLY_STRING_ARRAY("Connection", NULL)},
@@ -789,13 +789,14 @@ int fly_response_content_event_handler(fly_event_t *e)
 	fly_add_last_modified(response->header, rc->pf);
 	fly_add_connection(response->header, KEEP_ALIVE);
 	fly_add_content_encoding(response->header, rc->request->encoding);
-
+	fly_add_content_type(response->header, rc->pf->mime_type);
 
 	offset = 0;
 	if (__fly_encode_do(response)){
 		enctype = fly_decided_encoding_type(response->encoding);
 		if (fly_unlikely_null(enctype))
 			return -1;
+
 
 		if (enctype->type == fly_identity)
 			goto end_of_encoding;
@@ -918,8 +919,21 @@ error:
 int fly_response_event(fly_event_t *e)
 {
 	fly_response_t *response;
+	fly_rcbs_t *rcbs=NULL;
 
 	response = (fly_response_t *) e->event_data;
+
+	/* if there is default content, add content-length header */
+	if (response->body == NULL){
+		rcbs = fly_default_content_by_stcode_from_event(e, response->status_code);
+		if (rcbs){
+			if (fly_add_content_length_from_fd(response->header, rcbs->fd) == -1)
+				return -1;
+			if (fly_add_content_type(response->header, rcbs->mime) == -1)
+				return -1;
+		}
+	}
+
 	switch (__fly_send_until_header(e, response)){
 	case FLY_RESPONSE_SUCCESS:
 		break;
@@ -939,6 +953,21 @@ int fly_response_event(fly_event_t *e)
 			return 0;
 		case FLY_RESPONSE_ERROR:
 			return -1;
+		default:
+			FLY_NOT_COME_HERE
+		}
+	}else{
+		if (rcbs){
+			switch(fly_send_default_content(e, rcbs)){
+			case FLY_SEND_DEFAULT_CONTENT_BY_STCODE_SUCCESS:
+			case FLY_SEND_DEFAULT_CONTENT_BY_STCODE_BLOCKING:
+			case FLY_SEND_DEFAULT_CONTENT_BY_STCODE_NOTFOUND:
+				break;
+			case FLY_SEND_DEFAULT_CONTENT_BY_STCODE_ERROR:
+				return -1;
+			default:
+				FLY_NOT_COME_HERE
+			}
 		}
 	}
 
@@ -1109,6 +1138,32 @@ __fly_static int __fly_408_event_handler(fly_event_t *e)
 	return 0;
 }
 
+int fly_404_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+	res= fly_response_init();
+	res->header = fly_header_init();
+	res->version = V1_1;
+	res->status_code = _404;
+	res->request = req;
+	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
+
+	fly_add_date(res->header);
+	fly_add_server(res->header);
+	fly_add_connection(res->header, KEEP_ALIVE);
+
+	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
+	e->event_data = (void *) res;
+	fly_event_socket(e);
+	return fly_event_register(e);
+}
 int fly_405_event(fly_event_t *e, fly_request_t *req)
 {
 	fly_response_t *res;
@@ -1118,9 +1173,13 @@ int fly_405_event(fly_event_t *e, fly_request_t *req)
 	res->status_code = _405;
 	res->request = req;
 	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
+
 	fly_add_allow(res->header, req);
 	fly_add_date(res->header);
 	fly_add_server(res->header);
+	fly_add_connection(res->header, KEEP_ALIVE);
 
 	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;

@@ -401,9 +401,9 @@ int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *
 	else
 		total = 0;
 
+	*offset += total;
 	while(total < count){
-		numsend = sendfile(c_sockfd, pf->fd, offset, count);
-		response->offset = *offset;
+		numsend = sendfile(c_sockfd, pf->fd, offset, count-total);
 		if (FLY_BLOCKING(numsend)){
 			/* event register */
 			if (__fly_send_from_pf_blocking(e, response) == -1)

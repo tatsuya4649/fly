@@ -7,6 +7,7 @@
 #include <sys/inotify.h>
 #include "alloc.h"
 #include "header.h"
+#include "mime.h"
 #define FLY_PATHNAME_MAX	_POSIX_NAME_MAX
 #define FLY_PATH_MAX	_POSIX_PATH_MAX
 #define FLY_MOUNT_POOL_PAGE		((fly_page_t) 10)
@@ -22,6 +23,7 @@ struct fly_mount_parts_file{
 	char last_modified[FLY_DATE_LENGTH];
 	struct fly_mount_parts *parts;
 	struct fly_file_hash *hash;
+	fly_mime_type_t *mime_type;
 
 	struct fly_mount_parts_file *next;
 };
