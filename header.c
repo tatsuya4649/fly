@@ -365,7 +365,7 @@ int fly_add_allow(fly_hdr_ci *ci, fly_request_t *req)
 	route_reg = req->ctx->route_reg;
 
 	/* found valid method from registered route */
-	__c = fly_valid_method(ci->pool, route_reg, uri->uri);
+	__c = fly_valid_method(ci->pool, route_reg, uri->ptr);
 	if (fly_unlikely_null(__c))
 		return -1;
 	/* method->method str */

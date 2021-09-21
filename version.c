@@ -19,6 +19,18 @@ int fly_version_str(char *buffer, fly_version_e version)
 	return -1;
 }
 
+fly_http_version_t *fly_match_version_with_end(char *version, char end_of_version)
+{
+    for (fly_http_version_t *ver=versions; ver->full!=NULL; ver++){
+		char *ptr = ver->number;
+		while(*version++ == *ptr++){
+			if (*version == end_of_version)
+				return ver;
+		}
+    }
+    return NULL;
+}
+
 fly_http_version_t *fly_match_version(char *version)
 {
     /* version name should be upper */
