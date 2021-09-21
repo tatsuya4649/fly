@@ -269,17 +269,14 @@ int fly_add_date(fly_hdr_ci *ci)
 	return fly_header_add(ci, fly_header_name_length("Date"), fly_header_value_length(value_field));
 }
 
-int fly_add_content_type_header(fly_hdr_ci *ci, fly_mime_e type)
+int fly_add_content_type(fly_hdr_ci *ci, fly_mime_type_t *type)
 {
-	#define FLY_CONTENT_TYPE_LENGTH		100
-	fly_mime_type_t *mime;
+	if (fly_unlikely_null(type) || \
+			fly_unlikely_null(type->name || \
+			fly_mime_invalid(type)))
+		return 0;
 
-	mime = fly_mime_from_type(type);
-	if (mime == NULL || mime->name == NULL)
-		return -1;
-
-	return fly_header_add(ci, fly_header_name_length("Content-Type"), fly_header_value_length(mime->name));
-	#undef FLY_CONTENT_TYPE_LENGTH
+	return fly_header_add(ci, fly_header_name_length("Content-Type"), fly_header_value_length(type->name));
 }
 
 int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb)
@@ -295,6 +292,16 @@ int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb)
 	if (snprintf(contlen_str, len, "%ld", (long) sb->st_size) == -1)
 		return -1;
 	return fly_header_add(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
+}
+
+int fly_add_content_length_from_fd(fly_hdr_ci *ci, int fd)
+{
+	struct stat sb;
+
+	if (fstat(fd, &sb) == 1)
+		return -1;
+
+	return fly_add_content_length_from_stat(ci, &sb);
 }
 
 int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)

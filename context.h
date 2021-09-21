@@ -8,17 +8,30 @@
 
 #define FLY_CONTEXT_POOL_SIZE			10
 
+
+struct fly_response_content_by_stcode;
 struct fly_context{
 	fly_pool_t *pool;
 	fly_sockinfo_t *listen_sock;
 	fly_log_t *log;
 	fly_route_reg_t *route_reg;
 	fly_mount_t *mount;
-	fly_rcbs_t *rcbs;
+	struct fly_response_content_by_stcode *rcbs;
 };
 typedef struct fly_context fly_context_t;
 
 fly_context_t *fly_context_init(void);
 int fly_context_release(fly_context_t *ctx);
+
+#define FLY_SEND_DEFAULT_CONTENT_BY_STCODE_SUCCESS		(1)
+#define FLY_SEND_DEFAULT_CONTENT_BY_STCODE_BLOCKING		(0)
+#define FLY_SEND_DEFAULT_CONTENT_BY_STCODE_NOTFOUND		(-1)
+#define FLY_SEND_DEFAULT_CONTENT_BY_STCODE_ERROR		(-2)
+enum status_code_type;
+int is_fly_default_content_by_stcode(fly_context_t *ctx, enum status_code_type status_code);
+int fly_send_default_content_by_stcode(fly_event_t *e, enum status_code_type status_code);
+struct fly_response_content_by_stcode *fly_default_content_by_stcode(fly_context_t *ctx, enum status_code_type status_code);
+struct fly_response_content_by_stcode *fly_default_content_by_stcode_from_event(fly_event_t *e, enum status_code_type status_code);
+int fly_send_default_content(fly_event_t *e, struct fly_response_content_by_stcode *__r);
 
 #endif

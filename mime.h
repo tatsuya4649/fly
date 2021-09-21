@@ -2,90 +2,96 @@
 #define _MIME_H
 
 #include <stddef.h>
+#include <stdbool.h>
 #include "alloc.h"
 #include "util.h"
 
 enum __fly_mime_list{
 	/* text */
-	text_plain,
-	text_csv,
-	text_html,
-	text_css,
-	text_xml,
-	text_javascript,
-	text_richtext,
-	text_tab_separated_values,
-	text_vnd_wap_wml,
-	text_vnd_wap_wmlscript,
-	text_x_hdml,
-	text_x_setext,
-	text_x_sgml,
+	fly_mime_text_plain,
+	fly_mime_text_csv,
+	fly_mime_text_html,
+	fly_mime_text_css,
+	fly_mime_text_xml,
+	fly_mime_text_javascript,
+	fly_mime_text_richtext,
+	fly_mime_text_tab_separated_values,
+	fly_mime_text_vnd_wap_wml,
+	fly_mime_text_vnd_wap_wmlscript,
+	fly_mime_text_x_hdml,
+	fly_mime_text_x_setext,
+	fly_mime_text_x_sgml,
 
 	/* application */
-	application_zip,
-	application_x_lzh,
-	application_x_tar,
-	application_octet_stream,
-	application_json,
-	application_pdf,
-	application_vnd_ms_excel,
-	application_vnd_openxmlformats_officedocument_spreadsheetml_sheet,
-	application_vnd_ms_powerpoint,
-	application_vnd_openxmlformats_officedocument_presentationml_presentation,
-	application_msword,
-	application_vnd_openxmlformats_officedocument_wordprocessingml_document,
-	application_rtf,
-	application_mac_binhex40,
-	application_java_archive,
+	fly_mime_application_zip,
+	fly_mime_application_x_lzh,
+	fly_mime_application_x_tar,
+	fly_mime_application_octet_stream,
+	fly_mime_application_json,
+	fly_mime_application_pdf,
+	fly_mime_application_vnd_ms_excel,
+	fly_mime_application_vnd_openxmlformats_officedocument_spreadsheetml_sheet,
+	fly_mime_application_vnd_ms_powerpoint,
+	fly_mime_application_vnd_openxmlformats_officedocument_presentationml_presentation,
+	fly_mime_application_msword,
+	fly_mime_application_vnd_openxmlformats_officedocument_wordprocessingml_document,
+	fly_mime_application_rtf,
+	fly_mime_application_mac_binhex40,
+	fly_mime_application_java_archive,
 
 	/* image */
-	image_jpeg,
-	image_png,
-	image_gif,
-	image_bmp,
-	image_svg,
-	image_ief,
-	image_tiff,
-	image_x_cmu_raster,
-	image_x_freehand,
-	image_x_portable_anymap,
-	image_x_portable_bitmap,
-	image_x_portable_graymap,
-	imgea_x_portable_pixmap,
-	image_x_rgb,
-	image_x_xbitmap,
-	image_x_xpixmap,
-	image_x_xwindowdump,
+	fly_mime_image_jpeg,
+	fly_mime_image_png,
+	fly_mime_image_gif,
+	fly_mime_image_bmp,
+	fly_mime_image_svg,
+	fly_mime_image_ief,
+	fly_mime_image_tiff,
+	fly_mime_image_x_cmu_raster,
+	fly_mime_image_x_freehand,
+	fly_mime_image_x_portable_anymap,
+	fly_mime_image_x_portable_bitmap,
+	fly_mime_image_x_portable_graymap,
+	fly_mime_imgea_x_portable_pixmap,
+	fly_mime_image_x_rgb,
+	fly_mime_image_x_xbitmap,
+	fly_mime_image_x_xpixmap,
+	fly_mime_image_x_xwindowdump,
 
 	/* audio */
-	audio_basic,
-	audio_x_aiff,
-	audio_x_midi,
-	audio_x_pn_realaudio,
-	audio_x_pn_realaudio_plugin,
-	audio_x_twinvq,
-	audio_x_wav,
-	audio_x_m4a,
-	audio_mpeg,
-	audio_ogg,
-	audio_midi,
+	fly_mime_audio_basic,
+	fly_mime_audio_x_aiff,
+	fly_mime_audio_x_midi,
+	fly_mime_audio_x_pn_realaudio,
+	fly_mime_audio_x_pn_realaudio_plugin,
+	fly_mime_audio_x_twinvq,
+	fly_mime_audio_x_wav,
+	fly_mime_audio_x_m4a,
+	fly_mime_audio_mpeg,
+	fly_mime_audio_ogg,
+	fly_mime_audio_midi,
 
 	/* video */
-	video_3gpp,
-	video_mp2t,
-	video_mp4,
-	video_mpeg,
-	video_webm,
-	video_quicktime,
-	video_x_fly,
-	video_x_m4v,
-	video_x_mng,
-	video_x_msvideo,
-	video_x_ms_asf,
-	video_x_ms_wmv,
-	video_x_sgi_movie,
+	fly_mime_video_3gpp,
+	fly_mime_video_mp2t,
+	fly_mime_video_mp4,
+	fly_mime_video_mpeg,
+	fly_mime_video_webm,
+	fly_mime_video_quicktime,
+	fly_mime_video_x_fly,
+	fly_mime_video_x_m4v,
+	fly_mime_video_x_mng,
+	fly_mime_video_x_msvideo,
+	fly_mime_video_x_ms_asf,
+	fly_mime_video_x_ms_wmv,
+	fly_mime_video_x_sgi_movie,
+
+	/* unknown */
+	fly_mime_unknown,
+	fly_mime_noextension,
 };
 typedef enum __fly_mime_list fly_mime_e;
+#define __FLY_MTYPE_SET(type, subtype)	fly_mime_ ## type ## _ ## subtype, #type "/" #subtype
 
 typedef char fly_mime_c;
 typedef char fly_ext_t;
@@ -180,5 +186,8 @@ typedef struct fly_mime fly_mime_t;
 int fly_accept_mime(fly_request_t *request);
 
 #define FLY_MIMQVALUE_MAXLEN	(6)
+#define FLY_DOT					(0x2E)
 
+fly_mime_type_t *fly_mime_type_from_path_name(char *path);
+bool fly_mime_invalid(fly_mime_type_t *type);
 #endif

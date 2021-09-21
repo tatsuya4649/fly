@@ -1,8 +1,10 @@
 
 #define _GNU_SOURCE
+#include <unistd.h>
 #include "worker.h"
 #include "fsignal.h"
 #include "cache.h"
+#include "response.h"
 
 __fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
@@ -16,6 +18,7 @@ __fly_static void FLY_SIGNAL_ADDF_HANDLER(__unused fly_context_t *ctx, __unused 
 __fly_static void FLY_SIGNAL_DELF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static int __fly_worker_open_file(fly_context_t *ctx);
+__fly_static int __fly_worker_open_default_content(fly_context_t *ctx);
 
 
 #define FLY_WORKER_SIG_COUNT				(sizeof(fly_worker_signals)/sizeof(fly_signal_t))
@@ -126,6 +129,7 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		__pf->parts = parts;
 		__pf->next = NULL;
 		__pf->infd = parts->infd;
+		__pf->mime_type = fly_mime_type_from_path_name(__path);
 		__pf->wd = inotify_add_watch(parts->infd, __path, FLY_INOTIFY_WATCH_FLAG_PF);
 		if (__pf->wd == -1)
 			goto error;
@@ -541,29 +545,39 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 	return 0;
 }
 
-__fly_static void __fly_add_rcbs(fly_context_t *ctx,'fly_rcbs_t *__r)
+__fly_static void __fly_add_rcbs(fly_context_t *ctx, fly_rcbs_t *__r)
 {
 	if (ctx->rcbs == NULL)
 		ctx->rcbs = __r;
 	else{
-		for (fly_rcbs_t *r; r->next; r=r->next){
+		for (fly_rcbs_t *r=ctx->rcbs; r->next; r=r->next){
 			r->next = __r;
 		}
 	}
+	return;
 }
 
 /* open worker default content by status code */
+extern fly_status_code responses[];
 __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 {
-	for (fly_status_code *__res=responses; __res->status_code<0; __res++){
+	for (fly_status_code *__res=responses; __res->status_code>0; __res++){
+		char env_var[FLY_DEFAULT_CONTENT_PATH_LEN];
+		char *defenv;
+		int res;
+		res = snprintf(env_var, FLY_DEFAULT_CONTENT_PATH_LEN, "FLY_DEFAULT_CONTENT_PATH_%d", __res->status_code);
+		defenv = getenv(env_var);
+		if (res < 0 || res > FLY_DEFAULT_CONTENT_PATH_LEN)
+			continue;
 		/* there is a default content path */
-		if (__res->default_path){
+		if (defenv || __res->default_path){
 			struct fly_response_content_by_stcode *__frc;
 			__frc = fly_pballoc(ctx->pool, sizeof(struct fly_response_content_by_stcode));
-			if (fly_unlikely_null(__ftc))
+			if (fly_unlikely_null(__frc))
 				return -1;
 			__frc->status_code = __res->type;
-			__frc->content_path = __res->default_path;
+			__frc->content_path = defenv ? defenv : __res->default_path;
+			__frc->mime = fly_mime_type_from_path_name(__frc->content_path);
 			__frc->next = NULL;
 			__frc->fd = open(__frc->content_path, O_RDONLY);
 			if (__frc->fd == -1)

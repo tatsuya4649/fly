@@ -578,6 +578,7 @@ __fly_static int __fly_add_accept_encode_asterisk(fly_request_t *req)
 	__e->type = __fly_asterisk();
 	__e->quality_value = 100;
 	__e->next = NULL;
+	__e->use = false;
 	if (__e->type == NULL)
 		return -1;
 
@@ -603,7 +604,7 @@ int fly_accept_encoding(fly_request_t *req)
 	case __FLY_ACCEPT_ENCODING_NOTFOUND:
 		if(__fly_add_accept_encode_asterisk(req) == -1)
 			return -1;
-		return 0;
+		return __fly_decide_encoding(req->encoding);
 	case __FLY_ACCEPT_ENCODING_FOUND:
 		return __fly_parse_accept_encoding(req, accept_encoding);
 	default:
