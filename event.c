@@ -99,6 +99,8 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	event->handler = NULL;
 	event->handler_name = NULL;
 	event->fail_close = NULL;
+	if (fly_time(&event->spawn_time) == -1)
+		return NULL;
 	return event;
 }
 
@@ -266,11 +268,23 @@ __fly_static int __fly_expired_event(fly_event_manager_t *manager)
 void fly_sub_time(fly_time_t *t1, fly_time_t *t2)
 {
 	t1->tv_sec = (int) t1->tv_sec - (int) t2->tv_sec;
-	t1->tv_usec = (long) t2->tv_usec - (long) t2->tv_usec;
+	t1->tv_usec = (long) t1->tv_usec - (long) t2->tv_usec;
 
 	if (t1->tv_usec < 0){
 		t1->tv_sec--;
 		t1->tv_usec += 1000*1000;
+	}
+	return;
+}
+
+void fly_sub_time_from_base(fly_time_t *dist, fly_time_t *__sub, fly_time_t *base)
+{
+	dist->tv_sec = (int) __sub->tv_sec - (int) base->tv_sec;
+	dist->tv_usec = (long) __sub->tv_usec - (long) base->tv_usec;
+
+	if (dist->tv_usec < 0){
+		dist->tv_sec--;
+		dist->tv_usec += 1000*1000;
 	}
 	return;
 }
@@ -291,30 +305,29 @@ __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager)
 	if (manager == NULL)
 		return -1;
 
-	static fly_time_t prev_time = FLY_TIME_NULL;
+//	static fly_time_t prev_time = FLY_TIME_NULL;
 	fly_time_t now;
-	float diff;
+//	float diff;
 
-	if (is_fly_time_null(&prev_time) && fly_time(&prev_time) == -1)
-		return -1;
+//	if (is_fly_time_null(&prev_time) && fly_time(&prev_time) == -1)
+//		return -1;
 
 	if (fly_time(&now) == -1)
 		return -1;
-	diff = fly_diff_time(now, prev_time);
-
+//	diff = fly_diff_time(now, prev_time);
 	if (manager->first == NULL)
 		return 0;
 
 	for (fly_event_t *e=manager->first; e!=NULL; e=e->next)
 		if (!(e->tflag & FLY_INFINITY)){
-			fly_sub_time_from_sec(&e->timeout, diff);
-			if (fly_minus_time(e->timeout))
+			fly_sub_time_from_base(&e->left, &now, &e->spawn_time);
+			if (fly_minus_time(e->left))
 				e->expired = true;
 		}
 
-	/* udpate prev time */
-	if (fly_time(&prev_time) == -1)
-		return -1;
+//	/* udpate prev time */
+//	if (fly_time(&prev_time) == -1)
+//		return -1;
 	return 0;
 }
 

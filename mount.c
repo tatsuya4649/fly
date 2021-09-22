@@ -424,17 +424,23 @@ int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *
 #define FLY_FOUND_CONTENT_FROM_PATH_FOUND		1
 #define FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND	0
 #define FLY_FOUND_CONTENT_FROM_PATH_ERROR		-1
-__fly_static int __fly_uri_matching(char *filename, char *uri)
+__fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
 {
-	if (*uri == '/')
-		uri++;
+	size_t i=0;
+	char *uri_str;
+	if (*uri->ptr == '/')
+		i++;
 
-	if (*uri == '\0')
-		uri = FLY_URI_INDEX_NAME;
+	if (uri->ptr[i] == '\0' || i>=uri->len)
+		uri_str = FLY_URI_INDEX_NAME;
+	else
+		uri_str = uri->ptr;
 
-	while(*filename++ == *uri++){
-		if (*filename == '\0' && *uri == '\0')
+	while(filename[i] == uri_str[i]){
+		if ((*filename == '\0' && *uri_str == '\0') || \
+				i>=uri->len)
 			return 0;
+		i++;
 	}
 
 	return -1;
@@ -447,7 +453,7 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mou
 			continue;
 
 		for (struct fly_mount_parts_file *__pf=__p->files; __pf; __pf=__pf->next){
-			if (__fly_uri_matching(__pf->filename, uri->ptr) == 0){
+			if (__fly_uri_matching(__pf->filename, uri) == 0){
 				*res = __pf;
 				return FLY_FOUND_CONTENT_FROM_PATH_FOUND;
 			}

@@ -38,6 +38,8 @@ struct fly_event{
 	int eflag;
 
 	fly_time_t timeout;
+	fly_time_t spawn_time;
+	fly_time_t left;
 	int tflag;
 
 	int flag;

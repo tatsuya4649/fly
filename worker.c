@@ -462,9 +462,9 @@ __fly_static int __fly_listen_socket_handler(__unused struct fly_event *event)
 	ne->read_or_write = FLY_READ;
 	FLY_EVENT_HANDLER(ne, __fly_listen_connected);
 	ne->flag = FLY_NODELETE;
-	ne->tflag = FLY_INFINITY;
+	fly_sec(&ne->timeout, FLY_REQUEST_TIMEOUT);
+	ne->tflag = 0;
 	ne->eflag = 0;
-	fly_time_null(ne->timeout);
 	ne->expired = false;
 	ne->available = false;
 	ne->event_data = __fly_connected(listen_sock, conn_sock, ne,(struct sockaddr *) &addr, addrlen);
@@ -508,8 +508,7 @@ __fly_static int __fly_listen_connected(fly_event_t *e)
 	e->event_data = (void *) req;
 	/* event only modify (no add, no delete) */
 	e->flag = FLY_MODIFY;
-	e->tflag = 0;
-	fly_sec(&e->timeout, FLY_REQUEST_TIMEOUT);
+	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	FLY_EVENT_HANDLER(e, fly_request_event_handler);
 	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
