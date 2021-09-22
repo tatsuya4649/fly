@@ -5,6 +5,7 @@
 #include "alloc.h"
 #include "util.h"
 #include "mount.h"
+#include "buffer.h"
 
 typedef char fly_hdr_value;
 typedef char fly_hdr_name;
@@ -42,12 +43,13 @@ typedef struct fly_hdr_chain_info fly_hdr_ci;
 fly_hdr_ci *fly_header_init(void);
 int fly_header_release(fly_hdr_ci *info);
 int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
+int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 int fly_header_delete(fly_hdr_ci *chain_info, char *name);
 char *fly_header_from_chain(fly_hdr_ci *chain_info);
 size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info);
 
-char *fly_get_header_lines_ptr(char *buffer);
+char *fly_get_header_lines_ptr(fly_buffer_c *__c);
 long long fly_content_length(fly_hdr_ci *ci);
 int fly_connection(fly_hdr_ci *ci);
 #define FLY_CONNECTION_CLOSE			0
