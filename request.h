@@ -17,6 +17,7 @@
 #include "util.h"
 #include "err.h"
 #include "mime.h"
+#include "buffer.h"
 
 #define FLY_BUFSIZE			(8*FLY_PAGESIZE)
 #define FLY_REQUEST_LINE_MAX			8000
@@ -31,7 +32,6 @@ struct fly_query{
 typedef struct fly_query fly_query_t;
 
 typedef char fly_reqlinec_t;
-typedef char fly_buffer_t;
 struct fly_request_line{
 	fly_reqlinec_t *request_line;
 	fly_http_method_t *method;
@@ -74,7 +74,7 @@ struct fly_request{
 	fly_hdr_ci			*header;
 	fly_body_t			*body;
 	fly_buffer_t		*buffer;
-	fly_buffer_t		*bptr;
+	fly_buffer_c		*bptr;
 	fly_request_fase_t	 fase;
 	fly_encoding_t		*encoding;
 	fly_mime_t			*mime;
@@ -83,15 +83,16 @@ struct fly_request{
 };
 typedef struct fly_request fly_request_t;
 
+#define FLY_REQUEST_BUFFER_CHAIN_INIT_LEN			(1)
+#define FLY_REQUEST_BUFFER_CHAIN_INIT_CHAIN_MAX		(100)
+#define FLY_REQUEST_BUFFER_CHAIN_INIT_PER_LEN		(10)
 int fly_request_receive(fly_sock_t fd, fly_request_t *request);
 int fly_request_event_handler(fly_event_t *event);
-
-int fly_reqheader_operation(fly_request_t *req, fly_buffer_t *header);
 
 #define FLY_REQUEST_POOL_SIZE		1
 fly_request_t *fly_request_init(fly_connect_t *conn);
 int fly_request_release(fly_request_t *req);
 
-fly_reqlinec_t *fly_get_request_line_ptr(char *buffer);
+struct fly_buffer_chain *fly_get_request_line_ptr(fly_buffer_t *__buf);
 int fly_request_timeout(fly_event_t *event);
 #endif

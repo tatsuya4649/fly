@@ -58,6 +58,31 @@ int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly
 	return 0;
 }
 
+int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
+{
+	fly_hdr_c *new_chain;
+	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
+	if (new_chain == NULL)
+		return -1;
+
+	new_chain->name = fly_pballoc(chain_info->pool, name_len+1);
+	fly_buffer_memcpy(new_chain->name, name, bc, name_len);
+	new_chain->value = fly_pballoc(chain_info->pool, value_len+1);
+	fly_buffer_memcpy(new_chain->value, value, bc, value_len);
+	new_chain->name[name_len] = '\0';
+	new_chain->value[value_len] = '\0';
+
+	new_chain->next = NULL;
+	if (chain_info->chain_length == 0)
+		chain_info->entry = new_chain;
+	else
+		chain_info->last->next = new_chain;
+
+	chain_info->last = new_chain;
+	chain_info->chain_length++;
+	return 0;
+}
+
 int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
 {
 	fly_hdr_c *new_chain;
@@ -182,15 +207,13 @@ size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info)
 	return strlen(chain_str);
 }
 
-char *fly_get_header_lines_ptr(char *buffer)
+char *fly_get_header_lines_ptr(fly_buffer_c *__c)
 {
 	char *header;
-	char *end_of_reqline;
 
-	end_of_reqline = strstr(buffer, "\r\n");
-	if (end_of_reqline == NULL)
+	header = fly_buffer_strstr_after(__c, FLY_CRLF);
+	if (header == NULL)
 		return NULL;
-	header = end_of_reqline + FLY_CRLF_LENGTH;
 	return *header != '\0' ? header : NULL;
 }
 
