@@ -1113,29 +1113,31 @@ int fly_304_event(fly_event_t *e, struct fly_response_content *rc)
 	return fly_event_register(e);
 }
 
-__fly_static int __fly_408_event_handler(fly_event_t *e)
+int fly_400_event(fly_event_t *e, fly_request_t *req)
 {
-	fly_request_t *req;
 	fly_response_t *res;
+	res= fly_response_init();
+	res->header = fly_header_init();
+	res->version = V1_1;
+	res->status_code = _400;
+	res->request = req;
+	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
 
-	res = (fly_response_t *) e->event_data;
-	req = res->request;
-	if (__fly_send_until_header(e, res) == -1)
-		return -1;
-	if (__fly_response_log(res, e) == -1)
-		return -1;
+	fly_add_date(res->header);
+	fly_add_server(res->header);
+	fly_add_connection(res->header, KEEP_ALIVE);
 
-	/* release response content. */
-	if (fly_response_release(res) == -1)
-		return -1;
-
-	if (fly_event_unregister(e) == -1)
-		return -1;
-
-	if (fly_request_release(req) == -1)
-		return -1;
-
-	return 0;
+	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
+	e->event_data = (void *) res;
+	fly_event_socket(e);
+	return fly_event_register(e);
 }
 
 int fly_404_event(fly_event_t *e, fly_request_t *req)
@@ -1164,6 +1166,7 @@ int fly_404_event(fly_event_t *e, fly_request_t *req)
 	fly_event_socket(e);
 	return fly_event_register(e);
 }
+
 int fly_405_event(fly_event_t *e, fly_request_t *req)
 {
 	fly_response_t *res;
@@ -1192,35 +1195,59 @@ int fly_405_event(fly_event_t *e, fly_request_t *req)
 	return fly_event_register(e);
 }
 
-int fly_408_event(fly_event_t *e)
+int fly_414_event(fly_event_t *e, fly_request_t *req)
 {
 	fly_response_t *res;
-	fly_request_t *req;
-
-	req = (fly_request_t *) e->event_data;
-	res = fly_response_init();
-	if (fly_unlikely_null(res))
-		return -1;
-
-	res->status_code = _408;
-	res->version = V1_1;
+	res= fly_response_init();
 	res->header = fly_header_init();
+	res->version = V1_1;
+	res->status_code = _414;
 	res->request = req;
-	res->body = NULL;
+	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
 
+	fly_add_allow(res->header, req);
 	fly_add_date(res->header);
-	fly_add_connection(res->header, CLOSE);
+	fly_add_server(res->header);
+	fly_add_connection(res->header, KEEP_ALIVE);
 
+	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
 	e->event_data = (void *) res;
-	/* close socket in 408 event */
-	e->flag = FLY_CLOSE_EV;
-	e->tflag = FLY_INFINITY;
-	e->expired = false;
-	e->eflag = 0;
-	FLY_EVENT_HANDLER(e, __fly_408_event_handler);
 	fly_event_socket(e);
+	return fly_event_register(e);
+}
 
+int fly_415_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+	res= fly_response_init();
+	res->header = fly_header_init();
+	res->version = V1_1;
+	res->status_code = _415;
+	res->request = req;
+	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
+
+	fly_add_allow(res->header, req);
+	fly_add_date(res->header);
+	fly_add_server(res->header);
+	fly_add_connection(res->header, KEEP_ALIVE);
+
+	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
+	e->event_data = (void *) res;
+	fly_event_socket(e);
 	return fly_event_register(e);
 }
 

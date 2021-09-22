@@ -24,12 +24,19 @@
 #define FLY_REQUEST_TIMEOUT				(60)
 #define FLY_REQUEST_NOREADY				100
 
+struct fly_query{
+	char *ptr;
+	size_t len;
+};
+typedef struct fly_query fly_query_t;
+
 typedef char fly_reqlinec_t;
 typedef char fly_buffer_t;
 struct fly_request_line{
 	fly_reqlinec_t *request_line;
 	fly_http_method_t *method;
 	fly_uri_t uri;
+	fly_query_t query;
 	fly_http_version_t *version;
 };
 typedef struct fly_request_line fly_reqline_t;
