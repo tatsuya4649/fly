@@ -33,7 +33,7 @@ typedef struct fly_event_manager fly_event_manager_t;
 #define FLY_MANAGER_DUMMY_INIT(m)			\
 	do{										\
 		(m)->dummy = fly_pballoc((m)->pool, sizeof(struct fly_event)); \
-		(m)->dummy->next = (m)->first;				\
+		(m)->dummy->next = (m)->dummy;				\
 	} while(0);
 
 typedef struct timeval fly_time_t;

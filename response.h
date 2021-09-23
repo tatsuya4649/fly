@@ -119,7 +119,7 @@ typedef struct fly_itm_response fly_itm_response_t;
 int fly_4xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
 int fly_5xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
 struct fly_response_content;
-int fly_304_event(fly_event_t *e, struct fly_response_content *rc);
+int fly_304_event(fly_event_t *e);
 int fly_400_event(fly_event_t *e, fly_request_t *req);
 int fly_404_event(fly_event_t *e, fly_request_t *req);
 int fly_405_event(fly_event_t *e, fly_request_t *req);
