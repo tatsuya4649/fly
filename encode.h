@@ -4,9 +4,12 @@
 #include <string.h>
 #include <ctype.h>
 #include <string.h>
-#include <zlib.h>
 #include "util.h"
 #include "alloc.h"
+/* compress/decompress libraries */
+#include <zlib.h>
+#include <brotli/encode.h>
+#include <brotli/decode.h>
 
 #define FLY_ENCODE_TYPE(x, p)		\
 	{ fly_ ## x, #x, p, fly_ ## x ## _encode, fly_ ## x ## _decode }
@@ -19,7 +22,8 @@ enum __fly_encoding_type{
 //	fly_compress,
 	fly_deflate,
 	fly_identity,
-//	fly_br,
+	/* TODO: add brotli */
+	fly_br,
 	fly_asterisk,
 };
 typedef enum __fly_encoding_type fly_encoding_e;
@@ -28,7 +32,6 @@ typedef Bytef fly_encbuf_t;
 
 
 typedef ssize_t (*fly_send_t)(int c_sockfd, const void *buf, size_t buflen, int flag);
-//typedef int (*fly_send_blocking_t)(fly_event_t *e, fly_response_t *res);
 
 
 #include "event.h"
@@ -143,10 +146,17 @@ int fly_accept_encoding(fly_request_t *req);
 #define FLY_ENCODE_SUCCESS			1
 #define FLY_ENCODE_OVERFLOW			0
 #define FLY_ENCODE_ERROR			-1
+#define FLY_DECODE_SUCCESS			1
+#define FLY_DECODE_OVERFLOW			0
+#define FLY_DECODE_ERROR			-1
 
 /* gzip encode/decode */
 int fly_gzip_decode(fly_de_t *de);
 int fly_gzip_encode(fly_de_t *de);
+
+/* br encode/decode */
+int fly_br_decode(fly_de_t *de);
+int fly_br_encode(fly_de_t *de);
 
 /* deflate encode/decode */
 int fly_deflate_decode(fly_de_t *de);

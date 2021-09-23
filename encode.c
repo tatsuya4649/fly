@@ -8,7 +8,7 @@ __fly_static fly_encoding_type_t __fly_encodes[] = {
 //	{ fly_compress, "x-compress", 30 },
 	FLY_ENCODE_TYPE(deflate, 75),
 	FLY_ENCODE_TYPE(identity, 1),
-//	FLY_ENCODE_TYPE(br, 30),
+	FLY_ENCODE_TYPE(br, 30),
 	FLY_ENCODE_ASTERISK,
 	FLY_ENCODE_NULL
 };
@@ -107,6 +107,9 @@ int fly_gzip_decode(fly_de_t *de)
 	int status;
 	z_stream __zstream;
 
+	if (fly_unlikely(de->type == FLY_DE_DECODE))
+		return FLY_DECODE_ERROR;
+
 	if ((!de->target_already_alloc && (de->encbuf == NULL || !de->encbuflen)) || de->decbuf == NULL || !de->decbuflen)
 		return FLY_ENCODE_ERROR;
 
@@ -148,10 +151,10 @@ int fly_gzip_decode(fly_de_t *de)
 		if (__zstream.avail_out == 0){
 			fly_de_buf_full(de->ldecbuf);
 			if (de->target_already_alloc)
-				return FLY_ENCODE_OVERFLOW;
+				return FLY_DECODE_OVERFLOW;
 
-			if (!fly_d_buf_add(de))
-				return -1;
+			if (fly_unlikely_null(fly_d_buf_add(de)))
+				return FLY_DECODE_ERROR;
 			__zstream.next_out = de->ldecbuf->buf;
 			__zstream.avail_out = de->ldecbuf->buflen;
 		}
@@ -190,7 +193,7 @@ int fly_gzip_encode(fly_de_t *de)
 	__zstream.opaque = Z_NULL;
 
 	if (deflateInit2(&__zstream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 31, 8, Z_DEFAULT_STRATEGY) != Z_OK)
-		return -1;
+		return FLY_ENCODE_ERROR;
 
 	__zstream.avail_in = 0;
 	__zstream.next_out = de->encbuf->buf;
@@ -267,6 +270,201 @@ int fly_gzip_encode(fly_de_t *de)
 		fly_add_content_length(de->response->header, enc_contlen);
 	}
 	return 0;
+}
+
+/* TODO: brotli compress/decompress */
+int fly_br_decode(fly_de_t *de)
+{
+	if (fly_unlikely(de->type == FLY_DE_DECODE))
+		return FLY_DECODE_ERROR;
+
+	de->fase = FLY_DE_DE;
+	if (fly_unlikely_null(de->encbuf) || fly_unlikely(!de->encbuflen) ||  fly_unlikely_null(de->decbuf) || fly_unlikely(!de->decbuflen))
+		return FLY_DECODE_ERROR;
+
+	BrotliDecoderState *state;
+	size_t available_in, available_out;
+	uint8_t *next_in, *next_out;
+	int i;
+
+	state = BrotliDecoderCreateInstance(0, 0, NULL);
+	if (state == 0)
+		return FLY_DECODE_ERROR;
+
+	next_in = NULL;
+	available_in = 0;
+	next_out = de->decbuf->buf;
+	available_out = de->decbuf->buflen;
+	i=0;
+	while(true){
+		if (available_in == 0){
+			if (de->target_already_alloc){
+				next_in = (fly_encbuf_t *) de->already_ptr;
+				available_in = de->already_len;
+			}else{
+				next_in = de->encbuf[i].buf;
+				available_in = de->encbuf[i].uselen;
+			}
+			i++;
+		}
+		switch(BrotliDecoderDecompressStream(
+			state,
+			&available_in,
+			(const uint8_t **) &next_in,
+			&available_out,
+			&next_out,
+			NULL
+		)){
+		case BROTLI_DECODER_RESULT_ERROR:
+			goto error;
+		case BROTLI_DECODER_RESULT_NEEDS_MORE_INPUT:
+			goto end_decode;
+		case BROTLI_DECODER_RESULT_NEEDS_MORE_OUTPUT:
+			break;
+		case BROTLI_DECODER_RESULT_SUCCESS:
+			break;
+		}
+
+		if (de->ldecbuf->buflen - available_out)
+			fly_de_buf_half(de->ldecbuf);
+		if (available_out == 0){
+			fly_de_buf_full(de->ldecbuf);
+			if (de->target_already_alloc)
+				return FLY_DECODE_OVERFLOW;
+
+			if (fly_unlikely_null(fly_d_buf_add(de)))
+				return FLY_DECODE_ERROR;
+			next_out = de->ldecbuf->buf;
+			available_out = de->ldecbuf->buflen;
+		}
+	}
+
+end_decode:
+	if (de->ldecbuf->buflen-available_out){
+		fly_de_buf_half(de->ldecbuf);
+		de->ldecbuf->uselen = de->ldecbuf->buflen-available_out;
+	}
+	de->end = true;
+	BrotliDecoderDestroyInstance(state);
+	return 0;
+error:
+	BrotliDecoderDestroyInstance(state);
+	return -1;
+}
+
+int fly_br_encode(fly_de_t *de)
+{
+	switch (de->type){
+	case FLY_DE_DECODE:
+		return -1;
+	case FLY_DE_ESEND_FROM_PATH:
+		if (lseek(de->fd, de->offset, SEEK_SET) == -1)
+			return -1;
+	default:
+		break;
+	}
+
+	BrotliEncoderOperation op;
+	BrotliEncoderState *state;
+	size_t available_in, available_out;
+	uint8_t *next_in, *next_out;
+
+	de->fase = FLY_DE_DE;
+	if (fly_unlikely_null(de->encbuf) || fly_unlikely(!de->encbuflen) ||  fly_unlikely_null(de->decbuf) || fly_unlikely(!de->decbuflen))
+		return FLY_ENCODE_ERROR;
+
+	state = BrotliEncoderCreateInstance(0, 0, NULL);
+	if (state == 0)
+		return FLY_ENCODE_ERROR;
+
+	available_in = 0;
+	next_out = de->encbuf->buf;
+	available_out = de->encbuf->buflen;
+	fly_de_buf_empty(de->encbuf);
+
+	op = BROTLI_OPERATION_PROCESS;
+	while(op != BROTLI_OPERATION_FINISH){
+		if (available_in == 0){
+			switch(de->type){
+			case FLY_DE_ENCODE:
+				next_in = de->decbuf->buf;
+				available_in = de->decbuf->buflen;
+				break;
+			case FLY_DE_ESEND:
+				next_in = de->decbuf->buf;
+				available_in = de->decbuf->buflen;
+				break;
+			case FLY_DE_ESEND_FROM_PATH:
+				{
+					int numread=0;
+					if ((numread=read(de->fd, de->decbuf, de->decbuf->buflen)) == -1)
+						goto error;
+					next_in = de->decbuf->buf;
+					available_in = numread;
+				}
+				break;
+			default:
+				FLY_NOT_COME_HERE
+			}
+
+			if (available_in < de->decbuf->buflen)
+				op = BROTLI_OPERATION_FINISH;
+			else
+				op = BROTLI_OPERATION_PROCESS;
+		}
+		if (BrotliEncoderCompressStream(
+				state,
+				op,
+				&available_in,
+				(const uint8_t **) &next_in,
+				&available_out,
+				&next_out,
+				NULL) == BROTLI_FALSE)
+			goto error;
+
+		if (BrotliEncoderIsFinished(state) == BROTLI_TRUE)
+			break;
+
+		if (de->lencbuf->buflen-available_out)
+			fly_de_buf_half(de->lencbuf);
+
+		/* lack of output buffer */
+		if (available_out == 0){
+			fly_de_buf_full(de->lencbuf);
+			de->lencbuf->uselen = de->lencbuf->buflen;
+			if (fly_unlikely_null(fly_e_buf_add(de)))
+				goto error;
+			next_out = de->lencbuf->buf;
+			available_out = de->lencbuf->buflen;
+		}
+	}
+
+	if (de->lencbuf->buflen - available_out){
+		fly_de_buf_half(de->lencbuf);
+		de->lencbuf->uselen = de->lencbuf->buflen - available_out;
+	}
+
+	de->end = true;
+	BrotliEncoderDestroyInstance(state);
+
+	if (de->type == FLY_DE_ESEND || de->type == FLY_DE_ESEND_FROM_PATH){
+		size_t enc_contlen=0;
+		struct fly_de_buf *__b=de->encbuf;
+		while(__b){
+			if (__b->status == FLY_DE_BUF_FULL)
+				enc_contlen += __b->buflen;
+			else
+				enc_contlen += __b->uselen;
+			__b = __b->next;
+		}
+		de->contlen = enc_contlen;
+		fly_add_content_length(de->response->header, enc_contlen);
+	}
+	return 0;
+
+error:
+	BrotliEncoderDestroyInstance(state);
+	return -1;
 }
 
 __fly_static int __fly_esend_blocking_handler(fly_event_t *e)
