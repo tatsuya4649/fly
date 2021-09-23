@@ -1060,7 +1060,7 @@ __fly_static void  __fly_ext_param_copyr(char *dist, char *src, size_t maxlen)
 	*dist = '\0';
 }
 
-/* TODO: mime type from path name for default content */
+/* mime type from path name for default content */
 fly_mime_type_t *fly_mime_type_from_path_name(char *path)
 {
 	char *ptr, *__next;

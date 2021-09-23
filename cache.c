@@ -22,13 +22,15 @@ __fly_static int __fly_md5_from_hash(struct fly_file_hash *hash)
 	char *md5_src;
 	char __preload[FLY_MD5_LENGTH+1];
 	int mtime_len, ctime_len, res, md5_len;
+	fly_pool_t *__pool;
 
 	mtime_len = __fly_number_of_digits_time(hash->mtime);
 	ctime_len = __fly_number_of_digits_time(hash->ctime);
 
 	md5_len = strlen(hash->pf->filename) + mtime_len + ctime_len + 1;
 
-	md5_src = fly_pballoc(hash->pf->parts->mount->ctx->pool, sizeof(char)*(md5_len));
+	__pool = hash->pf->parts->mount->ctx->pool;
+	md5_src = fly_pballoc(__pool, sizeof(char)*(md5_len));
 
 	res = snprintf(md5_src, md5_len, "%s%ld%ld", hash->pf->filename, hash->mtime, hash->ctime);
 	if (res < 0 || res >= md5_len)
@@ -49,7 +51,7 @@ __fly_static int __fly_md5_from_hash(struct fly_file_hash *hash)
 	}
 	hash->md5[2*FLY_MD5_LENGTH+1] = '\0';
 
-	fly_pbfree(hash->pf->parts->mount->ctx->pool, md5_src);
+	fly_pbfree(__pool, md5_src);
 	return 0;
 }
 
@@ -76,8 +78,6 @@ int fly_hash_from_parts_file_path(char *path, struct fly_mount_parts_file *pf)
 	struct stat statbuf;
 	if (stat(path, &statbuf) == -1)
 		return -1;
-//	if (fly_unlikely(!S_ISREG(statbuf.st_mode)))
-//		return -1;
 
 	return __fly_hash_from_parts_file(&statbuf, pf);
 }

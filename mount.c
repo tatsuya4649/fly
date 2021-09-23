@@ -189,20 +189,16 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 			if (__fly_nftw(parts, __path, mount_point, infd) == -1)
 				goto error;
 
-		/* if not regular file */
-//		if (!S_ISREG(sb.st_mode))
-//			continue;
-
-		/* only regular file */
 		pfile = fly_pballoc(pool, sizeof(struct fly_mount_parts_file));
-		if (pfile == NULL)
+		if (fly_unlikely_null(pfile))
 			goto error;
-//		pfile->fd = open(__path, O_RDONLY);
 		pfile->fd = -1;
+		memset(pfile->filename, 0, FLY_PATHNAME_MAX);
 		__fly_path_cpy_with_mp(pfile->filename, __path, mount_point);
 		pfile->parts = parts;
 		pfile->next = NULL;
 		pfile->infd = parts->infd;
+		pfile->mime_type = fly_mime_type_from_path_name(__path);
 		if (infd >= 0){
 			if (strcmp(path, mount_point) == 0)
 				pfile->wd = inotify_add_watch(infd, __path, FLY_INOTIFY_WATCH_FLAG_MP);
@@ -254,6 +250,7 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	parts->wd = -1;
 	parts->infd = -1;
 	parts->pool = pool;
+	parts->file_count = 0;
 
 	if (__fly_mount_add(mnt, parts) == -1)
 		goto error;

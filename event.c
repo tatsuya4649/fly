@@ -64,6 +64,7 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	manager->efd = fd;
 	manager->evlen = 0;
 	manager->first = NULL;
+	FLY_MANAGER_DUMMY_INIT(manager);
 	manager->last = NULL;
 
 	return manager;
@@ -95,7 +96,7 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 
 	event->manager = manager;
 	fly_time_null(event->timeout);
-	event->next = NULL;
+	event->next = manager->dummy;
 	event->handler = NULL;
 	event->handler_name = NULL;
 	event->fail_close = NULL;
@@ -121,7 +122,7 @@ int fly_event_register(fly_event_t *event)
 
 	op = EPOLL_CTL_ADD;
 	if (event->manager->first != NULL){
-		for (fly_event_t *e=event->manager->first; e!=NULL; e=e->next){
+		for (fly_event_t *e=event->manager->dummy->next; e!=event->manager->dummy; e=e->next){
 			if (e->fd == event->fd){
 				/* if not same event */
 				if (e != event){
@@ -138,9 +139,10 @@ int fly_event_register(fly_event_t *event)
 	}
 
 	if (op == EPOLL_CTL_ADD){
-		if (event->manager->first == NULL)
+		if (event->manager->first == NULL){
 			event->manager->first = event;
-		else
+			event->manager->dummy->next = event->manager->first;
+		}else
 			event->manager->last->next = event;
 		event->manager->last = event;
 		event->manager->evlen++;
@@ -159,17 +161,19 @@ int fly_event_unregister(fly_event_t *event)
 {
 	fly_event_t *e, *prev;
 
-	for (e=event->manager->first; e!=NULL; e=e->next){
+	for (e=event->manager->dummy->next; e!=event->manager->dummy; e=e->next){
 		/* same fd event */
 		if (event->fd == e->fd){
 			int efd;
 			if (event == event->manager->first && event == event->manager->last){
 				event->manager->first = NULL;
 				event->manager->last = NULL;
+				event->manager->dummy->next = event->manager->first;
 			}else if (e == event->manager->first){
 				event->manager->first = e->next;
+				event->manager->dummy->next = event->manager->first;
 			}else if (e == event->manager->last){
-				prev->next = NULL;
+				prev->next = event->manager->dummy;
 				event->manager->last = prev;
 			}else
 				prev->next = e->next;
@@ -180,11 +184,13 @@ int fly_event_unregister(fly_event_t *event)
 			efd = event->manager->efd;
 
 			/* release event */
-			fly_pbfree(event->manager->pool, event);
-			if (event->flag & FLY_CLOSE_EV || fly_event_nomonitorable(event))
+			if (event->flag & FLY_CLOSE_EV || fly_event_nomonitorable(event)){
+				fly_pbfree(event->manager->pool, event);
 				return 0;
-			else
+			}else{
+				fly_pbfree(event->manager->pool, event);
 				return epoll_ctl(efd, EPOLL_CTL_DEL, event->fd, NULL);
+			}
 		}
 		prev = e;
 	}
@@ -242,7 +248,7 @@ __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager)
 	near_timeout = NULL;
 	if (manager->first == NULL)
 		return NULL;
-	for (fly_event_t *e=manager->first; e!=NULL; e=e->next){
+	for (fly_event_t *e=manager->dummy->next; e!=manager->dummy; e=e->next){
 		if (fly_not_infinity(e) && \
 				( near_timeout == NULL || fly_cmp_time(near_timeout->timeout, e->timeout) < 0))
 			near_timeout = e;
@@ -258,7 +264,7 @@ __fly_static int __fly_expired_event(fly_event_manager_t *manager)
 	if (manager->first == NULL)
 		return 0;
 
-	for (fly_event_t *e=manager->first; e!=NULL; e=e->next){
+	for (fly_event_t *e=manager->dummy->next; e!=manager->dummy; e=e->next){
 		if (e->expired)
 			FLY_HANDLE_EVENT(e);
 	}
@@ -318,12 +324,13 @@ __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager)
 	if (manager->first == NULL)
 		return 0;
 
-	for (fly_event_t *e=manager->first; e!=NULL; e=e->next)
+	for (fly_event_t *e=manager->dummy->next; e!=manager->dummy; e=e->next){
 		if (!(e->tflag & FLY_INFINITY)){
 			fly_sub_time_from_base(&e->left, &now, &e->spawn_time);
 			if (fly_minus_time(e->left))
 				e->expired = true;
 		}
+	}
 
 //	/* udpate prev time */
 //	if (fly_time(&prev_time) == -1)
@@ -348,7 +355,9 @@ __fly_static int __fly_event_handle_nomonitorable(__unused fly_event_manager_t *
 	if (manager->first == NULL)
 		return 0;
 
-	for (fly_event_t *e=manager->first; e; e=e->next){
+	fly_event_t *next;
+	for (fly_event_t *e=manager->dummy->next; e!=manager->dummy; e=next){
+		next = e->next;
 		if (fly_event_nomonitorable(e))
 			FLY_HANDLE_EVENT(e);
 	}
@@ -458,37 +467,37 @@ __fly_static int __fly_event_handler_failure_logcontent(fly_logcont_t *lc, fly_e
 	return __FLY_EVENT_HANDLER_FAILURE_LOGCONTENT_SUCCESS;
 }
 
-__fly_static int __fly_event_handle_failure_log(fly_event_t *e)
-{
-	fly_logcont_t *lc;
+	__fly_static int __fly_event_handle_failure_log(fly_event_t *e)
+	{
+		fly_logcont_t *lc;
 
-	lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_NOTICE);
-	if (lc == NULL)
-		return -1;
+		lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_NOTICE);
+		if (lc == NULL)
+			return -1;
 
-	if (fly_logcont_setting(lc, FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN) == -1)
-		return -1;
+		if (fly_logcont_setting(lc, FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN) == -1)
+			return -1;
 
-	if (__fly_event_handler_failure_logcontent(lc, e) == -1)
-		return -1;
+		if (__fly_event_handler_failure_logcontent(lc, e) == -1)
+			return -1;
 
-	if (fly_log_now(&lc->when) == -1)
-		return -1;
+		if (fly_log_now(&lc->when) == -1)
+			return -1;
 
-	/* close failure fd*/
-	if ((e->fail_close != NULL ? e->fail_close(e->fd) : close(e->fd)) == -1)
-		return -1;
+		/* close failure fd*/
+		if ((e->fail_close != NULL ? e->fail_close(e->fd) : close(e->fd)) == -1)
+			return -1;
 
-	FLY_EVENT_HANDLER(e, fly_log_event_handler);
-	e->fd = fly_log_from_event(e)->notice->file;
-	e->read_or_write = FLY_WRITE;
-	e->flag = FLY_MODIFY;
-	e->tflag = 0;
-	e->eflag = 0;
-	e->available = false;
-	e->expired = false;
-	e->event_data = (void *) lc;
-	fly_time_zero(e->timeout); fly_event_regular(e);
+		FLY_EVENT_HANDLER(e, fly_log_event_handler);
+		e->fd = fly_log_from_event(e)->notice->file;
+		e->read_or_write = FLY_WRITE;
+		e->flag = FLY_MODIFY;
+		e->tflag = 0;
+		e->eflag = 0;
+		e->available = false;
+		e->expired = false;
+		e->event_data = (void *) lc;
+		fly_time_zero(e->timeout); fly_event_regular(e);
 
-	return fly_event_register(e);
+		return fly_event_register(e);
 }
