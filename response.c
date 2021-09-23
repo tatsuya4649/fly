@@ -1079,8 +1079,14 @@ __fly_static int __fly_until_header_handler(fly_event_t *e)
 	return fly_event_unregister(e);
 }
 
-int fly_304_event(__unused fly_event_t *e, __unused struct fly_response_content *rc)
+int fly_304_event(fly_event_t *e)
 {
+	struct fly_response_content *rc;
+	fly_request_t *req;
+
+	rc = (struct fly_response_content *) e->event_data;
+	req = rc->request;
+
 	fly_response_t *res;
 	res= fly_response_init();
 	res->header = fly_header_init();
@@ -1088,10 +1094,9 @@ int fly_304_event(__unused fly_event_t *e, __unused struct fly_response_content 
 	res->status_code = _304;
 	res->request = req;
 	res->encoded = false;
-	res->offset = 0;
-	res->byte_from_start = 0;
+	res->body = NULL;
 
-	fly_add_content_etag(res->header, pf);
+	fly_add_content_etag(res->header, rc->pf);
 	fly_add_date(res->header);
 	fly_add_server(res->header);
 	fly_add_connection(res->header, KEEP_ALIVE);

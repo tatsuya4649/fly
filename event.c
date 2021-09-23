@@ -63,9 +63,9 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	manager->ctx = ctx;
 	manager->efd = fd;
 	manager->evlen = 0;
-	manager->first = NULL;
 	FLY_MANAGER_DUMMY_INIT(manager);
-	manager->last = NULL;
+	manager->first = manager->dummy;
+	manager->last = manager->dummy;
 
 	return manager;
 error:
@@ -95,6 +95,7 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 		return NULL;
 
 	event->manager = manager;
+	event->fd = -1;
 	fly_time_null(event->timeout);
 	event->next = manager->dummy;
 	event->handler = NULL;
@@ -121,7 +122,8 @@ int fly_event_register(fly_event_t *event)
 		return -1;
 
 	op = EPOLL_CTL_ADD;
-	if (event->manager->first != NULL){
+	/* if exist some event. */
+	if (event->manager->first != event->manager->dummy){
 		for (fly_event_t *e=event->manager->dummy->next; e!=event->manager->dummy; e=e->next){
 			if (e->fd == event->fd){
 				/* if not same event */
@@ -139,7 +141,7 @@ int fly_event_register(fly_event_t *event)
 	}
 
 	if (op == EPOLL_CTL_ADD){
-		if (event->manager->first == NULL){
+		if (event->manager->first == event->manager->dummy){
 			event->manager->first = event;
 			event->manager->dummy->next = event->manager->first;
 		}else
@@ -165,22 +167,23 @@ int fly_event_unregister(fly_event_t *event)
 		/* same fd event */
 		if (event->fd == e->fd){
 			int efd;
+			/* only one event */
 			if (event == event->manager->first && event == event->manager->last){
-				event->manager->first = NULL;
-				event->manager->last = NULL;
-				event->manager->dummy->next = event->manager->first;
+				event->manager->first = event->manager->dummy;
+				event->manager->last = event->manager->dummy;
+				event->manager->dummy->next = event->manager->dummy;
+				/* first event */
 			}else if (e == event->manager->first){
 				event->manager->first = e->next;
 				event->manager->dummy->next = event->manager->first;
+				/* last event */
 			}else if (e == event->manager->last){
-				prev->next = event->manager->dummy;
+				prev->next = e->next;
 				event->manager->last = prev;
 			}else
 				prev->next = e->next;
 
 			event->manager->evlen--;
-			e->next = NULL;
-
 			efd = event->manager->efd;
 
 			/* release event */
@@ -377,7 +380,9 @@ __fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manag
 		FLY_HANDLE_EVENT(fly_event);
 
 		/* remove event if not persistent */
-		if (!fly_nodelete(fly_event) && (fly_event_unregister(fly_event) == -1))
+		if (fly_unlikely_null(fly_event) && \
+				!fly_nodelete(fly_event) && \
+				(fly_event_unregister(fly_event) == -1))
 			return -1;
 	}
 

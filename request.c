@@ -1200,7 +1200,8 @@ response_304:
 		goto error;
 	rc_304->pf = pf;
 	rc_304->request = request;
-	if (fly_304_event(event, rc_304) == -1)
+	event->event_data = (void *) rc_304;
+	if (fly_304_event(event) == -1)
 		goto error;
 	return 0;
 
