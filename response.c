@@ -466,6 +466,16 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	return 0;
 }
 
+__fly_static char *fly_log_request_line_modify(fly_reqlinec_t *__r)
+{
+	char *ptr = __r;
+	while(*ptr && *ptr!='\r' && *ptr!='\n')
+		ptr++;
+
+	*ptr = '\0';
+	return __r;
+}
+
 __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc)
 {
 #define __FLY_RESPONSE_LOGCONTENT_SUCCESS			1
@@ -486,7 +496,7 @@ __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t
 		/* peer service */
 		response->request->connect->servname,
 		/* request_line */
-		response->request->request_line != NULL ? response->request->request_line->request_line : FLY_RESPONSE_NONSTRING,
+		response->request->request_line != NULL ? fly_log_request_line_modify(response->request->request_line->request_line) : FLY_RESPONSE_NONSTRING,
 		/* hostname */
 		e->manager->ctx->listen_sock->hostname,
 		/* service */
