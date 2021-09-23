@@ -13,7 +13,7 @@ MAJOR_VERSION:=1
 MINOR_VERSION:=0
 RELEA_VERSION:=0
 
-DEPEND_LIBS := -lz -lcrypto
+DEPEND_LIBS := -lz -lcrypto -lbrotlienc -lbrotlidec
 
 LIBDIR := lib
 LIBNAME := lib$(TARGET).so.$(MAJOR_VERSION)
