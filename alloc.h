@@ -22,6 +22,8 @@ struct fly_size_bytes{
 
 extern struct fly_size_bytes fly_sizes[];
 
+struct fly_pool_block;
+struct fly_pool;
 typedef enum fly_pool_size fly_pool_s;
 typedef unsigned long fly_page_t;
 typedef struct fly_pool fly_pool_t;
@@ -36,7 +38,6 @@ typedef enum fly_pool_size fly_pool_e;
 #define FLY_SIZEBIG(a, b)			(sizeof(a) > sizeof(b) ? sizeof(a) : sizeof(b))
 #define FLY_ALIGN_SIZE				(2*FLY_SIZEBIG(unsigned long, void *))
 #define fly_align_ptr(ptr, asize)		(void *) (((uintptr_t) ptr + ((uintptr_t) asize-1)) & ~((uintptr_t) asize-1))
-extern fly_pool_t *init_pool;
 
 struct fly_pool_block{
 	void *entry;
@@ -51,10 +52,18 @@ struct fly_pool{
 	fly_pool_t *next;		/* next pool */
 	fly_pool_b *entry;		/* actual memory */
 	fly_pool_b *last_block;
+	fly_pool_b *dummy;		/* for sequential search */
 	unsigned block_size;
-	unsigned per_size;
 };
 
+#define FLY_POOL_DUMMY_INIT(p)				\
+	do{																\
+		(p)->dummy = __fly_malloc(sizeof(struct fly_pool_block));	\
+		(p)->dummy->next = (p)->dummy;								\
+		(p)->dummy->entry = NULL;									\
+		(p)->dummy->size = 0;										\
+		(p)->dummy->last = NULL;									\
+	} while(0)
 
 fly_pool_t *fly_create_pool(fly_page_t size);
 fly_pool_t *fly_create_poolb(size_t size);

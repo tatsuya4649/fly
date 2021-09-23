@@ -1079,38 +1079,40 @@ __fly_static int __fly_until_header_handler(fly_event_t *e)
 	return fly_event_unregister(e);
 }
 
-int fly_304_event(fly_event_t *e, struct fly_response_content *rc)
+/* TODO: update response */
+int fly_304_event(__unused fly_event_t *e, __unused struct fly_response_content *rc)
 {
-	fly_response_t *res;
-	fly_request_t *req;
-	struct fly_mount_parts_file *pf;
-
-	req = rc->request;
-	pf = rc->pf;
-
-	res = fly_response_init();
-	if (fly_unlikely_null(res))
-		return -1;
-
-	res->status_code = _304;
-	res->version = V1_1;
-	res->header = fly_header_init();
-	res->request = req;
-	res->body = NULL;
-
-	fly_add_content_etag(res->header, pf);
-	fly_add_date(res->header);
-
-	e->read_or_write = FLY_WRITE;
-	e->event_data = (void *) res;
-	/* close socket in 5xx event */
-	e->flag = FLY_CLOSE_EV;
-	e->tflag = FLY_INHERIT;
-	e->eflag = 0;
-	FLY_EVENT_HANDLER(e, __fly_until_header_handler);
-	fly_event_socket(e);
-
-	return fly_event_register(e);
+	return 0;
+//	fly_response_t *res;
+//	fly_request_t *req;
+//	struct fly_mount_parts_file *pf;
+//
+//	req = rc->request;
+//	pf = rc->pf;
+//
+//	res = fly_response_init();
+//	if (fly_unlikely_null(res))
+//		return -1;
+//
+//	res->status_code = _304;
+//	res->version = V1_1;
+//	res->header = fly_header_init();
+//	res->request = req;
+//	res->body = NULL;
+//
+//	fly_add_content_etag(res->header, pf);
+//	fly_add_date(res->header);
+//
+//	e->read_or_write = FLY_WRITE;
+//	e->event_data = (void *) res;
+//	/* close socket in 5xx event */
+//	e->flag = FLY_CLOSE_EV;
+//	e->tflag = FLY_INHERIT;
+//	e->eflag = 0;
+//	FLY_EVENT_HANDLER(e, __fly_until_header_handler);
+//	fly_event_socket(e);
+//
+//	return fly_event_register(e);
 }
 
 int fly_400_event(fly_event_t *e, fly_request_t *req)

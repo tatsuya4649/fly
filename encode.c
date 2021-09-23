@@ -27,7 +27,7 @@ static inline fly_encoding_type_t *__fly_asterisk(void);
 __fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_header);
 __fly_static int __fly_esend_blocking_handler(fly_event_t *e);
 __fly_static int __fly_esend_blocking(fly_event_t *e, fly_response_t *res);
-static void __fly_memcpy_name(char *dist, char *src, size_t maxlen);
+__fly_static void __fly_memcpy_name(char *dist, char *src, size_t src_len, size_t maxlen);
 static inline bool __fly_number(char c);
 static inline bool __fly_vchar(char c);
 static inline bool __fly_tchar(char c);
@@ -198,6 +198,7 @@ int fly_gzip_encode(fly_de_t *de)
 	fly_de_buf_empty(de->encbuf);
 
 	flush = Z_NO_FLUSH;
+	status = Z_OK;
 	while(status != Z_STREAM_END){
 		if (__zstream.avail_in == 0){
 			switch(de->type){
@@ -553,12 +554,13 @@ __fly_static inline int __fly_quality_value(struct __fly_encoding *e, int qvalue
 	return 0;
 }
 
-__fly_static void __fly_memcpy_name(char *dist, char *src, size_t maxlen)
+__fly_static void __fly_memcpy_name(char *dist, char *src, size_t src_len, size_t maxlen)
 {
 	size_t i=0;
 	while(i++ < maxlen){
 		*dist++ = *src++;
-		if (__fly_space(*src) || __fly_semicolon(*src) || __fly_comma(*src)){
+		if (__fly_space(*src) || __fly_semicolon(*src) || \
+				__fly_comma(*src) || i>=src_len){
 			*dist = '\0';
 			return;
 		}
@@ -967,7 +969,8 @@ __fly_static int __fly_parse_ae(fly_encoding_t *e, fly_hdr_value *ae_value)
 				if (ne == NULL)
 					return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
 
-				__fly_memcpy_name(encname, name!=NULL ? name : "*", FLY_ENCNAME_MAXLEN);
+				memset(encname, 0, FLY_ENCNAME_MAXLEN);
+				__fly_memcpy_name(encname, name!=NULL ? name : "*", strlen(name!=NULL ? name : "*"), FLY_ENCNAME_MAXLEN);
 				encname[FLY_ENCNAME_MAXLEN-1] = '\0';
 
 				ne->type = fly_encoding_from_name(encname);

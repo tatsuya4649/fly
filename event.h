@@ -27,8 +27,14 @@ struct fly_event_manager{
 
 	struct fly_event *first;
 	struct fly_event *last;
+	struct fly_event *dummy;
 };
 typedef struct fly_event_manager fly_event_manager_t;
+#define FLY_MANAGER_DUMMY_INIT(m)			\
+	do{										\
+		(m)->dummy = fly_pballoc((m)->pool, sizeof(struct fly_event)); \
+		(m)->dummy->next = (m)->first;				\
+	} while(0);
 
 typedef struct timeval fly_time_t;
 struct fly_event{
