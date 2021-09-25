@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include "alloc.h"
 #include "util.h"
+#include  "rbtree.h"
 
 extern fly_pool_t *fly_event_pool;
 #define FLY_EVENT_POOL_SIZE			100
@@ -25,6 +26,7 @@ struct fly_event_manager{
 	int maxevents;
 	int evlen;
 
+	struct fly_rb_tree *rbtree;
 	struct fly_event *first;
 	struct fly_event *last;
 	struct fly_event *dummy;
@@ -33,7 +35,10 @@ typedef struct fly_event_manager fly_event_manager_t;
 #define FLY_MANAGER_DUMMY_INIT(m)			\
 	do{										\
 		(m)->dummy = fly_pballoc((m)->pool, sizeof(struct fly_event)); \
+		memset((m)->dummy, 0, sizeof(struct fly_event_manager));			\
 		(m)->dummy->next = (m)->dummy;				\
+		(m)->dummy->prev = (m)->dummy;				\
+		FLY_EVENT_HANDLER((m)->dummy, NULL);		\
 	} while(0);
 
 typedef struct timeval fly_time_t;
@@ -45,11 +50,15 @@ struct fly_event{
 
 	fly_time_t timeout;
 	fly_time_t spawn_time;
-	fly_time_t left;
+	fly_time_t start;
+	fly_time_t abs_timeout;
 	int tflag;
 
 	int flag;
 	struct fly_event *next;
+	struct fly_event *prev;
+
+	struct fly_rb_node *rbnode;
 
 	int (*handler)(struct fly_event *);
 	char *handler_name;

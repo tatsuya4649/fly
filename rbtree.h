@@ -35,6 +35,8 @@ struct fly_rb_node{
 	fly_bit_t color: 1;
 };
 
+extern struct fly_rb_node nil_node;
+#define nil_node_ptr		&nil_node
 typedef int fly_rb_color_t;
 #define FLY_RB_BLACK		(0)
 #define FLY_RB_RED			(1)

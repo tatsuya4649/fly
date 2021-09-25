@@ -1,7 +1,7 @@
 #include "rbtree.h"
 
 #define nil_node_ptr		&nil_node
-static struct fly_rb_node nil_node = {
+struct fly_rb_node nil_node = {
 	.c_right = nil_node_ptr,
 	.c_left = nil_node_ptr,
 	.parent = nil_node_ptr,
@@ -10,11 +10,13 @@ static struct fly_rb_node nil_node = {
 	.data = NULL,
 };
 
+static inline void fly_rb_color_update(struct fly_rb_node *node, fly_rb_color_t color);
 static inline void fly_rb_parent_color_update(struct fly_rb_node *node, fly_rb_color_t parent_color);
 static inline void fly_rb_subst(struct fly_rb_node **dist, struct fly_rb_node **src);
 static inline bool fly_rb_no_child(struct fly_rb_node *node);
 static inline bool fly_rb_all_child(struct fly_rb_node *node);
 static inline bool fly_rb_part_child(struct fly_rb_node *node);
+static inline void fly_rb_root(struct fly_rb_tree *tree, struct fly_rb_node *node);
 
 struct fly_rb_tree *fly_rb_tree_init(fly_rb_cmp_t cmp)
 {
@@ -49,9 +51,12 @@ void fly_rb_tree_release(struct fly_rb_tree *tree)
 	if (tree->node_count == 0)
 		return;
 
-	__n = tree->root->node;
-	__fly_rb_tree_release(__n->c_left, __n->c_right);
-	fly_free(__n);
+	if (tree->root){
+		__n = tree->root->node;
+		__fly_rb_tree_release(__n->c_left, __n->c_right);
+		fly_free(__n);
+		fly_free(tree->root);
+	}
 	fly_free(tree);
 }
 
@@ -68,7 +73,14 @@ static struct fly_rb_root *fly_rb_root_init(struct fly_rb_tree *tree, struct fly
 
     r->node = node;
 	tree->root = r;
+	fly_rb_root(tree, node);
     return r;
+}
+
+static void fly_rb_root_release(struct fly_rb_tree *tree)
+{
+	if (tree->root)
+		fly_free(tree->root);
 }
 
 static inline bool fly_rb_node_is_root(struct fly_rb_tree *tree, struct fly_rb_node *node)
@@ -81,6 +93,7 @@ static inline void fly_rb_root(struct fly_rb_tree *tree, struct fly_rb_node *nod
 	tree->root->node = node;
 	node->parent = nil_node_ptr;
 	fly_rb_parent_color_update(node, FLY_RB_UNKNOWN);
+	fly_rb_color_update(node, FLY_RB_BLACK);
 }
 
 static inline bool fly_rb_parent_is_red(struct fly_rb_node *node)
@@ -303,7 +316,7 @@ void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node)
     node->c_left = nil_node_ptr;
     node->parent = nil_node_ptr;
 
-    if (tree->root == NULL){
+    if (tree->root == NULL || tree->node_count == 0){
         tree->root = fly_rb_root_init(tree, node);
         tree->node_count++;
         return;
@@ -501,8 +514,16 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
     __m = node->c_right;
     __p = node->parent;
 
+	if (tree->node_count <= 0)
+		return;
     /* left child and right child is nil */
-	if (fly_rb_no_child(node)){
+	if (fly_rb_node_is_root(tree, node)){
+		tree->node_count = 0;
+		/* release resource of rb */
+		fly_free(node);
+		fly_rb_root_release(tree);
+		return;
+	}else if (fly_rb_no_child(node)){
         if (fly_rb_node_is_left(node))
             node->parent->c_left = nil_node_ptr;
 		else

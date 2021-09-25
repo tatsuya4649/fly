@@ -14,6 +14,7 @@ __fly_static int __fly_expired_event(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e);
+__fly_static int __fly_event_cmp(void *k1, void *k2);
 
 __fly_static fly_pool_t *__fly_event_pool_init(void)
 {
@@ -66,11 +67,34 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	FLY_MANAGER_DUMMY_INIT(manager);
 	manager->first = manager->dummy;
 	manager->last = manager->dummy;
+	manager->rbtree = fly_rb_tree_init(__fly_event_cmp);
+	if (fly_unlikely_null(manager->rbtree))
+		return NULL;
 
 	return manager;
 error:
 	fly_delete_pool(&manager->pool);
 	return NULL;
+}
+
+__fly_static int __fly_event_cmp(void *k1, void *k2)
+{
+	fly_time_t *t1 = (fly_time_t *) k1;
+	fly_time_t *t2 = (fly_time_t *) k2;
+
+	if (t1->tv_sec > t2->tv_sec)
+		return FLY_RB_CMP_BIG;
+	else if (t1->tv_sec < t2->tv_sec)
+		return FLY_RB_CMP_SMALL;
+	else{
+		if (t1->tv_usec > t2->tv_usec)
+			return FLY_RB_CMP_BIG;
+		else if (t1->tv_usec < t2->tv_usec)
+			return FLY_RB_CMP_SMALL;
+		else
+			return FLY_RB_CMP_EQUAL;
+	}
+	FLY_NOT_COME_HERE;
 }
 
 int fly_event_manager_release(fly_event_manager_t *manager)
@@ -80,6 +104,8 @@ int fly_event_manager_release(fly_event_manager_t *manager)
 
 	if (close(manager->efd) == -1)
 		return -1;
+
+	fly_rb_tree_release(manager->rbtree);
 	return fly_delete_pool(&manager->pool);
 }
 
@@ -98,6 +124,7 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	event->fd = -1;
 	fly_time_null(event->timeout);
 	event->next = manager->dummy;
+	event->prev = manager->dummy;
 	event->handler = NULL;
 	event->handler_name = NULL;
 	event->fail_close = NULL;
@@ -113,12 +140,26 @@ __fly_static void __fly_event_inherit_time(fly_event_t *dist, fly_event_t *src)
 	return;
 }
 
+static inline void __fly_add_time_from_now(fly_time_t *t1, fly_time_t *t2)
+{
+	if (fly_time(t1) == -1)
+		return;
+
+	t1->tv_sec = t1->tv_sec + t2->tv_sec;
+	t1->tv_usec = t1->tv_usec + t2->tv_usec;
+	if (t1->tv_usec >= 1000000){
+		t1->tv_sec++;
+		t1->tv_usec -= 1000000;
+	}
+}
+
 int fly_event_register(fly_event_t *event)
 {
 	struct epoll_event ev;
 	epoll_data_t data;
 	int op;
-	if (!event)
+
+	if (fly_unlikely_null(event))
 		return -1;
 
 	op = EPOLL_CTL_ADD;
@@ -141,13 +182,31 @@ int fly_event_register(fly_event_t *event)
 	}
 
 	if (op == EPOLL_CTL_ADD){
+		/* add to red black tree */
+		if (!event->tflag & FLY_INFINITY){
+			__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
+			event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout);
+		}
 		if (event->manager->first == event->manager->dummy){
 			event->manager->first = event;
 			event->manager->dummy->next = event->manager->first;
-		}else
+		}else{
 			event->manager->last->next = event;
+			event->prev = event->manager->last;
+		}
+
+		event->manager->dummy->prev = event;
+		event->next = event->manager->dummy;
 		event->manager->last = event;
 		event->manager->evlen++;
+	}else{
+		/* delete & add (for changing timeout) */
+		fly_rb_delete(event->manager->rbtree, event->rbnode);
+		if (!(event->tflag & FLY_INHERIT)){
+			__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
+		}
+		if (!(event->tflag & FLY_INFINITY))
+			event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout);
 	}
 	data.ptr = event;
 	ev.data = data;
@@ -167,6 +226,8 @@ int fly_event_unregister(fly_event_t *event)
 		/* same fd event */
 		if (event->fd == e->fd){
 			int efd;
+			/* delete from red black tree */
+			fly_rb_delete(event->manager->rbtree, event->rbnode);
 			/* only one event */
 			if (event == event->manager->first && event == event->manager->last){
 				event->manager->first = event->manager->dummy;
@@ -307,38 +368,80 @@ void fly_sub_time_from_sec(fly_time_t *t1, float delta)
 		t1->tv_sec--;
 		t1->tv_usec += 1000*1000;
 	}
-	return; }
+	return;
+}
+
+__fly_static void __fly_reconnect_event_by_expired(fly_event_t *event, fly_event_manager_t *manager)
+{
+	if (!event->expired)
+		return;
+
+	if (manager->first == event)
+		return;
+	else{
+		event->prev->next = event->next;
+		event->next->prev = event->prev;
+
+		event->prev = manager->dummy;
+		event->next = manager->dummy->next;
+		manager->dummy->next->prev = event;
+		manager->dummy->next = event;
+		manager->first = event;
+	}
+	return;
+}
+
+__fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_tree_t *tree, fly_rb_node_t *node, fly_time_t *__t)
+{
+	fly_event_t *__e;
+	if (node == nil_node_ptr)
+		return 0;
+
+	while(node!=nil_node_ptr){
+		switch(tree->cmp(node->key, __t)){
+		case FLY_RB_CMP_BIG:
+			node = node->c_left;
+			break;
+		case FLY_RB_CMP_SMALL:
+		case FLY_RB_CMP_EQUAL:
+			/* __n right partial tree is expired */
+			__e = (fly_event_t *) node->data;
+			__e->expired = true;
+			__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
+			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
+
+			__fly_reconnect_event_by_expired(__e, manager);
+			return 0;
+		default:
+			FLY_NOT_COME_HERE
+		}
+	}
+	return 0;
+}
 
 __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager)
 {
 	if (manager == NULL)
 		return -1;
 
-//	static fly_time_t prev_time = FLY_TIME_NULL;
 	fly_time_t now;
-//	float diff;
-
-//	if (is_fly_time_null(&prev_time) && fly_time(&prev_time) == -1)
-//		return -1;
-
 	if (fly_time(&now) == -1)
 		return -1;
-//	diff = fly_diff_time(now, prev_time);
 	if (manager->first == NULL)
 		return 0;
 
-	for (fly_event_t *e=manager->dummy->next; e!=manager->dummy; e=e->next){
-		if (!(e->tflag & FLY_INFINITY)){
-			fly_sub_time_from_base(&e->left, &now, &e->spawn_time);
-			if (fly_minus_time(e->left))
-				e->expired = true;
-		}
-	}
 
-//	/* udpate prev time */
-//	if (fly_time(&prev_time) == -1)
-//		return -1;
-	return 0;
+	if (manager->rbtree->node_count == 0)
+		return 0;
+	else{
+		struct fly_rb_tree *tree;
+		struct fly_rb_node *__n;
+
+		tree = manager->rbtree;
+		__n = tree->root->node;
+
+		return __fly_expired_from_rbtree(manager, tree, __n, &now);
+	}
 }
 
 int fly_milli_time(fly_time_t t)
