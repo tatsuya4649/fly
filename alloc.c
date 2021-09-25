@@ -156,38 +156,6 @@ void fly_pbfree(fly_pool_t *pool, void *ptr)
 	__fly_free(__db);
 	pool->block_size--;
 	return;
-//	for (__b=pool->dummy->next; __b!=pool->dummy; __b=__b->next){
-//		/* not match */
-//		if (__b->entry && __b->entry!=ptr){
-//			__prev = __b;
-//			continue;
-//		}
-//
-//		/* only one block */
-//		if (__prev == NULL && __b->next == pool->dummy){
-//			pool->entry = pool->dummy;
-//			pool->last_block = pool->dummy;
-//			pool->dummy->next = pool->entry;
-//		/* first block */
-//		}else if (__prev == NULL){
-//			pool->entry = __b->next;
-//			pool->dummy->next = pool->entry;
-//		/* last block */
-//		}else if (__prev && pool->last_block == __b){
-//			__prev->next = pool->dummy;
-//			pool->last_block = __prev;
-//		/* other */
-//		}else{
-//			__prev->next = __b->next;
-//		}
-//
-//		/* free block */
-//		pool->block_size--;
-//		__fly_free(__b->entry);
-//		__fly_free(__b);
-//		return;
-//	}
-	FLY_NOT_COME_HERE
 }
 
 void *fly_palloc(fly_pool_t *pool, fly_page_t psize)
@@ -229,6 +197,7 @@ int fly_delete_pool(fly_pool_t **pool)
 				}
 			}
 
+			fly_rb_tree_release(p->rbtree);
 			__fly_free(p->dummy);
 			__fly_free(p);
 			return 0;
