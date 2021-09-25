@@ -36,14 +36,16 @@ typedef enum fly_pool_size fly_pool_e;
 #define fly_max_size(size)			(10*(size))
 
 #define FLY_SIZEBIG(a, b)			(sizeof(a) > sizeof(b) ? sizeof(a) : sizeof(b))
-#define FLY_ALIGN_SIZE				(2*FLY_SIZEBIG(unsigned long, void *))
-#define fly_align_ptr(ptr, asize)		(void *) (((uintptr_t) ptr + ((uintptr_t) asize-1)) & ~((uintptr_t) asize-1))
+#define FLY_ALIGN_SIZE				(2*FLY_SIZEBIG(unsigned long, void *)) #define fly_align_ptr(ptr, asize)		(void *) (((uintptr_t) ptr + ((uintptr_t) asize-1)) & ~((uintptr_t) asize-1))
 
+struct fly_rb_node;
+struct fly_rb_tree;
 struct fly_pool_block{
 	void *entry;
 	void *last;
 	unsigned size;				/* byte */
 	struct fly_pool_block *next;
+	struct fly_pool_block *prev;
 };
 
 struct fly_pool{
@@ -53,6 +55,7 @@ struct fly_pool{
 	fly_pool_b *entry;		/* actual memory */
 	fly_pool_b *last_block;
 	fly_pool_b *dummy;		/* for sequential search */
+	struct fly_rb_tree *rbtree;
 	unsigned block_size;
 };
 
@@ -60,6 +63,7 @@ struct fly_pool{
 	do{																\
 		(p)->dummy = __fly_malloc(sizeof(struct fly_pool_block));	\
 		(p)->dummy->next = (p)->dummy;								\
+		(p)->dummy->prev = (p)->dummy;								\
 		(p)->dummy->entry = NULL;									\
 		(p)->dummy->size = 0;										\
 		(p)->dummy->last = NULL;									\
@@ -73,5 +77,7 @@ void *fly_pballoc(fly_pool_t *pool, size_t size);
 void fly_pfree(fly_pool_t *pool, void *ptr);
 ssize_t fly_bytes_from_size(fly_pool_s size);
 void fly_pbfree(fly_pool_t *pool, void *ptr);
+void *fly_malloc(size_t size);
+void fly_free(void *ptr);
 
 #endif

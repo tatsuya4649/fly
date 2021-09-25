@@ -1072,23 +1072,6 @@ int fly_5xx_error_event(fly_event_t *e, fly_request_t *req, fly_stcode_t code)
 	return fly_event_register(e);
 }
 
-__fly_static int __fly_until_header_handler(fly_event_t *e)
-{
-	fly_response_t *res;
-
-	res = (fly_response_t *) e->event_data;
-	if (__fly_send_until_header(e, res) == -1)
-		return -1;
-	if (__fly_response_log(res, e) == -1)
-		return -1;
-
-	/* release response content. */
-	if (fly_response_release(res) == -1)
-		return -1;
-
-	return fly_event_unregister(e);
-}
-
 int fly_304_event(fly_event_t *e)
 {
 	struct fly_response_content *rc;
