@@ -1,9 +1,10 @@
 #include <string.h>
 #include <stdio.h>
+#include "util.h"
 #include "version.h"
 
 fly_http_version_t versions[] = {
-	{"HTTP/1.1", "1.1", V1_1},
+	{"HTTP/1.1", "1.1", "http/1.1", V1_1},
 	{NULL},
 };
 
@@ -45,3 +46,20 @@ fly_http_version_t *fly_match_version(char *version)
     return NULL;
 }
 
+__fly_static int __fly_version_alpn_cmp(const unsigned char *dist, const unsigned char *version, unsigned int len)
+{
+	unsigned int total=0;
+	while(total++ < len)
+		if (*dist++ != *version++)
+			return -1;
+	return 0;
+}
+
+fly_http_version_t *fly_match_version_from_alpn(const unsigned char *version, unsigned int len)
+{
+    for (fly_http_version_t *ver=versions; ver->full!=NULL; ver++){
+		if (__fly_version_alpn_cmp((unsigned char *) ver->alpn, version, len) == 0)
+			return ver;
+    }
+    return NULL;
+}

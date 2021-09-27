@@ -62,7 +62,7 @@ int fly_request_release(fly_request_t *req)
 	return fly_delete_pool(&req->pool);
 }
 
-struct fly_buffer_chain *fly_get_request_line_ptr(fly_buffer_t *__buf)
+struct fly_buffer_chain *fly_get_request_line_buf(fly_buffer_t *__buf)
 {
 	if (fly_unlikely_null(__buf->chain))
 		return NULL;
@@ -871,6 +871,11 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain, char
 }
 
 
+#define FLY_REQUEST_RECEIVE_ERROR				(-1)
+#define FLY_REQUEST_RECEIVE_SUCCESS				(1)
+#define FLY_REQUEST_RECEIVE_END					(0)
+#define FLY_REQUEST_RECEIVE_READ_BLOCKING			(2)
+#define FLY_REQUEST_RECEIVE_WRITE_BLOCKING			(3)
 int fly_request_receive(fly_sock_t fd, fly_request_t *request)
 {
 	fly_buffer_t *__buf;
@@ -881,37 +886,61 @@ int fly_request_receive(fly_sock_t fd, fly_request_t *request)
 	if (fly_unlikely(__buf->chain_count == 0))
 		return -1;
 
-	int recvlen=0;
+	int recvlen=0, total=0;
 	while(true){
-		/* buffer overflow */
-//		if (FLY_BUFSIZE-recvlen == 0)
-//			goto error;
-		recvlen = recv(fd, __buf->lunuse_ptr, __buf->lunuse_len, MSG_DONTWAIT);
-		switch(recvlen){
-		case 0:
-			goto end_of_connection;
-		case -1:
-			if (errno == EINTR)
-				continue;
-			else if FLY_BLOCKING(recvlen)
-				goto continuation;
-			else
+		if (FLY_CONNECT_ON_SSL(request)){
+			SSL *ssl = FLY_SSL_FROM_REQUEST(request);
+
+			recvlen = SSL_read(ssl, __buf->lunuse_ptr,  __buf->lunuse_len);
+			switch(SSL_get_error(ssl, recvlen)){
+			case SSL_ERROR_NONE:
+				break;
+			case SSL_ERROR_ZERO_RETURN:
+				goto end_of_connection;
+			case SSL_ERROR_WANT_READ:
+				goto read_blocking;
+			case SSL_ERROR_WANT_WRITE:
+				goto write_blocking;
+			case SSL_ERROR_SYSCALL:
 				goto error;
-		default:
-			break;
+			case SSL_ERROR_SSL:
+				goto error;
+			default:
+				/* unknown error */
+				goto error;
+			}
+		}else{
+			recvlen = recv(fd, __buf->lunuse_ptr, __buf->lunuse_len, MSG_DONTWAIT);
+			switch(recvlen){
+			case 0:
+				goto end_of_connection;
+			case -1:
+				if (errno == EINTR)
+					continue;
+				else if FLY_BLOCKING(recvlen)
+					goto continuation;
+				else
+					goto error;
+			default:
+				break;
+			}
 		}
+		total += recvlen;
 		if (fly_update_buffer(__buf, recvlen) == -1)
 			return -1;
-//		request->bptr = __buf->lchain;
 	}
 end_of_connection:
-	//*request->bptr = '\0';
-	return 0;
+	return FLY_REQUEST_RECEIVE_END;
 continuation:
-	//*request->bptr = '\0';
-	return 1;
+	return FLY_REQUEST_RECEIVE_SUCCESS;
 error:
-	return -1;
+	return FLY_REQUEST_RECEIVE_ERROR;
+read_blocking:
+	if (total > 0)
+		goto continuation;
+	return FLY_REQUEST_RECEIVE_READ_BLOCKING;
+write_blocking:
+	return FLY_REQUEST_RECEIVE_WRITE_BLOCKING;
 }
 
 int fly_request_disconnect_handler(fly_event_t *event)
@@ -955,7 +984,7 @@ int fly_request_event_handler(fly_event_t *event)
 {
 	fly_request_t *request;
 	fly_response_t *response;
-	fly_buffer_c *request_line_ptr;
+	fly_buffer_c *request_line_buf;
 	fly_body_t *body;
 	fly_bodyc_t *body_ptr;
 	fly_route_reg_t *route_reg;
@@ -975,11 +1004,19 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_event_fase(event, REQUEST_LINE);
 	fly_event_state(event, RECEIVE);
 	switch (fly_request_receive(event->fd, request)){
-	case -1:
+	case FLY_REQUEST_RECEIVE_ERROR:
 		goto error;
-	case 0:
+	case FLY_REQUEST_RECEIVE_END:
 		/* end of connection */
 		goto disconnection;
+	case FLY_REQUEST_RECEIVE_SUCCESS:
+		break;
+	case FLY_REQUEST_RECEIVE_READ_BLOCKING:
+		goto read_continuation;
+	case FLY_REQUEST_RECEIVE_WRITE_BLOCKING:
+		goto write_continuation;
+	default:
+		FLY_NOT_COME_HERE
 	}
 
 	switch(fase){
@@ -996,10 +1033,10 @@ int fly_request_event_handler(fly_event_t *event)
 	}
 	/* parse request_line */
 __fase_request_line:
-	request_line_ptr = fly_get_request_line_ptr(request->buffer);
-	if (fly_unlikely_null(request_line_ptr))
+	request_line_buf = fly_get_request_line_buf(request->buffer);
+	if (fly_unlikely_null(request_line_buf))
 		goto response_400;
-	switch(__fly_request_operation(request, request_line_ptr)){
+	switch(__fly_request_operation(request, request_line_buf)){
 	case FLY_REQUEST_ERROR(400):
 		goto response_400;
 	case FLY_REQUEST_ERROR(414):
@@ -1010,7 +1047,7 @@ __fase_request_line:
 		goto response_501;
 	/* not ready for request line */
 	case FLY_REQUEST_NOREADY:
-		goto continuation;
+		goto read_continuation;
 	default:
 		break;
 	}
@@ -1022,13 +1059,13 @@ __fase_header:
 	fly_event_fase(event, HEADER);
 	header_ptr = fly_get_header_lines_ptr(request->buffer->chain);
 	if (header_ptr == NULL)
-		goto continuation;
+		goto read_continuation;
 
 	switch (fly_reqheader_operation(request, fly_buffer_chain_from_ptr(request->buffer, header_ptr), header_ptr)){
 	case __REQUEST_HEADER_ERROR:
 		goto response_400;
 	case __REQUEST_HEADER_IN_THE_MIDDLE:
-		goto continuation;
+		goto read_continuation;
 	case __REQUEST_HEADER_SUCCESS:
 		break;
 	}
@@ -1129,16 +1166,19 @@ response_415:
 		goto error;
 	return 0;
 response_500:
-	fly_5xx_error_event(event, request, _500);
 	return 0;
 response_501:
-	fly_5xx_error_event(event, request, _501);
 	return 0;
 
 /* continuation event publish. */
+write_continuation:
+	event->read_or_write = FLY_WRITE;
+	goto continuation;
+read_continuation:
+	event->read_or_write = FLY_READ;
+	goto continuation;
 continuation:
 	event->event_state = (void *) EFLY_REQUEST_STATE_CONT;
-	event->read_or_write = FLY_READ;
 	event->flag = FLY_MODIFY;
 	FLY_EVENT_HANDLER(event, fly_request_event_handler);
 	event->tflag = FLY_INHERIT;
@@ -1173,24 +1213,27 @@ response_path:
 		goto response_304;
 	if (fly_if_modified_since(request->header, pf))
 		goto response_304;
-	struct fly_response_content *rc;
-	rc = fly_pballoc(request->pool, sizeof(struct fly_response_content));
-	if (fly_unlikely_null(rc))
-		goto error;
-	rc->pf = pf;
-	rc->request = request;
-	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
-	event->read_or_write = FLY_WRITE;
-	event->flag = FLY_MODIFY;
-	event->tflag = FLY_INHERIT;
-	FLY_EVENT_HANDLER(event, fly_response_content_event_handler);
-	event->available = false;
-	event->event_data = (void *) rc;
-	fly_event_socket(event);
-	if (fly_event_register(event) == -1)
-		goto error;
 
-	return 0;
+	return fly_response_from_pf(event, request, pf);
+//	event->event_data = pf;
+//	struct fly_response_content *rc;
+//	rc = fly_pballoc(request->pool, sizeof(struct fly_response_content));
+//	if (fly_unlikely_null(rc))
+//		goto error;
+//	rc->pf = pf;
+//	rc->request = request;
+//	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+//	event->read_or_write = FLY_WRITE;
+//	event->flag = FLY_MODIFY;
+//	event->tflag = FLY_INHERIT;
+//	FLY_EVENT_HANDLER(event, fly_response_event);
+//	event->available = false;
+//	event->event_data = (void *) rc;
+//	fly_event_socket(event);
+//	if (fly_event_register(event) == -1)
+//		goto error;
+//
+//	return 0;
 
 response_304:
 	struct fly_response_content *rc_304;

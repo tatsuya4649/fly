@@ -94,7 +94,8 @@ int fly_update_buffer(fly_buffer_t *buf, size_t len)
 
 	__l = buf->lchain;
 	i = len;
-	while ( (i -= (ssize_t) __l->unuse_len) >= 0 ){
+	while ( (i - (ssize_t) __l->unuse_len) >= 0 ){
+		i -= (ssize_t) __l->unuse_len;
 		__l->use_len = __l->len;
 		__l->unuse_len = 0;
 		__l->status = FLY_BUF_FULL;
@@ -110,11 +111,12 @@ int fly_update_buffer(fly_buffer_t *buf, size_t len)
 		__l = buf->lchain;
 	}
 
-	/* if i+__l->len == 0, not use */
-	if (__l->len+i){
-		__l->use_len = (size_t) ((ssize_t) __l->use_len - (ssize_t) i);
-		__l->unuse_len = (size_t) ((ssize_t) __l->unuse_len + (ssize_t) i);
+	/* if i == 0, not use */
+	if (i){
+		__l->use_len += (size_t) i;
+		__l->unuse_len -= (size_t) i;
 		__l->status = FLY_BUF_HALF;
+		__l->unuse_ptr += (size_t) i;
 	}
 
 	return 0;

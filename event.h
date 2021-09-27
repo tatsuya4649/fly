@@ -144,6 +144,7 @@ typedef struct fly_event fly_event_t;
 		((e)->flag & FLY_MODIFY)		||	\
 		((e)->flag & FLY_CLOSE_EV)			\
 	)
+int fly_event_inherit_register(fly_event_t *e);
 /* monitored event file type(4bit field) */
 #define __FLY_REGULAR		0x00
 #define __FLY_DIRECTORY		0x01
@@ -184,6 +185,7 @@ typedef struct fly_event fly_event_t;
 
 #define FLY_EVENT_HANDLE_FAILURE	(-1)
 #define FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN		100
+
 /* manager setting */
 fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx);
 int fly_event_manager_release(fly_event_manager_t *manager);

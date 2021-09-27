@@ -2,6 +2,8 @@
 #include <stdio.h>
 #include <sys/socket.h>
 #include "server.h"
+#include "event.h"
+#include "request.h"
 
 __fly_static int __fly_info_of_connect(fly_connect_t *conn);
 
@@ -21,6 +23,8 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	conn->pool = pool;
 	memcpy(&conn->peer_addr, addr, addrlen);
 	conn->addrlen = addrlen;
+	conn->ssl = NULL;
+	conn->flag = 0;
 
 	if (__fly_info_of_connect(conn) == -1)
 		return NULL;
@@ -55,4 +59,35 @@ __fly_static int __fly_info_of_connect(fly_connect_t *conn)
 		return -1;
 	}
 	return 0;
+}
+
+/*
+ *  ready for receiving request, and publish an received event.
+ */
+int fly_listen_connected(fly_event_t *e)
+{
+	fly_connect_t *conn;
+	fly_request_t *req;
+
+	conn = (fly_connect_t *) e->event_data;
+	/* ready for request */
+	req = fly_request_init(conn);
+	if (req == NULL)
+		return -1;
+
+	e->fd = e->fd;
+	e->read_or_write = FLY_READ;
+	e->event_data = (void *) req;
+	/* event only modify (no add, no delete) */
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	e->eflag = 0;
+	FLY_EVENT_HANDLER(e, fly_request_event_handler);
+	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
+	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
+	e->expired = false;
+	e->available = false;
+	fly_event_socket(e);
+
+	return fly_event_register(e);
 }

@@ -46,6 +46,9 @@ typedef struct fly_buffer_chain fly_buffer_c;
 #define FLY_BUF_ADD_CHAIN_LIMIT		(0)
 #define FLY_BUF_ADD_CHAIN_ERROR		(-1)
 
+#define FLY_BUFFER_EMPTY(b)			\
+	((b)->lchain->unuse_ptr == (b)->chain->ptr)
+
 fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_max, size_t per_len);
 int fly_buffer_add_chain(fly_buffer_t *buffer);
 int fly_update_buffer(fly_buffer_t *buf, size_t len);

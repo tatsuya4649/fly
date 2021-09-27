@@ -5,6 +5,7 @@
 /build/
 /lib/
 /log/
+/conf/
 /static/
 /mnt/
 __pycache__/

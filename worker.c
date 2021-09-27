@@ -5,11 +5,12 @@
 #include "fsignal.h"
 #include "cache.h"
 #include "response.h"
+#include "ssl.h"
 
-__fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager, fly_context_t *ctx);
+__fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
 __fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen);
-__fly_static int __fly_listen_connected(fly_event_t *);
+//__fly_static int __fly_listen_connected(fly_event_t *);
 __fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
 __fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler);
@@ -306,7 +307,7 @@ __fly_static int __fly_worker_rtsig_added(fly_context_t *ctx, sigset_t *sset)
 	return 0;
 }
 
-__fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx)
+__fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, fly_context_t *ctx)
 {
 	sigset_t sset;
 	int sigfd;
@@ -363,7 +364,6 @@ __fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, __unuse
 __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused void *data)
 {
 	fly_event_manager_t *manager;
-	fly_event_t *event;
 
 	if (!ctx)
 		FLY_EMERGENCY_ERROR(
@@ -398,12 +398,14 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 			"initialize worker signal error."
 		);
 
-	event = __fly_listen_socket_event(manager, ctx);
-	if (event == NULL || fly_event_register(event) == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
-			"fail to register listen socket event."
-		);
+	/* TODO: make socket for each socket info */
+	for (fly_sockinfo_t *i=ctx->listen_sock; i!=ctx->dummy_sock; i=i->next){
+		if (__fly_listen_socket_event(manager, i) == -1)
+			FLY_EMERGENCY_ERROR(
+				FLY_EMERGENCY_STATUS_PROCS,
+				"fail to register listen socket event."
+			);
+	}
 
 	/* log event start here */
 	if (fly_event_handler(manager) == -1)
@@ -416,30 +418,36 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 	FLY_NOT_COME_HERE
 }
 
-__fly_static fly_event_t *__fly_listen_socket_event(fly_event_manager_t *manager, fly_context_t *ctx)
+__fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo)
 {
 	fly_event_t *e;
 
 	e = fly_event_init(manager);
-	if (e == NULL)
-		return NULL;
+	if (fly_unlikely_null(e))
+		return -1;
 
-	e->fd = ctx->listen_sock->fd;
+	e->fd = sockinfo->fd;
 	e->read_or_write = FLY_READ;
-	FLY_EVENT_HANDLER(e, __fly_listen_socket_handler);
+	if (sockinfo->flag & FLY_SOCKINFO_SSL){
+		/* tcp+ssl/tls connection */
+		FLY_EVENT_HANDLER(e, fly_listen_socket_ssl_handler);
+	}else{
+		/* tcp connection */
+		FLY_EVENT_HANDLER(e, __fly_listen_socket_handler);
+	}
 	e->flag = FLY_PERSISTENT;
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
 	fly_time_null(e->timeout);
-	e->event_data = ctx;
+	e->event_data = sockinfo;
 	e->expired = false;
 	e->available = false;
 	fly_event_socket(e);
 
-	return e;
+	return fly_event_register(e);
 }
 
-__fly_static int __fly_listen_socket_handler(__unused struct fly_event *event)
+__fly_static int __fly_listen_socket_handler(struct fly_event *event)
 {
 	fly_sock_t conn_sock;
 	fly_sock_t listen_sock = event->fd;
@@ -460,7 +468,7 @@ __fly_static int __fly_listen_socket_handler(__unused struct fly_event *event)
 		return -1;
 	ne->fd = conn_sock;
 	ne->read_or_write = FLY_READ;
-	FLY_EVENT_HANDLER(ne, __fly_listen_connected);
+	FLY_EVENT_HANDLER(ne, fly_listen_connected);
 	ne->flag = FLY_NODELETE;
 	fly_sec(&ne->timeout, FLY_REQUEST_TIMEOUT);
 	ne->tflag = 0;
@@ -487,37 +495,6 @@ __fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_e
 		return NULL;
 
 	return conn;
-}
-
-/*
- *  ready for receiving request, and publish an received event.
- */
-__fly_static int __fly_listen_connected(fly_event_t *e)
-{
-	fly_connect_t *conn;
-	fly_request_t *req;
-
-	conn = (fly_connect_t *) e->event_data;
-	/* ready for request */
-	req = fly_request_init(conn);
-	if (req == NULL)
-		return -1;
-
-	e->fd = e->fd;
-	e->read_or_write = FLY_READ;
-	e->event_data = (void *) req;
-	/* event only modify (no add, no delete) */
-	e->flag = FLY_MODIFY;
-	e->tflag = FLY_INHERIT;
-	e->eflag = 0;
-	FLY_EVENT_HANDLER(e, fly_request_event_handler);
-	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
-	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
-	e->expired = false;
-	e->available = false;
-	fly_event_socket(e);
-
-	return fly_event_register(e);
 }
 
 __fly_static int __fly_worker_open_file(fly_context_t *ctx)
