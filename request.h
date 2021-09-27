@@ -83,6 +83,10 @@ struct fly_request{
 };
 typedef struct fly_request fly_request_t;
 
+#define FLY_CONNECT_ON_SSL(r)		\
+	((r)->connect->flag & FLY_SSL_CONNECT)
+#define FLY_SSL_FROM_REQUEST(r)		\
+	((r)->connect->ssl)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_LEN			(1)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_CHAIN_MAX		(100)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_PER_LEN		(10)

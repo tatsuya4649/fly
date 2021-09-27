@@ -201,7 +201,8 @@ int fly_event_register(fly_event_t *event)
 		event->manager->evlen++;
 	}else{
 		/* delete & add (for changing timeout) */
-		fly_rb_delete(event->manager->rbtree, event->rbnode);
+		if (event->rbnode)
+			fly_rb_delete(event->manager->rbtree, event->rbnode);
 		if (!(event->tflag & FLY_INHERIT)){
 			__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
 		}
@@ -406,7 +407,7 @@ __fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_
 		case FLY_RB_CMP_EQUAL:
 			/* __n right partial tree is expired */
 			__e = (fly_event_t *) node->data;
-			__e->expired = true;
+			//__e->expired = true;
 			__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
 			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
 
@@ -575,37 +576,46 @@ __fly_static int __fly_event_handler_failure_logcontent(fly_logcont_t *lc, fly_e
 	return __FLY_EVENT_HANDLER_FAILURE_LOGCONTENT_SUCCESS;
 }
 
-	__fly_static int __fly_event_handle_failure_log(fly_event_t *e)
-	{
-		fly_logcont_t *lc;
+__fly_static int __fly_event_handle_failure_log(fly_event_t *e)
+{
+	fly_logcont_t *lc;
 
-		lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_NOTICE);
-		if (lc == NULL)
-			return -1;
+	lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_NOTICE);
+	if (lc == NULL)
+		return -1;
 
-		if (fly_logcont_setting(lc, FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN) == -1)
-			return -1;
+	if (fly_logcont_setting(lc, FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN) == -1)
+		return -1;
 
-		if (__fly_event_handler_failure_logcontent(lc, e) == -1)
-			return -1;
+	if (__fly_event_handler_failure_logcontent(lc, e) == -1)
+		return -1;
 
-		if (fly_log_now(&lc->when) == -1)
-			return -1;
+	if (fly_log_now(&lc->when) == -1)
+		return -1;
 
-		/* close failure fd*/
-		if ((e->fail_close != NULL ? e->fail_close(e->fd) : close(e->fd)) == -1)
-			return -1;
+	/* close failure fd*/
+	if ((e->fail_close != NULL ? e->fail_close(e->fd) : close(e->fd)) == -1)
+		return -1;
 
-		FLY_EVENT_HANDLER(e, fly_log_event_handler);
-		e->fd = fly_log_from_event(e)->notice->file;
-		e->read_or_write = FLY_WRITE;
-		e->flag = FLY_MODIFY;
-		e->tflag = 0;
-		e->eflag = 0;
-		e->available = false;
-		e->expired = false;
-		e->event_data = (void *) lc;
-		fly_time_zero(e->timeout); fly_event_regular(e);
+	FLY_EVENT_HANDLER(e, fly_log_event_handler);
+	e->fd = fly_log_from_event(e)->notice->file;
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = 0;
+	e->eflag = 0;
+	e->available = false;
+	e->expired = false;
+	e->event_data = (void *) lc;
+	fly_time_zero(e->timeout);
+	fly_event_regular(e);
 
-		return fly_event_register(e);
+	return fly_event_register(e);
 }
+
+int fly_event_inherit_register(fly_event_t *e)
+{
+	e->tflag |= FLY_INHERIT;
+	e->flag |= FLY_MODIFY;
+	return fly_event_register(e);
+}
+

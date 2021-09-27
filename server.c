@@ -6,13 +6,30 @@
 #include "fly.h"
 #include "server.h"
 #include "err.h"
+#include "ssl.h"
+
 int fly_socket_nonblocking(fly_sock_t s)
 {
 	int val = 1;
 	return ioctl(s, FIONBIO, &val);
 }
 
-int fly_socket_init(int port, fly_sockinfo_t *info){
+void fly_add_sockinfo(fly_context_t *ctx, fly_sockinfo_t *info)
+{
+	if (ctx->listen_count == 0){
+		ctx->dummy_sock->next = info;
+		ctx->listen_sock = info;
+	}else{
+		fly_sockinfo_t *__i;
+		for (__i=ctx->listen_sock; __i->next!=ctx->dummy_sock; __i=__i->next)
+			;
+		__i->next = info;
+	}
+	ctx->listen_count++;
+	return;
+}
+
+int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag){
 
 	if (!info)
 		return -1;
@@ -65,7 +82,24 @@ int fly_socket_init(int port, fly_sockinfo_t *info){
 	info->fd = sockfd;
 	memcpy(&info->addr, rp->ai_addr, rp->ai_addrlen);
 	info->addrlen = rp->ai_addrlen;
+	info->flag = flag;
+	info->next = ctx->dummy_sock;
+	if (info->flag & FLY_SOCKINFO_SSL){
+		char *crt_path_env = getenv(FLY_SSL_CRT_PATH_ENV);
+		char *key_path_env = getenv(FLY_SSL_KEY_PATH_ENV);
+		info->crt_path = crt_path_env ? fly_pballoc(ctx->pool, sizeof(char)*strlen(crt_path_env)) : NULL;
+		info->key_path = key_path_env ? fly_pballoc(ctx->pool, sizeof(char)*strlen(key_path_env)) : NULL;
+		if (info->crt_path){
+			memset(info->crt_path, '\0', sizeof(char)*strlen(crt_path_env));
+			memcpy(info->crt_path, crt_path_env, sizeof(char)*strlen(crt_path_env));
+		}
+		if (info->key_path){
+			memset(info->key_path, '\0', sizeof(char)*strlen(key_path_env));
+			memcpy(info->key_path, key_path_env, sizeof(char)*strlen(key_path_env));
+		}
+	}
 	freeaddrinfo(result);
+	fly_add_sockinfo(ctx, info);
 	return sockfd;
 error:
 	close(sockfd);

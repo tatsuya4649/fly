@@ -26,7 +26,7 @@ static inline fly_encoding_type_t *__fly_asterisk(void);
 #define __FLY_PARSE_ACCEPT_ENCODING_ERROR			-1
 __fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_header);
 __fly_static int __fly_esend_blocking_handler(fly_event_t *e);
-__fly_static int __fly_esend_blocking(fly_event_t *e, fly_response_t *res);
+__fly_static int __fly_esend_blocking(fly_event_t *e, fly_response_t *res, int read_or_write);
 __fly_static void __fly_memcpy_name(char *dist, char *src, size_t src_len, size_t maxlen);
 static inline bool __fly_number(char c);
 static inline bool __fly_vchar(char c);
@@ -475,10 +475,10 @@ __fly_static int __fly_esend_blocking_handler(fly_event_t *e)
 	return fly_esend_body(e, response);
 }
 
-__fly_static int __fly_esend_blocking(fly_event_t *e, fly_response_t *res)
+__fly_static int __fly_esend_blocking(fly_event_t *e, fly_response_t *res, int read_or_write)
 {
 	e->event_data = (void *) res;
-	e->read_or_write = FLY_WRITE;
+	e->read_or_write = read_or_write;
 	e->eflag = 0;
 	e->tflag = FLY_INHERIT;
 	e->flag = FLY_NODELETE;
@@ -500,11 +500,33 @@ int fly_esend_body(fly_event_t *e, fly_response_t *response)
 
 	de->send_ptr = de->encbuf;
 	while(de->send_ptr){
-		numsend = de->send(de->c_sockfd, de->send_ptr->buf, de->send_ptr->uselen, 0);
-		if (FLY_BLOCKING(numsend))
-			goto blocking;
-		else if (numsend == -1)
-			return FLY_RESPONSE_ERROR;
+		if (FLY_CONNECT_ON_SSL(response->request)){
+			SSL *ssl = response->request->connect->ssl;
+			numsend = SSL_write(ssl, de->send_ptr->buf, de->send_ptr->uselen);
+			switch(SSL_get_error(ssl, numsend)){
+			case SSL_ERROR_NONE:
+				break;
+			case SSL_ERROR_ZERO_RETURN:
+				return FLY_RESPONSE_ERROR;
+			case SSL_ERROR_WANT_READ:
+				goto read_blocking;
+			case SSL_ERROR_WANT_WRITE:
+				goto write_blocking;
+			case SSL_ERROR_SYSCALL:
+				return FLY_RESPONSE_ERROR;
+			case SSL_ERROR_SSL:
+				return FLY_RESPONSE_ERROR;
+			default:
+				/* unknown error */
+				return FLY_RESPONSE_ERROR;
+			}
+		}else{
+			numsend = send(de->c_sockfd, de->send_ptr->buf, de->send_ptr->uselen, 0);
+			if (FLY_BLOCKING(numsend))
+				goto write_blocking;
+			else if (numsend == -1)
+				return FLY_RESPONSE_ERROR;
+		}
 
 		total += numsend;
 		de->send_ptr->ptr += numsend;
@@ -516,8 +538,12 @@ int fly_esend_body(fly_event_t *e, fly_response_t *response)
 			break;
 	}
 	return FLY_RESPONSE_SUCCESS;
-blocking:
-	if (__fly_esend_blocking(e, de->response) == -1)
+read_blocking:
+	if (__fly_esend_blocking(e, de->response, FLY_READ) == -1)
+		return FLY_RESPONSE_ERROR;
+	return FLY_RESPONSE_BLOCKING;
+write_blocking:
+	if (__fly_esend_blocking(e, de->response, FLY_WRITE) == -1)
 		return FLY_RESPONSE_ERROR;
 	return FLY_RESPONSE_BLOCKING;
 }
@@ -1388,7 +1414,6 @@ struct fly_de *fly_de_init(fly_pool_t *pool)
 	de->fd = -1;
 	de->c_sockfd = -1;
 	de->bfs = 0;
-	de->send = NULL;
 	de->send_ptr = NULL;
 	de->event = NULL;
 	de->response = NULL;

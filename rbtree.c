@@ -511,6 +511,8 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 {
     struct fly_rb_node *__m, *__mrc=NULL, *__p;
 
+	if (fly_unlikely_null(node))
+		return;
     __m = node->c_right;
     __p = node->parent;
 

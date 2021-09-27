@@ -13,9 +13,7 @@
 
 __fly_static int __fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point);
-__fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response);
-__fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response);
-int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count);
+__fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response, int read_or_write);
 
 int fly_mount_init(fly_context_t *ctx)
 {
@@ -366,10 +364,10 @@ __fly_static int __fly_send_from_pf_blocking_handler(fly_event_t *e)
 	return fly_send_from_pf(e, e->fd, res->pf, &res->offset, res->count);
 }
 
-__fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response)
+__fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response, int read_or_write)
 {
 	e->event_data = (void *) response;
-	e->read_or_write = FLY_WRITE;
+	e->read_or_write = read_or_write;
 	e->eflag = 0;
 	e->tflag = FLY_INHERIT;
 	e->flag = FLY_NODELETE;
@@ -387,7 +385,6 @@ int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *
 
 	response = (fly_response_t *) e->event_data;
 	bfs = &response->byte_from_start;
-	response = (fly_response_t *) e->event_data;
 	response->fase = FLY_RESPONSE_BODY;
 	response->pf = pf;
 	response->offset = *offset;
@@ -400,14 +397,48 @@ int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *
 
 	*offset += total;
 	while(total < count){
-		numsend = sendfile(c_sockfd, pf->fd, offset, count-total);
-		if (FLY_BLOCKING(numsend)){
-			/* event register */
-			if (__fly_send_from_pf_blocking(e, response) == -1)
+		if (FLY_CONNECT_ON_SSL(response->request)){
+			SSL *ssl=response->request->connect->ssl;
+			char send_buf[FLY_SEND_BUF_LENGTH];
+			ssize_t numread;
+
+			if (lseek(pf->fd, *offset+(off_t) total, SEEK_SET) == -1)
 				return FLY_RESPONSE_ERROR;
-			return FLY_RESPONSE_BLOCKING;
-		}else if (numsend == -1)
-			return FLY_RESPONSE_ERROR;
+			numread = read(pf->fd, send_buf, count-total<FLY_SEND_BUF_LENGTH ? FLY_SEND_BUF_LENGTH : count-total);
+			if (numread == -1)
+				return FLY_RESPONSE_ERROR;
+			numsend = SSL_write(ssl, send_buf, numread);
+			switch(SSL_get_error(ssl, numsend)){
+			case SSL_ERROR_NONE:
+				break;
+			case SSL_ERROR_ZERO_RETURN:
+				return FLY_RESPONSE_ERROR;
+			case SSL_ERROR_WANT_READ:
+				if (__fly_send_from_pf_blocking(e, response, FLY_READ) == -1)
+					return FLY_RESPONSE_ERROR;
+				return FLY_RESPONSE_BLOCKING;
+			case SSL_ERROR_WANT_WRITE:
+				if (__fly_send_from_pf_blocking(e, response, FLY_WRITE) == -1)
+					return FLY_RESPONSE_ERROR;
+				return FLY_RESPONSE_BLOCKING;
+			case SSL_ERROR_SYSCALL:
+				return FLY_RESPONSE_ERROR;
+			case SSL_ERROR_SSL:
+				return FLY_RESPONSE_ERROR;
+			default:
+				/* unknown error */
+				return FLY_RESPONSE_ERROR;
+			}
+		}else{
+			numsend = sendfile(c_sockfd, pf->fd, offset, count-total);
+			if (FLY_BLOCKING(numsend)){
+				/* event register */
+				if (__fly_send_from_pf_blocking(e, response, FLY_WRITE) == -1)
+					return FLY_RESPONSE_ERROR;
+				return FLY_RESPONSE_BLOCKING;
+			}else if (numsend == -1)
+				return FLY_RESPONSE_ERROR;
+		}
 
 		total += numsend;
 		*bfs = total;

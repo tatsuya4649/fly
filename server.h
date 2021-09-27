@@ -19,10 +19,18 @@ struct fly_sockinfo{
 	socklen_t addrlen;
 	char hostname[NI_MAXHOST];
 	char servname[NI_MAXSERV];
+	/* for ssl */
+	char *crt_path;
+	char *key_path;
+
+#define FLY_SOCKINFO_SSL		(1<<0)
+	int flag;
+	struct fly_sockinfo *next;
 };
 typedef struct fly_sockinfo fly_sockinfo_t;
 #define FLY_SOCKET_OPTION		1
-int fly_socket_init(int port, fly_sockinfo_t *info);
+struct fly_context;
+int fly_socket_init(struct fly_context *ctx, int port, fly_sockinfo_t *info, int flag);
 int fly_socket_release(int sockfd);
 
 #define FLY_PORT_ENV			"FLY_PORT"

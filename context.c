@@ -2,9 +2,9 @@
 #include "response.h"
 #include <sys/sendfile.h>
 
-__fly_static fly_sockinfo_t *__fly_listen_sock(fly_pool_t *pool);
+__fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool);
 int fly_errsys_init(fly_context_t *ctx);
-__fly_static int __fly_send_dcbs_blocking(fly_event_t *e, fly_response_t *res);
+__fly_static int __fly_send_dcbs_blocking(fly_event_t *e, fly_response_t *res, int read_or_write);
 __fly_static int __fly_send_dcbs_blocking_handler(fly_event_t *e);
 
 fly_context_t *fly_context_init(void)
@@ -22,7 +22,11 @@ fly_context_t *fly_context_init(void)
 
 	memset(ctx, 0, sizeof(fly_context_t));
 	ctx->pool = pool;
-	ctx->listen_sock = __fly_listen_sock(pool);
+	ctx->misc_pool = fly_create_pool(FLY_CONTEXT_POOL_SIZE);
+	if (!ctx->misc_pool)
+		return NULL;
+	FLY_DUMMY_SOCK_INIT(ctx);
+	ctx->listen_sock = __fly_listen_sock(ctx, pool);
 	if (ctx->listen_sock == NULL)
 		return NULL;
 	ctx->route_reg = fly_route_reg_init();
@@ -45,7 +49,8 @@ int fly_context_release(fly_context_t *ctx)
 	return fly_delete_pool(&ctx->pool);
 }
 
-__fly_static fly_sockinfo_t *__fly_listen_sock(fly_pool_t *pool)
+/* TODO: configuration file add. */
+__fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool)
 {
 	fly_sockinfo_t *info;
 	int port;
@@ -63,9 +68,8 @@ __fly_static fly_sockinfo_t *__fly_listen_sock(fly_pool_t *pool)
 	if (!port)
 		return NULL;
 
-	if (fly_socket_init(port, info) == -1)
+	if (fly_socket_init(ctx, port, info, FLY_SOCKINFO_SSL) == -1)
 		return NULL;
-
 	return info;
 }
 
@@ -91,10 +95,10 @@ int is_fly_default_content_by_stcode(fly_context_t *ctx, enum status_code_type s
 	return fly_default_content_by_stcode(ctx, status_code) ? 1 : 0;
 }
 
-__fly_static int __fly_send_dcbs_blocking(fly_event_t *e, fly_response_t *res)
+__fly_static int __fly_send_dcbs_blocking(fly_event_t *e, fly_response_t *res, int read_or_write)
 {
 	e->event_data = (void *) res;
-	e->read_or_write = FLY_WRITE;
+	e->read_or_write = read_or_write;
 	e->eflag = 0;
 	e->tflag = FLY_INHERIT;
 	e->flag = FLY_NODELETE;
@@ -151,14 +155,50 @@ int fly_send_default_content(fly_event_t *e, fly_rcbs_t *__r)
 
 	count = sb.st_size - total;
 	while(total < count){
-		numsend = sendfile(e->fd, __r->fd, offset, count-total);
-		if (FLY_BLOCKING(numsend)){
-			/* event register */
-			if (__fly_send_dcbs_blocking(e, res) == -1)
+		if (FLY_CONNECT_ON_SSL(res->request)){
+#define FLY_SEND_BUF_LENGTH			(4096)
+			//numsend = SSL_sendfile(ssl, __r->fd, offset, count-total, 0);
+			SSL *ssl=res->request->connect->ssl;
+			char send_buf[FLY_SEND_BUF_LENGTH];
+			ssize_t numread;
+
+			if (lseek(__r->fd, *offset+(off_t) total, SEEK_SET) == -1)
+				return FLY_RESPONSE_ERROR;
+			numread = read(__r->fd, send_buf, count-total<FLY_SEND_BUF_LENGTH ? FLY_SEND_BUF_LENGTH : count-total);
+			if (numread == -1)
+				return FLY_RESPONSE_ERROR;
+			numsend = SSL_write(ssl, send_buf, numread);
+			switch(SSL_get_error(ssl, numsend)){
+			case SSL_ERROR_NONE:
+				break;
+			case SSL_ERROR_ZERO_RETURN:
+				return FLY_RESPONSE_ERROR;
+			case SSL_ERROR_WANT_READ:
+				if (__fly_send_dcbs_blocking(e, res, FLY_READ) == -1)
+					return FLY_RESPONSE_ERROR;
+				return FLY_RESPONSE_BLOCKING;
+			case SSL_ERROR_WANT_WRITE:
+				if (__fly_send_dcbs_blocking(e, res, FLY_WRITE) == -1)
+					return FLY_RESPONSE_ERROR;
+				return FLY_RESPONSE_BLOCKING;
+			case SSL_ERROR_SYSCALL:
+				return FLY_RESPONSE_ERROR;
+			case SSL_ERROR_SSL:
+				return FLY_RESPONSE_ERROR;
+			default:
+				/* unknown error */
+				return FLY_RESPONSE_ERROR;
+			}
+		}else{
+			numsend = sendfile(e->fd, __r->fd, offset, count-total);
+			if (FLY_BLOCKING(numsend)){
+				/* event register */
+				if (__fly_send_dcbs_blocking(e, res, FLY_WRITE) == -1)
+					return FLY_SEND_DEFAULT_CONTENT_BY_STCODE_ERROR;
+				return FLY_SEND_DEFAULT_CONTENT_BY_STCODE_BLOCKING;
+			}else if (numsend == -1)
 				return FLY_SEND_DEFAULT_CONTENT_BY_STCODE_ERROR;
-			return FLY_SEND_DEFAULT_CONTENT_BY_STCODE_BLOCKING;
-		}else if (numsend == -1)
-			return FLY_SEND_DEFAULT_CONTENT_BY_STCODE_ERROR;
+		}
 
 		total += numsend;
 	}

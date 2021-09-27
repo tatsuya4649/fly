@@ -88,7 +88,6 @@ struct fly_de{
 	size_t count;
 	/* byte from start for sending */
 	int bfs;
-	fly_send_t send;
 	struct fly_de_buf *send_ptr;
 	fly_event_t *event;
 	struct fly_response *response;
