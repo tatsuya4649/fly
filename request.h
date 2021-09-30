@@ -90,6 +90,12 @@ typedef struct fly_request fly_request_t;
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_LEN			(1)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_CHAIN_MAX		(100)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_PER_LEN		(10)
+
+#define FLY_REQUEST_RECEIVE_ERROR				(-1)
+#define FLY_REQUEST_RECEIVE_SUCCESS				(1)
+#define FLY_REQUEST_RECEIVE_END					(0)
+#define FLY_REQUEST_RECEIVE_READ_BLOCKING			(2)
+#define FLY_REQUEST_RECEIVE_WRITE_BLOCKING			(3)
 int fly_request_receive(fly_sock_t fd, fly_request_t *request);
 int fly_request_event_handler(fly_event_t *event);
 

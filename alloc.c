@@ -140,7 +140,7 @@ void fly_pbfree(fly_pool_t *pool, void *ptr)
 {
 	fly_rb_node_t *__dn;
 	fly_pool_b *__db;
-	if (pool->block_size == 0)
+	if (pool->block_size == 0 || pool->rbtree->node_count == 0)
 		return;
 
 	__dn = (fly_rb_node_t *) fly_rb_node_from_key(pool->rbtree, ptr);

@@ -11,6 +11,7 @@
 
 
 #define FLY_CONNECTION_POOL_SIZE		1
+struct fly_hv2_state;
 struct fly_connect{
 	fly_event_t *event;
 	int sockfd;
@@ -26,6 +27,9 @@ struct fly_connect{
 	fly_http_version_t *http_v;
 #define FLY_SSL_CONNECT			(1<<0)
 	int flag;
+
+	/* HTTP2 */
+	struct fly_hv2_state *v2_state;
 };
 typedef struct fly_connect fly_connect_t;
 

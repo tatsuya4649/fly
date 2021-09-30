@@ -130,6 +130,8 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	event->fail_close = NULL;
 	if (fly_time(&event->spawn_time) == -1)
 		return NULL;
+	event->expired = false;
+	event->available = false;
 	return event;
 }
 

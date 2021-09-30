@@ -9,7 +9,6 @@
 
 __fly_static fly_connect_t *__fly_ssl_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen, SSL *ssl, SSL_CTX *ctx);
 __fly_static int __fly_ssl_alpn(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg);
-__fly_static int __fly_ssl_accept_blocking(fly_event_t *e);
 __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e __unused);
 
 struct fly_ssl_accept{
