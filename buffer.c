@@ -11,8 +11,15 @@ fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_ma
 	buffer = fly_pballoc(pool, sizeof(fly_buffer_t));
 	if (fly_unlikely_null(buffer))
 		return NULL;
-	buffer->chain = NULL;
-	buffer->lchain = NULL;
+	buffer->chain = fly_pballoc(pool, sizeof(fly_buffer_c));;
+	if (fly_unlikely_null(buffer->chain))
+		return NULL;
+	buffer->chain->ptr = NULL;
+	buffer->chain->use_ptr = NULL;
+	buffer->chain->buffer = buffer;
+	buffer->chain->next = buffer->chain;
+	buffer->chain->prev = buffer->chain;
+	buffer->lchain = buffer->chain;
 	buffer->chain_count = 0;
 	buffer->pool = pool;
 	buffer->chain_max = chain_max;
@@ -44,24 +51,42 @@ int fly_buffer_add_chain(fly_buffer_t *buffer)
 	chain = fly_pballoc(__pool, sizeof(struct fly_buffer_chain));
 	if (fly_unlikely_null(chain))
 		return FLY_BUF_ADD_CHAIN_ERROR;
-	chain->status = FLY_BUF_EMPTY; chain->len = buffer->per_len;
+	chain->status = FLY_BUF_EMPTY;
+	chain->len = buffer->per_len;
 	chain->use_len = 0;
 	chain->buffer = buffer;
 	chain->unuse_len = chain->len;
 	chain->ptr = fly_pballoc(__pool, chain->len);
+	if (fly_unlikely_null(chain->ptr))
+		return FLY_BUF_ADD_CHAIN_ERROR;
+	chain->use_ptr = chain->ptr;
 	chain->lptr = chain->ptr + chain->len - 1;
 	chain->unuse_ptr = chain->ptr;
-	chain->next = NULL;
-	if (fly_unlikely_null(chain))
-		return FLY_BUF_ADD_CHAIN_ERROR;
+	chain->next = buffer->chain;
+	chain->prev = buffer->lchain;
 
 	if (buffer->chain_count == 0)
-		buffer->chain = chain;
+		buffer->chain->next = chain;
 	else
 		buffer->lchain->next = chain;
+	buffer->chain->prev = chain;
 	buffer->lchain = chain;
 	buffer->chain_count++;
 	return FLY_BUF_ADD_CHAIN_SUCCESS;
+}
+
+void fly_buffer_chain_release(fly_buffer_c *__c)
+{
+	fly_buffer_c *prev = __c->prev;
+	fly_buffer_c *next = __c->next;
+
+	prev->next = next;
+	next->prev = prev;
+
+	if (__c->buffer->lchain == __c)
+		__c->buffer->lchain = prev;
+	fly_pbfree(__c->buffer->pool, __c->ptr);
+	fly_pbfree(__c->buffer->pool, __c);
 }
 
 fly_buf_p fly_update_chain_one(fly_buffer_c **c, fly_buf_p p)
@@ -75,15 +100,17 @@ fly_buf_p fly_update_chain(fly_buffer_c **c, fly_buf_p p, size_t len)
 		return p+len;
 	else{
 		ssize_t __len = (p+len)-(*c)->lptr;
-		while((__len-=(*c)->len)){
+		while(true){
 			*c=(*c)->next;
 			if (!*c)
 				return NULL;
-			if (__len < 0)
+			if ((__len - (ssize_t) (*c)->len) < 0)
 				break;
+			else
+				__len -= (ssize_t) (*c)->len;
 		}
 
-		return (*c)->ptr+((*c)->len+__len-1);
+		return (*c)->use_ptr+__len-1;
 	}
 }
 
@@ -96,6 +123,8 @@ int fly_update_buffer(fly_buffer_t *buf, size_t len)
 	i = len;
 	while ( (i - (ssize_t) __l->unuse_len) >= 0 ){
 		i -= (ssize_t) __l->unuse_len;
+		buf->use_len += __l->unuse_len;
+
 		__l->use_len = __l->len;
 		__l->unuse_len = 0;
 		__l->status = FLY_BUF_FULL;
@@ -113,6 +142,7 @@ int fly_update_buffer(fly_buffer_t *buf, size_t len)
 
 	/* if i == 0, not use */
 	if (i){
+		buf->use_len += i;
 		__l->use_len += (size_t) i;
 		__l->unuse_len -= (size_t) i;
 		__l->status = FLY_BUF_HALF;
@@ -126,7 +156,7 @@ __fly_static fly_buf_p *__fly_bufp_inc(fly_buffer_c **__c, fly_buf_p *ptr)
 {
 	fly_buf_p res = *ptr;
 	if ((*__c)->lptr < *ptr+1){
-		*ptr = (*__c)->next->ptr;
+		*ptr = (*__c)->next->use_ptr;
 		*__c = (*__c)->next;
 	}else
 		*ptr = *ptr+1;
@@ -147,7 +177,7 @@ __fly_static char *__fly_buffer_strstr(fly_buffer_c *__c, const char *str, int f
 {
 	fly_buf_p n;
 
-	n = __c->ptr;
+	n = __c->use_ptr;
 	for (;;){
 		const char *s = str;
 		while (*(char *) __fly_bufp_inc(&__c , &n) == *s++){
@@ -184,7 +214,7 @@ ssize_t fly_buffer_ptr_len(fly_buffer_t *__b, fly_buf_p p1, fly_buf_p p2)
 	fly_buffer_c *c=__b->chain;
 	fly_buf_p ptr;
 
-	ptr = c->ptr;
+	ptr = c->use_ptr;
 	while(true){
 		/* p1 found, p2 not found*/
 		if (ptr == p1){
@@ -205,7 +235,7 @@ ssize_t fly_buffer_ptr_len(fly_buffer_t *__b, fly_buf_p p1, fly_buf_p p2)
 		if (ptr >= c->lptr){
 			if (c->next){
 				c = c->next;
-				ptr = c->ptr;
+				ptr = c->use_ptr;
 			}else
 				return 0;
 		}else
@@ -213,13 +243,47 @@ ssize_t fly_buffer_ptr_len(fly_buffer_t *__b, fly_buf_p p1, fly_buf_p p2)
 	}
 }
 
+int fly_buffer_memcmp(char *dist, char *src, fly_buffer_c *__c, size_t maxlen)
+{
+	char *sptr;
+	sptr = src;
+
+	while(sptr<(char *) __c->use_ptr || sptr>(char *) __c->lptr){
+		__c=__c->next;
+		if (!__c)
+			return FLY_BUFFER_MEMCMP_OVERFLOW;
+	}
+
+	while(maxlen--){
+		if (*dist != *sptr){
+			if (dist > sptr)
+				return FLY_BUFFER_MEMCMP_BIG;
+			else
+				return FLY_BUFFER_MEMCMP_SMALL;
+		}
+		if (*sptr=='\0' && *dist=='\0')
+			break;
+		else if (__c->status == FLY_BUF_HALF && (char *) __c->unuse_ptr<=sptr)
+			return FLY_BUFFER_MEMCMP_OVERFLOW;
+
+		dist++;
+		if (sptr >= (char *) __c->lptr){
+			__c = __c->next;
+			sptr = __c->use_ptr;
+		}else
+			sptr++;
+
+	}
+
+	return FLY_BUFFER_MEMCMP_EQUAL;
+}
 
 void fly_buffer_memcpy(char *dist, char *src, fly_buffer_c *__c, size_t len)
 {
 	char *sptr;
 	sptr = src;
 
-	while(sptr<(char *) __c->ptr || sptr>(char *) __c->lptr){
+	while(sptr<(char *) __c->use_ptr || sptr>(char *) __c->lptr){
 		__c=__c->next;
 		if (!__c)
 			return;
@@ -245,4 +309,46 @@ fly_buffer_c *fly_buffer_chain_from_ptr(fly_buffer_t *buffer, fly_buf_p ptr)
 			return __c;
 	}
 	return NULL;
+}
+
+/*
+ *	buffer chain release.
+ *	@__c: start from this chain.
+ *	@len: release bytes.
+ */
+void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len)
+{
+	if ((__c->lptr-__c->use_ptr+1) > (ssize_t) len){
+		__c->use_ptr += len;
+		__c->buffer->use_len -= len;
+		return;
+	}else{
+		int delete_chain_count = 0;
+		size_t total_delete_len = 0;
+		fly_buffer_c *__n=__c;
+
+		while((total_delete_len+(__n->lptr-__n->use_ptr+1)) < len ){
+			delete_chain_count++;
+			total_delete_len+=(__n->lptr-__n->use_ptr+1);
+
+			/* no next chain */
+			if ((__n=__n->next) == __c->buffer->chain)
+				break;
+		}
+
+		__n = __c;
+		while(delete_chain_count--){
+			__n->buffer->use_len -= (__n->lptr-__n->use_ptr+1);
+			__n->buffer->chain_count--;
+
+			fly_buffer_c *__tmp = __n->next;
+			fly_buffer_chain_release(__n);
+			__n = __tmp;
+		}
+
+		size_t left = len-total_delete_len;
+		__n->use_ptr = __n->ptr+left;
+		__n->buffer->use_len -= left;
+	}
+	return;
 }

@@ -4,6 +4,7 @@
 #include "version.h"
 
 fly_http_version_t versions[] = {
+	{"HTTP/2", "2", "h2", V2},
 	{"HTTP/1.1", "1.1", "http/1.1", V1_1},
 	{NULL},
 };

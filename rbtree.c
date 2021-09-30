@@ -79,8 +79,11 @@ static struct fly_rb_root *fly_rb_root_init(struct fly_rb_tree *tree, struct fly
 
 static void fly_rb_root_release(struct fly_rb_tree *tree)
 {
-	if (tree->root)
+	if (tree->root){
+		tree->node_count = 0;
+		fly_free(tree->root->node);
 		fly_free(tree->root);
+	}
 }
 
 static inline bool fly_rb_node_is_root(struct fly_rb_tree *tree, struct fly_rb_node *node)
@@ -447,7 +450,9 @@ __fly_static void __fly_rb_delete_rebalance(struct fly_rb_tree *tree, struct fly
 		/* node is red */
 		if (fly_is_red(node->color))
 			return;
-		else{
+		else if (fly_rb_node_is_root(tree, node)){
+			return;
+		}else{
 			/* sibling is red */
 			if (fly_is_red(__s->color)){
 				if (fly_rb_node_is_left(node))
@@ -509,7 +514,7 @@ static inline bool fly_rb_part_child(struct fly_rb_node *node)
 
 void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 {
-    struct fly_rb_node *__m, *__mrc=NULL, *__p;
+    struct fly_rb_node *__m, *__mrc=NULL, *__p __unused;
 
 	if (fly_unlikely_null(node))
 		return;
@@ -518,18 +523,16 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 
 	if (tree->node_count <= 0)
 		return;
-    /* left child and right child is nil */
-	if (fly_rb_node_is_root(tree, node)){
-		tree->node_count = 0;
-		/* release resource of rb */
-		fly_free(node);
-		fly_rb_root_release(tree);
-		return;
-	}else if (fly_rb_no_child(node)){
-        if (fly_rb_node_is_left(node))
-            node->parent->c_left = nil_node_ptr;
-		else
-            node->parent->c_right = nil_node_ptr;
+
+	if (fly_rb_no_child(node)){
+		if (fly_rb_node_is_root(tree, node)){
+			return fly_rb_root_release(tree);
+		}else{
+			if (fly_rb_node_is_left(node))
+				node->parent->c_left = nil_node_ptr;
+			else
+				node->parent->c_right = nil_node_ptr;
+		}
         tree->node_count--;
 		/* release resource of rb */
 		fly_free(node);
@@ -563,13 +566,17 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 
         fly_rb_update_value(node, __m);
         __mrc = __m->c_right;
-		fly_free(__m);
+
 		if (fly_rb_node_is_left(__m))
-			fly_rb_subst(&__p->c_left, &__mrc);
+			fly_rb_subst(&__m->parent->c_left, &__mrc);
 		else
-			fly_rb_subst(&__p->c_right, &__mrc);
+			fly_rb_subst(&__m->parent->c_right, &__mrc);
 		tree->node_count--;
-		return __fly_rb_delete_rebalance(tree, node);
+
+		__fly_rb_delete_rebalance(tree, node);
+		fly_free(node);
+
+		return;
 	}
 }
 

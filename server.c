@@ -121,5 +121,4 @@ const char *fly_sockport_env(void)
 int fly_socket_close(int fd, int how __unused)
 {
 	return close (fd);
-	//return shutdown(fd, how);
 }

@@ -56,9 +56,6 @@ fly_status_code responses[] = {
 	{-1, -1, NULL, NULL, NULL}
 };
 
-__fly_static void __fly_500_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm);
-__fly_static void __fly_5xx_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm);
-__fly_static int __fly_response(fly_event_t *e, fly_response_t *response);
 __fly_static int __fly_response_release_handler(fly_event_t *e);
 #define FLY_RESPONSE_LOG_ITM_FLAG		(1)
 __fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e);
@@ -133,7 +130,7 @@ found:
 	#undef __FLY_NOT_FOUND
 }
 
-__fly_static int __fly_response_required_header(fly_response_t *response)
+__unused __fly_static int __fly_response_required_header(fly_response_t *response)
 {
 	fly_stcode_t status_code = response->status_code;
 

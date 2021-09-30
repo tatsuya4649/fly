@@ -5,6 +5,7 @@
 #include <ctype.h>
 
 enum version_type{
+	V2,
 	V1_1
 };
 typedef enum version_type fly_version_e;

@@ -870,12 +870,6 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain, char
 	return __fly_parse_header(rchain_info, header_chain, header_ptr);
 }
 
-
-#define FLY_REQUEST_RECEIVE_ERROR				(-1)
-#define FLY_REQUEST_RECEIVE_SUCCESS				(1)
-#define FLY_REQUEST_RECEIVE_END					(0)
-#define FLY_REQUEST_RECEIVE_READ_BLOCKING			(2)
-#define FLY_REQUEST_RECEIVE_WRITE_BLOCKING			(3)
 int fly_request_receive(fly_sock_t fd, fly_request_t *request)
 {
 	fly_buffer_t *__buf;
@@ -1215,25 +1209,6 @@ response_path:
 		goto response_304;
 
 	return fly_response_from_pf(event, request, pf);
-//	event->event_data = pf;
-//	struct fly_response_content *rc;
-//	rc = fly_pballoc(request->pool, sizeof(struct fly_response_content));
-//	if (fly_unlikely_null(rc))
-//		goto error;
-//	rc->pf = pf;
-//	rc->request = request;
-//	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
-//	event->read_or_write = FLY_WRITE;
-//	event->flag = FLY_MODIFY;
-//	event->tflag = FLY_INHERIT;
-//	FLY_EVENT_HANDLER(event, fly_response_event);
-//	event->available = false;
-//	event->event_data = (void *) rc;
-//	fly_event_socket(event);
-//	if (fly_event_register(event) == -1)
-//		goto error;
-//
-//	return 0;
 
 response_304:
 	struct fly_response_content *rc_304;
