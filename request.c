@@ -591,7 +591,7 @@ __fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reque
 		goto error_500;
 
 	fly_buffer_memcpy(req->request_line->request_line, request_line->ptr, request_line, request_line_length);
-	//memcpy(req->request_line->request_line, request_line, request_line_length);
+
 	/* get total line */
 	req->request_line->request_line[request_line_length] = '\0';
 
@@ -870,20 +870,20 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain, char
 	return __fly_parse_header(rchain_info, header_chain, header_ptr);
 }
 
-int fly_request_receive(fly_sock_t fd, fly_request_t *request)
+int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 {
 	fly_buffer_t *__buf;
-	if (request == NULL || request->buffer == NULL)
+	if (connect == NULL || connect->buffer == NULL)
 		return -1;
 
-	__buf = request->buffer;
+	__buf = connect->buffer;
 	if (fly_unlikely(__buf->chain_count == 0))
 		return -1;
 
 	int recvlen=0, total=0;
 	while(true){
-		if (FLY_CONNECT_ON_SSL(request)){
-			SSL *ssl = FLY_SSL_FROM_REQUEST(request);
+		if (FLY_CONNECT_ON_SSL(connect)){
+			SSL *ssl = connect->ssl;
 
 			recvlen = SSL_read(ssl, __buf->lunuse_ptr,  __buf->lunuse_len);
 			switch(SSL_get_error(ssl, recvlen)){
@@ -997,7 +997,7 @@ int fly_request_event_handler(fly_event_t *event)
 
 	fly_event_fase(event, REQUEST_LINE);
 	fly_event_state(event, RECEIVE);
-	switch (fly_request_receive(event->fd, request)){
+	switch (fly_request_receive(event->fd, request->connect)){
 	case FLY_REQUEST_RECEIVE_ERROR:
 		goto error;
 	case FLY_REQUEST_RECEIVE_END:
@@ -1252,4 +1252,174 @@ int fly_request_timeout(fly_event_t *event)
 	event->available = false;
 	fly_event_socket(event);
 	return fly_event_register(event);
+}
+
+int fly_create_response_from_request(fly_request_t *req __unused, fly_response_t **res __unused)
+{
+	return 0;
+}
+
+int fly_hv2_request_target_parse(fly_request_t *req)
+{
+	struct fly_request_line *reqline = req->request_line;
+	char *ptr=NULL, *query=NULL;
+	size_t len;
+	enum{
+		INIT,
+		ORIGIN_FORM,
+		ORIGIN_FORM_QUESTION,
+		ORIGIN_FORM_QUERY,
+		ABSOLUTE_FORM,
+		ABSOLUTE_FORM_COLON,
+		ABSOLUTE_FORM_QUESTION,
+		ABSOLUTE_FORM_QUERY,
+		AUTHORITY_FORM,
+		AUTHORITY_FORM_USERINFO,
+		AUTHORITY_FORM_ATSIGN,
+		AUTHORITY_FORM_HOST,
+		AUTHORITY_FORM_COLON,
+		AUTHORITY_FORM_PORT,
+		ASTERISK_FORM,
+		END,
+	} status;
+	enum method_type method_type;
+
+	status = INIT;
+	method_type = reqline->method->type;
+	ptr = reqline->uri.ptr;
+	len = reqline->uri.len;
+	if (!ptr)
+		goto error;
+
+	while(true){
+		switch(status){
+		case INIT:
+			if (__fly_space(*ptr)) break;
+
+			switch (method_type){
+			case CONNECT:
+				status = AUTHORITY_FORM;
+				continue;
+			default: break;
+			}
+
+			if (__fly_asterisk(*ptr) && method_type==OPTIONS){
+				status = ASTERISK_FORM;
+				continue;
+			}else if (__fly_slash(*ptr)){
+				status = ORIGIN_FORM;
+				continue;
+			}else{
+				status = ABSOLUTE_FORM;
+				continue;
+			}
+			goto error;
+		case ORIGIN_FORM:
+			if (__fly_slash(*ptr))	break;
+			else if (__fly_segment(&ptr))	break;
+			if (__fly_question(*ptr)){
+				status = ORIGIN_FORM_QUESTION;
+				break;
+			}
+			goto error;
+		case ORIGIN_FORM_QUESTION:
+			query = ptr;
+			if (__fly_query(&ptr)){
+				status = ORIGIN_FORM_QUERY;
+				break;
+			}
+
+			goto error;
+		case ORIGIN_FORM_QUERY:
+			if (__fly_query(&ptr))	break;
+			goto error;
+
+		case ABSOLUTE_FORM:
+			if (!is_fly_scheme(&ptr, ':'))
+				goto error;
+			if (__fly_colon(*ptr)){
+				status = ABSOLUTE_FORM_COLON;
+				break;
+			}
+
+			goto error;
+		case ABSOLUTE_FORM_COLON:
+			if (!__fly_hier_part(&ptr))
+				goto error;
+			if (__fly_question(*ptr)){
+				status = ABSOLUTE_FORM_QUESTION;
+				break;
+			}
+
+			goto error;
+		case ABSOLUTE_FORM_QUESTION:
+			query = ptr;
+			if (__fly_query(&ptr)){
+				status = ABSOLUTE_FORM_QUERY;
+				break;
+			}
+
+			goto error;
+		case ABSOLUTE_FORM_QUERY:
+			if (__fly_query(&ptr))	break;
+			goto error;
+		case AUTHORITY_FORM:
+			if (__fly_userinfo(&ptr)){
+				status = AUTHORITY_FORM_USERINFO;
+				break;
+			}
+			if (__fly_host(&ptr)){
+				status = AUTHORITY_FORM_HOST;
+				break;
+			}
+			goto error;
+		case AUTHORITY_FORM_USERINFO:
+			if (__fly_userinfo(&ptr))	break;
+
+			if (__fly_atsign(*ptr)){
+				status = AUTHORITY_FORM_ATSIGN;
+				break;
+			}
+
+			goto error;
+		case AUTHORITY_FORM_ATSIGN:
+			if (__fly_host(&ptr)){
+				status = AUTHORITY_FORM_HOST;
+				break;
+			}
+
+			goto error;
+		case AUTHORITY_FORM_HOST:
+			if (__fly_host(&ptr))		break;
+			if (__fly_colon(*ptr)){
+				status = AUTHORITY_FORM_COLON;
+				break;
+			}
+
+			goto error;
+		case AUTHORITY_FORM_COLON:
+			if (__fly_port(*ptr)){
+				status = AUTHORITY_FORM_PORT;
+				break;
+			}
+			goto error;
+		case AUTHORITY_FORM_PORT:
+			if (__fly_port(*ptr))	break;
+			goto error;
+		case ASTERISK_FORM:
+			break;
+		case END:
+			if (query)
+				__fly_query_set(req, query);
+			return 0;
+		}
+
+		if (!--len){
+			status = END;
+			continue;
+		}
+		ptr++;
+	}
+error:
+	return -1;
 }

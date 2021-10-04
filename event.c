@@ -132,6 +132,7 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 		return NULL;
 	event->expired = false;
 	event->available = false;
+	event->available_row = 0;
 	return event;
 }
 
@@ -483,6 +484,7 @@ __fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manag
 
 		fly_event = (fly_event_t *) event->data.ptr;
 		fly_event->available = true;
+		fly_event->available_row = event->events;
 		FLY_HANDLE_EVENT(fly_event);
 
 		/* remove event if not persistent */
