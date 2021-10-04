@@ -41,8 +41,8 @@ __fly_static int __fly_accept_charset(fly_hdr_ci *header, fly_hdr_value **value)
 	if (header->chain_length == 0)
 		return __FLY_ACCEPT_CHARSET_FOUND;
 
-	for (__h=header->entry; __h; __h=__h->next){
-		if (strcmp(__h->name, FLY_ACCEPT_CHARSET) == 0){
+	for (__h=header->dummy->next; __h!=header->dummy; __h=__h->next){
+		if ((strcmp(__h->name, FLY_ACCEPT_CHARSET) == 0 || strcmp(__h->name, FLY_ACCEPT_CHARSET_SMALL) == 0) && __h->value){
 			*value = __h->value;
 			return __FLY_ACCEPT_CHARSET_FOUND;
 		}

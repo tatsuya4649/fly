@@ -267,7 +267,7 @@ int fly_gzip_encode(fly_de_t *de)
 			__b = __b->next;
 		}
 		de->contlen = enc_contlen;
-		fly_add_content_length(de->response->header, enc_contlen);
+		fly_add_content_length(de->response->header, enc_contlen, is_fly_request_http_v2(de->response->request));
 	}
 	return 0;
 }
@@ -458,7 +458,7 @@ int fly_br_encode(fly_de_t *de)
 			__b = __b->next;
 		}
 		de->contlen = enc_contlen;
-		fly_add_content_length(de->response->header, enc_contlen);
+		fly_add_content_length(de->response->header, enc_contlen, is_fly_request_http_v2(de->response->request));
 	}
 	return 0;
 
@@ -498,9 +498,10 @@ int fly_esend_body(fly_event_t *e, fly_response_t *response)
 	if (!de->end)
 		return -1;
 
-	de->send_ptr = de->encbuf;
+	if (!de->send_ptr)
+		de->send_ptr = de->encbuf;
 	while(de->send_ptr){
-		if (FLY_CONNECT_ON_SSL(response->request)){
+		if (FLY_CONNECT_ON_SSL(response->request->connect)){
 			SSL *ssl = response->request->connect->ssl;
 			numsend = SSL_write(ssl, de->send_ptr->buf, de->send_ptr->uselen);
 			switch(SSL_get_error(ssl, numsend)){
@@ -694,7 +695,7 @@ int fly_deflate_encode(fly_de_t *de)
 			__b = __b->next;
 		}
 		de->contlen = enc_contlen;
-		fly_add_content_length(de->response->header, enc_contlen);
+		fly_add_content_length(de->response->header, enc_contlen, is_fly_request_http_v2(de->response->request));
 	}
 	return 0;
 }
@@ -711,8 +712,8 @@ __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encodi
 	if (ci->chain_length == 0)
 		return __FLY_ACCEPT_ENCODING_NOTFOUND;
 
-	for (fly_hdr_c *c=ci->entry; c!=NULL; c=c->next){
-		if (strcmp(c->name, FLY_ACCEPT_ENCODING_HEADER) == 0 && c->value != NULL){
+	for (fly_hdr_c *c=ci->dummy->next; c!=ci->dummy; c=c->next){
+		if ((strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER, strlen(FLY_ACCEPT_ENCODING_HEADER)) == 0 || strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER_SMALL, strlen(FLY_ACCEPT_ENCODING_HEADER_SMALL)) == 0)&& c->value != NULL){
 			*accept_encoding = c;
 			return __FLY_ACCEPT_ENCODING_FOUND;
 		}

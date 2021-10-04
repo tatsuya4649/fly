@@ -8,10 +8,12 @@
 #include "alloc.h"
 #include "event.h"
 #include "version.h"
+#include "buffer.h"
 
 
 #define FLY_CONNECTION_POOL_SIZE		1
 struct fly_hv2_state;
+struct fly_buffer;
 struct fly_connect{
 	fly_event_t *event;
 	int sockfd;
@@ -30,6 +32,7 @@ struct fly_connect{
 
 	/* HTTP2 */
 	struct fly_hv2_state *v2_state;
+	struct fly_buffer *buffer;
 };
 typedef struct fly_connect fly_connect_t;
 

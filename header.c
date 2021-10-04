@@ -9,6 +9,7 @@
 #include "cache.h"
 #include "request.h"
 #include "uri.h"
+#include "v2.h"
 
 fly_hdr_ci *fly_header_init(void)
 {
@@ -19,8 +20,10 @@ fly_hdr_ci *fly_header_init(void)
 	fly_hdr_ci *chain_info;
 	chain_info = fly_pballoc(pool, sizeof(fly_hdr_ci));
 	chain_info->pool = pool;
-	chain_info->entry = NULL;
-	chain_info->last = NULL;
+	chain_info->dummy = fly_pballoc(pool, sizeof(fly_hdr_c));
+	chain_info->dummy->next = chain_info->dummy;
+	chain_info->entry = chain_info->dummy;
+	chain_info->last = chain_info->entry;
 	chain_info->chain_length = 0;
 	return chain_info;
 }
@@ -30,15 +33,39 @@ int fly_header_release(fly_hdr_ci *info)
 	return fly_delete_pool(&info->pool);
 }
 
+void __fly_header_add_ci(fly_hdr_c *c, fly_hdr_ci *ci, bool beginning)
+{
+	if (ci->chain_length == 0){
+		c->next = ci->dummy;
+		ci->entry = c;
+		ci->dummy->next = c;
+		ci->last = c;
+		ci->chain_length++;
+		return;
+	}else{
+		if (!beginning){
+			ci->last->next = c;
+			c->next = ci->dummy;
+		}else{
+			ci->entry = c;
+			c->next = ci->dummy->next;
+			ci->dummy->next = c;
+		}
+
+		if (!beginning)
+			ci->last = c;
+		ci->chain_length++;
+	}
+}
 /*
  * WARNING: name_len and value_len is length not including end of '\0'.
  */
-int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
+fly_hdr_c *__fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning)
 {
 	fly_hdr_c *new_chain;
 	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
 	if (new_chain == NULL)
-		return -1;
+		return NULL;
 
 	new_chain->name = fly_pballoc(chain_info->pool, name_len+1);
 	memcpy(new_chain->name, name, name_len);
@@ -47,16 +74,52 @@ int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly
 	new_chain->name[name_len] = '\0';
 	new_chain->value[value_len] = '\0';
 
-	new_chain->next = NULL;
-	if (chain_info->chain_length == 0)
-		chain_info->entry = new_chain;
-	else
-		chain_info->last->next = new_chain;
+	__fly_header_add_ci(new_chain, chain_info, beginning);
+	return new_chain;
+}
 
-	chain_info->last = new_chain;
-	chain_info->chain_length++;
+int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
+{
+	if (__fly_header_add(chain_info, name, name_len, value, value_len, false))
+		return 0;
+	else
+		return -1;
+}
+
+int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning)
+{
+	fly_hdr_c *__c;
+
+	__c = __fly_header_add(chain_info, name, name_len, value, value_len, beginning);
+	__c->static_table = false;
+	if (fly_unlikely_null(__c))
+		return -1;
+
+	int i=0;
+	for (struct fly_hv2_static_table *__s=static_table; __s->hname; __s++){
+		int name_cmp_res, value_cmp_res;
+
+		name_cmp_res = __s->hname ? strncmp(__s->hname, name, strlen(__s->hname)) : -1;
+		value_cmp_res = __s->hvalue ? strncmp(__s->hvalue, value, strlen(__s->hvalue)) : -1;
+		if (name_cmp_res == 0 && value_cmp_res == 0){
+			__c->static_table = true;
+			__c->index = i;
+			__c->name_len = strlen(name);
+			__c->value_len = strlen(value);
+			break;
+		}else if (name_cmp_res == 0){
+			__c->index = i;
+			__c->name_index = true;
+			__c->value_len = strlen(value);
+			break;
+		}
+
+		__c->index_update = INDEX_UPDATE;
+		i++;
+	}
 	return 0;
 }
+
 
 int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
 {
@@ -72,14 +135,25 @@ int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name
 	new_chain->name[name_len] = '\0';
 	new_chain->value[value_len] = '\0';
 
-	new_chain->next = NULL;
-	if (chain_info->chain_length == 0)
-		chain_info->entry = new_chain;
-	else
-		chain_info->last->next = new_chain;
+	__fly_header_add_ci(new_chain, chain_info, false);
+	return 0;
+}
 
-	chain_info->last = new_chain;
-	chain_info->chain_length++;
+int fly_header_addbv(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
+{
+	fly_hdr_c *new_chain;
+	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
+	if (new_chain == NULL)
+		return -1;
+
+	new_chain->name = fly_pballoc(chain_info->pool, name_len+1);
+	memcpy(new_chain->name, name, name_len);
+	new_chain->value = fly_pballoc(chain_info->pool, value_len+1);
+	fly_buffer_memcpy(new_chain->value, value, bc, value_len);
+	new_chain->name[name_len] = '\0';
+	new_chain->value[value_len] = '\0';
+
+	__fly_header_add_ci(new_chain, chain_info, false);
 	return 0;
 }
 
@@ -94,6 +168,7 @@ int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_le
 				fly_pbfree(chain_info->pool, __c->value);
 
 				__c->value = fly_pballoc(chain_info->pool, value_len+1);
+				__c->value_len = value_len;
 				__c->value[value_len] = '\0';
 				memcpy(__c->value, value, value_len);
 				return 0;
@@ -112,14 +187,7 @@ int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_le
 	new_chain->name[name_len] = '\0';
 	new_chain->value[value_len] = '\0';
 
-	new_chain->next = NULL;
-	if (chain_info->chain_length == 0)
-		chain_info->entry = new_chain;
-	else
-		chain_info->last->next = new_chain;
-
-	chain_info->last = new_chain;
-	chain_info->chain_length++;
+	__fly_header_add_ci(new_chain, chain_info, false);
 	return 0;
 }
 
@@ -222,8 +290,8 @@ long long fly_content_length(fly_hdr_ci *ci)
 	if (ci->chain_length == 0)
 		return 0;
 
-	for (fly_hdr_c *c=ci->entry; c!=NULL; c=c->next){
-		if (strcmp(c->name, "Content-Length") == 0){
+	for (fly_hdr_c *c=ci->dummy->next; c!=ci->dummy; c=c->next){
+		if ((strcmp(c->name, "Content-Length") == 0 || strcmp(c->name, "content-length") == 0) && c->value){
 			return c->value != NULL ? atoll(c->value) : 0;
 		}
 	}
@@ -255,14 +323,14 @@ parse_connection:
 	return FLY_CONNECTION_CLOSE;
 }
 
-fly_hdr_value *fly_content_encoding(fly_hdr_ci *ci)
+fly_hdr_value *__fly_content_encoding(fly_hdr_ci *ci, const char *conen)
 {
 	if (ci->chain_length == 0)
 		return NULL;
 
 	fly_hdr_c *__c;
 	for (__c=ci->entry; __c; __c=__c->next){
-		if (strcmp(__c->name, "Content-Encoding") == 0){
+		if (strcmp(__c->name, conen)== 0){
 			if (!__c->value)
 				return NULL;
 
@@ -273,12 +341,22 @@ fly_hdr_value *fly_content_encoding(fly_hdr_ci *ci)
 	return NULL;
 }
 
+fly_hdr_value *fly_content_encoding(fly_hdr_ci *ci)
+{
+	return __fly_content_encoding(ci, "Content-Encoding");
+}
+
+fly_hdr_value *fly_content_encoding_s(fly_hdr_ci *ci)
+{
+	return __fly_content_encoding(ci, "content-encoding");
+}
+
 /*
  *		Builtin Header Function
  *
  */
 #include "ftime.h"
-int fly_add_date(fly_hdr_ci *ci)
+int fly_add_date(fly_hdr_ci *ci, bool v2)
 {
 	time_t now;
 	char value_field[FLY_DATE_LENGTH];
@@ -289,20 +367,26 @@ int fly_add_date(fly_hdr_ci *ci)
 	if (fly_imt_fixdate(value_field, FLY_DATE_LENGTH, &now))
 		return -1;
 
-	return fly_header_add(ci, fly_header_name_length("Date"), fly_header_value_length(value_field));
+	if (v2)
+		return fly_header_add_v2(ci, fly_header_name_length("date"), fly_header_value_length(value_field), false);
+	else
+		return fly_header_add(ci, fly_header_name_length("Date"), fly_header_value_length(value_field));
 }
 
-int fly_add_content_type(fly_hdr_ci *ci, fly_mime_type_t *type)
+int fly_add_content_type(fly_hdr_ci *ci, fly_mime_type_t *type, bool v2)
 {
 	if (fly_unlikely_null(type) || \
 			fly_unlikely_null(type->name || \
 			fly_mime_invalid(type)))
 		return 0;
 
-	return fly_header_add(ci, fly_header_name_length("Content-Type"), fly_header_value_length(type->name));
+	if (v2)
+		return fly_header_add_v2(ci, fly_header_name_length("content-type"), fly_header_value_length(type->name), false);
+	else
+		return fly_header_add(ci, fly_header_name_length("Content-Type"), fly_header_value_length(type->name));
 }
 
-int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb)
+int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb, bool v2)
 {
 	char *contlen_str;
 	int len;
@@ -314,27 +398,36 @@ int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb)
 
 	if (snprintf(contlen_str, len, "%ld", (long) sb->st_size) == -1)
 		return -1;
-	return fly_header_add(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
+	if (v2)
+		return fly_header_add_v2(ci, fly_header_name_length("content-length"), fly_header_value_length(contlen_str), false);
+	else
+		return fly_header_add(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
 }
 
-int fly_add_content_length_from_fd(fly_hdr_ci *ci, int fd)
+int fly_add_content_length_from_fd(fly_hdr_ci *ci, int fd, bool v2)
 {
 	struct stat sb;
 
 	if (fstat(fd, &sb) == 1)
 		return -1;
 
-	return fly_add_content_length_from_stat(ci, &sb);
+	return fly_add_content_length_from_stat(ci, &sb, v2);
 }
 
-int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)
+int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf, bool v2)
 {
-	return fly_header_add(ci, fly_header_name_length("ETag"), (char *) pf->hash->md5, 2*FLY_MD5_LENGTH);
+	if (v2)
+		return fly_header_add_v2(ci, fly_header_name_length("etag"), (char *) pf->hash->md5, 2*FLY_MD5_LENGTH, false);
+	else
+		return fly_header_add(ci, fly_header_name_length("ETag"), (char *) pf->hash->md5, 2*FLY_MD5_LENGTH);
 }
 
-int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf)
+int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf, bool v2)
 {
-	return fly_header_add(ci, fly_header_name_length("Last-Modified"), fly_header_value_length((char *) pf->last_modified));
+	if (v2)
+		return fly_header_add_v2(ci, fly_header_name_length("last-modified"), fly_header_value_length((char *) pf->last_modified), false);
+	else
+		return fly_header_add(ci, fly_header_name_length("Last-Modified"), fly_header_value_length((char *) pf->last_modified));
 }
 
 int fly_add_connection(fly_hdr_ci *ci, enum fly_header_connection_e connection)
@@ -350,7 +443,7 @@ int fly_add_connection(fly_hdr_ci *ci, enum fly_header_connection_e connection)
 	return -1;
 }
 
-int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e)
+int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e, bool hv2)
 {
 	char *encname;
 
@@ -358,10 +451,13 @@ int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e)
 	if (encname == NULL)
 		return -1;
 
-	return fly_header_add(ci, fly_header_name_length("Content-Encoding"), fly_header_value_length(encname));
+	if (hv2)
+		return fly_header_add_v2(ci, fly_header_name_length("content-encoding"), fly_header_value_length(encname), false);
+	else
+		return fly_header_add(ci, fly_header_name_length("Content-Encoding"), fly_header_value_length(encname));
 }
 
-int fly_add_content_length(fly_hdr_ci *ci, size_t cl)
+int fly_add_content_length(fly_hdr_ci *ci, size_t cl, bool hv2)
 {
 	int len;
 	char *contlen_str;
@@ -373,7 +469,11 @@ int fly_add_content_length(fly_hdr_ci *ci, size_t cl)
 
 	if (snprintf(contlen_str, len, "%ld", (long) cl) == -1)
 		return -1;
-	return fly_header_addmodify(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
+
+	if (hv2)
+		return fly_header_addmodify(ci, fly_header_name_length("content-length"), fly_header_value_length(contlen_str));
+	else
+		return fly_header_addmodify(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
 }
 
 int fly_add_allow(fly_hdr_ci *ci, fly_request_t *req)

@@ -47,7 +47,6 @@ struct fly_hv2_frame{
 struct fly_hv2_stream;
 struct fly_hv2_send_frame{
 	struct fly_hv2_stream *stream;
-	fly_request_t *request;
 	fly_pool_t *pool;
 	fly_sid_t sid;
 	fly_hv2_frame_header_t frame_header;
@@ -55,10 +54,14 @@ struct fly_hv2_send_frame{
 	uint8_t type;
 	size_t payload_len;
 	size_t send_len;
+	size_t can_send_len;
 	enum {
 		FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER,
 		FLY_HV2_SEND_FRAME_FASE_PAYLOAD,
+		FLY_HV2_SEND_FRAME_FASE_END
 	} send_fase;
+
+	void *data;
 
 	struct fly_hv2_send_frame *next;
 	struct fly_hv2_send_frame *prev;
@@ -76,6 +79,7 @@ enum fly_hv2_connection_state{
 
 struct fly_hv2_state{
 	fly_pool_t *pool;
+	fly_connect_t *connect;
 	enum fly_hv2_connection_state connection_state;
 	int stream_count;
 	int reserved_count;
@@ -85,7 +89,10 @@ struct fly_hv2_state{
 	struct fly_hv2_stream *reserved;
 
 	struct fly_hv2_dynamic_table *dtable;
+	struct fly_hv2_dynamic_table *ldtable;
 	size_t dtable_entry_count;
+	size_t dtable_size;
+	size_t dtable_max_index;
 
 	uint32_t window_size;
 	/* connection setting value by SETTINGS frame */
@@ -137,6 +144,7 @@ struct fly_hv2_stream{
 	struct fly_hv2_state *state;
 	enum fly_hv2_stream_state stream_state;
 	struct fly_hv2_stream *next;
+	fly_request_t *request;
 	int dep_count;
 	struct fly_hv2_stream *deps;
 	struct fly_hv2_stream *dnext;
@@ -148,13 +156,19 @@ struct fly_hv2_stream{
 	struct fly_hv2_send_frame *yetack;
 	struct fly_hv2_send_frame *lyetack;
 	int yetack_count;
+	struct fly_hv2_send_frame *yetsend;
+	struct fly_hv2_send_frame *lyetsend;
+	int yetsend_count;
 	int frame_count;
 	uint16_t weight;
-
 
 	fly_bit_t from_client: 1;
 	fly_bit_t reserved: 1;
 	fly_bit_t exclusive: 1;
+	fly_bit_t peer_end_headers: 1;
+	fly_bit_t can_response: 1;
+	fly_bit_t end_send_headers: 1;
+	fly_bit_t end_send_data: 1;
 };
 typedef struct fly_hv2_stream fly_hv2_stream_t;
 
@@ -180,6 +194,9 @@ typedef uint8_t fly_hv2_frame_type_t;
  *	when only "open", "half-closed(remote)" state, data frame can send.
  */
 #define FLY_HV2_FRAME_TYPE_DATA					(0x0)
+#define FLY_HV2_FRAME_TYPE_DATA_END_STREAM		(1<<0)
+#define FLY_HV2_FRAME_TYPE_DATA_PADDED			(1<<3)
+#define FLY_HV2_FRAME_TYPE_DATA_PAD_LENGTH_LEN	(8)
 
 /*
  *	HEADERS Frame:
@@ -198,6 +215,9 @@ typedef uint8_t fly_hv2_frame_type_t;
  */
 #define FLY_HV2_FRAME_TYPE_HEADERS				(0x1)
 #define FLY_HV2_FRAME_TYPE_HEADERS_PAD_LENGTH_LEN	(8)
+#define FLY_HV2_FRAME_TYPE_HEADERS_E_LEN		(1)
+#define FLY_HV2_FRAME_TYPE_HEADERS_SID_LEN		(31)
+#define FLY_HV2_FRAME_TYPE_HEADERS_WEIGHT_LEN	(8)
 #define FLY_HV2_FRAME_TYPE_HEADERS_END_STREAM	(1<<0)
 #define FLY_HV2_FRAME_TYPE_HEADERS_END_HEADERS	(1<<2)
 #define FLY_HV2_FRAME_TYPE_HEADERS_PADDED		(1<<3)
@@ -330,13 +350,13 @@ typedef uint8_t fly_hv2_frame_type_t;
 
 
 /* Request Pseudo Header Field */
-#define FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD	(":method")
-#define FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME	(":scheme")
-#define FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY	(":authority")
-#define FLY_HV2_REQUEST_PSEUDO_HEADER_PATH		(":path")
+#define FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD	":method"
+#define FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME	":scheme"
+#define FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY	":authority"
+#define FLY_HV2_REQUEST_PSEUDO_HEADER_PATH		":path"
 
 /* Response Pseudo Header Field */
-#define FLY_HV2_RESPONSE_PSEUDO_HEADER_STATUS	(":status")
+#define FLY_HV2_RESPONSE_PSEUDO_HEADER_STATUS	":status"
 
 
 int fly_hv2_init_handler(fly_event_t *e);
@@ -351,12 +371,15 @@ struct fly_hv2_static_table{
  *	duplicatable entry.
  */
 struct fly_hv2_dynamic_table{
-	int index;
-	const char *hname;
-	const char *hvalue;
+	/* no huffman encoding */
+	char *hname;
+	size_t hname_len;
+	char *hvalue;
+	size_t hvalue_len;
+	size_t entry_size;
 
-	struct fly_hv2_dynamic_table *next;
 	struct fly_hv2_dynamic_table *prev;
+	struct fly_hv2_dynamic_table *next;
 };
 
 /* 0:	H
@@ -366,5 +389,21 @@ typedef uint8_t fly_hpack_string_header;
 typedef uint8_t fly_hpack_string_data;
 /* can't use index 0. */
 typedef uint8_t fly_hpack_index_header_field;
+
+enum fly_hv2_index_type{
+	INDEX_UPDATE,
+	INDEX_NOUPDATE,
+	NOINDEX,
+};
+#define FLY_HV2_INDEX_PREFIX_BIT			7
+#define FLY_HV2_NAME_PREFIX_BIT				7
+#define FLY_HV2_VALUE_PREFIX_BIT			7
+#define FLY_HV2_LITERAL_UPDATE_PREFIX_BIT			6
+#define FLY_HV2_LITERAL_NOUPDATE_PREFIX_BIT			4
+#define FLY_HV2_LITERAL_NOINDEX_PREFIX_BIT			4
+
+extern struct fly_hv2_static_table static_table[];
+#define FLY_HV2_STATIC_TABLE_LENGTH			\
+	((int) sizeof(static_table)/sizeof(struct fly_hv2_static_table))
 
 #endif
