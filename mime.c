@@ -101,8 +101,8 @@ __fly_static int __fly_accept_mime(fly_hdr_ci *header, fly_hdr_c **c)
 	if (header->chain_length==0)
 		return __FLY_ACCEPT_MIME_NOTFOUND;
 
-	for (__h=header->entry; __h; __h=__h->next){
-		if (strcmp(__h->name, FLY_ACCEPT_HEADER) == 0 && __h->value){
+	for (__h=header->dummy->next; __h!=header->dummy; __h=__h->next){
+		if ((strcmp(__h->name, FLY_ACCEPT_HEADER) == 0 || strcmp(__h->name, FLY_ACCEPT_HEADER_SMALL) == 0) && __h->value){
 			*c = __h;
 			return __FLY_ACCEPT_MIME_FOUND;
 		}

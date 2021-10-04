@@ -46,6 +46,7 @@ struct fly_event{
 	fly_event_manager_t *manager;
 	int fd;
 	int read_or_write;
+	int available_row;
 	int eflag;
 
 	fly_time_t timeout;

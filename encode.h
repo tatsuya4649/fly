@@ -16,7 +16,8 @@
 #define FLY_ENCODE_NULL			{ -1, NULL, -1, NULL, NULL }
 #define FLY_ENCODE_END(e)		((e)->name == NULL)
 #define FLY_ENCODE_ASTERISK		{ fly_asterisk, "*", 0, NULL, NULL }
-#define FLY_ACCEPT_ENCODING_HEADER		"Accept-Encoding"
+#define FLY_ACCEPT_ENCODING_HEADER				"Accept-Encoding"
+#define FLY_ACCEPT_ENCODING_HEADER_SMALL		"accept-encoding"
 enum __fly_encoding_type{
 	fly_gzip,
 //	fly_compress,

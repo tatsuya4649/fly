@@ -83,10 +83,23 @@ void fly_buffer_chain_release(fly_buffer_c *__c)
 	prev->next = next;
 	next->prev = prev;
 
+	__c->buffer->chain_count--;
 	if (__c->buffer->lchain == __c)
 		__c->buffer->lchain = prev;
+
 	fly_pbfree(__c->buffer->pool, __c->ptr);
 	fly_pbfree(__c->buffer->pool, __c);
+}
+
+void fly_buffer_release(fly_buffer_t *buf)
+{
+	if (buf->chain_count == 0)
+		return;
+	while(buf->chain_count)
+		fly_buffer_chain_release(buf->chain->next);
+
+	fly_pbfree(buf->pool, buf->chain);
+	fly_pbfree(buf->pool, buf);
 }
 
 fly_buf_p fly_update_chain_one(fly_buffer_c **c, fly_buf_p p)
