@@ -25,6 +25,7 @@ typedef struct fly_charset fly_charset_t;
 
 int fly_accept_charset(fly_request_t *req);
 #define FLY_ACCEPT_CHARSET					("Accept-Charset")
+#define FLY_ACCEPT_CHARSET_SMALL			("accept-charset")
 
 #endif
 

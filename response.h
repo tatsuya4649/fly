@@ -98,10 +98,12 @@ int fly_response_release(fly_response_t *response);
 typedef struct{
 	int status_code;
 	enum status_code_type type;
+	const char *status_code_str;
 	char *explain;
 	char *default_path;
 	char **required_header;
 } fly_status_code;
+#define FLY_STATUS_CODE(n)			n, _ ## n , #n
 
 char *fly_stcode_explain(fly_stcode_t type);
 
@@ -125,6 +127,7 @@ int fly_404_event(fly_event_t *e, fly_request_t *req);
 int fly_405_event(fly_event_t *e, fly_request_t *req);
 int fly_414_event(fly_event_t *e, fly_request_t *req);
 int fly_415_event(fly_event_t *e, fly_request_t *req);
+int __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf, int (*handler)(fly_event_t *e));
 int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf);
 
 int fly_response_content_event_handler(fly_event_t *e);
@@ -147,4 +150,9 @@ struct fly_response_content_by_stcode{
 	struct fly_response_content_by_stcode *next;
 };
 typedef struct fly_response_content_by_stcode fly_rcbs_t;
+int __fly_encode_do(fly_response_t *res);
+fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);
+int __fly_response_log(fly_response_t *res, fly_event_t *e);
+const char *fly_status_code_str_from_type(fly_stcode_t type);
+
 #endif

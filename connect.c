@@ -27,6 +27,12 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	conn->ssl = NULL;
 	conn->flag = 0;
 	conn->v2_state = NULL;
+#define FLY_CONNECT_BUFFER_INIT_LEN			1
+#define FLY_CONNECT_BUFFER_CHAIN_MAX		100
+#define FLY_CONNECT_BUFFER_PER_LEN			10
+	conn->buffer = fly_buffer_init(pool, FLY_CONNECT_BUFFER_INIT_LEN, FLY_CONNECT_BUFFER_CHAIN_MAX, FLY_CONNECT_BUFFER_PER_LEN);
+	if (fly_unlikely_null(conn->buffer))
+		return NULL;
 
 	if (__fly_info_of_connect(conn) == -1)
 		return NULL;
@@ -75,9 +81,6 @@ int fly_listen_connected(fly_event_t *e)
 	fly_request_t *req;
 
 	conn = (fly_connect_t *) e->event_data;
-	req = fly_request_init(conn);
-	if (req == NULL)
-		return -1;
 	e->fd = e->fd;
 	e->read_or_write = FLY_READ;
 	/* event only modify (no add, no delete) */
@@ -85,10 +88,12 @@ int fly_listen_connected(fly_event_t *e)
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	if (conn->flag & FLY_SSL_CONNECT){
-		e->event_data = (void *) req;
+		e->event_data = (void *) conn;
 		FLY_EVENT_HANDLER(e, fly_hv2_init_handler);
 	}else{
-
+		req = fly_request_init(conn);
+		if (req == NULL)
+			return -1;
 		e->event_data = (void *) req;
 		/* ready for request */
 		FLY_EVENT_HANDLER(e, fly_request_event_handler);

@@ -71,5 +71,6 @@ fly_buf_p fly_update_chain(fly_buffer_c **c, fly_buf_p p, size_t len);
 fly_buf_p fly_update_chain_one(fly_buffer_c **c, fly_buf_p p);
 void fly_buffer_chain_release(fly_buffer_c *__c);
 void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len);
+void fly_buffer_release(fly_buffer_t *buf);
 
 #endif

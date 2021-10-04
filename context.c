@@ -155,7 +155,7 @@ int fly_send_default_content(fly_event_t *e, fly_rcbs_t *__r)
 
 	count = sb.st_size - total;
 	while(total < count){
-		if (FLY_CONNECT_ON_SSL(res->request)){
+		if (FLY_CONNECT_ON_SSL(res->request->connect)){
 #define FLY_SEND_BUF_LENGTH			(4096)
 			//numsend = SSL_sendfile(ssl, __r->fd, offset, count-total, 0);
 			SSL *ssl=res->request->connect->ssl;
