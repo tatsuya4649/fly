@@ -63,6 +63,8 @@ typedef enum status_code_type fly_stcode_t;
 #define FLY_PATH_FROM_STATIC(p)			(__FLY_PATH_FROM_ROOT(static) "/" # p)
 
 #include "mount.h"
+struct fly_response_content_by_stcode;
+typedef struct fly_response_content_by_stcode fly_rcbs_t;
 struct fly_response{
 	/* use pool: pool, header, body */
 	fly_pool_t					*pool;
@@ -79,16 +81,34 @@ struct fly_response{
 		FLY_RESPONSE_CRLF,
 		FLY_RESPONSE_BODY,
 		FLY_RESPONSE_RELEASE,
+		/* for v2 */
+		FLY_RESPONSE_FRAME_HEADER,
+		FLY_RESPONSE_DATA_FRAME,
 	} fase;
+
+	enum{
+		FLY_RESPONSE_TYPE_ENCODED,
+		FLY_RESPONSE_TYPE_BODY,
+		FLY_RESPONSE_TYPE_PATH_FILE,
+		FLY_RESPONSE_TYPE_DEFAULT,
+	} type;
 	void						*send_ptr;
 	int							 byte_from_start;
+	size_t						 send_len;
 	struct fly_mount_parts_file *pf;
 	off_t						 offset;
 	size_t						 count;
 	fly_encoding_t				*encoding;
 	fly_de_t					*de;			/* use response pool */
+	fly_rcbs_t					*rcbs;
+	union{
+		int						datai;
+		void *					datav;
+		long					datal;
+	};
 
 	fly_bit_t					 encoded: 1;
+	fly_bit_t					 blocking: 1;
 };
 typedef struct fly_response fly_response_t;
 

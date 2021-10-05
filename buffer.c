@@ -141,6 +141,7 @@ int fly_update_buffer(fly_buffer_t *buf, size_t len)
 		__l->use_len = __l->len;
 		__l->unuse_len = 0;
 		__l->status = FLY_BUF_FULL;
+		__l->unuse_ptr = __l->lptr;
 		switch (fly_buffer_add_chain(buf)){
 		case FLY_BUF_ADD_CHAIN_SUCCESS:
 			break;
@@ -291,6 +292,11 @@ int fly_buffer_memcmp(char *dist, char *src, fly_buffer_c *__c, size_t maxlen)
 	return FLY_BUFFER_MEMCMP_EQUAL;
 }
 
+void fly_buffer_memcpy_all(char *dist, fly_buffer_t *__t)
+{
+	fly_buffer_memcpy(dist, __t->first_useptr, __t->first_chain, __t->use_len);
+}
+
 void fly_buffer_memcpy(char *dist, char *src, fly_buffer_c *__c, size_t len)
 {
 	char *sptr;
@@ -365,3 +371,13 @@ void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len)
 	}
 	return;
 }
+
+fly_buffer_c *fly_get_buf_chain(fly_buffer_t *buf, int i)
+{
+	fly_buffer_c *c;
+	for (c=buf->chain->next; i; i--)
+		c=c->next;
+
+	return c;
+}
+

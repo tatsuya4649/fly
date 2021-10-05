@@ -42,6 +42,8 @@ struct fly_buffer{
 #define first_useptr			chain->next->use_ptr
 #define lunuse_ptr				lchain->unuse_ptr
 #define lunuse_len				lchain->unuse_len
+#define fly_buf_act_len(c)		(((c)->lptr-(c)->use_ptr)+1)
+
 typedef struct fly_buffer fly_buffer_t;
 typedef struct fly_buffer_chain fly_buffer_c;
 #define FLY_BUF_CHAIN_INFINITY		(-1)
@@ -65,6 +67,7 @@ char *fly_buffer_strstr(fly_buffer_c *__c, const char *str);
 char *fly_buffer_strstr_after(fly_buffer_c *__c, const char *str);
 ssize_t fly_buffer_ptr_len(fly_buffer_t *__b, fly_buf_p p1, fly_buf_p p2);
 void fly_buffer_memcpy(char *dist, char *src, fly_buffer_c *__c, size_t len);
+void fly_buffer_memcpy_all(char *dist, fly_buffer_t *__t);
 fly_buffer_c *fly_buffer_chain_from_ptr(fly_buffer_t *buffer, fly_buf_p ptr);
 
 fly_buf_p fly_update_chain(fly_buffer_c **c, fly_buf_p p, size_t len);
@@ -72,5 +75,6 @@ fly_buf_p fly_update_chain_one(fly_buffer_c **c, fly_buf_p p);
 void fly_buffer_chain_release(fly_buffer_c *__c);
 void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len);
 void fly_buffer_release(fly_buffer_t *buf);
+fly_buffer_c *fly_get_buf_chain(fly_buffer_t *buf, int i);
 
 #endif
