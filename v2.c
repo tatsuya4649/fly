@@ -2,6 +2,7 @@
 #include "request.h"
 #include "response.h"
 #include "connect.h"
+#include <sys/sendfile.h>
 
 fly_hv2_stream_t *fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid_t id, bool from_client);
 int fly_hv2_request_event_handler(fly_event_t *e);
@@ -202,6 +203,7 @@ static fly_hv2_stream_t *__fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid
 	__s->frame_count = 0;
 	__s->yetsend_count = 0;
 	__s->end_send_headers = false;
+	__s->window_size = state->p_initial_window_size;
 
 	__s->yetack = fly_pballoc(state->pool, sizeof(struct fly_hv2_send_frame));
 	if (fly_unlikely_null(__s->yetack))
@@ -1213,29 +1215,6 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 	return total;
 }
 
-int fly_send_frame_d_event_handler(fly_event_t *e);
-int fly_send_frame_d_event(fly_event_manager_t *manager, fly_hv2_stream_t *stream, int read_or_write)
-{
-	/* TODO: make event */
-	fly_event_t *e;
-
-	e = fly_event_init(manager);
-	if (fly_unlikely_null(e))
-		return -1;
-
-	e->fd = stream->request->connect->c_sockfd;
-	e->read_or_write = read_or_write;
-	e->event_data = (void *) stream;
-	FLY_EVENT_HANDLER(e, fly_send_frame_d_event_handler);
-	e->flag = 0;
-	e->tflag = 0;
-	e->eflag = 0;
-	fly_sec(&e->timeout, FLY_SEND_FRAME_TIMEOUT);
-	fly_event_socket(e);
-
-	return fly_event_register(e);
-}
-
 int fly_send_frame_h_event_handler(fly_event_t *e);
 int fly_send_frame_h_event(fly_event_manager_t *manager, fly_hv2_stream_t *stream, int read_or_write)
 {
@@ -1277,98 +1256,386 @@ int fly_send_frame_h_event_handler(fly_event_t *e)
 	return __fly_send_frame_h(e, res);
 }
 
+int fly_send_data_frame(fly_event_t *e, fly_response_t *res);
+#define FLY_SEND_DATA_FH_SUCCESS			(1)
+#define FLY_SEND_DATA_FH_BLOCKING			(0)
+#define FLY_SEND_DATA_FH_ERROR				(-1)
+
+int fly_send_data_frame_handler(fly_event_t *e);
+int __fly_send_data_fh(fly_event_t *e, fly_response_t *res, size_t data_len, uint32_t sid, int flag);
+int __fly_send_data_fh_event_handler(fly_event_t *e)
+{
+	fly_response_t *res;
+	int flag;
+
+	res = (fly_response_t *) e->event_data;
+	flag = res->datai;
+	/*
+	 *	unuse data_len, sid parameter.
+	 */
+	return __fly_send_data_fh(e, res, 0, 0, flag);
+}
+
+int __fly_send_data_fh(fly_event_t *e, fly_response_t *res, size_t data_len, uint32_t sid, int flag)
+{
+	fly_hv2_frame_header_t *fh;
+	ssize_t numsend, total=0;
+
+	if (res->blocking){
+		total = res->byte_from_start;
+		fh = (fly_hv2_frame_header_t *) res->send_ptr;
+		goto send;
+	}else{
+		res->byte_from_start = 0;
+		res->fase = FLY_RESPONSE_FRAME_HEADER;
+		fh = fly_pballoc(res->pool, sizeof(fly_hv2_frame_header_t));
+		if (fly_unlikely_null(fh))
+			return FLY_SEND_DATA_FH_ERROR;
+		fly_fh_setting(fh, data_len, FLY_HV2_FRAME_TYPE_DATA, flag, false, sid);
+		res->send_ptr = fh;
+	}
+
+send:
+	/* send only frame header */
+	while(total< FLY_HV2_FRAME_HEADER_LENGTH){
+		if (FLY_CONNECT_ON_SSL(res->request->connect)){
+			SSL *ssl = res->request->connect->ssl;
+			numsend = SSL_write(ssl, ((uint8_t *) fh)+total, FLY_HV2_FRAME_HEADER_LENGTH-total);
+
+			switch(SSL_get_error(ssl, numsend)){
+			case SSL_ERROR_NONE:
+				break;
+			case SSL_ERROR_ZERO_RETURN:
+				return FLY_SEND_DATA_FH_ERROR;
+			case SSL_ERROR_WANT_READ:
+				goto read_blocking;
+			case SSL_ERROR_WANT_WRITE:
+				goto write_blocking;
+			case SSL_ERROR_SYSCALL:
+				return FLY_SEND_DATA_FH_ERROR;
+			case SSL_ERROR_SSL:
+				return FLY_SEND_DATA_FH_ERROR;
+			default:
+				/* unknown error */
+				return FLY_SEND_DATA_FH_ERROR;
+			}
+		}else{
+			int c_sockfd;
+			c_sockfd = res->request->connect->c_sockfd;
+			numsend = send(c_sockfd, fh, FLY_HV2_FRAME_HEADER_LENGTH, 0);
+			if (FLY_BLOCKING(numsend))
+				goto write_blocking;
+			else if (numsend == -1)
+				return FLY_SEND_DATA_FH_ERROR;
+		}
+		res->byte_from_start += numsend;
+		total += numsend;
+	}
+	goto success;
+
+success:
+	res->blocking = false;
+	res->byte_from_start = 0;
+	res->send_ptr = NULL;
+	fly_pbfree(res->pool, fh);
+	res->fase = FLY_RESPONSE_DATA_FRAME;
+
+	e->read_or_write = FLY_READ|FLY_WRITE;
+	e->event_data = (void *) res;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	e->eflag = 0;
+	FLY_EVENT_HANDLER(e, fly_send_data_frame_handler);
+	return fly_event_register(e);
+read_blocking:
+	e->read_or_write = FLY_READ;
+	goto blocking;
+write_blocking:
+	e->read_or_write = FLY_WRITE;
+	goto blocking;
+blocking:
+	res->datai = flag;
+	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, __fly_send_data_fh_event_handler);
+	e->available = false;
+	e->event_data = (void *) res;
+	fly_event_socket(e);
+	return fly_event_register(e);
+}
+
+int fly_hv2_response_event(fly_event_t *e);
+int fly_send_data_frame_handler(fly_event_t *e)
+{
+	fly_response_t *res;
+
+	res = (fly_response_t *) e->event_data;
+
+	return fly_send_data_frame(e, res);
+}
+
 int fly_send_data_frame(fly_event_t *e, fly_response_t *res)
 {
 	fly_hv2_stream_t *stream;
 	fly_hv2_state_t *state;
 	size_t max_can_send;
+	size_t send_len;
+	int flag=0;
 
 	stream = res->request->stream;
 	state = stream->state;
-	if (stream->yetsend_count == 0)
-		goto success;
-
 	stream->end_send_data = false;
+
+	switch (res->fase){
+	case FLY_RESPONSE_DATA_FRAME:
+		goto send;
+	default:
+		break;
+	}
+
 	/* frame size over */
 	if (stream->window_size <= 0 || state->window_size <= 0){
 		/* can't send */
-	}else if (__s->payload_len > stream->window_size || \
-			__s->payload_len > state->window_size)
-		max_can_send = stream->window_size > state->window_size ? state->window_size : stream->window_size;
-
-	if (res->encoded){
-		fly_de_t *de;
-		ssize_t numsend;
-		size_t total;
-
-		de = res->de;
-		if (!de->send_ptr)
-			de->send_ptr = de->encbuf;
-
-		while(de->send_ptr){
-			if (FLY_CONNECT_ON_SSL(response->request->connect)){
-				SSL *ssl = response->request->connect->ssl;
-				numsend = SSL_write(ssl, de->send_ptr->buf, de->send_ptr->uselen);
-				switch(SSL_get_error(ssl, numsend)){
-				case SSL_ERROR_NONE:
-					break;
-				case SSL_ERROR_ZERO_RETURN:
-					return FLY_RESPONSE_ERROR;
-				case SSL_ERROR_WANT_READ:
-					goto read_blocking;
-				case SSL_ERROR_WANT_WRITE:
-					goto write_blocking;
-				case SSL_ERROR_SYSCALL:
-					return FLY_RESPONSE_ERROR;
-				case SSL_ERROR_SSL:
-					return FLY_RESPONSE_ERROR;
-				default:
-					/* unknown error */
-					return FLY_RESPONSE_ERROR;
-				}
-			}else{
-				numsend = send(de->c_sockfd, de->send_ptr->buf, de->send_ptr->uselen, 0);
-				if (FLY_BLOCKING(numsend))
-					goto write_blocking;
-				else if (numsend == -1)
-					return FLY_RESPONSE_ERROR;
-			}
-
-			total += numsend;
-			de->send_ptr->ptr += numsend;
-			if (de->send_ptr->ptr-(de->send_ptr->buf+de->send_ptr->buflen)>=0)
-				de->send_ptr = de->send_ptr->next;
-
-			/* send all content */
-			if (total >= de->contlen)
-				break;
-		}
-	} else{
-
 	}
-//	for (__s=stream->yetsend->next; __s!=stream->yetsend; __s=__s->next){
-//		if (__s->type != FLY_HV2_FRAME_TYPE_DATA)
-//			continue;
-//
-//
-//
-//		switch(__fly_send_frame_data(__s)){
-//		case __FLY_SEND_FRAME_READING_BLOCKING:
-//			goto read_blocking;
-//		case __FLY_SEND_FRAME_WRITING_BLOCKING:
-//			goto write_blocking;
-//		case __FLY_SEND_FRAME_ERROR:
-//			return FLY_SEND_FRAME_ERROR;
-//		case __FLY_SEND_FRAME_SUCCESS:
-//			break;
-//		}
-//		/* end of sending */
-//		/* release resources */
-//		fly_pbfree(__s->pool, __s->payload);
-//		fly_pbfree(__s->pool, __s);
-//		stream->yetsend_count--;
-//		__fly_hv2_remove_yet_send_frame(__s);
-//	}
+
+	max_can_send = stream->window_size > state->window_size ? state->window_size : stream->window_size;
+	switch (res->type){
+	case FLY_RESPONSE_TYPE_ENCODED:
+		send_len = (size_t) res->de->contlen > max_can_send ? max_can_send : (size_t) res->de->contlen;
+		if ((size_t) res->de->contlen < max_can_send)
+			flag |= FLY_HV2_FRAME_TYPE_DATA_END_STREAM;
+		break;
+	case FLY_RESPONSE_TYPE_BODY:
+		send_len = (size_t) res->body->body_len > max_can_send ? max_can_send : (size_t) res->body->body_len;
+		if ((size_t) res->body->body_len < max_can_send)
+			flag |= FLY_HV2_FRAME_TYPE_DATA_END_STREAM;
+		break;
+	case FLY_RESPONSE_TYPE_PATH_FILE:
+		send_len = (size_t) res->pf->fs.st_size > max_can_send ? max_can_send : (size_t) res->pf->fs.st_size;
+		if ((size_t) res->pf->fs.st_size < max_can_send)
+			flag |= FLY_HV2_FRAME_TYPE_DATA_END_STREAM;
+		break;
+	case FLY_RESPONSE_TYPE_DEFAULT:
+		ssize_t file_size = fly_file_size(res->rcbs->content_path);
+		if (file_size == -1)
+			return -1;
+
+		send_len = (size_t) file_size > max_can_send ? max_can_send : (size_t) file_size;
+		if ((size_t) file_size < max_can_send)
+			flag |= FLY_HV2_FRAME_TYPE_DATA_END_STREAM;
+		break;
+	default:
+		FLY_NOT_COME_HERE
+	}
+
+	res->send_len = send_len;
+	return __fly_send_data_fh(e, res, send_len, stream->id, flag);
+
+send:
+#define FLY_SENDLEN_UNTIL_CHAIN_LPTR(__c , __p)		\
+		(((__c) != (__c)->buffer->lchain) ? \
+	((void *) (__c)->unuse_ptr - (void *) (__p) + 1) : \
+	((void *) (__c)->unuse_ptr - (void *) (__p)))
+
+	size_t total = res->byte_from_start ? res->byte_from_start : 0;
+	ssize_t numsend;
+	send_len = res->send_len;
+	fly_buffer_c *chain;
+	fly_buf_p *send_ptr;
+
+	switch(res->type){
+	case FLY_RESPONSE_TYPE_ENCODED:
+		{
+			fly_de_t *de;
+			de = res->de;
+
+			chain = de->encbuf->first_chain;
+			send_ptr = de->encbuf->first_ptr;
+			numsend = 0;
+			while(true){
+				send_ptr = fly_update_chain(&chain, send_ptr, numsend);
+				if (FLY_CONNECT_ON_SSL(res->request->connect)){
+					SSL *ssl = res->request->connect->ssl;
+					numsend = SSL_write(ssl, send_ptr, FLY_SENDLEN_UNTIL_CHAIN_LPTR(chain, send_ptr));
+
+					switch(SSL_get_error(ssl, numsend)){
+					case SSL_ERROR_NONE:
+						break;
+					case SSL_ERROR_ZERO_RETURN:
+						return FLY_SEND_DATA_FH_ERROR;
+					case SSL_ERROR_WANT_READ:
+						goto read_blocking;
+					case SSL_ERROR_WANT_WRITE:
+						goto write_blocking;
+					case SSL_ERROR_SYSCALL:
+						return FLY_SEND_DATA_FH_ERROR;
+					case SSL_ERROR_SSL:
+						return FLY_SEND_DATA_FH_ERROR;
+					default:
+						/* unknown error */
+						return FLY_SEND_DATA_FH_ERROR;
+					}
+				}else{
+					int c_sockfd;
+					c_sockfd = res->request->connect->c_sockfd;
+					numsend = send(c_sockfd, send_ptr, FLY_SENDLEN_UNTIL_CHAIN_LPTR(chain, send_ptr), 0);
+					if (FLY_BLOCKING(numsend))
+						goto write_blocking;
+					else if (numsend == -1)
+						return FLY_SEND_DATA_FH_ERROR;
+				}
+				res->byte_from_start += numsend;
+				total += numsend;
+
+				/* send all content */
+				if (total >= de->contlen)
+					break;
+			}
+		}
+		break;
+	case FLY_RESPONSE_TYPE_BODY:
+		{
+			fly_body_t *body = res->body;
+			while(total < (size_t) body->body_len){
+				if (FLY_CONNECT_ON_SSL(res->request->connect)){
+					SSL *ssl=res->request->connect->ssl;
+					numsend = SSL_write(ssl, body->body+total, body->body_len-total);
+					switch(SSL_get_error(ssl, numsend)){
+					case SSL_ERROR_NONE:
+						break;
+					case SSL_ERROR_ZERO_RETURN:
+						return FLY_SEND_DATA_FH_ERROR;
+					case SSL_ERROR_WANT_READ:
+						goto read_blocking;
+					case SSL_ERROR_WANT_WRITE:
+						goto write_blocking;
+					case SSL_ERROR_SYSCALL:
+						return FLY_SEND_DATA_FH_ERROR;
+					case SSL_ERROR_SSL:
+						return FLY_SEND_DATA_FH_ERROR;
+					default:
+						/* unknown error */
+						return FLY_SEND_DATA_FH_ERROR;
+					}
+				}else{
+					numsend = send(e->fd, body->body+total, body->body_len-total, 0);
+					if (FLY_BLOCKING(numsend)){
+						goto write_blocking;
+					}else if (numsend == -1)
+						return FLY_RESPONSE_ERROR;
+				}
+				total += numsend;
+				res->byte_from_start += numsend;
+			}
+		}
+		break;
+	case FLY_RESPONSE_TYPE_PATH_FILE:
+		{
+			off_t *offset = &res->offset;
+			struct fly_mount_parts_file *pf = res->pf;
+			int c_sockfd;
+
+			c_sockfd = res->request->connect->c_sockfd;
+			while(total < res->count){
+				if (FLY_CONNECT_ON_SSL(res->request->connect)){
+					SSL *ssl=res->request->connect->ssl;
+					char send_buf[FLY_SEND_BUF_LENGTH];
+					ssize_t numread;
+
+					if (lseek(pf->fd, *offset+(off_t) total, SEEK_SET) == -1)
+						return FLY_SEND_DATA_FH_ERROR;
+					numread = read(pf->fd, send_buf, res->count-total<FLY_SEND_BUF_LENGTH ? FLY_SEND_BUF_LENGTH : res->count-total);
+					if (numread == -1)
+						return FLY_RESPONSE_ERROR;
+					numsend = SSL_write(ssl, send_buf, numread);
+					switch(SSL_get_error(ssl, numsend)){
+					case SSL_ERROR_NONE:
+						break;
+					case SSL_ERROR_ZERO_RETURN:
+						return FLY_SEND_DATA_FH_ERROR;
+					case SSL_ERROR_WANT_READ:
+						goto read_blocking;
+					case SSL_ERROR_WANT_WRITE:
+						goto write_blocking;
+					case SSL_ERROR_SYSCALL:
+						return FLY_SEND_DATA_FH_ERROR;
+					case SSL_ERROR_SSL:
+						return FLY_SEND_DATA_FH_ERROR;
+					default:
+						/* unknown error */
+						return FLY_SEND_DATA_FH_ERROR;
+					}
+				}else{
+					numsend = sendfile(c_sockfd, pf->fd, offset, res->count-total);
+					if (FLY_BLOCKING(numsend)){
+						goto write_blocking;
+					}else if (numsend == -1)
+						return FLY_SEND_DATA_FH_ERROR;
+				}
+
+				total += numsend;
+				res->byte_from_start += numsend;
+			}
+		}
+		break;
+	case FLY_RESPONSE_TYPE_DEFAULT:
+		{
+			fly_rcbs_t *__r=res->rcbs;
+			off_t *offset = &res->offset;
+			struct stat sb;
+
+			if (fstat(__r->fd, &sb) == -1)
+				return FLY_SEND_DATA_FH_ERROR;
+			if (sb.st_size == 0)
+				goto success;
+
+			while(total < res->count){
+				if (FLY_CONNECT_ON_SSL(res->request->connect)){
+					SSL *ssl=res->request->connect->ssl;
+					char send_buf[FLY_SEND_BUF_LENGTH];
+					ssize_t numread;
+
+					if (lseek(__r->fd, *offset+(off_t) total, SEEK_SET) == -1)
+						return FLY_RESPONSE_ERROR;
+					numread = read(__r->fd, send_buf, res->count-total<FLY_SEND_BUF_LENGTH ? FLY_SEND_BUF_LENGTH : res->count-total);
+					if (numread == -1)
+						return FLY_RESPONSE_ERROR;
+					numsend = SSL_write(ssl, send_buf, numread);
+					switch(SSL_get_error(ssl, numsend)){
+					case SSL_ERROR_NONE:
+						break;
+					case SSL_ERROR_ZERO_RETURN:
+						return FLY_SEND_DATA_FH_ERROR;
+					case SSL_ERROR_WANT_READ:
+						goto read_blocking;
+					case SSL_ERROR_WANT_WRITE:
+						goto write_blocking;
+					case SSL_ERROR_SYSCALL:
+						return FLY_SEND_DATA_FH_ERROR;
+					case SSL_ERROR_SSL:
+						return FLY_SEND_DATA_FH_ERROR;
+					default:
+						/* unknown error */
+						return FLY_SEND_DATA_FH_ERROR;
+					}
+					*offset += numsend;
+				}else{
+					numsend = sendfile(e->fd, __r->fd, offset, res->count-total);
+					if (FLY_BLOCKING(numsend)){
+						goto write_blocking;
+					}else if (numsend == -1)
+						return FLY_SEND_DATA_FH_ERROR;
+				}
+
+				total += numsend;
+			}
+		}
+		break;
+	default:
+		FLY_NOT_COME_HERE
+	}
+	goto success;
 
 success:
 	stream->end_send_data = true;
@@ -1379,22 +1646,24 @@ success:
 	e->available = false;
 	e->event_data = (void *) res;
 	fly_event_socket(e);
-	return FLY_SEND_FRAME_SUCCESS;
-
-cant_send:
+	return fly_event_register(e);
 
 read_blocking:
-	if (fly_send_frame_d_event(e->manager, stream, FLY_READ) == -1)
-		return FLY_SEND_FRAME_ERROR;
-	return FLY_SEND_FRAME_BLOCKING;
-
+	e->read_or_write = FLY_READ;
+	goto blocking;
 write_blocking:
-	if (fly_send_frame_d_event(e->manager, stream, FLY_WRITE) == -1)
-		return FLY_SEND_FRAME_ERROR;
-	return FLY_SEND_FRAME_BLOCKING;
+	e->read_or_write = FLY_WRITE;
+	goto blocking;
+blocking:
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_send_data_frame_handler);
+	e->available = false;
+	e->event_data = (void *) res;
+	fly_event_socket(e);
+	return fly_event_register(e);
 }
 
-int fly_hv2_response_event(fly_event_t *e);
 int __fly_send_frame_h(fly_event_t *e, fly_response_t *res)
 {
 	fly_hv2_stream_t *stream;
@@ -2091,6 +2360,7 @@ static inline bool fly_hv2_is_index_hedaer_noindex(uint8_t *pl)
 #define FLY_HV2_INT_BIT_VALUE(p)			((1<<(7)) - 1)
 void fly_hv2_set_integer(uint32_t integer, uint8_t **pl, fly_buffer_c **__c, __unused uint32_t *update, uint8_t prefix_bit)
 {
+	**pl &= (~FLY_HV2_INT_BIT_PREFIX(prefix_bit));
 	if (integer < (uint32_t) FLY_HV2_INT_BIT_PREFIX(prefix_bit)){
 		if (update)
 			(*update)++;
@@ -2981,6 +3251,7 @@ int fly_status_code_pseudo_headers(fly_response_t *res __unused)
 
 	return fly_header_add_v2(res->header, ":status", strlen(":status"), (fly_hdr_value *) stcode_str, strlen(stcode_str), true);
 }
+
 /*
  *
  *	HTTP2 response
@@ -3029,6 +3300,7 @@ int fly_hv2_response_event(fly_event_t *e)
 	}
 
 	if (__fly_encode_do(res)){
+		res->type = FLY_RESPONSE_TYPE_ENCODED;
 		fly_encoding_type_t *enctype=NULL;
 		enctype = fly_decided_encoding_type(res->encoding);
 		if (fly_unlikely_null(enctype))
@@ -3039,13 +3311,10 @@ int fly_hv2_response_event(fly_event_t *e)
 
 		fly_de_t *__de;
 
-		__de = fly_pballoc(res->pool, sizeof(fly_de_t));
-		__de->pool = res->pool;
+		__de = fly_de_init(res->pool);
+		fly_e_buf_add(__de);
+		fly_d_buf_add(__de);
 		__de->type = FLY_DE_ESEND_FROM_PATH;
-		__de->encbuflen = 0;
-		__de->decbuflen = 0;
-		__de->encbuf = fly_e_buf_add(__de);
-		__de->decbuf = fly_d_buf_add(__de);
 		__de->fd = res->pf->fd;
 		__de->offset = res->offset;
 		__de->count = res->pf->fs.st_size;
@@ -3063,7 +3332,12 @@ int fly_hv2_response_event(fly_event_t *e)
 			return -1;
 		if (enctype->encode(__de) == -1)
 			return -1;
-	}
+	} else if (res->body)
+		res->type = FLY_RESPONSE_TYPE_BODY;
+	else if (res->pf)
+		res->type = FLY_RESPONSE_TYPE_PATH_FILE;
+	else if (res->rcbs)
+		res->type = FLY_RESPONSE_TYPE_DEFAULT;
 
 end_of_encoding:
 	if (fly_send_headers_frame(stream, res->pool, e, res->header, (res->body!=NULL || res->pf!=NULL)))
@@ -3071,7 +3345,6 @@ end_of_encoding:
 
 	/* send response header */
 	return __fly_send_frame_h(e, res);
-
 send_body:
 	/* only send */
 	return fly_send_data_frame(e, res);
