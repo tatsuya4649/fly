@@ -58,7 +58,7 @@ fly_status_code responses[] = {
 
 __fly_static int __fly_response_release_handler(fly_event_t *e);
 #define FLY_RESPONSE_LOG_ITM_FLAG		(1)
-__fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e);
+int __fly_response_log(fly_response_t *res, fly_event_t *e);
 __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc);
 __fly_static int __fly_send_until_header(fly_event_t *e, fly_response_t *response);
 __fly_static int __fly_send_until_header_blocking(fly_event_t *e, fly_response_t *response, int flag);
@@ -89,6 +89,9 @@ fly_response_t *fly_response_init(void)
 	response->count = 0;
 	response->encoding = NULL;
 	response->de = NULL;
+	response->blocking = false;
+	response->encoded = false;
+	response->rcbs = NULL;
 	return response;
 }
 
@@ -729,8 +732,8 @@ int fly_response_event(fly_event_t *e)
 		__de->type = FLY_DE_ESEND_FROM_PATH;
 		__de->encbuflen = 0;
 		__de->decbuflen = 0;
-		__de->encbuf = fly_e_buf_add(__de);
-		__de->decbuf = fly_d_buf_add(__de);
+		__de->encbuf = fly_buffer_init(__de->pool, FLY_DE_BUF_INITLEN, FLY_DE_BUF_MAXLEN, FLY_DE_BUF_PERLEN);
+		__de->decbuf = fly_buffer_init(__de->pool, FLY_DE_BUF_INITLEN, FLY_DE_BUF_MAXLEN, FLY_DE_BUF_PERLEN);
 		__de->fd = response->pf->fd;
 		__de->offset = response->offset;
 		__de->count = response->pf->fs.st_size;

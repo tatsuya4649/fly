@@ -189,6 +189,7 @@ int fly_send_default_content(fly_event_t *e, fly_rcbs_t *__r)
 				/* unknown error */
 				return FLY_RESPONSE_ERROR;
 			}
+			*offset += numsend;
 		}else{
 			numsend = sendfile(e->fd, __r->fd, offset, count-total);
 			if (FLY_BLOCKING(numsend)){
