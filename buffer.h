@@ -76,5 +76,6 @@ void fly_buffer_chain_release(fly_buffer_c *__c);
 void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len);
 void fly_buffer_release(fly_buffer_t *buf);
 fly_buffer_c *fly_get_buf_chain(fly_buffer_t *buf, int i);
+void fly_buffer_chain_refresh(fly_buffer_c *__c);
 
 #endif

@@ -203,4 +203,5 @@ void fly_sec(fly_time_t *t, int sec);
 void fly_msec(fly_time_t *t, int msec);
 int is_fly_event_timeout(fly_event_t *e);
 float fly_diff_time(struct timeval new, struct timeval old);
+int fly_timeout_restart(fly_event_t *e);
 #endif

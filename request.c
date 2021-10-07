@@ -924,7 +924,9 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 			return -1;
 	}
 end_of_connection:
-	return FLY_REQUEST_RECEIVE_END;
+	connect->peer_closed = true;
+	if (total > 0)
+		goto continuation;
 continuation:
 	return FLY_REQUEST_RECEIVE_SUCCESS;
 error:
@@ -932,7 +934,6 @@ error:
 read_blocking:
 	if (total > 0)
 		goto continuation;
-	return FLY_REQUEST_RECEIVE_READ_BLOCKING;
 write_blocking:
 	return FLY_REQUEST_RECEIVE_WRITE_BLOCKING;
 }

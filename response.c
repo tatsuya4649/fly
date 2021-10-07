@@ -201,6 +201,7 @@ __fly_static int __fly_response_release_handler(fly_event_t *e)
 	if (fly_connect_release(con) == -1)
 		return -1;
 
+	e->flag = FLY_CLOSE_EV;
 	if (fly_event_unregister(e) == -1)
 		return -1;
 
@@ -252,11 +253,44 @@ __fly_static char *fly_log_request_line_modify(fly_reqlinec_t *__r)
 	return __r;
 }
 
+char *fly_log_request_line_hv2(fly_response_t *res)
+{
+#define FLY_LOG_REQUEST_LINE_HV2_SPACE_SIZE			1
+#define FLY_LOG_REQUEST_LINE_HV2_STREND_SIZE		1
+	size_t size=0;
+	char   *request_line;
+
+	size += strlen(res->request->request_line->method->name);
+	size += FLY_LOG_REQUEST_LINE_HV2_SPACE_SIZE;
+	size += (size_t) res->request->request_line->uri.len;
+	size += FLY_LOG_REQUEST_LINE_HV2_SPACE_SIZE;
+	size += strlen(res->request->request_line->version->full);
+	size += FLY_LOG_REQUEST_LINE_HV2_STREND_SIZE;
+
+	request_line = fly_pballoc(res->pool, size);
+	if (fly_unlikely_null(request_line))
+		return NULL;
+
+	snprintf(request_line, size, "%s %s %s",
+			res->request->request_line->method->name,
+			res->request->request_line->uri.ptr,
+			res->request->request_line->version->full
+	);
+	return request_line;
+}
+
 __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc)
 {
 #define __FLY_RESPONSE_LOGCONTENT_SUCCESS			1
 #define __FLY_RESPONSE_LOGCONTENT_ERROR				-1
 #define __FLY_RESPONSE_LOGCONTENT_OVERFLOW			0
+#define __FLY_RESPONSE_LOGCONTENT_REQUEST_LINE		\
+	(response->request->request_line->version->type == V2 ? \
+	 /* HTTP2 */											\
+	 fly_log_request_line_hv2(response)						\
+	 : (	\
+	 /* HTTP1.1 */											\
+	(response->request->request_line->request_line ? fly_log_request_line_modify(response->request->request_line->request_line) : FLY_RESPONSE_NONSTRING)))
 	/* TODO: configuable log design. */
 	/*
 	 *	Peer IP: Port ---> My IP: Port, Request Line, Response Code
@@ -272,7 +306,7 @@ __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t
 		/* peer service */
 		response->request->connect->servname,
 		/* request_line */
-		response->request->request_line != NULL ? fly_log_request_line_modify(response->request->request_line->request_line) : FLY_RESPONSE_NONSTRING,
+		response->request->request_line != NULL ? __FLY_RESPONSE_LOGCONTENT_REQUEST_LINE : FLY_RESPONSE_NONSTRING,
 		/* hostname */
 		e->manager->ctx->listen_sock->hostname,
 		/* service */
@@ -844,7 +878,7 @@ int fly_304_event(fly_event_t *e)
 	req = rc->request;
 
 	fly_response_t *res;
-	res= fly_response_init();
+	res = fly_response_init();
 	res->header = fly_header_init();
 	res->version = V1_1;
 	res->status_code = _304;
@@ -1036,14 +1070,14 @@ int __fly_encode_do(fly_response_t *res)
 	return (res->encoding && res->encoding->actqty);
 }
 
-int __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf, int (*handler)(fly_event_t *e))
+fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf)
 {
 	fly_response_t *response;
 	bool hv2 = is_fly_request_http_v2(req);
 
 	response = fly_response_init();
 	if (fly_unlikely_null(response))
-		return -1;
+		return NULL;
 
 	response->request = req;
 	response->status_code = _200;
@@ -1064,6 +1098,16 @@ int __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_
 	if (!hv2)
 		fly_add_connection(response->header, KEEP_ALIVE);
 
+	return response;
+}
+
+int __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf, int (*handler)(fly_event_t *e))
+{
+	fly_response_t *response;
+
+	response = fly_respf(req, pf);
+	if (fly_unlikely_null(response))
+		return -1;
 	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
