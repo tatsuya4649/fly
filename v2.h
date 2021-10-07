@@ -107,7 +107,10 @@ struct fly_hv2_state{
 	size_t dtable_size;
 	size_t dtable_max_index;
 
-	uint32_t window_size;
+	/* use when memory is low */
+	void   *emergency_ptr;
+
+	ssize_t window_size;
 	/* connection setting value by SETTINGS frame */
 #define FLY_HV2_HEADER_TABLE_SIZE_DEFAULT		(4096)	/* unit: octet*/
 	fly_settings_t p_header_table_size;
@@ -166,7 +169,7 @@ struct fly_hv2_stream{
 	struct fly_hv2_stream *deps;
 	struct fly_hv2_stream *dnext;
 	struct fly_hv2_stream *dprev;
-	uint32_t window_size;
+	ssize_t window_size;
 	struct fly_hv2_frame *frames;
 	struct fly_hv2_frame *lframe;
 	/* sent frame that rave not yet received ack */
@@ -316,6 +319,7 @@ typedef uint8_t fly_hv2_frame_type_t;
  *
  */
 #define FLY_HV2_FRAME_TYPE_PING					(0x6)
+#define FLY_HV2_FRAME_TYPE_PING_OPEQUE_DATA_LEN	(64)
 #define FLY_HV2_FRAME_TYPE_PING_LENGTH			(8)	 /* unit: octet */
 
 /*
@@ -352,6 +356,7 @@ typedef uint8_t fly_hv2_frame_type_t;
 #define FLY_HV2_FRAME_TYPE_CONTINUATION			(0x9)
 #define FLY_HV2_FRAME_TYPE_CONTINUATION_END_HEADERS		(1<<2)
 
+#define FLY_HV2_ROOT_STREAM(state)				(state->streams)
 /*
  *	Error code
  */
