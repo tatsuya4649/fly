@@ -91,6 +91,7 @@ struct fly_response{
 		FLY_RESPONSE_TYPE_BODY,
 		FLY_RESPONSE_TYPE_PATH_FILE,
 		FLY_RESPONSE_TYPE_DEFAULT,
+		FLY_RESPONSE_TYPE_NOCONTENT
 	} type;
 	void						*send_ptr;
 	int							 byte_from_start;
