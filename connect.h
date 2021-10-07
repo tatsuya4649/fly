@@ -33,6 +33,8 @@ struct fly_connect{
 	/* HTTP2 */
 	struct fly_hv2_state *v2_state;
 	struct fly_buffer *buffer;
+
+	fly_bit_t peer_closed: 1;
 };
 typedef struct fly_connect fly_connect_t;
 

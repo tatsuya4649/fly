@@ -331,6 +331,16 @@ fly_buffer_c *fly_buffer_chain_from_ptr(fly_buffer_t *buffer, fly_buf_p ptr)
 }
 
 /*
+ *	refresh ptr function.
+ */
+void fly_buffer_chain_refresh(fly_buffer_c *__c)
+{
+	__c->use_ptr = __c->ptr;
+	__c->unuse_ptr = __c->use_ptr;
+	__c->use_len = 0;
+	__c->unuse_len = __c->len;
+}
+/*
  *	buffer chain release.
  *	@__c: start from this chain.
  *	@len: release bytes.
@@ -358,7 +368,6 @@ void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len)
 		__n = __c;
 		while(delete_chain_count--){
 			__n->buffer->use_len -= (__n->lptr-__n->use_ptr+1);
-			__n->buffer->chain_count--;
 
 			fly_buffer_c *__tmp = __n->next;
 			fly_buffer_chain_release(__n);

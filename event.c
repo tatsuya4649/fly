@@ -289,6 +289,15 @@ int fly_cmp_time(fly_time_t t1, fly_time_t t2)
 	return 0;
 }
 
+int fly_timeout_restart(fly_event_t *e)
+{
+	if (fly_time(&e->start) == -1)
+		return -1;
+
+	__fly_add_time_from_now(&e->abs_timeout, &e->timeout);
+	return 0;
+}
+
 void fly_sec(fly_time_t *t, int sec)
 {
 	t->tv_sec = sec;
