@@ -61,7 +61,7 @@ struct fly_hv2_send_frame{
 		FLY_HV2_SEND_FRAME_FASE_END
 	} send_fase;
 
-	void *data;
+	//void *data;
 
 	struct fly_hv2_send_frame *next;
 	struct fly_hv2_send_frame *prev;
@@ -77,6 +77,12 @@ enum fly_hv2_connection_state{
 	FLY_HV2_CONNECTION_STATE_END,
 };
 
+struct fly_hv2_response{
+	fly_response_t *response;
+	struct fly_hv2_response *next;
+	struct fly_hv2_response *prev;
+};
+
 struct fly_hv2_state{
 	fly_pool_t *pool;
 	fly_connect_t *connect;
@@ -84,9 +90,16 @@ struct fly_hv2_state{
 	int stream_count;
 	int reserved_count;
 	fly_sid_t max_sid;
+	fly_sid_t max_handled_sid;
 	struct fly_hv2_stream *streams;
 	struct fly_hv2_stream *lstream;
+	/* last handle stream */
+	struct fly_hv2_stream *lhstream;
+	struct fly_hv2_response *responses;
+	struct fly_hv2_response *lresponse;
+	int response_count;
 	struct fly_hv2_stream *reserved;
+	struct fly_hv2_stream *lreserved;
 
 	struct fly_hv2_dynamic_table *dtable;
 	struct fly_hv2_dynamic_table *ldtable;
@@ -118,6 +131,10 @@ struct fly_hv2_state{
 #define FLY_HV2_ENABLE_PUSH_DEFAULT				(1)
 	fly_settings_t p_enable_push;
 	fly_settings_t enable_push;
+
+	/* after received GOAWAY*/
+	fly_sid_t goaway_lsid;
+	fly_bit_t goaway: 1;
 };
 typedef struct fly_hv2_state fly_hv2_state_t;
 typedef struct fly_hv2_frame fly_hv2_frame_t;
@@ -169,6 +186,7 @@ struct fly_hv2_stream{
 	fly_bit_t can_response: 1;
 	fly_bit_t end_send_headers: 1;
 	fly_bit_t end_send_data: 1;
+	fly_bit_t end_request_response: 1;
 };
 typedef struct fly_hv2_stream fly_hv2_stream_t;
 
@@ -248,6 +266,7 @@ typedef uint8_t fly_hv2_frame_type_t;
  *	when idle state, rst_stream frame can't send.
  */
 #define FLY_HV2_FRAME_TYPE_RST_STREAM			(0x3)
+#define FLY_HV2_FRAME_TYPE_RST_STREAM_LENGTH	(4) /* unit: octet */
 
 /*
  *	SETTINGS Frame:
@@ -309,6 +328,9 @@ typedef uint8_t fly_hv2_frame_type_t;
  *	No Flag
  */
 #define FLY_HV2_FRAME_TYPE_GOAWAY				(0x7)
+#define FLY_HV2_FRAME_TYPE_GOAWAY_R_LEN			(1)
+#define FLY_HV2_FRAME_TYPE_GOAWAY_LSID_LEN		(31)
+#define FLY_HV2_FRAME_TYPE_GOAWAY_ERROR_CODE_LEN			(32)
 
 /*
  *	WINDOW_UPDATE Frame:
@@ -333,7 +355,7 @@ typedef uint8_t fly_hv2_frame_type_t;
 /*
  *	Error code
  */
-#define FLY_HV2_ERROR_CODE						(0x0)
+#define FLY_HV2_NO_ERROR						(0x0)
 #define FLY_HV2_PROTOCOL_ERROR					(0x1)
 #define FLY_HV2_INTERNAL_ERROR					(0x2)
 #define FLY_HV2_FLOW_CONTROL_ERROR				(0x3)

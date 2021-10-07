@@ -174,5 +174,6 @@ int __fly_encode_do(fly_response_t *res);
 fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);
 int __fly_response_log(fly_response_t *res, fly_event_t *e);
 const char *fly_status_code_str_from_type(fly_stcode_t type);
+fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf);
 
 #endif
