@@ -65,6 +65,9 @@ struct fly_hv2_send_frame{
 
 	struct fly_hv2_send_frame *next;
 	struct fly_hv2_send_frame *prev;
+	/* for ack */
+	struct fly_hv2_send_frame *anext;
+	struct fly_hv2_send_frame *aprev;
 };
 
 /*
@@ -138,6 +141,7 @@ struct fly_hv2_state{
 	/* after received GOAWAY*/
 	fly_sid_t goaway_lsid;
 	fly_bit_t goaway: 1;
+	fly_bit_t first_send_settings: 1;
 };
 typedef struct fly_hv2_state fly_hv2_state_t;
 typedef struct fly_hv2_frame fly_hv2_frame_t;
