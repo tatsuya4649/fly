@@ -356,7 +356,7 @@ void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len)
 		size_t total_delete_len = 0;
 		fly_buffer_c *__n=__c;
 
-		while((total_delete_len+(__n->lptr-__n->use_ptr+1)) < len ){
+		while((total_delete_len+(__n->lptr-__n->use_ptr+1)) <= len ){
 			delete_chain_count++;
 			total_delete_len+=(__n->lptr-__n->use_ptr+1);
 
