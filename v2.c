@@ -1386,6 +1386,7 @@ frame_header_parse:
 					default:
 						FLY_NOT_COME_HERE
 					}
+
 				}
 
 				/* send setting frame of server */
