@@ -68,6 +68,10 @@ struct fly_hv2_send_frame{
 	/* for ack */
 	struct fly_hv2_send_frame *anext;
 	struct fly_hv2_send_frame *aprev;
+	/* for state send */
+	struct fly_hv2_send_frame *snext;
+	struct fly_hv2_send_frame *sprev;
+
 };
 
 /*
@@ -109,6 +113,11 @@ struct fly_hv2_state{
 	size_t dtable_entry_count;
 	size_t dtable_size;
 	size_t dtable_max_index;
+
+	/* send list */
+	struct fly_hv2_send_frame *send;
+	struct fly_hv2_send_frame *lsend;
+	int send_count;
 
 	/* use when memory is low */
 	void   *emergency_ptr;
