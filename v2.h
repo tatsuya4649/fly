@@ -42,6 +42,7 @@ struct fly_hv2_frame{
 	struct fly_hv2_stream *stream;
 	uint8_t *payload;
 	struct fly_hv2_frame *next;
+	struct fly_hv2_frame *prev;
 };
 
 struct fly_hv2_stream;
@@ -60,8 +61,6 @@ struct fly_hv2_send_frame{
 		FLY_HV2_SEND_FRAME_FASE_PAYLOAD,
 		FLY_HV2_SEND_FRAME_FASE_END
 	} send_fase;
-
-	//void *data;
 
 	struct fly_hv2_send_frame *next;
 	struct fly_hv2_send_frame *prev;
