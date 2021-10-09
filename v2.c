@@ -206,6 +206,9 @@ int fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length
 	frame->payload = payload;
 
 	frame->next = stream->frames;
+	frame->prev = stream->lframe;
+	stream->frames->prev = frame;
+
 	if (stream->frame_count){
 		stream->lframe->next = frame;
 	}else{
@@ -218,8 +221,13 @@ int fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length
 
 void fly_hv2_release_frame(struct fly_hv2_frame *frame)
 {
-	fly_pbfree(frame->stream->state->pool, frame);
+	frame->prev->next = frame->next;
+	frame->next->prev = frame->prev;
+
+	if (frame->stream->lframe == frame)
+		frame->stream->lframe = frame->prev;
 	frame->stream->frame_count--;
+	fly_pbfree(frame->stream->state->pool, frame);
 }
 
 static fly_hv2_stream_t *__fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid_t id, bool from_client)
@@ -244,6 +252,7 @@ static fly_hv2_stream_t *__fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid
 	if (fly_unlikely_null(__s->frames))
 		return NULL;
 	__s->frames->next = __s->frames;
+	__s->frames->prev = __s->frames;
 	__s->yetsend = fly_pballoc(state->pool, sizeof(struct fly_hv2_send_frame));
 	if (fly_unlikely_null(__s->yetsend))
 		return NULL;
@@ -596,10 +605,18 @@ disconnect:
 
 void fly_hv2_send_frame_release(struct fly_hv2_send_frame *__f)
 {
+	__f->stream->yetsend_count--;
+
+	__f->next->prev = __f->prev;
+	__f->prev->next = __f->next;
+	__f->anext->aprev = __f->aprev;
+	__f->aprev->anext = __f->anext;
+	__f->snext->sprev = __f->sprev;
+	__f->sprev->snext = __f->snext;
+
 	if (__f->payload)
 		fly_pbfree(__f->pool, __f->payload);
 	fly_pbfree(__f->pool, __f);
-	__f->stream->yetsend_count--;
 }
 
 static inline uint8_t fly_hv2_pad_length(uint8_t **pl, fly_buffer_c **__c)
@@ -2184,11 +2201,14 @@ success:
 	/* if now half closed(remote) state,
 	 * close stream.
 	 */
-	if (stream->stream_state == FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE && \
-			flag & FLY_HV2_FRAME_TYPE_DATA_END_STREAM)
+	if (stream->stream_state == FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE \
+			&& total >= res->response_len){
 		stream->stream_state = FLY_HV2_STREAM_STATE_CLOSED;
+		stream->end_send_data = true;
+	}
+	res->fase = FLY_RESPONSE_FRAME_HEADER;
 	stream->end_send_headers = true;
-	stream->end_send_data = true;
+
 	return fly_hv2_response_blocking_event(e, stream);
 
 cant_send:
@@ -2787,7 +2807,7 @@ void fly_hv2_emergency(fly_hv2_state_t *state)
 
 int fly_hv2_add_header_by_index(struct fly_hv2_stream *stream, uint32_t index);
 int fly_hv2_add_header_by_indexname(struct fly_hv2_stream *stream, __unused uint32_t index, __unused uint8_t *value, __unused uint32_t value_len, __unused bool huffman_value, fly_buffer_c *__c, enum fly_hv2_index_type index_type);
-int fly_hv2_add_header_by_name(__unused struct fly_hv2_stream *stream, __unused uint8_t *name, __unused uint32_t name_len, __unused bool huffman_name, __unused uint8_t *value, __unused uint32_t value_len, __unused bool huffman_value, __unused fly_buffer_c *__c, enum fly_hv2_index_type index_type);
+int fly_hv2_add_header_by_name(struct fly_hv2_stream *stream, uint8_t *name, uint32_t name_len, bool huffman_name, uint8_t *value, uint32_t value_len, bool huffman_value, fly_buffer_c *__nc, fly_buffer_c *__vc, enum fly_hv2_index_type index_type);
 
 #define FLY_HV2_STATIC_TABLE_LENGTH			\
 	((int) sizeof(static_table)/sizeof(struct fly_hv2_static_table))
@@ -3008,7 +3028,7 @@ void fly_hv2_dynamic_table_release(struct fly_hv2_state *state)
 
 static inline bool fly_hv2_is_index_header_field(uint8_t *pl)
 {
-	return *pl & (1<<7) ? true : false;
+	return (*pl & (1<<7)) ? true : false;
 }
 
 static inline bool fly_hv2_is_index_header_update(uint8_t *pl)
@@ -3163,26 +3183,31 @@ int fly_hv2_parse_headers(fly_hv2_stream_t *stream, uint32_t length, uint8_t *pa
 
 				/* update ptr */
 				total+=value_len;
-				payload = fly_update_chain(&__c, value, value_len);
+				payload = fly_update_chain(&__c, payload, value_len);
 			}else{
+				fly_buffer_c *__nc;
+				/* go forward a byte of index */
+				payload = fly_update_chain_one(&__c, payload);
+				total++;
 			/* header field name by literal */
 				huffman_name = fly_hv2_is_huffman_encoding(payload);
 				name_len = fly_hv2_integer(&payload, &__c, &total, FLY_HV2_NAME_PREFIX_BIT);
 				name = payload;
+				__nc = __c;
 				/* update ptr */
 				payload = fly_update_chain(&__c, name, name_len);
+				total+=name_len;
 
 				huffman_value = fly_hv2_is_huffman_encoding(payload);
 				value_len = fly_hv2_integer(&payload, &__c, &total, FLY_HV2_VALUE_PREFIX_BIT);
 				value = payload;
 
-				if (fly_hv2_add_header_by_name(stream, name, name_len, huffman_name, value, value_len, huffman_value, __c, index_type) == -1)
+				if (fly_hv2_add_header_by_name(stream, name, name_len, huffman_name, value, value_len, huffman_value, __nc, __c, index_type) == -1)
 					return -1;
 
 				/* update ptr */
-				total+=value_len;
-				total+=name_len;
 				payload = fly_update_chain(&__c, value, value_len);
+				total+=value_len;
 			}
 		}
 	}
@@ -3280,291 +3305,344 @@ int fly_hv2_add_header_by_indexname(struct fly_hv2_stream *stream, uint32_t inde
 	return 0;
 }
 
-int fly_hv2_add_header_by_name(__unused struct fly_hv2_stream *stream, __unused uint8_t *name, __unused uint32_t name_len, __unused bool huffman_name, __unused uint8_t *value, __unused uint32_t value_len, __unused bool huffman_value, __unused fly_buffer_c *__c, enum fly_hv2_index_type index_type __unused)
+int fly_hv2_add_header_by_name(struct fly_hv2_stream *stream, uint8_t *name, uint32_t name_len, bool huffman_name, uint8_t *value, uint32_t value_len, bool huffman_value, fly_buffer_c *__nc, fly_buffer_c *__vc, enum fly_hv2_index_type index_type)
 {
 	fly_buffer_t *nbuf, *vbuf;
 	uint32_t nlen, vlen;
-	__unused fly_hv2_state_t *state;
+	fly_hv2_state_t *state;
+	char *__n, *__v;
+	int res;
 
-	if (huffman_name && fly_hv2_huffman_decode(stream->request->header->pool, &nbuf, &nlen, name, name_len, __c) == -1)
+	state = stream->state;
+	if (huffman_name && fly_hv2_huffman_decode(stream->request->header->pool, &nbuf, &nlen, name, name_len, __nc) == -1)
 		return -1;
 
-	if (huffman_value && fly_hv2_huffman_decode(stream->request->header->pool, &vbuf, &vlen, value, value_len, __c) == -1)
+	if (huffman_value && fly_hv2_huffman_decode(stream->request->header->pool, &vbuf, &vlen, value, value_len, __vc) == -1)
 		return -1;
 
 	/* header add */
+#define FLY_HV2_ADD_HEADER_NAME_LEN				\
+		huffman_name ? nlen : name_len
+#define FLY_HV2_ADD_HEADER_VALUE_LEN				\
+		huffman_value ? vlen : value_len
+#define FLY_HV2_ADD_HEADER_NAME_CPY					\
+		huffman_name ? fly_buffer_memcpy(			\
+				__n,								\
+				nbuf->first_ptr,					\
+				nbuf->first_chain, nlen)	:		\
+		memcpy(__n, name, name_len)
+#define FLY_HV2_ADD_HEADER_VALUE_CPY				\
+		huffman_value ? fly_buffer_memcpy(			\
+				__v,								\
+				vbuf->first_ptr,					\
+				vbuf->first_chain, vlen)	:		\
+		memcpy(__v, value, value_len)
+	__n = fly_pballoc(stream->request->header->pool, FLY_HV2_ADD_HEADER_NAME_LEN);
+	if (fly_unlikely_null(__n))
+		return -1;
+	__v = fly_pballoc(stream->request->header->pool, FLY_HV2_ADD_HEADER_VALUE_LEN);
+	if (fly_unlikely_null(__v)){
+		fly_pbfree(stream->request->header->pool, __n);
+		return -1;
+	}
 
-	return 0;
+	FLY_HV2_ADD_HEADER_NAME_CPY;
+	FLY_HV2_ADD_HEADER_VALUE_CPY;
+
+	if (fly_header_add(stream->request->header, __n, FLY_HV2_ADD_HEADER_NAME_LEN, __v, FLY_HV2_ADD_HEADER_VALUE_LEN) == -1)
+		goto error;
+
+	if (index_type == INDEX_UPDATE){
+		if (fly_hv2_dynamic_table_add_entry(state, (char *) __n, FLY_HV2_ADD_HEADER_NAME_LEN, (char *) __v, FLY_HV2_ADD_HEADER_NAME_LEN) == -1)
+			return -1;
+	}
+	goto success;
+error:
+	res = -1;
+	goto end;
+success:
+	res = 0;
+	goto end;
+
+end:
+	fly_pbfree(stream->request->header->pool, __n);
+	fly_pbfree(stream->request->header->pool, __v);
+
+#undef FLY_HV2_ADD_HEADER_NAME_LEN
+#undef FLY_HV2_ADD_HEADER_VALUE_LEN
+#undef FLY_HV2_ADD_HEADER_NAME_CPY
+#undef FLY_HV2_ADD_HEADER_VALUE_CPY
+	return res;
 }
 
 
 struct fly_hv2_huffman{
 	uint16_t sym;
-	const char *code_as_hex;
-	uint32_t len_in_bits;
+	uint64_t code_as_hex;
+	int		 len_in_bits;
 };
 
 #define FLY_HV2_HUFFMAN_HUFFMAN_LEN		\
 	(sizeof(huffman_codes)/sizeof(struct fly_hv2_huffman))
 static struct fly_hv2_huffman huffman_codes[] = {
-	{ 48, "\x0", 5 },
-	{ 49, "\x1", 5 },
-	{ 50, "\x2", 5 },
-	{ 97, "\x3", 5 },
-	{ 99, "\x4", 5 },
-	{ 101, "\x5", 5 },
-	{ 105, "\x6", 5 },
-	{ 111, "\x7", 5 },
-	{ 115, "\x8", 5 },
-	{ 116, "\x9", 5 },
-	{ 32, "\x14", 6 },
-	{ 37, "\x15", 6 },
-	{ 45, "\x16", 6 },
-	{ 46, "\x17", 6 },
-	{ 47, "\x18", 6 },
-	{ 51, "\x19", 6 },
-	{ 52, "\x1a", 6 },
-	{ 53, "\x1b", 6 },
-	{ 54, "\x1c", 6 },
-	{ 55, "\x1d", 6 },
-	{ 56, "\x1e", 6 },
-	{ 57, "\x1f", 6 },
-	{ 61, "\x20", 6 },
-	{ 65, "\x21", 6 },
-	{ 95, "\x22", 6 },
-	{ 98, "\x23", 6 },
-	{ 100, "\x24", 6 },
-	{ 102, "\x25", 6 },
-	{ 103, "\x26", 6 },
-	{ 104, "\x27", 6 },
-	{ 108, "\x28", 6 },
-	{ 109, "\x29", 6 },
-	{ 110, "\x2a", 6 },
-	{ 112, "\x2b", 6 },
-	{ 114, "\x2c", 6 },
-	{ 117, "\x2d", 6 },
-	{ 58, "\x5c", 7 },
-	{ 66, "\x5d", 7 },
-	{ 67, "\x5e", 7 },
-	{ 68, "\x5f", 7 },
-	{ 69, "\x60", 7 },
-	{ 70, "\x61", 7 },
-	{ 71, "\x62", 7 },
-	{ 72, "\x63", 7 },
-	{ 73, "\x64", 7 },
-	{ 74, "\x65", 7 },
-	{ 75, "\x66", 7 },
-	{ 76, "\x67", 7 },
-	{ 77, "\x68", 7 },
-	{ 78, "\x69", 7 },
-	{ 79, "\x6a", 7 },
-	{ 80, "\x6b", 7 },
-	{ 81, "\x6c", 7 },
-	{ 82, "\x6d", 7 },
-	{ 83, "\x6e", 7 },
-	{ 84, "\x6f", 7 },
-	{ 85, "\x70", 7 },
-	{ 86, "\x71", 7 },
-	{ 87, "\x72", 7 },
-	{ 89, "\x73", 7 },
-	{ 106, "\x74", 7 },
-	{ 107, "\x75", 7 },
-	{ 113, "\x76", 7 },
-	{ 118, "\x77", 7 },
-	{ 119, "\x78", 7 },
-	{ 120, "\x79", 7 },
-	{ 121, "\x7a", 7 },
-	{ 122, "\x7b", 7 },
-	{ 38, "\xf8", 8 },
-	{ 42, "\xf9", 8 },
-	{ 44, "\xfa", 8 },
-	{ 59, "\xfb", 8 },
-	{ 88, "\xfc", 8 },
-	{ 90, "\xfd", 8 },
-	{ 33, "\x3f\x8", 10 },
-	{ 34, "\x3f\x9", 10 },
-	{ 40, "\x3f\xa", 10 },
-	{ 41, "\x3f\xb", 10 },
-	{ 63, "\x3f\xc", 10 },
-	{ 39, "\x7f\xa", 11 },
-	{ 43, "\x7f\xb", 11 },
-	{ 124, "\x7f\xc", 11 },
-	{ 35, "\xff\xa", 12 },
-	{ 62, "\xff\xb", 12 },
-	{ 0, "\x1f\xf8", 13 },
-	{ 36, "\x1f\xf9", 13 },
-	{ 64, "\x1f\xfa", 13 },
-	{ 91, "\x1f\xfb", 13 },
-	{ 93, "\x1f\xfc", 13 },
-	{ 126, "\x1f\xfd", 13 },
-	{ 94, "\x3f\xfc", 14 },
-	{ 125, "\x3f\xfd", 14 },
-	{ 60, "\x7f\xfc", 15 },
-	{ 96, "\x7f\xfd", 15 },
-	{ 123, "\x7f\xfe", 15 },
-	{ 92, "\x7f\xff\x0", 19 },
-	{ 195, "\x7f\xff\x1", 19 },
-	{ 208, "\x7f\xff\x2", 19 },
-	{ 128, "\xff\xfe\x6", 20 },
-	{ 130, "\xff\xfe\x7", 20 },
-	{ 131, "\xff\xfe\x8", 20 },
-	{ 162, "\xff\xfe\x9", 20 },
-	{ 184, "\xff\xfe\xa", 20 },
-	{ 194, "\xff\xfe\xb", 20 },
-	{ 224, "\xff\xfe\xc", 20 },
-	{ 226, "\xff\xfe\xd", 20 },
-	{ 153, "\x1f\xff\xdc", 21 },
-	{ 161, "\x1f\xff\xdd", 21 },
-	{ 167, "\x1f\xff\xde", 21 },
-	{ 172, "\x1f\xff\xdf", 21 },
-	{ 176, "\x1f\xff\xe0", 21 },
-	{ 177, "\x1f\xff\xe1", 21 },
-	{ 179, "\x1f\xff\xe2", 21 },
-	{ 209, "\x1f\xff\xe3", 21 },
-	{ 216, "\x1f\xff\xe4", 21 },
-	{ 217, "\x1f\xff\xe5", 21 },
-	{ 227, "\x1f\xff\xe6", 21 },
-	{ 229, "\x1f\xff\xe7", 21 },
-	{ 230, "\x1f\xff\xe8", 21 },
-	{ 129, "\x3f\xff\xd2", 22 },
-	{ 132, "\x3f\xff\xd3", 22 },
-	{ 133, "\x3f\xff\xd4", 22 },
-	{ 134, "\x3f\xff\xd5", 22 },
-	{ 136, "\x3f\xff\xd6", 22 },
-	{ 146, "\x3f\xff\xd7", 22 },
-	{ 154, "\x3f\xff\xd8", 22 },
-	{ 156, "\x3f\xff\xd9", 22 },
-	{ 160, "\x3f\xff\xda", 22 },
-	{ 163, "\x3f\xff\xdb", 22 },
-	{ 164, "\x3f\xff\xdc", 22 },
-	{ 169, "\x3f\xff\xdd", 22 },
-	{ 170, "\x3f\xff\xde", 22 },
-	{ 173, "\x3f\xff\xdf", 22 },
-	{ 178, "\x3f\xff\xe0", 22 },
-	{ 181, "\x3f\xff\xe1", 22 },
-	{ 185, "\x3f\xff\xe2", 22 },
-	{ 186, "\x3f\xff\xe3", 22 },
-	{ 187, "\x3f\xff\xe4", 22 },
-	{ 189, "\x3f\xff\xe5", 22 },
-	{ 190, "\x3f\xff\xe6", 22 },
-	{ 196, "\x3f\xff\xe7", 22 },
-	{ 198, "\x3f\xff\xe8", 22 },
-	{ 228, "\x3f\xff\xe9", 22 },
-	{ 232, "\x3f\xff\xea", 22 },
-	{ 233, "\x3f\xff\xeb", 22 },
-	{ 1, "\x7f\xff\xd8", 23 },
-	{ 135, "\x7f\xff\xd9", 23 },
-	{ 137, "\x7f\xff\xda", 23 },
-	{ 138, "\x7f\xff\xdb", 23 },
-	{ 139, "\x7f\xff\xdc", 23 },
-	{ 140, "\x7f\xff\xdd", 23 },
-	{ 141, "\x7f\xff\xde", 23 },
-	{ 143, "\x7f\xff\xdf", 23 },
-	{ 147, "\x7f\xff\xe0", 23 },
-	{ 149, "\x7f\xff\xe1", 23 },
-	{ 150, "\x7f\xff\xe2", 23 },
-	{ 151, "\x7f\xff\xe3", 23 },
-	{ 152, "\x7f\xff\xe4", 23 },
-	{ 155, "\x7f\xff\xe5", 23 },
-	{ 157, "\x7f\xff\xe6", 23 },
-	{ 158, "\x7f\xff\xe7", 23 },
-	{ 165, "\x7f\xff\xe8", 23 },
-	{ 166, "\x7f\xff\xe9", 23 },
-	{ 168, "\x7f\xff\xea", 23 },
-	{ 174, "\x7f\xff\xeb", 23 },
-	{ 175, "\x7f\xff\xec", 23 },
-	{ 180, "\x7f\xff\xed", 23 },
-	{ 182, "\x7f\xff\xee", 23 },
-	{ 183, "\x7f\xff\xef", 23 },
-	{ 188, "\x7f\xff\xf0", 23 },
-	{ 191, "\x7f\xff\xf1", 23 },
-	{ 197, "\x7f\xff\xf2", 23 },
-	{ 231, "\x7f\xff\xf3", 23 },
-	{ 239, "\x7f\xff\xf4", 23 },
-	{ 9, "\xff\xff\xea", 24 },
-	{ 142, "\xff\xff\xeb", 24 },
-	{ 144, "\xff\xff\xec", 24 },
-	{ 145, "\xff\xff\xed", 24 },
-	{ 148, "\xff\xff\xee", 24 },
-	{ 159, "\xff\xff\xef", 24 },
-	{ 171, "\xff\xff\xf0", 24 },
-	{ 206, "\xff\xff\xf1", 24 },
-	{ 215, "\xff\xff\xf2", 24 },
-	{ 225, "\xff\xff\xf3", 24 },
-	{ 236, "\xff\xff\xf4", 24 },
-	{ 237, "\xff\xff\xf5", 24 },
-	{ 199, "\x1f\xff\xfe\xc", 25 },
-	{ 207, "\x1f\xff\xfe\xd", 25 },
-	{ 234, "\x1f\xff\xfe\xe", 25 },
-	{ 235, "\x1f\xff\xfe\xf", 25 },
-	{ 192, "\x3f\xff\xfe\x0", 26 },
-	{ 193, "\x3f\xff\xfe\x1", 26 },
-	{ 200, "\x3f\xff\xfe\x2", 26 },
-	{ 201, "\x3f\xff\xfe\x3", 26 },
-	{ 202, "\x3f\xff\xfe\x4", 26 },
-	{ 205, "\x3f\xff\xfe\x5", 26 },
-	{ 210, "\x3f\xff\xfe\x6", 26 },
-	{ 213, "\x3f\xff\xfe\x7", 26 },
-	{ 218, "\x3f\xff\xfe\x8", 26 },
-	{ 219, "\x3f\xff\xfe\x9", 26 },
-	{ 238, "\x3f\xff\xfe\xa", 26 },
-	{ 240, "\x3f\xff\xfe\xb", 26 },
-	{ 242, "\x3f\xff\xfe\xc", 26 },
-	{ 243, "\x3f\xff\xfe\xd", 26 },
-	{ 255, "\x3f\xff\xfe\xe", 26 },
-	{ 203, "\x7f\xff\xfd\xe", 27 },
-	{ 204, "\x7f\xff\xfd\xf", 27 },
-	{ 211, "\x7f\xff\xfe\x0", 27 },
-	{ 212, "\x7f\xff\xfe\x1", 27 },
-	{ 214, "\x7f\xff\xfe\x2", 27 },
-	{ 221, "\x7f\xff\xfe\x3", 27 },
-	{ 222, "\x7f\xff\xfe\x4", 27 },
-	{ 223, "\x7f\xff\xfe\x5", 27 },
-	{ 241, "\x7f\xff\xfe\x6", 27 },
-	{ 244, "\x7f\xff\xfe\x7", 27 },
-	{ 245, "\x7f\xff\xfe\x8", 27 },
-	{ 246, "\x7f\xff\xfe\x9", 27 },
-	{ 247, "\x7f\xff\xfe\xa", 27 },
-	{ 248, "\x7f\xff\xfe\xb", 27 },
-	{ 250, "\x7f\xff\xfe\xc", 27 },
-	{ 251, "\x7f\xff\xfe\xd", 27 },
-	{ 252, "\x7f\xff\xfe\xe", 27 },
-	{ 253, "\x7f\xff\xfe\xf", 27 },
-	{ 254, "\x7f\xff\xff\x0", 27 },
-	{ 2, "\xff\xff\xfe\x2", 28 },
-	{ 3, "\xff\xff\xfe\x3", 28 },
-	{ 4, "\xff\xff\xfe\x4", 28 },
-	{ 5, "\xff\xff\xfe\x5", 28 },
-	{ 6, "\xff\xff\xfe\x6", 28 },
-	{ 7, "\xff\xff\xfe\x7", 28 },
-	{ 8, "\xff\xff\xfe\x8", 28 },
-	{ 11, "\xff\xff\xfe\x9", 28 },
-	{ 12, "\xff\xff\xfe\xa", 28 },
-	{ 14, "\xff\xff\xfe\xb", 28 },
-	{ 15, "\xff\xff\xfe\xc", 28 },
-	{ 16, "\xff\xff\xfe\xd", 28 },
-	{ 17, "\xff\xff\xfe\xe", 28 },
-	{ 18, "\xff\xff\xfe\xf", 28 },
-	{ 19, "\xff\xff\xff\x0", 28 },
-	{ 20, "\xff\xff\xff\x1", 28 },
-	{ 21, "\xff\xff\xff\x2", 28 },
-	{ 23, "\xff\xff\xff\x3", 28 },
-	{ 24, "\xff\xff\xff\x4", 28 },
-	{ 25, "\xff\xff\xff\x5", 28 },
-	{ 26, "\xff\xff\xff\x6", 28 },
-	{ 27, "\xff\xff\xff\x7", 28 },
-	{ 28, "\xff\xff\xff\x8", 28 },
-	{ 29, "\xff\xff\xff\x9", 28 },
-	{ 30, "\xff\xff\xff\xa", 28 },
-	{ 31, "\xff\xff\xff\xb", 28 },
-	{ 127, "\xff\xff\xff\xc", 28 },
-	{ 220, "\xff\xff\xff\xd", 28 },
-	{ 249, "\xff\xff\xff\xe", 28 },
-	{ 10, "\x3f\xff\xff\xfc", 30 },
-	{ 13, "\x3f\xff\xfe\xfd", 30 },
-	{ 22, "\x3f\xff\xff\xfe", 30 },
-	{ 256, "\x3f\xff\xff\xff", 30 },
-	{ -1, NULL, -1 },
+	{ 48,		0x0,				5 },
+	{ 49, 		0x1, 				5 },
+	{ 50, 		0x2, 				5 },
+	{ 97, 		0x3, 				5 },
+	{ 99, 		0x4, 				5 },
+	{ 101,		0x5, 				5 },
+	{ 105, 		0x6, 				5 },
+	{ 111, 		0x7, 				5 },
+	{ 115, 		0x8, 				5 },
+	{ 116, 		0x9, 				5 },
+	{ 32,		0x14,				6 },
+	{ 37, 		0x15, 				6 },
+	{ 45, 		0x16, 				6 },
+	{ 46, 		0x17, 				6 },
+	{ 47, 		0x18, 				6 },
+	{ 51, 		0x19, 				6 },
+	{ 52, 		0x1a, 				6 },
+	{ 53, 		0x1b, 				6 },
+	{ 54, 		0x1c, 				6 },
+	{ 55, 		0x1d, 				6 },
+	{ 56, 		0x1e, 				6 },
+	{ 57, 		0x1f, 				6 },
+	{ 61, 		0x20, 				6 },
+	{ 65, 		0x21, 				6 },
+	{ 95, 		0x22, 				6 },
+	{ 98, 		0x23, 				6 },
+	{ 100,		0x24, 				6 },
+	{ 102, 		0x25, 				6 },
+	{ 103, 		0x26, 				6 },
+	{ 104, 		0x27, 				6 },
+	{ 108, 		0x28, 				6 },
+	{ 109, 		0x29, 				6 },
+	{ 110, 		0x2a, 				6 },
+	{ 112, 		0x2b, 				6 },
+	{ 114, 		0x2c, 				6 },
+	{ 117, 		0x2d, 				6 },
+	{ 58,		0x5c, 				7 },
+	{ 66, 		0x5d, 				7 },
+	{ 67, 		0x5e, 				7 },
+	{ 68, 		0x5f, 				7 },
+	{ 69,		0x60, 				7 },
+	{ 70,		0x61, 				7 },
+	{ 71, 		0x62, 				7 },
+	{ 72, 		0x63, 				7 },
+	{ 73, 		0x64, 				7 },
+	{ 74,		0x65, 				7 },
+	{ 75, 		0x66, 				7 },
+	{ 76, 		0x67, 				7 },
+	{ 77, 		0x68, 				7 },
+	{ 78, 		0x69, 				7 },
+	{ 79, 		0x6a, 				7 },
+	{ 80, 		0x6b, 				7 },
+	{ 81, 		0x6c, 				7 },
+	{ 82, 		0x6d, 				7 },
+	{ 83, 		0x6e, 				7 },
+	{ 84, 		0x6f, 				7 },
+	{ 85, 		0x70, 				7 },
+	{ 86, 		0x71, 				7 },
+	{ 87, 		0x72, 				7 },
+	{ 89, 		0x73, 				7 },
+	{ 106,		0x74, 				7 },
+	{ 107, 		0x75, 				7 },
+	{ 113, 		0x76, 				7 },
+	{ 118, 		0x77, 				7 },
+	{ 119, 		0x78, 				7 },
+	{ 120, 		0x79, 				7 },
+	{ 121, 		0x7a, 				7 },
+	{ 122, 		0x7b, 				7 },
+	{ 38,		0xf8, 				8 },
+	{ 42, 		0xf9, 				8 },
+	{ 44, 		0xfa, 				8 },
+	{ 59, 		0xfb, 				8 },
+	{ 88, 		0xfc, 				8 },
+	{ 90, 		0xfd, 				8 },
+	{ 33, 		0x3f8,				10 },
+	{ 34, 		0x3f9, 				10 },
+	{ 40, 		0x3fa, 				10 },
+	{ 41, 		0x3fb, 				10 },
+	{ 63, 		0x3fc, 				10 },
+	{ 39, 		0x7fa, 				11 },
+	{ 43, 		0x7fb, 				11 },
+	{ 124,		0x7fc, 				11 },
+	{ 35,		0xffa, 				12 },
+	{ 62, 		0xffb, 				12 },
+	{ 0,		0x1ff8,				13 },
+	{ 36,		0x1ff9, 			13 },
+	{ 64, 		0x1ffa, 			13 },
+	{ 91, 		0x1ffb, 			13 },
+	{ 93, 		0x1ffc, 			13 },
+	{ 126,		0x1ffd, 			13 },
+	{ 94,		0x3ffc, 			14 },
+	{ 125,		0x3ffd, 			14 },
+	{ 60,		0x7ffc, 			15 },
+	{ 96,		0x7ffd, 			15 },
+	{ 123,		0x7ffe, 			15 },
+	{ 92,		0x7fff0,			19 },
+	{ 195,		0x7fff1, 			19 },
+	{ 208,		0x7fff2, 			19 },
+	{ 128,		0xfffe6,			20 },
+	{ 130,		0xfffe7,			20 },
+	{ 131,		0xfffe8, 			20 },
+	{ 162,		0xfffe9, 			20 },
+	{ 184,		0xfffea, 			20 },
+	{ 194,		0xfffeb, 			20 },
+	{ 224,		0xfffec, 			20 },
+	{ 226,		0xfffed, 			20 },
+	{ 153,		0x1fffdc,			21 },
+	{ 161,		0x1fffdd, 			21 },
+	{ 167,		0x1fffde, 			21 },
+	{ 172,		0x1fffdf, 			21 },
+	{ 176,		0x1fffe0, 			21 },
+	{ 177,		0x1fffe1, 			21 },
+	{ 179,		0x1fffe2, 			21 },
+	{ 209,		0x1fffe3, 			21 },
+	{ 216,		0x1fffe4, 			21 },
+	{ 217, 		0x1fffe5, 			21 },
+	{ 227, 		0x1fffe6, 			21 },
+	{ 229, 		0x1fffe7, 			21 },
+	{ 230, 		0x1fffe8, 			21 },
+	{ 129, 		0x3fffd2, 			22 },
+	{ 132, 		0x3fffd3, 			22 },
+	{ 133, 		0x3fffd4, 			22 },
+	{ 134, 		0x3fffd5, 			22 },
+	{ 136, 		0x3fffd6, 			22 },
+	{ 146, 		0x3fffd7, 			22 },
+	{ 154, 		0x3fffd8, 			22 },
+	{ 156, 		0x3fffd9, 			22 },
+	{ 160, 		0x3fffda, 			22 },
+	{ 163, 		0x3fffdb, 			22 },
+	{ 164, 		0x3fffdc, 			22 },
+	{ 169, 		0x3fffdd, 			22 },
+	{ 170, 		0x3fffde, 			22 },
+	{ 173, 		0x3fffdf, 			22 },
+	{ 178, 		0x3fffe0, 			22 },
+	{ 181, 		0x3fffe1, 			22 },
+	{ 185, 		0x3fffe2, 			22 },
+	{ 186, 		0x3fffe3, 			22 },
+	{ 187, 		0x3fffe4, 			22 },
+	{ 189, 		0x3fffe5, 			22 },
+	{ 190, 		0x3fffe6, 			22 },
+	{ 196, 		0x3fffe7, 			22 },
+	{ 198, 		0x3fffe8, 			22 },
+	{ 228, 		0x3fffe9, 			22 },
+	{ 232, 		0x3fffea, 			22 },
+	{ 233, 		0x3fffeb, 			22 },
+	{ 1,		0x7fffd8, 			23 },
+	{ 135,		0x7fffd9, 			23 },
+	{ 137, 		0x7fffda, 			23 },
+	{ 138, 		0x7fffdb, 			23 },
+	{ 139, 		0x7fffdc, 			23 },
+	{ 140, 		0x7fffdd, 			23 },
+	{ 141, 		0x7fffde, 			23 },
+	{ 143, 		0x7fffdf, 			23 },
+	{ 147, 		0x7fffe0, 			23 },
+	{ 149, 		0x7fffe1, 			23 },
+	{ 150, 		0x7fffe2, 			23 },
+	{ 151, 		0x7fffe3, 			23 },
+	{ 152, 		0x7fffe4, 			23 },
+	{ 155, 		0x7fffe5, 			23 },
+	{ 157, 		0x7fffe6, 			23 },
+	{ 158, 		0x7fffe7, 			23 },
+	{ 165, 		0x7fffe8, 			23 },
+	{ 166, 		0x7fffe9, 			23 },
+	{ 168, 		0x7fffea, 			23 },
+	{ 174, 		0x7fffeb, 			23 },
+	{ 175, 		0x7fffec, 			23 },
+	{ 180, 		0x7fffed, 			23 },
+	{ 182, 		0x7fffee, 			23 },
+	{ 183, 		0x7fffef, 			23 },
+	{ 188, 		0x7ffff0, 			23 },
+	{ 191, 		0x7ffff1, 			23 },
+	{ 197, 		0x7ffff2, 			23 },
+	{ 231, 		0x7ffff3, 			23 },
+	{ 239, 		0x7ffff4, 			23 },
+	{ 9,		0xffffea,			24 },
+	{ 142,		0xffffeb,			24 },
+	{ 144, 		0xffffec, 			24 },
+	{ 145, 		0xffffed, 			24 },
+	{ 148, 		0xffffee, 			24 },
+	{ 159, 		0xffffef, 			24 },
+	{ 171, 		0xfffff0, 			24 },
+	{ 206, 		0xfffff1, 			24 },
+	{ 215, 		0xfffff2, 			24 },
+	{ 225, 		0xfffff3, 			24 },
+	{ 236, 		0xfffff4, 			24 },
+	{ 237, 		0xfffff5, 			24 },
+	{ 199, 		0x1ffffec,			25 },
+	{ 207, 		0x1ffffed, 			25 },
+	{ 234, 		0x1ffffee, 			25 },
+	{ 235, 		0x1ffffef, 			25 },
+	{ 192, 		0x3ffffe0, 			26 },
+	{ 193, 		0x3ffffe1, 			26 },
+	{ 200, 		0x3ffffe2, 			26 },
+	{ 201, 		0x3ffffe3, 			26 },
+	{ 202, 		0x3ffffe4, 			26 },
+	{ 205, 		0x3ffffe5, 			26 },
+	{ 210, 		0x3ffffe6, 			26 },
+	{ 213, 		0x3ffffe7, 			26 },
+	{ 218, 		0x3ffffe8, 			26 },
+	{ 219, 		0x3ffffe9, 			26 },
+	{ 238, 		0x3ffffea, 			26 },
+	{ 240, 		0x3ffffeb, 			26 },
+	{ 242, 		0x3ffffec, 			26 },
+	{ 243, 		0x3ffffed, 			26 },
+	{ 255, 		0x3ffffee, 			26 },
+	{ 203, 		0x7ffffde, 			27 },
+	{ 204, 		0x7ffffdf, 			27 },
+	{ 211, 		0x7ffffe0, 			27 },
+	{ 212, 		0x7ffffe1, 			27 },
+	{ 214, 		0x7ffffe2, 			27 },
+	{ 221, 		0x7ffffe3, 			27 },
+	{ 222, 		0x7ffffe4, 			27 },
+	{ 223, 		0x7ffffe5, 			27 },
+	{ 241, 		0x7ffffe6, 			27 },
+	{ 244, 		0x7ffffe7, 			27 },
+	{ 245, 		0x7ffffe8, 			27 },
+	{ 246, 		0x7ffffe9, 			27 },
+	{ 247, 		0x7ffffea, 			27 },
+	{ 248, 		0x7ffffeb, 			27 },
+	{ 250, 		0x7ffffec, 			27 },
+	{ 251, 		0x7ffffed, 			27 },
+	{ 252, 		0x7ffffee, 			27 },
+	{ 253, 		0x7ffffef, 			27 },
+	{ 254, 		0x7fffff0, 			27 },
+	{ 2,		0xfffffe2, 			28 },
+	{ 3, 		0xfffffe3, 			28 },
+	{ 4, 		0xfffffe4, 			28 },
+	{ 5, 		0xfffffe5, 			28 },
+	{ 6, 		0xfffffe6, 			28 },
+	{ 7, 		0xfffffe7, 			28 },
+	{ 8, 		0xfffffe8, 			28 },
+	{ 11,		0xfffffe9, 			28 },
+	{ 12, 		0xfffffea, 			28 },
+	{ 14, 		0xfffffeb, 			28 },
+	{ 15, 		0xfffffec, 			28 },
+	{ 16, 		0xfffffed, 			28 },
+	{ 17, 		0xfffffee, 			28 },
+	{ 18, 		0xfffffef, 			28 },
+	{ 19, 		0xffffff0, 			28 },
+	{ 20, 		0xffffff1, 			28 },
+	{ 21, 		0xffffff2, 			28 },
+	{ 23, 		0xffffff3, 			28 },
+	{ 24, 		0xffffff4, 			28 },
+	{ 25, 		0xffffff5, 			28 },
+	{ 26, 		0xffffff6, 			28 },
+	{ 27, 		0xffffff7, 			28 },
+	{ 28, 		0xffffff8, 			28 },
+	{ 29, 		0xffffff9, 			28 },
+	{ 30, 		0xffffffa, 			28 },
+	{ 31, 		0xffffffb, 			28 },
+	{ 127,		0xffffffc, 			28 },
+	{ 220, 		0xffffffd, 			28 },
+	{ 249, 		0xffffffe, 			28 },
+	{ 10,		0x3ffffffc,			30 },
+	{ 13, 		0x3ffffefd, 		30 },
+	{ 22, 		0x3ffffffe, 		30 },
+	{ 256,		0x3fffffff,			30 },
+	{ -1,		0x0,				-1 },
 };
 
 static inline uint8_t __fly_huffman_code_digit(uint8_t c)
@@ -3578,41 +3656,10 @@ static inline uint8_t __fly_huffman_code_digit(uint8_t c)
 
 static inline uint8_t fly_huffman_decode_k_bit(int k, struct fly_hv2_huffman *code)
 {
-//	uint32_t divided = k/FLY_HV2_OCTET_LEN;
-	__unused uint8_t spbyte, spbit, digit=0, ldigit=digit;
-	uint32_t i;
-	ssize_t j;
+	uint64_t spbit;
 
-	//for (ptr=(char *) code->code_as_hex; ptr; ptr++){
-
-	j = (ssize_t) code->len_in_bits;
-	for (i=0; i<code->len_in_bits; i+=FLY_HV2_OCTET_LEN){
-		digit += __fly_huffman_code_digit((uint8_t) *(code->code_as_hex+i));
-		if (k >= digit && k <= (int) code->len_in_bits-1){
-			return 0x0 == 0x0;
-		}else if (k >= (int) (i+1)*FLY_HV2_OCTET_LEN)
-			continue;
-		else{
-			return ((uint8_t) *(code->code_as_hex+i) & (1 << (j-k%FLY_HV2_OCTET_LEN-1))) == 0x0;
-		}
-	}
-	return 0x0 == 0x0;
-
-	if ((uint32_t) k >= digit)
-		return 0x0 == 0x0;
-	else{
-		uint8_t bit;
-		bit = 1 << (ldigit - (digit-k));
-		spbit = (code->code_as_hex[i/FLY_HV2_OCTET_LEN] & bit);
-		return spbit == 0x0;
-	}
-//	if ((divided*FLY_HV2_OCTET_LEN + FLY_HV2_OCTET_LEN) > code->len_in_bits)
-//		spbyte = code->len_in_bits%FLY_HV2_OCTET_LEN;
-//	else
-//		spbyte = FLY_HV2_OCTET_LEN;
-//
-//	spbit = code->code_as_hex[k/FLY_HV2_OCTET_LEN] & (1<<(spbyte-1-k%FLY_HV2_OCTET_LEN));
-	return spbit == 0x0;
+	spbit = code->code_as_hex & (1<<(code->len_in_bits-k-1));
+	return spbit ? 1 : 0;
 }
 
 static inline uint8_t fly_huffman_decode_buf_bit(uint8_t j, uint8_t *ptr)
@@ -3620,7 +3667,7 @@ static inline uint8_t fly_huffman_decode_buf_bit(uint8_t j, uint8_t *ptr)
 	uint8_t spbit;
 
 	spbit = *ptr & (1<<(FLY_HV2_OCTET_LEN-1-j));
-	return spbit == 0x0;
+	return spbit ? 1 : 0;
 }
 
 static inline uint8_t fly_huffman_last_padding(uint8_t j, uint8_t *ptr)
@@ -3631,7 +3678,7 @@ static inline uint8_t fly_huffman_last_padding(uint8_t j, uint8_t *ptr)
 	return eos == ((1<<(FLY_HV2_OCTET_LEN-j))-1);
 }
 
-int fly_hv2_huffman_decode(fly_pool_t *pool, fly_buffer_t **res, __unused uint32_t *decode_len, uint8_t *encoded, uint32_t len, fly_buffer_c *__c)
+int fly_hv2_huffman_decode(fly_pool_t *pool, fly_buffer_t **res, uint32_t *decode_len, uint8_t *encoded, uint32_t len, fly_buffer_c *__c)
 {
 #define FLY_HUFFMAN_DECODE_BUFFER_INITLEN			1
 #define FLY_HUFFMAN_DECODE_BUFFER_MAXLEN			100
@@ -3656,13 +3703,13 @@ int fly_hv2_huffman_decode(fly_pool_t *pool, fly_buffer_t **res, __unused uint32
 			break;
 		}
 
-		for (code=huffman_codes; code->code_as_hex; code++){
+		for (code=huffman_codes; code->len_in_bits>0; code++){
 			step = 0;
 			int j=start_bit;
 			fly_buffer_c *p=__c;
 			uint8_t *tmp=ptr;
 
-			for (uint32_t k=0; k<code->len_in_bits; k++){
+			for (int k=0; k<code->len_in_bits; k++){
 				if (!(fly_huffman_decode_k_bit(k, code) == fly_huffman_decode_buf_bit(j, tmp))){
 					goto next_code;
 				}
@@ -3686,9 +3733,10 @@ int fly_hv2_huffman_decode(fly_pool_t *pool, fly_buffer_t **res, __unused uint32
 next_code:
 			continue;
 		}
-		if (!code->code_as_hex)
+		if (code->len_in_bits <= 0)
 			FLY_NOT_COME_HERE
 	}
+	*decode_len = buf->use_len;
 	*res = buf;
 
 	return 0;
@@ -4082,19 +4130,28 @@ int fly_hv2_response_event(fly_event_t *e)
 			return -1;
 		if (enctype->encode(__de) == -1)
 			return -1;
-	} else if (res->body)
+
+		res->response_len = __de->contlen;
+	} else if (res->body){
+		res->response_len = res->body->body_len;
 		res->type = FLY_RESPONSE_TYPE_BODY;
-	else if (res->pf)
+	}else if (res->pf){
+		res->response_len = res->count;
 		res->type = FLY_RESPONSE_TYPE_PATH_FILE;
-	else if (res->rcbs)
+	}else if (res->rcbs){
+		res->response_len = res->count;
 		res->type = FLY_RESPONSE_TYPE_DEFAULT;
-	else
+	}else{
+		res->response_len = 0;
 		res->type = FLY_RESPONSE_TYPE_NOCONTENT;
+	}
+
 
 send_header:
 	if (fly_send_headers_frame(stream, res))
 		return -1;
 	e->read_or_write |= FLY_WRITE;
+	e->event_data = (void *) res->request->connect;
 	goto register_handler;
 
 send_body:
@@ -4114,6 +4171,10 @@ log:
 	if (stream->id > stream->state->max_handled_sid)
 		stream->state->max_handled_sid = stream->id;
 	stream->end_request_response = true;
+
+	if (stream->stream_state == FLY_HV2_STREAM_STATE_CLOSED)
+		if (fly_hv2_close_stream(stream) == -1)
+			return -1;
 register_handler:
 	e->read_or_write |= FLY_READ;
 	e->flag = FLY_MODIFY;

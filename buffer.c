@@ -112,18 +112,18 @@ fly_buf_p fly_update_chain(fly_buffer_c **c, fly_buf_p p, size_t len)
 	if ((*c)->lptr >= p+len)
 		return p+len;
 	else{
-		ssize_t __len = (p+len)-(*c)->lptr;
+		ssize_t __len = (p+len)-(*c)->lptr-1;
 		while(true){
 			*c=(*c)->next;
 			if (!*c)
 				return NULL;
-			if ((__len - (ssize_t) (*c)->len) < 0)
+			if ((__len - (ssize_t) (*c)->len) <= 0)
 				break;
 			else
 				__len -= (ssize_t) (*c)->len;
 		}
 
-		return (*c)->use_ptr+__len-1;
+		return (*c)->use_ptr+__len;
 	}
 }
 

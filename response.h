@@ -93,6 +93,7 @@ struct fly_response{
 		FLY_RESPONSE_TYPE_DEFAULT,
 		FLY_RESPONSE_TYPE_NOCONTENT
 	} type;
+	size_t						response_len;
 	void						*send_ptr;
 	int							 byte_from_start;
 	size_t						 send_len;
@@ -108,8 +109,8 @@ struct fly_response{
 		long					datal;
 	};
 
-	fly_bit_t					 encoded: 1;
-	fly_bit_t					 blocking: 1;
+	fly_bit_t					encoded: 1;
+	fly_bit_t					blocking: 1;
 };
 typedef struct fly_response fly_response_t;
 
