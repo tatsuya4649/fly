@@ -44,9 +44,9 @@ fly_context_t *fly_context_init(void)
 	return ctx;
 }
 
-int fly_context_release(fly_context_t *ctx)
+void fly_context_release(fly_context_t *ctx)
 {
-	return fly_delete_pool(&ctx->pool);
+	fly_delete_pool(&ctx->pool);
 }
 
 /* TODO: configuration file add. */
@@ -155,7 +155,7 @@ int fly_send_default_content(fly_event_t *e, fly_rcbs_t *__r)
 
 	count = sb.st_size - total;
 	while(total < count){
-		if (FLY_CONNECT_ON_SSL(res->request)){
+		if (FLY_CONNECT_ON_SSL(res->request->connect)){
 #define FLY_SEND_BUF_LENGTH			(4096)
 			//numsend = SSL_sendfile(ssl, __r->fd, offset, count-total, 0);
 			SSL *ssl=res->request->connect->ssl;
@@ -189,6 +189,7 @@ int fly_send_default_content(fly_event_t *e, fly_rcbs_t *__r)
 				/* unknown error */
 				return FLY_RESPONSE_ERROR;
 			}
+			*offset += numsend;
 		}else{
 			numsend = sendfile(e->fd, __r->fd, offset, count-total);
 			if (FLY_BLOCKING(numsend)){

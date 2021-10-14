@@ -63,6 +63,8 @@ typedef enum status_code_type fly_stcode_t;
 #define FLY_PATH_FROM_STATIC(p)			(__FLY_PATH_FROM_ROOT(static) "/" # p)
 
 #include "mount.h"
+struct fly_response_content_by_stcode;
+typedef struct fly_response_content_by_stcode fly_rcbs_t;
 struct fly_response{
 	/* use pool: pool, header, body */
 	fly_pool_t					*pool;
@@ -79,29 +81,52 @@ struct fly_response{
 		FLY_RESPONSE_CRLF,
 		FLY_RESPONSE_BODY,
 		FLY_RESPONSE_RELEASE,
+		/* for v2 */
+		FLY_RESPONSE_FRAME_HEADER,
+		FLY_RESPONSE_DATA_FRAME,
 	} fase;
+
+	enum{
+		FLY_RESPONSE_TYPE_ENCODED,
+		FLY_RESPONSE_TYPE_BODY,
+		FLY_RESPONSE_TYPE_PATH_FILE,
+		FLY_RESPONSE_TYPE_DEFAULT,
+		FLY_RESPONSE_TYPE_NOCONTENT
+	} type;
+	size_t						response_len;
 	void						*send_ptr;
 	int							 byte_from_start;
+	size_t						 send_len;
 	struct fly_mount_parts_file *pf;
 	off_t						 offset;
 	size_t						 count;
 	fly_encoding_t				*encoding;
 	fly_de_t					*de;			/* use response pool */
+	fly_rcbs_t					*rcbs;
+	union{
+		int						datai;
+		void *					datav;
+		long					datal;
+	};
 
-	fly_bit_t					 encoded: 1;
+	fly_bit_t					encoded: 1;
+	fly_bit_t					blocking: 1;
 };
 typedef struct fly_response fly_response_t;
+#define fly_disconnect_from_response(res)		((res)->request->connect->peer_closed = true)
 
 fly_response_t *fly_response_init(void);
-int fly_response_release(fly_response_t *response);
+void fly_response_release(fly_response_t *response);
 
 typedef struct{
 	int status_code;
 	enum status_code_type type;
+	const char *status_code_str;
 	char *explain;
 	char *default_path;
 	char **required_header;
 } fly_status_code;
+#define FLY_STATUS_CODE(n)			n, _ ## n , #n
 
 char *fly_stcode_explain(fly_stcode_t type);
 
@@ -125,6 +150,15 @@ int fly_404_event(fly_event_t *e, fly_request_t *req);
 int fly_405_event(fly_event_t *e, fly_request_t *req);
 int fly_414_event(fly_event_t *e, fly_request_t *req);
 int fly_415_event(fly_event_t *e, fly_request_t *req);
+
+fly_response_t *fly_304_response(fly_request_t *req, struct fly_mount_parts_file *pf);
+fly_response_t *fly_400_response(fly_request_t *req);
+fly_response_t *fly_404_response(fly_request_t *req);
+fly_response_t *fly_405_response(fly_request_t *req);
+fly_response_t *fly_414_response(fly_request_t *req);
+fly_response_t *fly_415_response(fly_request_t *req);
+
+int __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf, int (*handler)(fly_event_t *e));
 int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf);
 
 int fly_response_content_event_handler(fly_event_t *e);
@@ -147,4 +181,10 @@ struct fly_response_content_by_stcode{
 	struct fly_response_content_by_stcode *next;
 };
 typedef struct fly_response_content_by_stcode fly_rcbs_t;
+int __fly_encode_do(fly_response_t *res);
+fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);
+int __fly_response_log(fly_response_t *res, fly_event_t *e);
+const char *fly_status_code_str_from_type(fly_stcode_t type);
+fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf);
+
 #endif
