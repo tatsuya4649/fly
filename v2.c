@@ -11,7 +11,7 @@ fly_hv2_stream_t *fly_hv2_stream_search_from_sid(fly_hv2_state_t *state, fly_sid
 #define FLY_HV2_SEND_FRAME_SUCCESS			(1)
 #define FLY_HV2_SEND_FRAME_BLOCKING			(0)
 #define FLY_HV2_SEND_FRAME_ERROR			(-1)
-int fly_send_settings_frame_of_server(fly_event_t *e, fly_hv2_stream_t *stream);
+int fly_send_settings_frame_of_server(fly_hv2_stream_t *stream);
 #define __FLY_SEND_FRAME_READING_BLOCKING			(2)
 #define __FLY_SEND_FRAME_WRITING_BLOCKING			(3)
 #define __FLY_SEND_FRAME_DISCONNECT					(4)
@@ -632,6 +632,7 @@ struct fly_hv2_send_frame *fly_hv2_send_frame_init(fly_hv2_stream_t *stream)
 	frame->aprev = NULL;
 	frame->snext = NULL;
 	frame->sprev = NULL;
+	frame->need_ack = false;
 	return frame;
 }
 
@@ -1436,7 +1437,7 @@ frame_header_parse:
 				}else{
 					/* send setting frame of server */
 					if (!state->first_send_settings)
-						fly_send_settings_frame_of_server(event, __stream);
+						fly_send_settings_frame_of_server(__stream);
 					/* can receive at any stream state */
 					switch(fly_hv2_peer_settings(state, sid, pl, length, plbufc)){
 					case FLY_HV2_FLOW_CONTROL_ERROR:
@@ -2237,6 +2238,7 @@ disconnect:
 int fly_state_send_frame(fly_event_t *e, fly_hv2_state_t *state)
 {
 	struct fly_hv2_send_frame *__s;
+retry:
 	for (__s=state->send->snext; __s!=state->send; __s=__s->snext){
 		switch(__fly_send_frame(__s)){
 		case __FLY_SEND_FRAME_READING_BLOCKING:
@@ -2257,8 +2259,11 @@ int fly_state_send_frame(fly_event_t *e, fly_hv2_state_t *state)
 		/* end of sending */
 		__fly_hv2_remove_yet_send_frame(__s);
 		/* release resources */
-		fly_pbfree(__s->pool, __s->payload);
-		fly_pbfree(__s->pool, __s);
+		if (!__s->need_ack){
+			fly_pbfree(__s->pool, __s->payload);
+			fly_pbfree(__s->pool, __s);
+		}
+		goto retry;
 	}
 	goto success;
 
@@ -2557,6 +2562,7 @@ void fly_send_settings_frame(fly_hv2_stream_t *stream, uint16_t *id, uint32_t *v
 	frame->next = stream->yetsend;
 	frame->anext = stream->yetack;
 	frame->payload = (!ack && count) ? fly_pballoc(stream->request->pool, frame->payload_len) : NULL;
+	frame->need_ack = true;
 	if ((!ack && count) && fly_unlikely_null(frame->payload))
 		return;
 
@@ -2650,7 +2656,7 @@ disconnect:
 #define FLY_HV2_SF_SETTINGS_INITIAL_WINDOW_SIZE_ENV		"FLY_SETTINGS_INITIAL_WINDOW_SIZE"
 #define FLY_HV2_SF_SETTINGS_MAX_FRAME_SIZE_ENV			"FLY_SETTINGS_MAX_FRAME_SIZE"
 #define FLY_HV2_SF_SETTINGS_MAX_HEADER_LIST_SIZE_ENV	"FLY_SETTINGS_MAX_HEADER_LIST_SIZE"
-int fly_send_settings_frame_of_server(fly_event_t *e, fly_hv2_stream_t *stream)
+int fly_send_settings_frame_of_server(fly_hv2_stream_t *stream)
 {
 	struct env{
 		const char *env;
@@ -2687,7 +2693,7 @@ int fly_send_settings_frame_of_server(fly_event_t *e, fly_hv2_stream_t *stream)
 	}
 	fly_send_settings_frame(stream, ids, values, count, false);
 	return 0;
-	return __fly_send_settings_frame(e, stream->state);
+	//return __fly_send_settings_frame(e, stream->state);
 #undef __FLY_HV2_SETTINGS_EID
 }
 
@@ -2710,6 +2716,9 @@ void fly_received_settings_frame_ack(fly_hv2_stream_t *stream)
 {
 	struct fly_hv2_send_frame *__yack;
 
+	if (stream->yetack_count == 0)
+		return;
+retry:
 	for (__yack=stream->yetack->anext; __yack!=stream->yetack; __yack=__yack->anext){
 		if (__yack->type == FLY_HV2_FRAME_TYPE_SETTINGS){
 			size_t len=0;
@@ -2755,9 +2764,10 @@ void fly_received_settings_frame_ack(fly_hv2_stream_t *stream)
 			stream->yetack_count--;
 
 			/* TODO: release __yack resource */
-			return;
+			goto retry;
 		}
 	}
+	return;
 }
 
 /*
@@ -4207,13 +4217,13 @@ log:
 		stream->state->max_handled_sid = stream->id;
 	stream->end_request_response = true;
 
+	if (stream->state->response_count == 0 && \
+			stream->state->send_count == 0)
+		e->read_or_write &= ~FLY_WRITE;
 	if (stream->stream_state == FLY_HV2_STREAM_STATE_CLOSED)
 		if (fly_hv2_close_stream(stream) == -1)
 			return -1;
 
-	if (stream->state->response_count == 0 && \
-			stream->state->send_count == 0)
-		e->read_or_write &= ~FLY_WRITE;
 register_handler:
 	e->read_or_write |= FLY_READ;
 	e->flag = FLY_MODIFY;
