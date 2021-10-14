@@ -10,6 +10,6 @@
 /mnt/
 __pycache__/
 /server
-/GPATH
-/GRTAGS
-/GTAGS
+GPATH
+GRTAGS
+GTAGS
