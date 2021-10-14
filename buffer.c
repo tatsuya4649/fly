@@ -11,14 +11,23 @@ fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_ma
 	buffer = fly_pballoc(pool, sizeof(fly_buffer_t));
 	if (fly_unlikely_null(buffer))
 		return NULL;
+
+	/* dummy chain */
 	buffer->chain = fly_pballoc(pool, sizeof(fly_buffer_c));;
 	if (fly_unlikely_null(buffer->chain))
 		return NULL;
 	buffer->chain->ptr = NULL;
 	buffer->chain->use_ptr = NULL;
+	buffer->chain->lptr = buffer->chain->ptr;
+	buffer->chain->unuse_ptr = NULL;
 	buffer->chain->buffer = buffer;
 	buffer->chain->next = buffer->chain;
 	buffer->chain->prev = buffer->chain;
+	buffer->chain->len = 0;
+	buffer->chain->use_len = 0;
+	buffer->chain->unuse_len = 0;
+	buffer->chain->status = FLY_BUF_EMPTY;
+
 	buffer->lchain = buffer->chain;
 	buffer->chain_count = 0;
 	buffer->pool = pool;
@@ -39,6 +48,22 @@ fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_ma
 	}
 	return buffer;
 }
+
+void fly_buffer_release(fly_buffer_t *buf)
+{
+	fly_pool_t *pool;
+
+	pool = buf->pool;
+	if (buf->chain_count == 0)
+		return;
+
+	while(buf->chain_count)
+		fly_buffer_chain_release(buf->chain->next);
+
+	fly_pbfree(pool, buf->chain);
+	fly_pbfree(pool, buf);
+}
+
 
 int fly_buffer_add_chain(fly_buffer_t *buffer)
 {
@@ -91,17 +116,6 @@ void fly_buffer_chain_release(fly_buffer_c *__c)
 	fly_pbfree(__c->buffer->pool, __c);
 }
 
-void fly_buffer_release(fly_buffer_t *buf)
-{
-	if (buf->chain_count == 0)
-		return;
-	while(buf->chain_count)
-		fly_buffer_chain_release(buf->chain->next);
-
-	fly_pbfree(buf->pool, buf->chain);
-	fly_pbfree(buf->pool, buf);
-}
-
 fly_buf_p fly_update_chain_one(fly_buffer_c **c, fly_buf_p p)
 {
 	return fly_update_chain(c, p, 1);
@@ -112,7 +126,7 @@ fly_buf_p fly_update_chain(fly_buffer_c **c, fly_buf_p p, size_t len)
 	if ((*c)->lptr >= p+len)
 		return p+len;
 	else{
-		ssize_t __len = (p+len)-(*c)->lptr-1;
+		ssize_t __len = (p+len)-(*c)->lptr;
 		while(true){
 			*c=(*c)->next;
 			if (!*c)
@@ -123,7 +137,7 @@ fly_buf_p fly_update_chain(fly_buffer_c **c, fly_buf_p p, size_t len)
 				__len -= (ssize_t) (*c)->len;
 		}
 
-		return (*c)->use_ptr+__len;
+		return (*c)->use_ptr+__len-1;
 	}
 }
 
