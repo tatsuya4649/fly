@@ -71,6 +71,7 @@ struct fly_hv2_send_frame{
 	struct fly_hv2_send_frame *snext;
 	struct fly_hv2_send_frame *sprev;
 
+	fly_bit_t need_ack:	1;
 };
 
 /*

@@ -20,6 +20,7 @@ struct fly_ssl_accept{
 	socklen_t addrlen;
 	int listen_sock;
 };
+
 __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_accept *__ac);
 
 int fly_listen_socket_ssl_handler(fly_event_t *e)

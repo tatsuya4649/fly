@@ -119,7 +119,7 @@ static fly_pool_t *__fly_create_pool(size_t size){
 		return NULL;
 	pool->dummy->next = pool->dummy;
 	pool->entry = pool->dummy;
-	pool->last_block = pool->dummy;
+	pool->last_block = pool->entry;
 	pool->rbtree = fly_rb_tree_init(__fly_rb_search_block);
 	if (init_pool.next == &init_pool){
 		init_pool.next = pool;
@@ -154,10 +154,17 @@ void fly_pbfree(fly_pool_t *pool, void *ptr)
 	__db->prev->next = __db->next;
 	__db->next->prev = __db->prev;
 
+	if (pool->last_block == __db)
+		pool->last_block = __db->prev;
+
 	fly_rb_delete(pool->rbtree, __dn);
 	__fly_free(__db->entry);
 	__fly_free(__db);
 	pool->block_size--;
+	if (pool->block_size == 0){
+		pool->entry = pool->dummy;
+	}
+
 	return;
 }
 
