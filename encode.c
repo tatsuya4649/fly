@@ -726,7 +726,7 @@ __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encodi
 		return __FLY_ACCEPT_ENCODING_NOTFOUND;
 
 	for (fly_hdr_c *c=ci->dummy->next; c!=ci->dummy; c=c->next){
-		if ((strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER, strlen(FLY_ACCEPT_ENCODING_HEADER)) == 0 || strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER_SMALL, strlen(FLY_ACCEPT_ENCODING_HEADER_SMALL)) == 0)&& c->value != NULL){
+		if (c->name_len>0 && (strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER, strlen(FLY_ACCEPT_ENCODING_HEADER)) == 0 || strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER_SMALL, strlen(FLY_ACCEPT_ENCODING_HEADER_SMALL)) == 0)&& c->value != NULL){
 			*accept_encoding = c;
 			return __FLY_ACCEPT_ENCODING_FOUND;
 		}
@@ -1407,12 +1407,6 @@ void fly_de_release(fly_de_t *de)
 	fly_pool_t *__pool;
 
 	__pool = de->pool;
-
-	for (int i=0; i<de->decbuflen; i++)
-		fly_pbfree(__pool, &de->decbuf[i]);
-	for (int i=0; i<de->encbuflen; i++)
-		fly_pbfree(__pool, &de->encbuf[i]);
-
 	fly_pbfree(__pool, de);
 	return;
 }

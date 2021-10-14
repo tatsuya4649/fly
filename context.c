@@ -44,9 +44,9 @@ fly_context_t *fly_context_init(void)
 	return ctx;
 }
 
-int fly_context_release(fly_context_t *ctx)
+void fly_context_release(fly_context_t *ctx)
 {
-	return fly_delete_pool(&ctx->pool);
+	fly_delete_pool(&ctx->pool);
 }
 
 /* TODO: configuration file add. */

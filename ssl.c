@@ -73,7 +73,7 @@ int fly_listen_socket_ssl_handler(fly_event_t *e)
 	__ac->ssl = ssl;
 	__ac->ctx = ctx;
 	__ac->listen_sock = listen_sock;
-	memcpy(&__ac->addr, &addr, sizeof(addr));
+	memcpy(&__ac->addr, &addr, addrlen);
 	__ac->addrlen = addrlen;
 	ne = fly_event_init(__ac->manager);
 	if (fly_unlikely_null(ne))
@@ -173,6 +173,9 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 		case SSL_ERROR_WANT_READ:
 			printf("SSL_ERROR_READ\n");
 			goto read_blocking;
+		case SSL_ERROR_WANT_WRITE:
+			printf("SSL_ERROR_WRITE\n");
+			goto write_blocking;
 		case SSL_ERROR_SYSCALL:
 			printf("SSL_ERROR_SYSCALL\n");
 			return -1;
@@ -203,8 +206,13 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 	return fly_event_register(e);
 
 read_blocking:
-	e->fd = conn_sock;
 	e->read_or_write = FLY_READ;
+	goto blocking;
+write_blocking:
+	e->read_or_write = FLY_WRITE;
+	goto blocking;
+blocking:
+	e->fd = conn_sock;
 	FLY_EVENT_HANDLER(e, __fly_ssl_accept_blocking_handler);
 	e->flag = FLY_NODELETE;
 	e->tflag = FLY_INHERIT;

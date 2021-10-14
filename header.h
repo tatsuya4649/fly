@@ -41,24 +41,29 @@ struct fly_hdr_chain{
 	int index_update;
 	fly_bit_t name_index: 1;
 	fly_bit_t static_table: 1;
+	fly_bit_t dynamic_table: 1;
 	fly_bit_t huffman_name: 1;
 	fly_bit_t huffman_value: 1;
 };
 
+struct fly_hv2_state;
 struct fly_hdr_chain_info{
 	fly_pool_t *pool;
 	struct fly_hdr_chain *dummy;
 	struct fly_hdr_chain *entry;
 	struct fly_hdr_chain *last;
 	unsigned chain_length;
+
+	/* for HTTP2 */
+	struct fly_hv2_state *state;
 };
 typedef struct fly_hdr_chain fly_hdr_c;
 typedef struct fly_hdr_chain_info fly_hdr_ci;
 
 fly_hdr_ci *fly_header_init(void);
-int fly_header_release(fly_hdr_ci *info);
+void fly_header_release(fly_hdr_ci *info);
 int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
-int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);
+fly_hdr_c *fly_header_addc(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);
 int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 int fly_header_addbv(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
@@ -93,6 +98,6 @@ fly_hdr_value *fly_content_encoding(fly_hdr_ci *ci);
 fly_hdr_value *fly_content_encoding_s(fly_hdr_ci *ci);
 struct fly_request;
 int fly_add_allow(fly_hdr_ci *ci, struct fly_request *req);
-int fly_add_server(fly_hdr_ci *ci);
+int fly_add_server(fly_hdr_ci *ci, bool hv2);
 
 #endif
