@@ -10,13 +10,15 @@
 #include <zlib.h>
 #include <brotli/encode.h>
 #include <brotli/decode.h>
+#include "buffer.h"
 
 #define FLY_ENCODE_TYPE(x, p)		\
 	{ fly_ ## x, #x, p, fly_ ## x ## _encode, fly_ ## x ## _decode }
 #define FLY_ENCODE_NULL			{ -1, NULL, -1, NULL, NULL }
 #define FLY_ENCODE_END(e)		((e)->name == NULL)
 #define FLY_ENCODE_ASTERISK		{ fly_asterisk, "*", 0, NULL, NULL }
-#define FLY_ACCEPT_ENCODING_HEADER		"Accept-Encoding"
+#define FLY_ACCEPT_ENCODING_HEADER				"Accept-Encoding"
+#define FLY_ACCEPT_ENCODING_HEADER_SMALL		"accept-encoding"
 enum __fly_encoding_type{
 	fly_gzip,
 //	fly_compress,
@@ -47,6 +49,8 @@ struct fly_de_buf{
 	fly_encbuf_t *ptr;
 	fly_bit_t status: 4;
 };
+
+/*
 #define FLY_DE_BUF_FULL				0x01
 #define FLY_DE_BUF_HALF				0x02
 #define FLY_DE_BUF_EMPTY			0x03
@@ -55,9 +59,16 @@ struct fly_de_buf{
 		(b)->status = FLY_DE_BUF_FULL;		\
 		(b)->uselen = (b)->buflen;			\
 	} while(0)
+*/
 
-#define fly_de_buf_half(b)			((b)->status = FLY_DE_BUF_HALF)
-#define fly_de_buf_empty(b)			((b)->status = FLY_DE_BUF_EMPTY)
+#define FLY_DE_BUF_INITLEN			0
+#define FLY_DE_BUF_MAXLEN			100
+#define FLY_DE_BUF_PERLEN			10
+#define fly_de_buffer_init(pool)		\
+		fly_buffer_init((pool), \
+				FLY_DE_BUF_INITLEN, \
+				FLY_DE_BUF_MAXLEN, \
+				FLY_DE_BUF_PERLEN)
 
 struct fly_de{
 	fly_pool_t *pool;
@@ -74,12 +85,10 @@ struct fly_de{
 		FLY_DE_ENDING,
 		FLY_DE_END,
 	} fase;
-	struct fly_de_buf *encbuf;
+	fly_buffer_t *encbuf;
 	int encbuflen;
-	struct fly_de_buf *lencbuf;
-	struct fly_de_buf *decbuf;
+	fly_buffer_t *decbuf;
 	int decbuflen;
-	struct fly_de_buf *ldecbuf;
 	int c_sockfd;
 	int fd;
 	/* where to start encoding of fd */
@@ -172,8 +181,10 @@ int fly_identity_encode(fly_de_t *de);
 fly_encname_t *fly_decided_encoding_name(fly_encoding_t *enc);
 fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);
 
-struct fly_de_buf *fly_d_buf_add(fly_de_t *de);
-struct fly_de_buf *fly_e_buf_add(fly_de_t *de);
+//struct fly_de_buf *fly_d_buf_add(fly_de_t *de);
+//struct fly_de_buf *fly_e_buf_add(fly_de_t *de);
+fly_buffer_c *fly_e_buf_add(fly_de_t *de);
+fly_buffer_c *fly_d_buf_add(fly_de_t *de);
 struct fly_response;
 int fly_esend_body(fly_event_t *e, struct fly_response *response);
 struct fly_response;

@@ -4,6 +4,7 @@
 #include "version.h"
 
 fly_http_version_t versions[] = {
+	{"HTTP/2", "2", "h2", V2},
 	{"HTTP/1.1", "1.1", "http/1.1", V1_1},
 	{NULL},
 };
@@ -18,6 +19,15 @@ int fly_version_str(char *buffer, fly_version_e version)
 	}
 	/* not found valid http version */
 	return -1;
+}
+
+fly_http_version_t *fly_match_version_from_type(enum fly_version_type type)
+{
+    for (fly_http_version_t *ver=versions; ver->full!=NULL; ver++){
+		if (ver->type == type)
+			return ver;
+    }
+    return NULL;
 }
 
 fly_http_version_t *fly_match_version_with_end(char *version, char end_of_version)

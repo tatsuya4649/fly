@@ -31,7 +31,6 @@ struct fly_rb_node{
 	struct fly_rb_node *parent;
 	struct fly_rb_node *c_right;
 	struct fly_rb_node *c_left;
-	fly_bit_t parent_color: 1;
 	fly_bit_t color: 1;
 };
 

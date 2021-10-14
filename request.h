@@ -18,6 +18,7 @@
 #include "err.h"
 #include "mime.h"
 #include "buffer.h"
+#include "scheme.h"
 
 #define FLY_BUFSIZE			(8*FLY_PAGESIZE)
 #define FLY_REQUEST_LINE_MAX			8000
@@ -38,7 +39,9 @@ struct fly_request_line{
 	fly_uri_t uri;
 	fly_query_t query;
 	fly_http_version_t *version;
+	fly_scheme_t *scheme;
 };
+#define is_fly_request_http_v2(req)		((req)->request_line->version->type == V2)
 typedef struct fly_request_line fly_reqline_t;
 
 
@@ -65,6 +68,9 @@ typedef enum fly_request_state fly_request_state_t;
 #include "mime.h"
 #include "charset.h"
 #include "lang.h"
+struct fly_hv2_stream;
+typedef struct fly_hv2_stream fly_hv2_stream_t;
+
 struct fly_request{
 	/* use pool: request, connect, header, body */
 	fly_context_t       *ctx;
@@ -80,23 +86,38 @@ struct fly_request{
 	fly_mime_t			*mime;
 	fly_charset_t		*charset;
 	fly_lang_t			*language;
+
+	/* for http2 */
+	fly_hv2_stream_t		*stream;
 };
 typedef struct fly_request fly_request_t;
 
-#define FLY_CONNECT_ON_SSL(r)		\
-	((r)->connect->flag & FLY_SSL_CONNECT)
+#define FLY_CONNECT_ON_SSL(c)		\
+	((c)->flag & FLY_SSL_CONNECT)
 #define FLY_SSL_FROM_REQUEST(r)		\
 	((r)->connect->ssl)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_LEN			(1)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_CHAIN_MAX		(100)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_PER_LEN		(10)
-int fly_request_receive(fly_sock_t fd, fly_request_t *request);
+
+#define FLY_REQUEST_RECEIVE_ERROR				(-1)
+#define FLY_REQUEST_RECEIVE_SUCCESS				(1)
+#define FLY_REQUEST_RECEIVE_END					(0)
+#define FLY_REQUEST_RECEIVE_READ_BLOCKING			(2)
+#define FLY_REQUEST_RECEIVE_WRITE_BLOCKING			(3)
+int fly_request_receive(fly_sock_t fd, fly_connect_t *connect);
 int fly_request_event_handler(fly_event_t *event);
 
 #define FLY_REQUEST_POOL_SIZE		1
 fly_request_t *fly_request_init(fly_connect_t *conn);
 int fly_request_release(fly_request_t *req);
 
+int fly_request_line_init(fly_request_t *req);
+void fly_request_line_release(fly_request_t *req);
+
 struct fly_buffer_chain *fly_get_request_line_ptr(fly_buffer_t *__buf);
 int fly_request_timeout(fly_event_t *event);
+int fly_hv2_request_target_parse(fly_request_t *req);
+int fly_if_none_match(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
+int fly_if_modified_since(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 #endif

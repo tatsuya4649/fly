@@ -50,6 +50,7 @@ __direct_log __fly_static void *__fly_malloc(size_t size)
 __fly_static void __fly_free(void *ptr)
 {
 	free(ptr);
+	ptr = NULL;
 }
 
 void fly_free(void *ptr)
@@ -85,18 +86,19 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	new_block->size = size;
 	new_block->next = pool->dummy;
 	new_block->prev = pool->dummy;
-	if (fly_unlikely_null(fly_rb_tree_insert(pool->rbtree, new_block, new_block->entry)))
+	if (fly_unlikely_null(fly_rb_tree_insert(pool->rbtree, new_block, new_block->entry))){
+		__fly_free(new_block->entry);
+		__fly_free(new_block);
 		return NULL;
+	}
 
 	if (pool->entry == pool->dummy){
 		pool->entry = new_block;
 		pool->dummy->next = pool->entry;
 	}
 	pool->block_size++;
-	if (pool->last_block != pool->dummy){
-		pool->last_block->next = new_block;
-		new_block->prev = pool->last_block;
-	}
+	pool->last_block->next = new_block;
+	new_block->prev = pool->last_block;
 	pool->dummy->prev = new_block;
 	pool->last_block = new_block;
 	return new_block->entry;
@@ -115,8 +117,9 @@ static fly_pool_t *__fly_create_pool(size_t size){
 	FLY_POOL_DUMMY_INIT(pool);
 	if (fly_unlikely_null(pool->dummy))
 		return NULL;
+	pool->dummy->next = pool->dummy;
 	pool->entry = pool->dummy;
-	pool->last_block = pool->dummy;
+	pool->last_block = pool->entry;
 	pool->rbtree = fly_rb_tree_init(__fly_rb_search_block);
 	if (init_pool.next == &init_pool){
 		init_pool.next = pool;
@@ -140,7 +143,7 @@ void fly_pbfree(fly_pool_t *pool, void *ptr)
 {
 	fly_rb_node_t *__dn;
 	fly_pool_b *__db;
-	if (pool->block_size == 0)
+	if (pool->block_size == 0 || pool->rbtree->node_count == 0)
 		return;
 
 	__dn = (fly_rb_node_t *) fly_rb_node_from_key(pool->rbtree, ptr);
@@ -151,10 +154,17 @@ void fly_pbfree(fly_pool_t *pool, void *ptr)
 	__db->prev->next = __db->next;
 	__db->next->prev = __db->prev;
 
+	if (pool->last_block == __db)
+		pool->last_block = __db->prev;
+
 	fly_rb_delete(pool->rbtree, __dn);
 	__fly_free(__db->entry);
 	__fly_free(__db);
 	pool->block_size--;
+	if (pool->block_size == 0){
+		pool->entry = pool->dummy;
+	}
+
 	return;
 }
 
@@ -168,7 +178,7 @@ void *fly_pballoc(fly_pool_t *pool, size_t size)
 	return __fly_palloc(pool, size);
 }
 
-int fly_delete_pool(fly_pool_t **pool)
+void fly_delete_pool(fly_pool_t **pool)
 {
 	fly_pool_t *prev = NULL;
 	fly_pool_t *next = NULL;
@@ -200,9 +210,8 @@ int fly_delete_pool(fly_pool_t **pool)
 			fly_rb_tree_release(p->rbtree);
 			__fly_free(p->dummy);
 			__fly_free(p);
-			return 0;
+			return;
 		}
 		prev = p;
 	}
-	return -1;
 }
