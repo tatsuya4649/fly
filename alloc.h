@@ -56,7 +56,7 @@ struct fly_pool{
 	fly_pool_b *last_block;
 	fly_pool_b *dummy;		/* for sequential search */
 	struct fly_rb_tree *rbtree;
-	unsigned block_size;
+	size_t block_size;
 };
 
 #define FLY_POOL_DUMMY_INIT(p)				\
@@ -71,7 +71,7 @@ struct fly_pool{
 
 fly_pool_t *fly_create_pool(fly_page_t size);
 fly_pool_t *fly_create_poolb(size_t size);
-int fly_delete_pool(fly_pool_t **pool);
+void fly_delete_pool(fly_pool_t **pool);
 void *fly_palloc(fly_pool_t *pool, fly_page_t size);
 void *fly_pballoc(fly_pool_t *pool, size_t size);
 void fly_pfree(fly_pool_t *pool, void *ptr);

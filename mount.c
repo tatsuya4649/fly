@@ -397,7 +397,7 @@ int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *
 
 	*offset += total;
 	while(total < count){
-		if (FLY_CONNECT_ON_SSL(response->request)){
+		if (FLY_CONNECT_ON_SSL(response->request->connect)){
 			SSL *ssl=response->request->connect->ssl;
 			char send_buf[FLY_SEND_BUF_LENGTH];
 			ssize_t numread;
