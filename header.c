@@ -28,9 +28,9 @@ fly_hdr_ci *fly_header_init(void)
 	return chain_info;
 }
 
-int fly_header_release(fly_hdr_ci *info)
+void fly_header_release(fly_hdr_ci *info)
 {
-	return fly_delete_pool(&info->pool);
+	fly_delete_pool(&info->pool);
 }
 
 void __fly_header_add_ci(fly_hdr_c *c, fly_hdr_ci *ci, bool beginning)
@@ -60,19 +60,58 @@ void __fly_header_add_ci(fly_hdr_c *c, fly_hdr_ci *ci, bool beginning)
 /*
  * WARNING: name_len and value_len is length not including end of '\0'.
  */
-fly_hdr_c *__fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning)
+fly_hdr_c *__fly_header_chain_init(fly_hdr_ci *ci)
 {
-	fly_hdr_c *new_chain;
-	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
-	if (new_chain == NULL)
+	fly_hdr_c *c;
+
+	c = fly_pballoc(ci->pool, sizeof(fly_hdr_c));
+	if (fly_unlikely_null(c))
 		return NULL;
 
-	new_chain->name = fly_pballoc(chain_info->pool, name_len+1);
-	memcpy(new_chain->name, name, name_len);
-	new_chain->value = fly_pballoc(chain_info->pool, value_len+1);
-	memcpy(new_chain->value, value, value_len);
-	new_chain->name[name_len] = '\0';
-	new_chain->value[value_len] = '\0';
+	c->name = NULL;
+	c->value = NULL;
+	c->name_len = 0;
+	c->value_len = 0;
+	c->next = c;
+	c->index = 0;
+	c->hname_len = 0;
+	c->hvalue_len = 0;
+	c->hen_name = NULL;
+	c->hen_value = NULL;
+	c->index_update = 0;
+	c->name_index = false;
+	c->static_table = false;
+	c->dynamic_table = false;
+	c->huffman_name = false;
+	c->huffman_value = false;
+	return c;
+}
+
+fly_hdr_c *__fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, size_t name_len, fly_hdr_value *value, size_t value_len, bool beginning)
+{
+	fly_hdr_c *new_chain;
+
+	new_chain = __fly_header_chain_init(chain_info);
+	if (fly_unlikely_null(new_chain))
+		return NULL;
+
+	if (name_len){
+		new_chain->name = fly_pballoc(chain_info->pool, sizeof(fly_hdr_name)*(name_len+1));
+		if (fly_unlikely_null(new_chain->name))
+			return NULL;
+		new_chain->name_len = name_len;
+		memset(new_chain->name, '\0', name_len+1);
+		memcpy(new_chain->name, name, name_len);
+	}
+
+	if (value_len){
+		new_chain->value = fly_pballoc(chain_info->pool, sizeof(fly_hdr_value)*(value_len+1));
+		if (fly_unlikely_null(new_chain->value))
+			return NULL;
+		new_chain->value_len = value_len;
+		memset(new_chain->value, '\0', value_len+1);
+		memcpy(new_chain->value, value, value_len);
+	}
 
 	__fly_header_add_ci(new_chain, chain_info, beginning);
 	return new_chain;
@@ -86,51 +125,30 @@ int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly
 		return -1;
 }
 
-int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning)
+fly_hdr_c *fly_header_addc(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning)
 {
-	fly_hdr_c *__c;
-
-	__c = __fly_header_add(chain_info, name, name_len, value, value_len, beginning);
-	__c->static_table = false;
-	if (fly_unlikely_null(__c))
-		return -1;
-
-	int i=0;
-	for (struct fly_hv2_static_table *__s=static_table; __s->hname; __s++){
-		int name_cmp_res, value_cmp_res;
-
-		name_cmp_res = __s->hname ? strncmp(__s->hname, name, strlen(__s->hname)) : -1;
-		value_cmp_res = __s->hvalue ? strncmp(__s->hvalue, value, strlen(__s->hvalue)) : -1;
-		if (name_cmp_res == 0 && value_cmp_res == 0){
-			__c->static_table = true;
-			__c->index = i;
-			__c->name_len = strlen(name);
-			__c->value_len = strlen(value);
-			break;
-		}else if (name_cmp_res == 0){
-			__c->index = i;
-			__c->name_index = true;
-			__c->value_len = strlen(value);
-			break;
-		}
-
-		__c->index_update = INDEX_UPDATE;
-		i++;
-	}
-	return 0;
+	return __fly_header_add(chain_info, name, name_len, value, value_len, beginning);
 }
-
 
 int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
 {
 	fly_hdr_c *new_chain;
-	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
-	if (new_chain == NULL)
+	new_chain = __fly_header_chain_init(chain_info);
+	if (fly_unlikely_null(new_chain))
 		return -1;
 
 	new_chain->name = fly_pballoc(chain_info->pool, name_len+1);
+	if (fly_unlikely_null(new_chain->name))
+		return -1;
+	new_chain->name_len = name_len;
+	memset(new_chain->name, '\0', name_len+1);
 	fly_buffer_memcpy(new_chain->name, name, bc, name_len);
+
 	new_chain->value = fly_pballoc(chain_info->pool, value_len+1);
+	if (fly_unlikely_null(new_chain->value))
+		return -1;
+	new_chain->value_len = value_len;
+	memset(new_chain->value, '\0', value_len+1);
 	fly_buffer_memcpy(new_chain->value, value, bc, value_len);
 	new_chain->name[name_len] = '\0';
 	new_chain->value[value_len] = '\0';
@@ -142,14 +160,24 @@ int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name
 int fly_header_addbv(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
 {
 	fly_hdr_c *new_chain;
-	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
-	if (new_chain == NULL)
+	new_chain = __fly_header_chain_init(chain_info);
+	if (fly_unlikely_null(new_chain))
 		return -1;
 
 	new_chain->name = fly_pballoc(chain_info->pool, name_len+1);
+	if (fly_unlikely_null(new_chain->name))
+		return -1;
+	new_chain->name_len = name_len;
+	memset(new_chain->name, '\0', name_len+1);
 	memcpy(new_chain->name, name, name_len);
+
 	new_chain->value = fly_pballoc(chain_info->pool, value_len+1);
+	if (fly_unlikely_null(new_chain->value))
+		return -1;
+	new_chain->value_len = value_len;
+	memset(new_chain->value, '\0', value_len+1);
 	fly_buffer_memcpy(new_chain->value, value, bc, value_len);
+
 	new_chain->name[name_len] = '\0';
 	new_chain->value[value_len] = '\0';
 
@@ -178,7 +206,7 @@ int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_le
 
 	/* if no */
 	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
-	if (fly_unlikely_null(new_chain))
+	if (new_chain == NULL)
 		return -1;
 	new_chain->name = fly_pballoc(chain_info->pool, name_len+1);
 	memcpy(new_chain->name, name, name_len);
@@ -291,7 +319,7 @@ long long fly_content_length(fly_hdr_ci *ci)
 		return 0;
 
 	for (fly_hdr_c *c=ci->dummy->next; c!=ci->dummy; c=c->next){
-		if ((strcmp(c->name, "Content-Length") == 0 || strcmp(c->name, "content-length") == 0) && c->value){
+		if (c->name_len>0 && (strcmp(c->name, "Content-Length") == 0 || strcmp(c->name, "content-length") == 0) && c->value){
 			return c->value != NULL ? atoll(c->value) : 0;
 		}
 	}
@@ -514,7 +542,10 @@ int fly_add_allow(fly_hdr_ci *ci, fly_request_t *req)
 	return fly_header_add(ci, fly_header_name_length("Allow"), fly_header_value_length(value));
 }
 
-int fly_add_server(fly_hdr_ci *ci)
+int fly_add_server(fly_hdr_ci *ci, bool hv2)
 {
-	return fly_header_add(ci, fly_header_name_length("Server"), fly_header_value_length(FLY_SERVER_NAME));
+	if (hv2)
+		return fly_header_add(ci, fly_header_name_length("server"), fly_header_value_length(FLY_SERVER_NAME));
+	else
+		return fly_header_add(ci, fly_header_name_length("Server"), fly_header_value_length(FLY_SERVER_NAME));
 }

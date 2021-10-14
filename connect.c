@@ -24,9 +24,14 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	conn->pool = pool;
 	memcpy(&conn->peer_addr, addr, addrlen);
 	conn->addrlen = addrlen;
-	conn->ssl = NULL;
 	conn->flag = 0;
+
+	/* for HTTP2 */
+	conn->ssl_ctx = NULL;
+	conn->ssl = NULL;
+	conn->http_v = NULL;
 	conn->v2_state = NULL;
+	conn->peer_closed = false;
 #define FLY_CONNECT_BUFFER_INIT_LEN			1
 #define FLY_CONNECT_BUFFER_CHAIN_MAX		100
 #define FLY_CONNECT_BUFFER_PER_LEN			10
@@ -46,12 +51,15 @@ int fly_connect_release(fly_connect_t *conn)
 		return -1;
 
 	/* SSL/TLS release */
-	if (conn->flag & FLY_SSL_CONNECT)
+	if (conn->flag & FLY_SSL_CONNECT){
 		SSL_free(conn->ssl);
+	}
 
 	if (fly_socket_close(conn->c_sockfd, FLY_SOCK_CLOSE) == -1)
 		return -1;
-	return fly_delete_pool(&conn->pool);
+
+	fly_delete_pool(&conn->pool);
+	return 0;
 }
 
 __fly_static int __fly_info_of_connect(fly_connect_t *conn)

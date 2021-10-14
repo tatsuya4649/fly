@@ -170,7 +170,8 @@ int fly_log_release(fly_log_t *lt)
 	if (close(lt->notice->file) == -1)
 		return -1;
 
-	return fly_delete_pool(&lt->pool);
+	fly_delete_pool(&lt->pool);
+	return 0;
 }
 
 #include "ftime.h"

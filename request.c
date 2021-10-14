@@ -55,11 +55,38 @@ int fly_request_release(fly_request_t *req)
 	if (req == NULL)
 		return -1;
 
-	if (req->header && (fly_header_release(req->header) == -1))
+	if (req->header)
+		fly_header_release(req->header);
+
+	if (req->body)
+		fly_body_release(req->body);
+
+	if (req->request_line)
+		fly_request_line_release(req);
+
+	fly_delete_pool(&req->pool);
+	return 0;
+}
+
+int fly_request_line_init(fly_request_t *req)
+{
+	req->request_line = fly_pballoc(req->pool, sizeof(struct fly_request_line));
+	if (fly_unlikely_null(req->request_line))
 		return -1;
-	if (req->body && (fly_body_release(req->body) == -1))
-		return -1;
-	return fly_delete_pool(&req->pool);
+	req->request_line->request_line = NULL;
+	req->request_line->method = NULL;
+	req->request_line->uri.ptr = NULL;
+	req->request_line->uri.len = 0;
+	req->request_line->query.ptr = NULL;
+	req->request_line->query.len = 0;
+	req->request_line->version = NULL;
+	req->request_line->scheme = NULL;
+	return 0;
+}
+
+void fly_request_line_release(fly_request_t *req)
+{
+	fly_pbfree(req->pool, req->request_line);
 }
 
 struct fly_buffer_chain *fly_get_request_line_buf(fly_buffer_t *__buf)
