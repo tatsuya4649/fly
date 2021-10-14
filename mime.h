@@ -171,7 +171,8 @@ struct __fly_mime{
 #define fly_same_type(m1, m2)		\
 		(((m1)->type.type == (m2)->type.type) && (strcmp((m1)->subtype.subtype, (m2)->subtype.subtype)))
 
-#define FLY_ACCEPT_HEADER		"Accept"
+#define FLY_ACCEPT_HEADER			"Accept"
+#define FLY_ACCEPT_HEADER_SMALL		"accept"
 
 struct fly_mime{
 	fly_pool_t					*pool;

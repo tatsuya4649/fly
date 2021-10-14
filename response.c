@@ -8,60 +8,58 @@
 #include "alloc.h"
 #include "mount.h"
 #include "math.h"
+#include "v2.h"
 
 fly_status_code responses[] = {
 	/* 1xx Info */
-	{100, _100, "Continue", NULL,				NULL},
-	{101, _101, "Switching Protocols", NULL,			FLY_STRING_ARRAY("Upgrade", NULL)},
+	{FLY_STATUS_CODE(100), "Continue", NULL,				NULL},
+	{FLY_STATUS_CODE(101), "Switching Protocols", NULL,			FLY_STRING_ARRAY("Upgrade", NULL)},
 	/* 2xx Success */
-	{200, _200, "OK", NULL, 					NULL},
-	{201, _201, "Created", NULL,				NULL},
-	{202, _202, "Accepted", NULL, 				NULL},
-	{203, _203, "Non-Authoritative Information", NULL, NULL},
-	{204, _204, "No Content", NULL, 					NULL},
-	{205, _205, "Reset Content", NULL,				NULL},
+	{FLY_STATUS_CODE(200), "OK", NULL, 					NULL},
+	{FLY_STATUS_CODE(201), "Created", NULL,				NULL},
+	{FLY_STATUS_CODE(202), "Accepted", NULL, 				NULL},
+	{FLY_STATUS_CODE(203), "Non-Authoritative Information", NULL, NULL},
+	{FLY_STATUS_CODE(204), "No Content", NULL, 					NULL},
+	{FLY_STATUS_CODE(205), "Reset Content", NULL,				NULL},
 	/* 3xx Redirect */
-	{300, _300, "Multiple Choices", NULL, 				NULL},
-	{301, _301, "Moved Permanently", NULL,			FLY_STRING_ARRAY("Location", NULL)},
-	{302, _302, "Found", NULL,						FLY_STRING_ARRAY("Location", NULL)},
-	{303, _303, "See Other", NULL,					FLY_STRING_ARRAY("Location", NULL)},
-	{304, _304, "Not Modified",	NULL,				NULL},
-	{307, _307, "Temporary Redirect", NULL,			FLY_STRING_ARRAY("Location", NULL)},
+	{FLY_STATUS_CODE(300), "Multiple Choices", NULL, 				NULL},
+	{FLY_STATUS_CODE(301), "Moved Permanently", NULL,			FLY_STRING_ARRAY("Location", NULL)},
+	{FLY_STATUS_CODE(302), "Found", NULL,						FLY_STRING_ARRAY("Location", NULL)},
+	{FLY_STATUS_CODE(303), "See Other", NULL,					FLY_STRING_ARRAY("Location", NULL)},
+	{FLY_STATUS_CODE(304), "Not Modified",	NULL,				NULL},
+	{FLY_STATUS_CODE(307), "Temporary Redirect", NULL,			FLY_STRING_ARRAY("Location", NULL)},
 	/* 4xx Client Error */
-	{400, _400, "Bad Request", NULL,					NULL},
-	{401, _401, "Unauthorized",	NULL,				NULL},
-	{402, _402, "Payment Required", NULL,				NULL},
-	{403, _403, "Forbidden", NULL,					NULL},
-	{404, _404, "Not Found", FLY_PATH_FROM_STATIC(404.html),	NULL},
-	{405, _405, "Method Not Allowed", FLY_PATH_FROM_STATIC(405.html),			FLY_STRING_ARRAY("Allow", NULL)},
-	{406, _406, "Not Acceptable", NULL,				NULL},
-	{407, _407, "Proxy Authentication Required", NULL, NULL},
-	{408, _408, "Request Timeout", NULL,				FLY_STRING_ARRAY("Connection", NULL)},
-	{409, _409, "Conflict", NULL,						NULL},
-	{409, _410, "Gone", NULL,							NULL},
-	{410, _411, "Length Required", NULL,				NULL},
-	{413, _413, "Payload Too Large", NULL,			FLY_STRING_ARRAY("Retry-After", NULL)},
-	{414, _414, "URI Too Long", NULL,					NULL},
-	{415, _415, "Unsupported Media Type", NULL,		NULL},
-	{416, _416, "Range Not Satisfiable", NULL,		NULL},
-	{417, _417, "Expectation Failed", NULL,			NULL},
-	{426, _426, "Upgrade Required", NULL,				FLY_STRING_ARRAY("Upgrade", NULL)},
+	{FLY_STATUS_CODE(400), "Bad Request", NULL,					NULL},
+	{FLY_STATUS_CODE(401), "Unauthorized",	NULL,				NULL},
+	{FLY_STATUS_CODE(402), "Payment Required", NULL,				NULL},
+	{FLY_STATUS_CODE(403), "Forbidden", NULL,					NULL},
+	{FLY_STATUS_CODE(404), "Not Found", FLY_PATH_FROM_STATIC(404.html),	NULL},
+	{FLY_STATUS_CODE(405), "Method Not Allowed", FLY_PATH_FROM_STATIC(405.html),			FLY_STRING_ARRAY("Allow", NULL)},
+	{FLY_STATUS_CODE(406), "Not Acceptable", NULL,				NULL},
+	{FLY_STATUS_CODE(407), "Proxy Authentication Required", NULL, NULL},
+	{FLY_STATUS_CODE(408), "Request Timeout", NULL,				FLY_STRING_ARRAY("Connection", NULL)},
+	{FLY_STATUS_CODE(409), "Conflict", NULL,						NULL},
+	{FLY_STATUS_CODE(409), "Gone", NULL,							NULL},
+	{FLY_STATUS_CODE(410), "Length Required", NULL,				NULL},
+	{FLY_STATUS_CODE(413), "Payload Too Large", NULL,			FLY_STRING_ARRAY("Retry-After", NULL)},
+	{FLY_STATUS_CODE(414), "URI Too Long", NULL,					NULL},
+	{FLY_STATUS_CODE(415), "Unsupported Media Type", NULL,		NULL},
+	{FLY_STATUS_CODE(416), "Range Not Satisfiable", NULL,		NULL},
+	{FLY_STATUS_CODE(417), "Expectation Failed", NULL,			NULL},
+	{FLY_STATUS_CODE(426), "Upgrade Required", NULL,				FLY_STRING_ARRAY("Upgrade", NULL)},
 	/* 5xx Server Error */
-	{500, _500, "Internal Server Error", NULL,		NULL},
-	{501, _501, "Not Implemented", NULL,				NULL},
-	{502, _502, "Bad Gateway", NULL,			NULL},
-	{503, _503, "Service Unavailable", NULL,		NULL},
-	{504, _504, "Gateway Timeout", NULL,				NULL},
-	{505, _505, "HTTP Version Not SUpported", NULL,	NULL},
-	{-1, -1, NULL, NULL, NULL}
+	{FLY_STATUS_CODE(500), "Internal Server Error", NULL,		NULL},
+	{FLY_STATUS_CODE(501), "Not Implemented", NULL,				NULL},
+	{FLY_STATUS_CODE(502), "Bad Gateway", NULL,			NULL},
+	{FLY_STATUS_CODE(503), "Service Unavailable", NULL,		NULL},
+	{FLY_STATUS_CODE(504), "Gateway Timeout", NULL,				NULL},
+	{FLY_STATUS_CODE(505), "HTTP Version Not SUpported", NULL,	NULL},
+	{-1, -1, NULL, NULL, NULL, NULL}
 };
 
-__fly_static void __fly_500_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm);
-__fly_static void __fly_5xx_error(fly_event_t *e, fly_version_e version, fly_itm_response_t *itm);
-__fly_static int __fly_response(fly_event_t *e, fly_response_t *response);
 __fly_static int __fly_response_release_handler(fly_event_t *e);
 #define FLY_RESPONSE_LOG_ITM_FLAG		(1)
-__fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e);
+int __fly_response_log(fly_response_t *res, fly_event_t *e);
 __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc);
 __fly_static int __fly_send_until_header(fly_event_t *e, fly_response_t *response);
 __fly_static int __fly_send_until_header_blocking(fly_event_t *e, fly_response_t *response, int flag);
@@ -70,7 +68,6 @@ __fly_static int __fly_send_body_blocking_handler(fly_event_t *e);
 __fly_static int __fly_send_body_blocking(fly_event_t *e, fly_response_t *response, int read_or_write);
 __fly_static int __fly_send_body(fly_event_t *e, fly_response_t *response);
 __fly_static int __fly_after_response(fly_event_t *e, fly_response_t *response);
-inline static int __fly_encode_do(fly_response_t *res);
 
 fly_response_t *fly_response_init(void)
 {
@@ -93,6 +90,9 @@ fly_response_t *fly_response_init(void)
 	response->count = 0;
 	response->encoding = NULL;
 	response->de = NULL;
+	response->blocking = false;
+	response->encoded = false;
+	response->rcbs = NULL;
 	return response;
 }
 
@@ -133,7 +133,7 @@ found:
 	#undef __FLY_NOT_FOUND
 }
 
-__fly_static int __fly_response_required_header(fly_response_t *response)
+__unused __fly_static int __fly_response_required_header(fly_response_t *response)
 {
 	fly_stcode_t status_code = response->status_code;
 
@@ -154,6 +154,14 @@ __fly_static int __fly_status_code_from_type(fly_stcode_t type)
 	return -1;
 }
 
+const char *fly_status_code_str_from_type(fly_stcode_t type)
+{
+	for (fly_status_code *st=responses; st->status_code!=-1; st++){
+		if (st->type == type)
+			return st->status_code_str;
+	}
+	return NULL;
+}
 __fly_static int __fly_status_line(char *status_line, fly_version_e version,fly_stcode_t stcode)
 {
 	char verstr[FLY_VERSION_MAXLEN];
@@ -189,11 +197,11 @@ __fly_static int __fly_response_release_handler(fly_event_t *e)
 
 	if (fly_request_release(req) == -1)
 		return -1;
-	if (fly_response_release(res) == -1)
-		return -1;
+	fly_response_release(res);
 	if (fly_connect_release(con) == -1)
 		return -1;
 
+	e->flag = FLY_CLOSE_EV;
 	if (fly_event_unregister(e) == -1)
 		return -1;
 
@@ -212,8 +220,7 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 
 	if (fly_request_release(req) == -1)
 		return -1;
-	if (fly_response_release(res) == -1)
-		return -1;
+	fly_response_release(res);
 	req = fly_request_init(con);
 	if (req == NULL)
 		return -1;
@@ -245,11 +252,44 @@ __fly_static char *fly_log_request_line_modify(fly_reqlinec_t *__r)
 	return __r;
 }
 
+char *fly_log_request_line_hv2(fly_response_t *res)
+{
+#define FLY_LOG_REQUEST_LINE_HV2_SPACE_SIZE			1
+#define FLY_LOG_REQUEST_LINE_HV2_STREND_SIZE		1
+	size_t size=0;
+	char   *request_line;
+
+	size += strlen(res->request->request_line->method->name);
+	size += FLY_LOG_REQUEST_LINE_HV2_SPACE_SIZE;
+	size += (size_t) res->request->request_line->uri.len;
+	size += FLY_LOG_REQUEST_LINE_HV2_SPACE_SIZE;
+	size += strlen(res->request->request_line->version->full);
+	size += FLY_LOG_REQUEST_LINE_HV2_STREND_SIZE;
+
+	request_line = fly_pballoc(res->pool, size);
+	if (fly_unlikely_null(request_line))
+		return NULL;
+
+	snprintf(request_line, size, "%s %s %s",
+			res->request->request_line->method->name,
+			res->request->request_line->uri.ptr,
+			res->request->request_line->version->full
+	);
+	return request_line;
+}
+
 __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t *e, fly_logcont_t *lc)
 {
 #define __FLY_RESPONSE_LOGCONTENT_SUCCESS			1
 #define __FLY_RESPONSE_LOGCONTENT_ERROR				-1
 #define __FLY_RESPONSE_LOGCONTENT_OVERFLOW			0
+#define __FLY_RESPONSE_LOGCONTENT_REQUEST_LINE		\
+	(response->request->request_line->version->type == V2 ? \
+	 /* HTTP2 */											\
+	 fly_log_request_line_hv2(response)						\
+	 : (	\
+	 /* HTTP1.1 */											\
+	(response->request->request_line->request_line ? fly_log_request_line_modify(response->request->request_line->request_line) : FLY_RESPONSE_NONSTRING)))
 	/* TODO: configuable log design. */
 	/*
 	 *	Peer IP: Port ---> My IP: Port, Request Line, Response Code
@@ -265,7 +305,7 @@ __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t
 		/* peer service */
 		response->request->connect->servname,
 		/* request_line */
-		response->request->request_line != NULL ? fly_log_request_line_modify(response->request->request_line->request_line) : FLY_RESPONSE_NONSTRING,
+		response->request->request_line != NULL ? __FLY_RESPONSE_LOGCONTENT_REQUEST_LINE : FLY_RESPONSE_NONSTRING,
 		/* hostname */
 		e->manager->ctx->listen_sock->hostname,
 		/* service */
@@ -283,7 +323,7 @@ __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t
 	return __FLY_RESPONSE_LOGCONTENT_SUCCESS;
 }
 
-__fly_static int __fly_response_log(fly_response_t *res, fly_event_t *e)
+int __fly_response_log(fly_response_t *res, fly_event_t *e)
 {
 	fly_logcont_t *log_content;
 
@@ -391,7 +431,7 @@ __fly_static int __fly_send_until_header(fly_event_t *e, fly_response_t *respons
 				if (byte_from_start)
 					total = *byte_from_start;
 				while(result > total){
-					if (FLY_CONNECT_ON_SSL(response->request)){
+					if (FLY_CONNECT_ON_SSL(response->request->connect)){
 						SSL *ssl=response->request->connect->ssl;
 						numsend = SSL_write(ssl, __status_line+total, result-total);
 						switch(SSL_get_error(ssl, numsend)){
@@ -459,7 +499,7 @@ __fly_static int __fly_send_until_header(fly_event_t *e, fly_response_t *respons
 						total = *byte_from_start;
 
 					while(result > total){
-						if (FLY_CONNECT_ON_SSL(response->request)){
+						if (FLY_CONNECT_ON_SSL(response->request->connect)){
 							SSL *ssl=response->request->connect->ssl;
 							numsend = SSL_write(ssl, __header_line+total, result-total);
 							switch(SSL_get_error(ssl, numsend)){
@@ -510,7 +550,7 @@ __fly_static int __fly_send_until_header(fly_event_t *e, fly_response_t *respons
 				if (*byte_from_start)
 					total = *byte_from_start;
 				while((int) FLY_CRLF_LENGTH > total){
-					if (FLY_CONNECT_ON_SSL(response->request)){
+					if (FLY_CONNECT_ON_SSL(response->request->connect)){
 						SSL *ssl=response->request->connect->ssl;
 						numsend = SSL_write(ssl, FLY_CRLF+total, FLY_CRLF_LENGTH-total);
 						switch(SSL_get_error(ssl, numsend)){
@@ -598,7 +638,7 @@ __fly_static int __fly_send_body(fly_event_t *e, fly_response_t *response)
 	while(total < body->body_len){
 		ssize_t sendnum;
 
-		if (FLY_CONNECT_ON_SSL(response->request)){
+		if (FLY_CONNECT_ON_SSL(response->request->connect)){
 			SSL *ssl=response->request->connect->ssl;
 			sendnum = SSL_write(ssl, buf, total);
 			switch(SSL_get_error(ssl, sendnum)){
@@ -701,9 +741,9 @@ int fly_response_event(fly_event_t *e)
 	if (response->body == NULL && response->pf == NULL){
 		rcbs = fly_default_content_by_stcode_from_event(e, response->status_code);
 		if (rcbs){
-			if (fly_add_content_length_from_fd(response->header, rcbs->fd) == -1)
+			if (fly_add_content_length_from_fd(response->header, rcbs->fd, false) == -1)
 				return -1;
-			if (fly_add_content_type(response->header, rcbs->mime) == -1)
+			if (fly_add_content_type(response->header, rcbs->mime, false) == -1)
 				return -1;
 		}
 	}
@@ -725,8 +765,8 @@ int fly_response_event(fly_event_t *e)
 		__de->type = FLY_DE_ESEND_FROM_PATH;
 		__de->encbuflen = 0;
 		__de->decbuflen = 0;
-		__de->encbuf = fly_e_buf_add(__de);
-		__de->decbuf = fly_d_buf_add(__de);
+		__de->encbuf = fly_buffer_init(__de->pool, FLY_DE_BUF_INITLEN, FLY_DE_BUF_MAXLEN, FLY_DE_BUF_PERLEN);
+		__de->decbuf = fly_buffer_init(__de->pool, FLY_DE_BUF_INITLEN, FLY_DE_BUF_MAXLEN, FLY_DE_BUF_PERLEN);
 		__de->fd = response->pf->fd;
 		__de->offset = response->offset;
 		__de->count = response->pf->fs.st_size;
@@ -813,19 +853,46 @@ end_of_encoding:
 	return __fly_after_response(e, response);
 }
 
-int fly_response_release(fly_response_t *response)
+void fly_response_release(fly_response_t *response)
 {
 	if (response == NULL)
-		return -1;
+		return;
 
-	if (response->request != NULL)
-		response->request = NULL;
 	if (response->header != NULL)
 		fly_header_release(response->header);
 	if (response->body != NULL)
 		fly_body_release(response->body);
+	if (response->de != NULL)
+		fly_de_release(response->de);
 
-	return fly_delete_pool(&response->pool);
+	fly_delete_pool(&response->pool);
+}
+
+fly_response_t *fly_304_response(fly_request_t *req, struct fly_mount_parts_file *pf)
+{
+	fly_response_t *res;
+
+	res = fly_response_init();
+	if (fly_unlikely_null(res))
+		return NULL;
+
+	res->header = fly_header_init();
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
+
+	res->version = req->request_line->version->type;
+	res->status_code = _304;
+	res->request = req;
+	res->encoded = false;
+	res->body = NULL;
+
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	fly_add_content_etag(res->header, pf, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
 }
 
 int fly_304_event(fly_event_t *e)
@@ -837,18 +904,9 @@ int fly_304_event(fly_event_t *e)
 	req = rc->request;
 
 	fly_response_t *res;
-	res= fly_response_init();
-	res->header = fly_header_init();
-	res->version = V1_1;
-	res->status_code = _304;
-	res->request = req;
-	res->encoded = false;
-	res->body = NULL;
-
-	fly_add_content_etag(res->header, rc->pf);
-	fly_add_date(res->header);
-	fly_add_server(res->header);
-	fly_add_connection(res->header, KEEP_ALIVE);
+	res = fly_304_response(req, rc->pf);
+	if (fly_unlikely_null(res))
+		return -1;
 
 	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;
@@ -861,11 +919,16 @@ int fly_304_event(fly_event_t *e)
 	return fly_event_register(e);
 }
 
-int fly_400_event(fly_event_t *e, fly_request_t *req)
+fly_response_t *fly_400_response(fly_request_t *req)
 {
 	fly_response_t *res;
 	res= fly_response_init();
+	if (fly_unlikely_null(res))
+		return NULL;
+
 	res->header = fly_header_init();
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
 	res->version = V1_1;
 	res->status_code = _400;
 	res->request = req;
@@ -873,9 +936,21 @@ int fly_400_event(fly_event_t *e, fly_request_t *req)
 	res->offset = 0;
 	res->byte_from_start = 0;
 
-	fly_add_date(res->header);
-	fly_add_server(res->header);
-	fly_add_connection(res->header, KEEP_ALIVE);
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
+}
+
+int fly_400_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_400_response(req);
+	if (fly_unlikely_null(res))
+		return -1;
 
 	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;
@@ -888,11 +963,17 @@ int fly_400_event(fly_event_t *e, fly_request_t *req)
 	return fly_event_register(e);
 }
 
-int fly_404_event(fly_event_t *e, fly_request_t *req)
+fly_response_t *fly_404_response(fly_request_t *req)
 {
 	fly_response_t *res;
+
 	res= fly_response_init();
+	if (fly_unlikely_null(res))
+		return NULL;
+
 	res->header = fly_header_init();
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
 	res->version = V1_1;
 	res->status_code = _404;
 	res->request = req;
@@ -900,9 +981,21 @@ int fly_404_event(fly_event_t *e, fly_request_t *req)
 	res->offset = 0;
 	res->byte_from_start = 0;
 
-	fly_add_date(res->header);
-	fly_add_server(res->header);
-	fly_add_connection(res->header, KEEP_ALIVE);
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
+}
+
+int fly_404_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_404_response(req);
+	if (fly_unlikely_null(res))
+		return -1;
 
 	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;
@@ -915,11 +1008,17 @@ int fly_404_event(fly_event_t *e, fly_request_t *req)
 	return fly_event_register(e);
 }
 
-int fly_405_event(fly_event_t *e, fly_request_t *req)
+fly_response_t *fly_405_response(fly_request_t *req)
 {
 	fly_response_t *res;
+
 	res= fly_response_init();
+	if (fly_unlikely_null(res))
+		return NULL;
+
 	res->header = fly_header_init();
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
 	res->version = V1_1;
 	res->status_code = _405;
 	res->request = req;
@@ -928,9 +1027,21 @@ int fly_405_event(fly_event_t *e, fly_request_t *req)
 	res->byte_from_start = 0;
 
 	fly_add_allow(res->header, req);
-	fly_add_date(res->header);
-	fly_add_server(res->header);
-	fly_add_connection(res->header, KEEP_ALIVE);
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
+}
+
+int fly_405_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_405_response(req);
+	if (fly_unlikely_null(res))
+		return -1;
 
 	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;
@@ -943,11 +1054,18 @@ int fly_405_event(fly_event_t *e, fly_request_t *req)
 	return fly_event_register(e);
 }
 
-int fly_414_event(fly_event_t *e, fly_request_t *req)
+
+fly_response_t *fly_414_response(fly_request_t *req)
 {
 	fly_response_t *res;
+
 	res= fly_response_init();
+	if (fly_unlikely_null(res))
+		return NULL;
+
 	res->header = fly_header_init();
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
 	res->version = V1_1;
 	res->status_code = _414;
 	res->request = req;
@@ -956,9 +1074,21 @@ int fly_414_event(fly_event_t *e, fly_request_t *req)
 	res->byte_from_start = 0;
 
 	fly_add_allow(res->header, req);
-	fly_add_date(res->header);
-	fly_add_server(res->header);
-	fly_add_connection(res->header, KEEP_ALIVE);
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
+}
+
+int fly_414_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_414_response(req);
+	if (fly_unlikely_null(res))
+		return -1;
 
 	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;
@@ -971,11 +1101,17 @@ int fly_414_event(fly_event_t *e, fly_request_t *req)
 	return fly_event_register(e);
 }
 
-int fly_415_event(fly_event_t *e, fly_request_t *req)
+fly_response_t *fly_415_response(fly_request_t *req)
 {
 	fly_response_t *res;
+
 	res= fly_response_init();
+	if (fly_unlikely_null(res))
+		return NULL;
+
 	res->header = fly_header_init();
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
 	res->version = V1_1;
 	res->status_code = _415;
 	res->request = req;
@@ -984,9 +1120,21 @@ int fly_415_event(fly_event_t *e, fly_request_t *req)
 	res->byte_from_start = 0;
 
 	fly_add_allow(res->header, req);
-	fly_add_date(res->header);
-	fly_add_server(res->header);
-	fly_add_connection(res->header, KEEP_ALIVE);
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
+}
+
+int fly_415_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_415_response(req);
+	if (fly_unlikely_null(res))
+		return -1;
 
 	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;
@@ -999,50 +1147,73 @@ int fly_415_event(fly_event_t *e, fly_request_t *req)
 	return fly_event_register(e);
 }
 
-inline static int __fly_encode_do(fly_response_t *res)
+int __fly_encode_do(fly_response_t *res)
 {
 	return (res->encoding && res->encoding->actqty);
 }
 
-int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf)
+fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf)
 {
 	fly_response_t *response;
-
-	if (e->expired){
-		e->event_data = req;
-		return fly_request_timeout(e);
-	}
+	bool hv2 = is_fly_request_http_v2(req);
 
 	response = fly_response_init();
 	if (fly_unlikely_null(response))
-		return -1;
+		return NULL;
 
 	response->request = req;
 	response->status_code = _200;
-	response->version = V1_1;
+	response->version = !hv2 ? V1_1 : V2;
 	response->header = fly_header_init();
+	if (hv2)
+		response->header->state = req->stream->state;
 	response->encoding = req->encoding;
 	response->pf = pf;
 	response->offset = 0;
 	response->count = pf->fs.st_size;
 	response->byte_from_start = 0;
 
-	fly_add_content_length_from_stat(response->header, &pf->fs);
-	fly_add_content_etag(response->header, pf);
-	fly_add_date(response->header);
-	fly_add_last_modified(response->header, pf);
-	fly_add_connection(response->header, KEEP_ALIVE);
-	fly_add_content_encoding(response->header, req->encoding);
-	fly_add_content_type(response->header, pf->mime_type);
+	fly_add_content_length_from_stat(response->header, &pf->fs, hv2);
+	fly_add_content_etag(response->header, pf, hv2);
+	fly_add_date(response->header, hv2);
+	fly_add_last_modified(response->header, pf, hv2);
+	fly_add_content_encoding(response->header, req->encoding, hv2);
+	fly_add_content_type(response->header, pf->mime_type, hv2);
+	if (!hv2)
+		fly_add_connection(response->header, KEEP_ALIVE);
 
+	return response;
+}
+
+int __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf, int (*handler)(fly_event_t *e))
+{
+	fly_response_t *response;
+
+	response = fly_respf(req, pf);
+	if (fly_unlikely_null(response))
+		return -1;
 	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
-	FLY_EVENT_HANDLER(e, fly_response_event);
+	FLY_EVENT_HANDLER(e, handler);
 	e->available = false;
 	e->event_data = (void *) response;
 	fly_event_socket(e);
+
+	return 0;
+}
+
+int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf)
+{
+	if (e->expired){
+		e->event_data = req;
+		return fly_request_timeout(e);
+	}
+
+	if (__fly_response_from_pf(e, req, pf, fly_response_event) == -1)
+		return -1;
+
 	return fly_event_register(e);
 }
 

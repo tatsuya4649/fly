@@ -20,12 +20,9 @@ fly_route_reg_t *fly_route_reg_init(void)
 	return reg;
 }
 
-int fly_route_reg_release(fly_route_reg_t *reg)
+void fly_route_reg_release(fly_route_reg_t *reg)
 {
-	if (reg == NULL)
-		return -1;
-
-	return fly_delete_pool(&reg->pool);
+	fly_delete_pool(&reg->pool);
 }
 
 int fly_register_route(

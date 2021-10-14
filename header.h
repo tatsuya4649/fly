@@ -28,22 +28,44 @@ typedef char fly_hdr_name;
 struct fly_hdr_chain{
 	fly_hdr_name *name;
 	fly_hdr_value *value;
+	size_t name_len;
+	size_t value_len;
 	struct fly_hdr_chain *next;
+
+	/* for HTTP2 */
+	int index;
+	size_t hname_len;
+	size_t hvalue_len;
+	fly_hdr_value *hen_name;
+	fly_hdr_name *hen_value;
+	int index_update;
+	fly_bit_t name_index: 1;
+	fly_bit_t static_table: 1;
+	fly_bit_t dynamic_table: 1;
+	fly_bit_t huffman_name: 1;
+	fly_bit_t huffman_value: 1;
 };
 
+struct fly_hv2_state;
 struct fly_hdr_chain_info{
 	fly_pool_t *pool;
+	struct fly_hdr_chain *dummy;
 	struct fly_hdr_chain *entry;
 	struct fly_hdr_chain *last;
 	unsigned chain_length;
+
+	/* for HTTP2 */
+	struct fly_hv2_state *state;
 };
 typedef struct fly_hdr_chain fly_hdr_c;
 typedef struct fly_hdr_chain_info fly_hdr_ci;
 
 fly_hdr_ci *fly_header_init(void);
-int fly_header_release(fly_hdr_ci *info);
+void fly_header_release(fly_hdr_ci *info);
 int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
+fly_hdr_c *fly_header_addc(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);
 int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
+int fly_header_addbv(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 int fly_header_delete(fly_hdr_ci *chain_info, char *name);
 char *fly_header_from_chain(fly_hdr_ci *chain_info);
@@ -56,26 +78,26 @@ int fly_connection(fly_hdr_ci *ci);
 #define	FLY_CONNECTION_KEEP_ALIVE		1
 
 struct fly_mount_parts_file;
-int fly_add_content_length(fly_hdr_ci *ci, size_t cl);
-int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb);
-int fly_add_content_length_from_fd(fly_hdr_ci *ci, int fd);
-int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
-int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
+int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb, bool lower);
+int fly_add_content_length_from_fd(fly_hdr_ci *ci, int fd, bool lower);
+int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf, bool lower);
+int fly_add_last_modified(fly_hdr_ci *ci, struct fly_mount_parts_file *pf, bool lower);
 
-int fly_add_date(fly_hdr_ci *ci);
+int fly_add_date(fly_hdr_ci *ci, bool lower);
 #include "mime.h"
-int fly_add_content_type(fly_hdr_ci *ci, fly_mime_type_t *type);
+int fly_add_content_type(fly_hdr_ci *ci, fly_mime_type_t *type, bool lower);
 enum fly_header_connection_e{
 	KEEP_ALIVE,
 	CLOSE,
 };
 int fly_add_connection(fly_hdr_ci *ci, enum fly_header_connection_e connection);
 #include "encode.h"
-int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e);
-int fly_add_content_length(fly_hdr_ci *ci, size_t cl);
+int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e, bool hv2);
+int fly_add_content_length(fly_hdr_ci *ci, size_t cl, bool hv2);
 fly_hdr_value *fly_content_encoding(fly_hdr_ci *ci);
+fly_hdr_value *fly_content_encoding_s(fly_hdr_ci *ci);
 struct fly_request;
 int fly_add_allow(fly_hdr_ci *ci, struct fly_request *req);
-int fly_add_server(fly_hdr_ci *ci);
+int fly_add_server(fly_hdr_ci *ci, bool hv2);
 
 #endif

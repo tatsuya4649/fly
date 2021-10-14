@@ -30,6 +30,7 @@ static struct fly_signal *fly_worker_sigptr = NULL;
 static fly_signal_t fly_worker_signals[] = {
 	{SIGINT,			NULL, NULL},
 	{SIGTERM,			NULL, NULL},
+	{SIGPIPE,			FLY_SIG_IGN, NULL},
 };
 
 __fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler)
@@ -144,17 +145,6 @@ error:
 	closedir(__pathd);
 	return -1;
 }
-
-//__fly_static int __fly_strcmp_mp(char *filename, char *fullpath, const char *mount_point)
-//{
-//	while(*fullpath++ == *mount_point++)
-//		;
-//
-//	while(*filename++ == *fullpath++)
-//		if (*filename == '\0')	return 0;
-//
-//	return -1;
-//}
 
 __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __unused char *path, const char *mount_point)
 {
@@ -322,6 +312,11 @@ __fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, fly_con
 		return -1;
 
 	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++){
+		if (fly_worker_signals[i].handler == FLY_SIG_IGN){
+			signal(fly_worker_signals[i].number, SIG_IGN);
+			continue;
+		}
+
 		if (sigaddset(&sset, fly_worker_signals[i].number) == -1)
 			return -1;
 		if (__fly_add_worker_sigs(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler) == -1)

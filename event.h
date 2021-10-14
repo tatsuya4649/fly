@@ -46,6 +46,7 @@ struct fly_event{
 	fly_event_manager_t *manager;
 	int fd;
 	int read_or_write;
+	int available_row;
 	int eflag;
 
 	fly_time_t timeout;
@@ -202,4 +203,5 @@ void fly_sec(fly_time_t *t, int sec);
 void fly_msec(fly_time_t *t, int msec);
 int is_fly_event_timeout(fly_event_t *e);
 float fly_diff_time(struct timeval new, struct timeval old);
+int fly_timeout_restart(fly_event_t *e);
 #endif

@@ -4,6 +4,7 @@
 #include "server.h"
 #include "event.h"
 #include "request.h"
+#include "v2.h"
 
 __fly_static int __fly_info_of_connect(fly_connect_t *conn);
 
@@ -23,8 +24,20 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	conn->pool = pool;
 	memcpy(&conn->peer_addr, addr, addrlen);
 	conn->addrlen = addrlen;
-	conn->ssl = NULL;
 	conn->flag = 0;
+
+	/* for HTTP2 */
+	conn->ssl_ctx = NULL;
+	conn->ssl = NULL;
+	conn->http_v = NULL;
+	conn->v2_state = NULL;
+	conn->peer_closed = false;
+#define FLY_CONNECT_BUFFER_INIT_LEN			1
+#define FLY_CONNECT_BUFFER_CHAIN_MAX		100
+#define FLY_CONNECT_BUFFER_PER_LEN			10
+	conn->buffer = fly_buffer_init(pool, FLY_CONNECT_BUFFER_INIT_LEN, FLY_CONNECT_BUFFER_CHAIN_MAX, FLY_CONNECT_BUFFER_PER_LEN);
+	if (fly_unlikely_null(conn->buffer))
+		return NULL;
 
 	if (__fly_info_of_connect(conn) == -1)
 		return NULL;
@@ -37,10 +50,16 @@ int fly_connect_release(fly_connect_t *conn)
 	if (conn == NULL)
 		return -1;
 
+	/* SSL/TLS release */
+	if (conn->flag & FLY_SSL_CONNECT){
+		SSL_free(conn->ssl);
+	}
+
 	if (fly_socket_close(conn->c_sockfd, FLY_SOCK_CLOSE) == -1)
 		return -1;
 
-	return fly_delete_pool(&conn->pool);
+	fly_delete_pool(&conn->pool);
+	return 0;
 }
 
 __fly_static int __fly_info_of_connect(fly_connect_t *conn)
@@ -70,19 +89,23 @@ int fly_listen_connected(fly_event_t *e)
 	fly_request_t *req;
 
 	conn = (fly_connect_t *) e->event_data;
-	/* ready for request */
-	req = fly_request_init(conn);
-	if (req == NULL)
-		return -1;
-
 	e->fd = e->fd;
 	e->read_or_write = FLY_READ;
-	e->event_data = (void *) req;
 	/* event only modify (no add, no delete) */
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
-	FLY_EVENT_HANDLER(e, fly_request_event_handler);
+	if (conn->flag & FLY_SSL_CONNECT){
+		e->event_data = (void *) conn;
+		FLY_EVENT_HANDLER(e, fly_hv2_init_handler);
+	}else{
+		req = fly_request_init(conn);
+		if (req == NULL)
+			return -1;
+		e->event_data = (void *) req;
+		/* ready for request */
+		FLY_EVENT_HANDLER(e, fly_request_event_handler);
+	}
 	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
 	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
 	e->expired = false;

@@ -37,6 +37,8 @@ int main()
 		return -1;
 	if (setenv(FLY_SSL_KEY_PATH_ENV, "conf/server.key", 1) == -1)
 		return -1;
+	if (setenv("FLY_SETTINGS_FRAME_ENABLE_PUSH", "0", 1) == -1)
+		return -1;
 	ctx = fly_context_init();
 
 	if (fly_mount_init(ctx) == -1)
