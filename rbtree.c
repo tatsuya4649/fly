@@ -73,6 +73,21 @@ static struct fly_rb_root *fly_rb_root_init(struct fly_rb_tree *tree, struct fly
 	return r;
 }
 
+static struct fly_rb_node *fly_rb_min_from_node(struct fly_rb_node *node)
+{
+	if (node->c_right == nil_node_ptr)
+		return nil_node_ptr;
+	else{
+		struct fly_rb_node *__m;
+
+		__m = node->c_right;
+        while(__m->c_left != nil_node_ptr)
+            __m = __m->c_left;
+
+		return __m;
+	}
+}
+
 static void fly_rb_root_release(struct fly_rb_tree *tree)
 {
 	if (tree->root){
@@ -534,7 +549,7 @@ recursion:
 			 *		  /  \
 			 *	  Sl(R)   Sr(B)
 			 */
-			} else if (fly_is_red(__s->c_left->color) && fly_is_black(__s->c_right->color) && fly_rb_node_is_left(node)){
+			} else if (fly_is_red(__s->c_left->color) && fly_is_black(__s->c_right->color) && __p->c_left == node){
 				fly_rb_rotate_right(__s, tree);
 				fly_rb_color_update(__s, FLY_RB_RED);
 				fly_rb_color_update(__s->c_left, FLY_RB_BLACK);
@@ -547,7 +562,7 @@ recursion:
 			 *		/  \
 			 *	Sl(B)   Sr(R)
 			 */
-			} else if (fly_is_black(__s->c_left->color) && fly_is_red(__s->c_right->color) && fly_rb_node_is_right(node)){
+			} else if (fly_is_black(__s->c_left->color) && fly_is_red(__s->c_right->color) && __p->c_right == node){
 				fly_rb_rotate_left(__s, tree);
 				fly_rb_color_update(__s, FLY_RB_RED);
 				fly_rb_color_update(__s->c_right, FLY_RB_BLACK);
@@ -560,7 +575,7 @@ recursion:
 			 *			 /	  \
 			 *	 Sl(B or R)  Sr(R)
 			 */
-			} else if (fly_is_red(__s->c_right->color) && fly_rb_node_is_left(node)){
+			} else if (fly_is_red(__s->c_right->color) && __p->c_left == node){
 				fly_rb_color_t __pcolor = __p->color;
 				fly_rb_color_t __scolor = __s->color;
 
@@ -577,7 +592,7 @@ recursion:
 			 * 			/  \
 			 * 		Sl(R)   Sr(B or R)
 			 */
-			} else if (fly_is_red(__s->c_left->color) && fly_rb_node_is_right(node)){
+			} else if (fly_is_red(__s->c_left->color) && __p->c_right == node){
 				fly_rb_color_t __pcolor = __p->color;
 				fly_rb_color_t __scolor = __s->color;
 
@@ -609,20 +624,12 @@ static inline bool fly_rb_part_child(struct fly_rb_node *node)
 
 void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 {
-    struct fly_rb_node *__m, *__mrc=NULL, *__p __unused, *target;
-
-	if (fly_unlikely_null(node))
-		return;
-
-    __p = node->parent;
-
+#ifdef FLY_TEST
+	assert(node != NULL);
+#endif
 	if (tree->node_count <= 0)
 		return;
 
-	if (node->c_left == nil_node_ptr){
-		target = node->c_right;
-	}else if (node->c_right == nil_node_ptr){
-		target->c_right = c_left;
 	if (fly_rb_no_child(node)){
 		if (fly_rb_node_is_root(tree, node)){
 			return fly_rb_root_release(tree);
@@ -632,17 +639,16 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 			else
 				node->parent->c_right = nil_node_ptr;
 		}
-		/* release resource of rb */
 		if (fly_is_black(node->color))
 			__fly_rb_delete_rebalance(tree, nil_node_ptr, node->parent);
-        tree->node_count--;
+
+		/* release resource of rb */
+		tree->node_count--;
 		fly_free(node);
-        return;
-    /* have one child */
-	} else if (fly_rb_part_child(node)){
+	}else if (node->c_right == nil_node_ptr){
+		struct fly_rb_node *target;
 
-		target = (node->c_left!=nil_node_ptr) ? node->c_left : node->c_right;
-
+		target = node->c_left;
 		if (fly_rb_node_is_root(tree, node)){
 			fly_rb_root(tree, target);
 		}else{
@@ -653,35 +659,45 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 
 			target->parent = node->parent;
 		}
+		if (fly_is_black(node->color))
+			__fly_rb_delete_rebalance(tree, target, target->parent);
 
 		/* release resource of rb */
-
-		if (fly_is_black(node->color))
-			__fly_rb_delete_rebalance(tree, target, node->parent);
-
-        tree->node_count--;
-		fly_free(node);
-		return;
-	/* have two children */
-	}else{
-		struct fly_rb_node *__p;
-		__m = node->c_right; /* not nil_node */
-        while(__m->c_left != nil_node_ptr)
-            __m = __m->c_left;
-
-		__p = __m->parent;
-        fly_rb_swap(tree, node, __m);
-        __mrc = node->c_right;
-		node->parent->c_left = __mrc;
-		if (__mrc != nil_node_ptr)
-			__mrc->parent = node->parent;
-
-		if (fly_is_black(node->color))
-			__fly_rb_delete_rebalance(tree, __mrc, __p);
-
 		tree->node_count--;
 		fly_free(node);
-		return;
+	}else{
+		struct fly_rb_node *__p, *__m, *__mrc;
+
+		__m = fly_rb_min_from_node(node);
+		__p = __m->parent;
+        //fly_rb_swap(tree, node, __m);
+		//__m->data = node->data;
+		//__m->key = node->key;
+        //__mrc = node->c_right;
+		//__p->c_left = __mrc;
+		//fly_rb_parent(__mrc, node);
+
+		node->data = __m->data;
+		node->key = __m->key;
+		/* __m have one or zero child. */
+		__mrc = __m->c_right;
+
+		if (__p->c_left == __m)
+			__p->c_left = __mrc;
+		else
+			__p->c_right = __mrc;
+		fly_rb_parent(__mrc, __p);
+
+		if (fly_is_black(__m->color)){
+			if (__mrc == nil_node_ptr)
+				__fly_rb_delete_rebalance(tree, nil_node_ptr, __p);
+			else
+				__fly_rb_delete_rebalance(tree, __mrc, __p);
+		}
+		/* release resource of rb */
+		tree->node_count--;
+		fly_free(__m);
 	}
+	return;
 }
 
