@@ -87,14 +87,14 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	if (info->flag & FLY_SOCKINFO_SSL){
 		char *crt_path_env = getenv(FLY_SSL_CRT_PATH_ENV);
 		char *key_path_env = getenv(FLY_SSL_KEY_PATH_ENV);
-		info->crt_path = crt_path_env ? fly_pballoc(ctx->pool, sizeof(char)*strlen(crt_path_env)) : NULL;
-		info->key_path = key_path_env ? fly_pballoc(ctx->pool, sizeof(char)*strlen(key_path_env)) : NULL;
+		info->crt_path = crt_path_env ? fly_pballoc(ctx->pool, sizeof(char)*(strlen(crt_path_env)+1)) : NULL;
+		info->key_path = key_path_env ? fly_pballoc(ctx->pool, sizeof(char)*(strlen(key_path_env)+1)) : NULL;
 		if (info->crt_path){
-			memset(info->crt_path, '\0', sizeof(char)*strlen(crt_path_env));
+			memset(info->crt_path, '\0', sizeof(char)*(strlen(crt_path_env)+1));
 			memcpy(info->crt_path, crt_path_env, sizeof(char)*strlen(crt_path_env));
 		}
 		if (info->key_path){
-			memset(info->key_path, '\0', sizeof(char)*strlen(key_path_env));
+			memset(info->key_path, '\0', sizeof(char)*(strlen(key_path_env)+1));
 			memcpy(info->key_path, key_path_env, sizeof(char)*strlen(key_path_env));
 		}
 	}

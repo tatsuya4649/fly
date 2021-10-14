@@ -112,6 +112,9 @@ int fly_request_event_handler(fly_event_t *event);
 fly_request_t *fly_request_init(fly_connect_t *conn);
 int fly_request_release(fly_request_t *req);
 
+int fly_request_line_init(fly_request_t *req);
+void fly_request_line_release(fly_request_t *req);
+
 struct fly_buffer_chain *fly_get_request_line_ptr(fly_buffer_t *__buf);
 int fly_request_timeout(fly_event_t *event);
 int fly_hv2_request_target_parse(fly_request_t *req);

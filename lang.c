@@ -42,7 +42,7 @@ __fly_static int __fly_accept_lang(fly_hdr_ci *header, fly_hdr_value **value)
 		return __FLY_ACCEPT_LANG_FOUND;
 
 	for (__h=header->dummy->next; __h!=header->dummy; __h=__h->next){
-		if (strcmp(__h->name, FLY_ACCEPT_LANG) == 0){
+		if (__h->name_len>0 && strcmp(__h->name, FLY_ACCEPT_LANG) == 0){
 			*value = __h->value;
 			return __FLY_ACCEPT_LANG_FOUND;
 		}

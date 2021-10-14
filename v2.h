@@ -411,11 +411,11 @@ struct fly_hv2_static_table{
  */
 struct fly_hv2_dynamic_table{
 	/* no huffman encoding */
-	char *hname;
-	size_t hname_len;
-	char *hvalue;
-	size_t hvalue_len;
-	size_t entry_size;
+	char		*hname;
+	size_t		 hname_len;
+	char		*hvalue;
+	size_t		 hvalue_len;
+	size_t		 entry_size;
 
 	struct fly_hv2_dynamic_table *prev;
 	struct fly_hv2_dynamic_table *next;
@@ -444,5 +444,6 @@ enum fly_hv2_index_type{
 extern struct fly_hv2_static_table static_table[];
 #define FLY_HV2_STATIC_TABLE_LENGTH			\
 	((int) sizeof(static_table)/sizeof(struct fly_hv2_static_table))
+int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);
 
 #endif

@@ -32,7 +32,7 @@ typedef struct fly_context fly_context_t;
 	}
 
 fly_context_t *fly_context_init(void);
-int fly_context_release(fly_context_t *ctx);
+void fly_context_release(fly_context_t *ctx);
 
 #define FLY_SEND_DEFAULT_CONTENT_BY_STCODE_SUCCESS		(1)
 #define FLY_SEND_DEFAULT_CONTENT_BY_STCODE_BLOCKING		(0)
