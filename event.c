@@ -238,7 +238,7 @@ int fly_event_unregister(fly_event_t *event)
 			int efd;
 
 			/* delete from red black tree */
-			if (!(event->tflag & FLY_INFINITY))
+			if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event))
 				fly_rb_delete(event->manager->rbtree, event->rbnode);
 			/* only one event */
 			if (event == event->manager->first && event == event->manager->last){
