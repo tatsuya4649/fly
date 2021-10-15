@@ -2,13 +2,14 @@
 #include "request.h"
 
 fly_mime_type_t mimes[] = {
-	{__FLY_MTYPE_SET(text, plain), FLY_STRING_ARRAY("txt", NULL)},
-	{__FLY_MTYPE_SET(text, csv), FLY_STRING_ARRAY("csv", NULL)},
-	{__FLY_MTYPE_SET(text, html), FLY_STRING_ARRAY("html", "htm", NULL)},
-	{__FLY_MTYPE_SET(text, css), FLY_STRING_ARRAY("css", "css", NULL)},
-	{__FLY_MTYPE_SET(text, xml), FLY_STRING_ARRAY("xml", NULL)},
-	{__FLY_MTYPE_SET(text, javascript), FLY_STRING_ARRAY("js", NULL)},
-	{__FLY_MTYPE_SET(text, richtext), FLY_STRING_ARRAY("rtf", NULL)},
+	{__FLY_MTYPE_SET(text, plain), __FLY_MTYPE_EXTS("txt", NULL)},
+	{__FLY_MTYPE_SET(text, csv), __FLY_MTYPE_EXTS("csv", NULL)},
+	{__FLY_MTYPE_SET(text, html), __FLY_MTYPE_EXTS("html", "htm", NULL)},
+	{__FLY_MTYPE_SET(text, css), __FLY_MTYPE_EXTS("css", "css", NULL)},
+	{__FLY_MTYPE_SET(text, xml), __FLY_MTYPE_EXTS("xml", NULL)},
+	{__FLY_MTYPE_SET(text, javascript), __FLY_MTYPE_EXTS("js", NULL)},
+	{__FLY_MTYPE_SET(text, richtext), __FLY_MTYPE_EXTS("rtf", NULL)},
+	{__FLY_MTYPE_SET(application, octet_stream), __FLY_MTYPE_EXTS(NULL)},
 	{-1, "", NULL}
 };
 fly_mime_type_t unknown_mime = {
@@ -16,8 +17,7 @@ fly_mime_type_t unknown_mime = {
 	.extensions = NULL,
 };
 fly_mime_type_t noext_mime = {
-	.type = fly_mime_noextension,
-	.extensions = NULL,
+	__FLY_MTYPE_SET(text, plain), __FLY_MTYPE_EXTS("txt", NULL)
 };
 bool fly_mime_invalid(fly_mime_type_t *type)
 {
