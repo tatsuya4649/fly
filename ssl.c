@@ -88,6 +88,11 @@ int fly_listen_socket_ssl_handler(fly_event_t *e)
 	return __fly_ssl_accept_event_handler(ne, __ac);
 }
 
+void fly_ssl_accept_free(SSL *ssl)
+{
+	SSL_free(ssl);
+}
+
 __fly_static fly_connect_t *__fly_ssl_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen, SSL *ssl, SSL_CTX *ctx)
 {
 	fly_connect_t *conn;
@@ -107,6 +112,11 @@ __fly_static fly_connect_t *__fly_ssl_connected(fly_sock_t fd, fly_sock_t cfd, f
 	if (fly_unlikely_null(conn->http_v))
 		return NULL;
 	return conn;
+}
+
+void fly_ssl_connected_release(fly_connect_t *conn)
+{
+	fly_ssl_accept_free(conn->ssl);
 }
 
 __fly_static int __fly_ssl_strcmp(char *d1, char *d2, unsigned char max)
@@ -155,7 +165,6 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 	/* create new connected socket event. */
 	conn_sock = SSL_get_fd(__ac->ssl);
 	if ((res=SSL_accept(__ac->ssl)) <= 0){
-		/* TODO: log event */
 		switch(SSL_get_error(__ac->ssl, res)){
 		case SSL_ERROR_NONE:
 			break;
@@ -179,6 +188,8 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 			goto write_blocking;
 		case SSL_ERROR_SYSCALL:
 			printf("SSL_ERROR_SYSCALL\n");
+			if (errno == EPIPE)
+				goto disconnect;
 			return -1;
 		case SSL_ERROR_SSL:
 			printf("SSL_ERROR_SSL\n");
@@ -223,6 +234,10 @@ blocking:
 	e->event_data = (struct fly_ssl_accept *) __ac;
 	fly_event_socket(e);
 	return fly_event_register(e);
+disconnect:
+	fly_ssl_accept_free(__ac->ssl);
+	fly_pbfree(__ac->pool, __ac);
+	return fly_event_unregister(e);
 }
 
 __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e)

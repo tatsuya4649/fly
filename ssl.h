@@ -22,5 +22,7 @@
 #define FLY_SSL_KEY_PATH_ENV		"FLY_SSL_KEY_PATH"
 
 int fly_listen_socket_ssl_handler(fly_event_t *e);
+struct fly_connect;
+void fly_ssl_connected_release(struct fly_connect *conn);
 
 #endif
