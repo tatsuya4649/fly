@@ -10,6 +10,7 @@
 #include "alloc.h"
 #include "util.h"
 #include  "rbtree.h"
+#include "queue.h"
 
 extern fly_pool_t *fly_event_pool;
 #define FLY_EVENT_POOL_SIZE			100
@@ -19,17 +20,18 @@ extern fly_pool_t *fly_event_pool;
 
 typedef struct fly_context fly_context_t;
 struct fly_event_manager{
-	fly_pool_t *pool;
-	fly_context_t *ctx;
-	int efd;
-	struct epoll_event *evlist;
-	int maxevents;
-	int evlen;
+	fly_pool_t			*pool;
+	fly_context_t		*ctx;
+	int					efd;
+	struct epoll_event	*evlist;
+	int					maxevents;
+	int					evlen;
 
-	struct fly_rb_tree *rbtree;
-	struct fly_event *first;
-	struct fly_event *last;
-	struct fly_event *dummy;
+	struct fly_rb_tree	*rbtree;
+	struct fly_queue	unmonitorable;
+	struct fly_event	*first;
+	struct fly_event	*last;
+	struct fly_event	*dummy;
 };
 typedef struct fly_event_manager fly_event_manager_t;
 #define FLY_MANAGER_DUMMY_INIT(m)			\
@@ -68,6 +70,7 @@ struct fly_event{
 	void *event_fase;
 	void *event_state;
 
+	struct fly_queue		qelem;
 	/*
 	 * if event handler fail, this function is called.
 	 * this function must close fd(event file).
@@ -85,20 +88,6 @@ struct fly_event{
 		(e)->handler = (__handler);		\
 		(e)->handler_name = #__handler;	\
 	} while(0);
-
-#define FLY_HANDLE_EVENT(__event)									\
-	do{																\
-		int handle_result;											\
-		if ((__event)->handler != NULL)								\
-			handle_result = (__event)->handler(__event);			\
-		if (handle_result == FLY_EVENT_HANDLE_FAILURE)				\
-			/* log error handle in notice log. */					\
-			if (__fly_event_handle_failure_log((__event)) == -1)	\
-				FLY_EMERGENCY_ERROR(								\
-					FLY_EMERGENCY_STATUS_ELOG,						\
-					"failure to log event handler failure."			\
-				);													\
-	}while(0)
 
 typedef struct fly_event fly_event_t;
 #define fly_time(tptr)		gettimeofday((struct timeval *) tptr, NULL)

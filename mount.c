@@ -456,13 +456,15 @@ __fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
 {
 	size_t i=0;
 	char *uri_str;
-	if (*uri->ptr == '/')
+
+	/* ignore first some slash */
+	while (uri->ptr[i] == '/')
 		i++;
 
 	if (uri->ptr[i] == '\0' || i>=uri->len)
 		uri_str = FLY_URI_INDEX_NAME;
 	else
-		uri_str = uri->ptr;
+		uri_str = uri->ptr+i;
 
 	while(filename[i] == uri_str[i]){
 		if ((*filename == '\0' && *uri_str == '\0') || \

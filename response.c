@@ -748,7 +748,7 @@ int fly_response_event(fly_event_t *e)
 		}
 	}
 
-	if (__fly_encode_do(response)){
+	if (fly_encode_do(response)){
 		fly_encoding_type_t *enctype=NULL;
 		enctype = fly_decided_encoding_type(response->encoding);
 		if (fly_unlikely_null(enctype))
@@ -798,7 +798,7 @@ end_of_encoding:
 	}
 
 
-	if (__fly_encode_do(response)){
+	if (fly_encode_do(response)){
 		switch(fly_esend_body(e, response)){
 		case FLY_RESPONSE_SUCCESS:
 			break;
@@ -1147,9 +1147,30 @@ int fly_415_event(fly_event_t *e, fly_request_t *req)
 	return fly_event_register(e);
 }
 
-int __fly_encode_do(fly_response_t *res)
+fly_response_t *fly_500_response(fly_request_t *req)
 {
-	return (res->encoding && res->encoding->actqty);
+	fly_response_t *res;
+
+	res= fly_response_init();
+	if (fly_unlikely_null(res))
+		return NULL;
+
+	res->header = fly_header_init();
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
+	res->version = V1_1;
+	res->status_code = _415;
+	res->request = req;
+	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
+
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
 }
 
 fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf)

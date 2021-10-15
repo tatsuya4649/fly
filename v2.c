@@ -3170,7 +3170,7 @@ int fly_hv2_parse_headers(fly_hv2_stream_t *stream, uint32_t length, uint8_t *pa
 
 			index = fly_hv2_integer(&payload, &__c, &total, FLY_HV2_INDEX_PREFIX_BIT);
 			index -= 1;
-			/* TODO: found header field from static or dynamic table */
+			/* found header field from static or dynamic table */
 			if (fly_hv2_add_header_by_index(stream, index) == -1)
 				return -1;
 		}else{
@@ -3941,12 +3941,10 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 	 *	create response from request.
 	 */
 	if (fly_hv2_request_line_from_header(request) == -1){
-		/* TODO: response 400 error */
 		goto response_400;
 	}
 
 	if (fly_hv2_request_target_parse(request) == -1){
-		/* TODO: response 400 error */
 		goto response_400;
 	}
 
@@ -4045,7 +4043,7 @@ response_405:
 	response = fly_405_response(request);
 	goto __response_event;
 response_500:
-	//response = fly_500_response(request);
+	response = fly_500_response(request);
 	goto __response_event;
 __response_event:
 	e->event_data = (void *) response;
@@ -4139,7 +4137,7 @@ int fly_hv2_response_event(fly_event_t *e)
 		}
 	}
 
-	if (__fly_encode_do(res)){
+	if (fly_encode_do(res)){
 		res->type = FLY_RESPONSE_TYPE_ENCODED;
 		fly_encoding_type_t *enctype=NULL;
 		enctype = fly_decided_encoding_type(res->encoding);
@@ -4281,5 +4279,4 @@ int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, 
 	}
 	return 0;
 }
-
 
