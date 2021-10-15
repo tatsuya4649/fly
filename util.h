@@ -43,10 +43,9 @@ int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr
 #define FLY_SPACE				(0x20)
 #define FLY_CR					(0xD)
 
-#define fly_container_of(ptr, type , member)		\
-	({	\
+#define fly_container_of(ptr, type , member)		({	\
 		const typeof( ((type *) 0)->member ) *__p = (ptr); \
-		(type *) (char *) __p - offsetof(type, member);	\
+		(type *) ((char *) __p - offsetof(type, member));	\
 	})
 
 
