@@ -404,9 +404,8 @@ int fly_add_date(fly_hdr_ci *ci, bool v2)
 int fly_add_content_type(fly_hdr_ci *ci, fly_mime_type_t *type, bool v2)
 {
 	if (fly_unlikely_null(type) || \
-			fly_unlikely_null(type->name || \
-			fly_mime_invalid(type)))
-		return 0;
+			fly_unlikely_null(type->name) || fly_mime_invalid(type))
+		type = &noext_mime;
 
 	if (v2)
 		return fly_header_add_v2(ci, fly_header_name_length("content-type"), fly_header_value_length(type->name), false);
