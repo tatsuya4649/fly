@@ -239,7 +239,6 @@ int fly_event_register(fly_event_t *event)
 
 int fly_event_unregister(fly_event_t *event)
 {
-	fly_event_t *e, *prev;
 
 	if (fly_event_nomonitorable(event)){
 		fly_queue_remove(&event->qelem);
@@ -248,6 +247,7 @@ int fly_event_unregister(fly_event_t *event)
 		fly_pbfree(event->manager->pool, event);
 		return 0;
 	}else{
+		fly_event_t *e, *prev;
 		for (e=event->manager->dummy->next; e!=event->manager->dummy; e=e->next){
 			/* same fd event */
 			if (event->fd == e->fd){

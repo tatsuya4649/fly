@@ -5,6 +5,7 @@
 #include "event.h"
 #include "request.h"
 #include "v2.h"
+#include "ssl.h"
 
 __fly_static int __fly_info_of_connect(fly_connect_t *conn);
 
@@ -51,9 +52,8 @@ int fly_connect_release(fly_connect_t *conn)
 		return -1;
 
 	/* SSL/TLS release */
-	if (conn->flag & FLY_SSL_CONNECT){
-		SSL_free(conn->ssl);
-	}
+	if (conn->flag & FLY_SSL_CONNECT)
+		fly_ssl_connected_release(conn);
 
 	if (fly_socket_close(conn->c_sockfd, FLY_SOCK_CLOSE) == -1)
 		return -1;

@@ -31,6 +31,11 @@ static inline struct fly_queue *fly_queue_pop(struct fly_queue *__h)
 	return l;
 }
 
+static inline struct fly_queue *fly_queue_last(struct fly_queue *__h)
+{
+	return __h->prev;
+}
+
 static inline void fly_queue_remove(struct fly_queue *__x)
 {
 	__x->next->prev = __x->prev;
@@ -54,6 +59,9 @@ static inline bool fly_is_queue_empty(struct fly_queue *__h)
 {
 	return __h->next == __h ? true : false;
 }
+
+#define fly_for_each_queue(__q, start)		\
+		for (__q=(start)->next; __q!=start; __q=__q->next)
 
 #endif
 

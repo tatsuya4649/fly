@@ -6,11 +6,12 @@
 #include "util.h"
 #include "event.h"
 #include "request.h"
+#include "bllist.h"
 
 #define FLY_CONNECTION_PREFACE				\
 	("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
 
-#define FLY_SEND_FRAME_TIMEOUT				(60)
+#define FLY_SEND_FRAME_TIMEOUT				(5)
 /*
  *	HTTP2 Frame Header:
  *	@ Length:    24bit
@@ -41,8 +42,8 @@ struct fly_hv2_frame{
 	uint8_t		flags;
 	struct fly_hv2_stream *stream;
 	uint8_t *payload;
-	struct fly_hv2_frame *next;
-	struct fly_hv2_frame *prev;
+	/* frames queue element */
+	struct fly_queue			felem;
 };
 
 struct fly_hv2_stream;
@@ -62,15 +63,12 @@ struct fly_hv2_send_frame{
 		FLY_HV2_SEND_FRAME_FASE_END
 	} send_fase;
 
-	struct fly_hv2_send_frame *next;
-	struct fly_hv2_send_frame *prev;
-	/* for ack */
-	struct fly_hv2_send_frame *anext;
-	struct fly_hv2_send_frame *aprev;
-	/* for state send */
-	struct fly_hv2_send_frame *snext;
-	struct fly_hv2_send_frame *sprev;
-
+	/* send frame queue element */
+	struct fly_queue			qelem;
+	/* required ack send frame queue element */
+	struct fly_bllist			aqelem;
+	/* send frame queue of state element */
+	struct fly_queue			sqelem;
 	fly_bit_t need_ack:	1;
 };
 
@@ -91,66 +89,63 @@ struct fly_hv2_response{
 };
 
 struct fly_hv2_state{
-	fly_pool_t *pool;
-	fly_connect_t *connect;
-	enum fly_hv2_connection_state connection_state;
-	int stream_count;
-	int reserved_count;
-	fly_sid_t max_sid;
-	fly_sid_t max_handled_sid;
-	struct fly_hv2_stream *streams;
-	struct fly_hv2_stream *lstream;
+	fly_pool_t						*pool;
+	fly_connect_t					*connect;
+	enum fly_hv2_connection_state	connection_state;
+	int								stream_count;
+	int								reserved_count;
+	fly_sid_t						max_sid;
+	fly_sid_t						max_handled_sid;
+	struct fly_bllist				streams;
 	/* last handle stream */
-	struct fly_hv2_stream *lhstream;
-	struct fly_hv2_response *responses;
-	struct fly_hv2_response *lresponse;
-	int response_count;
-	struct fly_hv2_stream *reserved;
-	struct fly_hv2_stream *lreserved;
+	struct fly_hv2_stream			*lhstream;
+	struct fly_hv2_response			*responses;
+	struct fly_hv2_response			*lresponse;
+	int								response_count;
+	struct fly_queue				reserved;
 
-	struct fly_hv2_dynamic_table *dtable;
-	struct fly_hv2_dynamic_table *ldtable;
-	size_t dtable_entry_count;
-	size_t dtable_size;
-	size_t dtable_max_index;
+	struct fly_hv2_dynamic_table	*dtable;
+	struct fly_hv2_dynamic_table	*ldtable;
+	size_t							dtable_entry_count;
+	size_t							dtable_size;
+	size_t							dtable_max_index;
 
 	/* send list */
-	struct fly_hv2_send_frame *send;
-	struct fly_hv2_send_frame *lsend;
-	int send_count;
+	struct fly_queue				send;
+	int								send_count;
 
 	/* use when memory is low */
-	void   *emergency_ptr;
+	void							*emergency_ptr;
 
-	ssize_t window_size;
+	ssize_t							 window_size;
 	/* connection setting value by SETTINGS frame */
 #define FLY_HV2_HEADER_TABLE_SIZE_DEFAULT		(4096)	/* unit: octet*/
-	fly_settings_t p_header_table_size;
-	fly_settings_t header_table_size;
+	fly_settings_t					p_header_table_size;
+	fly_settings_t					header_table_size;
 #define FLY_HV2_MAX_CONCURRENT_STREAMS_DEFAULT	(-1)	/* no limit */
 #define FLY_HV2_MAX_CONCURRENT_STREAMS_INFINITY	(-1)	/* no limit */
-	fly_settings_t p_max_concurrent_streams;
-	fly_settings_t max_concurrent_streams;
+	fly_settings_t					p_max_concurrent_streams;
+	fly_settings_t					max_concurrent_streams;
 #define FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT		((1<<16)-1) /* 65535 octet*/
 #define FLY_HV2_WINDOW_SIZE_MAX					(((uint32_t) (1<<31))-1) /* 2147483648 octet*/
 
-	fly_settings_t p_initial_window_size;
-	fly_settings_t initial_window_size;
+	fly_settings_t					p_initial_window_size;
+	fly_settings_t					initial_window_size;
 #define FLY_HV2_MAX_FRAME_SIZE_DEFAULT			(1<<14) /*16384 octet*/
 #define FLY_HV2_MAX_FRAME_SIZE_MAX				((1<<24)-1) /*16777215 octet*/
-	fly_settings_t p_max_frame_size;
-	fly_settings_t max_frame_size;
+	fly_settings_t					p_max_frame_size;
+	fly_settings_t					max_frame_size;
 #define FLY_HV2_MAX_HEADER_LIST_SIZE_DEFAULT	(-1)	/* no limit */
-	fly_settings_t p_max_header_list_size;
-	fly_settings_t max_header_list_size;
+	fly_settings_t					p_max_header_list_size;
+	fly_settings_t					max_header_list_size;
 #define FLY_HV2_ENABLE_PUSH_DEFAULT				(1)
-	fly_settings_t p_enable_push;
-	fly_settings_t enable_push;
+	fly_settings_t					p_enable_push;
+	fly_settings_t 					enable_push;
 
 	/* after received GOAWAY*/
-	fly_sid_t goaway_lsid;
-	fly_bit_t goaway: 1;
-	fly_bit_t first_send_settings: 1;
+	fly_sid_t						goaway_lsid;
+	fly_bit_t 						goaway: 1;
+	fly_bit_t 						first_send_settings: 1;
 };
 typedef struct fly_hv2_state fly_hv2_state_t;
 typedef struct fly_hv2_frame fly_hv2_frame_t;
@@ -172,39 +167,39 @@ enum fly_hv2_stream_state{
 
 struct fly_hv2_stream{
 #define FLY_HV2_STREAM_ROOT_ID			(0x0)
-	fly_sid_t id;
-	fly_sid_t dependency_id;
-	struct fly_hv2_state *state;
-	enum fly_hv2_stream_state stream_state;
-	struct fly_hv2_stream *next;
-	fly_request_t *request;
-	int dep_count;
-	struct fly_hv2_stream *deps;
-	struct fly_hv2_stream *dnext;
-	struct fly_hv2_stream *dprev;
-	ssize_t window_size;
-	struct fly_hv2_frame *frames;
-	struct fly_hv2_frame *lframe;
+	fly_sid_t						id;
+	fly_sid_t						dependency_id;
+	struct fly_hv2_state			*state;
+	enum fly_hv2_stream_state		stream_state;
+	struct fly_bllist				blelem;
+	struct fly_queue				rqelem;
+	fly_request_t					*request;
+	int								dep_count;
+	struct fly_hv2_stream			*deps;
+	struct fly_hv2_stream			*dnext;
+	struct fly_hv2_stream			*dprev;
+	ssize_t							window_size;
+	struct fly_queue				frames;
 	/* sent frame that rave not yet received ack */
-	struct fly_hv2_send_frame *yetack;
-	struct fly_hv2_send_frame *lyetack;
-	int yetack_count;
-	struct fly_hv2_send_frame *yetsend;
-	struct fly_hv2_send_frame *lyetsend;
-	int yetsend_count;
-	int frame_count;
-	uint16_t weight;
+	struct fly_bllist				yetack;
+	int								yetack_count;
+	struct fly_queue				yetsend;
+	int								yetsend_count;
+	int 							frame_count;
+	uint16_t						weight;
 
-	fly_bit_t from_client: 1;
-	fly_bit_t reserved: 1;
-	fly_bit_t exclusive: 1;
-	fly_bit_t peer_end_headers: 1;
-	fly_bit_t can_response: 1;
-	fly_bit_t end_send_headers: 1;
-	fly_bit_t end_send_data: 1;
-	fly_bit_t end_request_response: 1;
+	fly_bit_t						from_client: 1;
+	fly_bit_t 						reserved: 1;
+	fly_bit_t 						exclusive: 1;
+	fly_bit_t 						peer_end_headers: 1;
+	fly_bit_t 						can_response: 1;
+	fly_bit_t 						end_send_headers: 1;
+	fly_bit_t 						end_send_data: 1;
+	fly_bit_t 						end_request_response: 1;
 };
 typedef struct fly_hv2_stream fly_hv2_stream_t;
+#define FLY_HV2_ROOT_STREAM(state)			\
+		fly_queue_data((state)->streams.next, struct fly_hv2_stream, blelem)
 
 /* 1~256 */
 #define FLY_HV2_STREAM_DEFAULT_WEIGHT		(16)
@@ -369,7 +364,6 @@ typedef uint8_t fly_hv2_frame_type_t;
 #define FLY_HV2_FRAME_TYPE_CONTINUATION			(0x9)
 #define FLY_HV2_FRAME_TYPE_CONTINUATION_END_HEADERS		(1<<2)
 
-#define FLY_HV2_ROOT_STREAM(state)				(state->streams)
 /*
  *	Error code
  */

@@ -90,8 +90,10 @@ enum __fly_mime_list{
 	fly_mime_unknown,
 	fly_mime_noextension,
 };
+extern struct fly_mime_type noext_mime;
 typedef enum __fly_mime_list fly_mime_e;
-#define __FLY_MTYPE_SET(type, subtype)	fly_mime_ ## type ## _ ## subtype, #type "/" #subtype
+#define __FLY_MTYPE_SET(__t, __st)	.type = fly_mime_ ## __t ## _ ## __st, .name = #__t "/" #__st
+#define __FLY_MTYPE_EXTS(...)		.extensions = FLY_STRING_ARRAY(__VA_ARGS__)
 
 typedef char fly_mime_c;
 typedef char fly_ext_t;

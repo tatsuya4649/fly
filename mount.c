@@ -454,7 +454,7 @@ int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *
 #define FLY_FOUND_CONTENT_FROM_PATH_ERROR		-1
 __fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
 {
-	size_t i=0;
+	size_t i=0, j=0;
 	char *uri_str;
 
 	/* ignore first some slash */
@@ -466,7 +466,7 @@ __fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
 	else
 		uri_str = uri->ptr+i;
 
-	while(filename[i] == uri_str[i]){
+	while(j++<strlen(filename) || uri->len<=j || filename[i] == uri_str[i]){
 		if ((*filename == '\0' && *uri_str == '\0') || \
 				i>=uri->len)
 			return 0;
