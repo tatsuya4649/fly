@@ -313,7 +313,8 @@ __fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, fly_con
 
 	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++){
 		if (fly_worker_signals[i].handler == FLY_SIG_IGN){
-			signal(fly_worker_signals[i].number, SIG_IGN);
+			if (signal(fly_worker_signals[i].number, SIG_IGN) == SIG_ERR)
+				return -1;
 			continue;
 		}
 
