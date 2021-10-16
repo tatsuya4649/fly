@@ -28,49 +28,41 @@ struct fly_event_manager{
 	int					evlen;
 
 	struct fly_rb_tree	*rbtree;
+	struct fly_queue	monitorable;
 	struct fly_queue	unmonitorable;
-	struct fly_event	*first;
-	struct fly_event	*last;
-	struct fly_event	*dummy;
 };
 typedef struct fly_event_manager fly_event_manager_t;
-#define FLY_MANAGER_DUMMY_INIT(m)			\
-	do{										\
-		(m)->dummy = fly_pballoc((m)->pool, sizeof(struct fly_event)); \
-		memset((m)->dummy, 0, sizeof(struct fly_event_manager));			\
-		(m)->dummy->next = (m)->dummy;				\
-		(m)->dummy->prev = (m)->dummy;				\
-		FLY_EVENT_HANDLER((m)->dummy, NULL);		\
-	} while(0);
 
 typedef struct timeval fly_time_t;
 struct fly_event{
-	fly_event_manager_t *manager;
-	int fd;
-	int read_or_write;
-	int available_row;
-	int eflag;
+	fly_event_manager_t			*manager;
+	int							fd;
+	int							read_or_write;
+	int 						available_row;
+	int 						eflag;
 
-	fly_time_t timeout;
-	fly_time_t spawn_time;
-	fly_time_t start;
-	fly_time_t abs_timeout;
-	int tflag;
+	fly_time_t					timeout;
+	fly_time_t 					spawn_time;
+	fly_time_t 					start;
+	fly_time_t 					abs_timeout;
+	int							tflag;
 
-	int flag;
-	struct fly_event *next;
-	struct fly_event *prev;
+	int							flag;
 
-	struct fly_rb_node *rbnode;
+	/* for manager events list */
+	struct fly_queue			qelem;
+	/* for manager unmonitorable list */
+	struct fly_queue			uqelem;
+
+	struct fly_rb_node			*rbnode;
 
 	int (*handler)(struct fly_event *);
-	char *handler_name;
+	char						*handler_name;
 
-	void *event_data;
-	void *event_fase;
-	void *event_state;
+	void						*event_data;
+	void 						*event_fase;
+	void 						*event_state;
 
-	struct fly_queue		qelem;
 	/*
 	 * if event handler fail, this function is called.
 	 * this function must close fd(event file).
@@ -78,9 +70,10 @@ struct fly_event{
 	int (*fail_close)(int fd);
 
 	/* event bit fields */
-	fly_bit_t file_type: 4;
-	fly_bit_t expired: 1;
-	fly_bit_t available: 1;
+	fly_bit_t					file_type: 4;
+	fly_bit_t 					expired: 1;
+	fly_bit_t 					available: 1;
+	fly_bit_t					yetadd: 1;
 };
 
 #define FLY_EVENT_HANDLER(e, __handler)	\
@@ -172,6 +165,11 @@ int fly_event_inherit_register(fly_event_t *e);
 #define fly_event_monitorable(e)	\
 	(!fly_event_is_regular((e)) && !fly_event_is_dir((e)))
 #define fly_event_nomonitorable(e)	(!(fly_event_monitorable((e))))
+
+#define fly_event_op(__e)			\
+	((__e)->flag&FLY_MODIFY) ? EPOLL_CTL_MOD: EPOLL_CTL_ADD
+#define fly_event_already_added(__e)	\
+	(!(__e)->yetadd)
 
 #define FLY_EVENT_HANDLE_FAILURE	(-1)
 #define FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN		100
