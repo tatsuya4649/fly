@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include <sys/socket.h>
+#include <openssl/err.h>
 #include "ssl.h"
 #include "server.h"
 #include "request.h"
@@ -23,39 +24,41 @@ struct fly_ssl_accept{
 
 __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_accept *__ac);
 
-int fly_listen_socket_ssl_handler(fly_event_t *e)
+void fly_listen_socket_ssl_setting(fly_context_t *ctx, fly_sockinfo_t *sockinfo)
 {
-	fly_sock_t conn_sock;
-	__unused fly_sockinfo_t *sockinfo;
-	fly_sock_t listen_sock= e->fd;
-	struct sockaddr_storage addr;
-	socklen_t addrlen;
-	int flag;
-	SSL_CTX *ctx;
-	SSL		*ssl;
-	struct fly_ssl_accept *__ac;
-	fly_event_t *ne;
-
-	sockinfo = (fly_sockinfo_t *) e->event_data;
-	/* SSL certificate/private key file setting */
-	if (fly_unlikely_null(sockinfo->crt_path) || fly_unlikely_null(sockinfo->key_path))
-		return -1;
+	SSL_CTX *ssl_ctx;
 
 	SSL_library_init();
 	SSL_load_error_strings();
 
 	/* create SSL context */
-	ctx = SSL_CTX_new(SSLv23_server_method());
-	SSL_CTX_use_certificate_file(ctx, sockinfo->crt_path, SSL_FILETYPE_PEM);
-	SSL_CTX_use_PrivateKey_file(ctx, sockinfo->key_path, SSL_FILETYPE_PEM);
-	if (SSL_CTX_check_private_key(ctx) != 1){
+	ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+	ctx->ssl_ctx = ssl_ctx;
+	SSL_CTX_use_certificate_file(ssl_ctx, sockinfo->crt_path, SSL_FILETYPE_PEM);
+	SSL_CTX_use_PrivateKey_file(ssl_ctx, sockinfo->key_path, SSL_FILETYPE_PEM);
+	if (SSL_CTX_check_private_key(ssl_ctx) != 1){
 		/* TODO: Emerge log and end process */
-		return -1;
+		return;
 	}
 
-	SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2);
-    SSL_CTX_set_alpn_select_cb(ctx, __fly_ssl_alpn, NULL);
+	SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2);
+    SSL_CTX_set_alpn_select_cb(ssl_ctx, __fly_ssl_alpn, NULL);
+	return;
+}
 
+int fly_listen_socket_ssl_handler(fly_event_t *e)
+{
+	fly_sock_t conn_sock;
+	fly_sock_t listen_sock= e->fd;
+	struct sockaddr_storage addr;
+	socklen_t addrlen;
+	int flag;
+	struct fly_ssl_accept *__ac;
+	fly_event_t *ne;
+	SSL		*ssl;
+	fly_context_t *context;
+
+	context = e->manager->ctx;
 	addrlen = sizeof(struct sockaddr_storage);
 	/* non blocking accept */
 	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
@@ -63,7 +66,7 @@ int fly_listen_socket_ssl_handler(fly_event_t *e)
 	if (conn_sock == -1)
 		return -1;
 
-	ssl = SSL_new(ctx);
+	ssl = SSL_new(context->ssl_ctx);
 	SSL_set_fd(ssl, conn_sock);
 
 	__ac = fly_pballoc(e->manager->ctx->misc_pool, sizeof(struct fly_ssl_accept));
@@ -72,7 +75,7 @@ int fly_listen_socket_ssl_handler(fly_event_t *e)
 	__ac->manager = e->manager;
 	__ac->pool = e->manager->ctx->misc_pool;
 	__ac->ssl = ssl;
-	__ac->ctx = ctx;
+	__ac->ctx = context->ssl_ctx;
 	__ac->listen_sock = listen_sock;
 	memcpy(&__ac->addr, &addr, addrlen);
 	__ac->addrlen = addrlen;
@@ -164,39 +167,42 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 
 	/* create new connected socket event. */
 	conn_sock = SSL_get_fd(__ac->ssl);
+	ERR_clear_error();
 	if ((res=SSL_accept(__ac->ssl)) <= 0){
 		switch(SSL_get_error(__ac->ssl, res)){
 		case SSL_ERROR_NONE:
 			break;
-		case SSL_ERROR_ZERO_RETURN:
-			printf("SSL_ERROR_ZERO_RETURN\n");
-			return 0;
-		case SSL_ERROR_WANT_X509_LOOKUP:
-			printf("SSL_ERROR_WANT_X509_LOOKUP\n");
-			return 0;
-		case SSL_ERROR_WANT_CLIENT_HELLO_CB:
-			printf("SSL_ERROR_WANT_CLIENT_HELLO_CB\n");
-			return 0;
-		case SSL_ERROR_WANT_ACCEPT:
-			printf("SSL_ERROR_ACCEPT\n");
-			return 0;
 		case SSL_ERROR_WANT_READ:
+#ifdef DEBUG
 			printf("SSL_ERROR_READ\n");
+#endif
 			goto read_blocking;
 		case SSL_ERROR_WANT_WRITE:
+#ifdef DEBUG
 			printf("SSL_ERROR_WRITE\n");
+#endif
 			goto write_blocking;
 		case SSL_ERROR_SYSCALL:
+#ifdef DEBUG
 			printf("SSL_ERROR_SYSCALL\n");
+#endif
 			if (errno == EPIPE)
 				goto disconnect;
-			return -1;
+			/* unexpected EOF from the peer */
+			if (errno == 0)
+				goto disconnect;
+			goto connect_error;
 		case SSL_ERROR_SSL:
+#ifdef DEBUG
 			printf("SSL_ERROR_SSL\n");
-			return -1;
+#endif
+			goto connect_error;
 		default:
+#ifdef DEBUG
+			printf("Unknown error\n");
+#endif
 			/* unknown error */
-			return -1;
+			goto connect_error;
 		}
 	}
 
@@ -204,6 +210,8 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 	e->read_or_write = FLY_READ;
 	FLY_EVENT_HANDLER(e, fly_listen_connected);
 	e->flag = FLY_NODELETE;
+	if (fly_event_already_added(e))
+		e->flag |= FLY_MODIFY;;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	e->expired = false;
@@ -220,13 +228,17 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 read_blocking:
 	e->read_or_write = FLY_READ;
 	goto blocking;
+
 write_blocking:
 	e->read_or_write = FLY_WRITE;
 	goto blocking;
+
 blocking:
 	e->fd = conn_sock;
 	FLY_EVENT_HANDLER(e, __fly_ssl_accept_blocking_handler);
 	e->flag = FLY_NODELETE;
+	if (fly_event_already_added(e))
+		e->flag |= FLY_MODIFY;;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	e->expired = false;
@@ -234,10 +246,15 @@ blocking:
 	e->event_data = (struct fly_ssl_accept *) __ac;
 	fly_event_socket(e);
 	return fly_event_register(e);
+
+connect_error:
+	/* connect error log */
+	fly_ssl_error_log(e->manager);
 disconnect:
 	fly_ssl_accept_free(__ac->ssl);
 	fly_pbfree(__ac->pool, __ac);
 	return fly_event_unregister(e);
+
 }
 
 __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e)
@@ -247,3 +264,30 @@ __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e)
 	__ac = (struct fly_ssl_accept *) e->event_data;
 	return __fly_ssl_accept_event_handler(e, __ac);
 }
+
+#define FLY_SSL_ERROR_LOG_TYPE				FLY_LOG_ERROR
+#define FLY_SSL_ERROR_LOG_MAXLENGTH			(200)
+int fly_ssl_error_log(fly_event_manager_t *manager)
+{
+	int err_code;
+	fly_log_t *log;
+
+	log = fly_log_from_manager(manager);
+	while((err_code = ERR_peek_error())){
+		/* register log event */
+		fly_logcont_t *logcont;
+
+		logcont = fly_logcont_init(log, FLY_SSL_ERROR_LOG_TYPE);
+		if (fly_logcont_setting(logcont, FLY_SSL_ERROR_LOG_MAXLENGTH) == -1)
+			return -1;
+
+		ERR_error_string_n(err_code, logcont->content, logcont->contlen);
+
+		/* event register */
+		if (fly_log_event_register(manager, logcont) == -1)
+			return -1;
+	}
+
+	return 0;
+}
+

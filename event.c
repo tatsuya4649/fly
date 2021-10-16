@@ -63,14 +63,12 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	manager->evlist = fly_pballoc(manager->pool, sizeof(struct epoll_event)*FLY_EVLIST_ELES);
 	if (fly_unlikely_null(manager->evlist))
 		return NULL;
+	fly_queue_init(&manager->monitorable);
 	fly_queue_init(&manager->unmonitorable);
 	manager->maxevents = FLY_EVLIST_ELES;
 	manager->ctx = ctx;
 	manager->efd = fd;
 	manager->evlen = 0;
-	FLY_MANAGER_DUMMY_INIT(manager);
-	manager->first = manager->dummy;
-	manager->last = manager->dummy;
 	manager->rbtree = fly_rb_tree_init(__fly_event_cmp);
 	if (fly_unlikely_null(manager->rbtree))
 		return NULL;
@@ -131,18 +129,18 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	fly_time_null(event->timeout);
 	fly_time_zero(event->abs_timeout);
 	fly_time_zero(event->start);
-	event->next = manager->dummy;
-	event->prev = manager->dummy;
 	event->handler = NULL;
 	event->handler_name = NULL;
 	event->fail_close = NULL;
 	if (fly_time(&event->spawn_time) == -1)
 		return NULL;
 	fly_queue_init(&event->qelem);
+	fly_queue_init(&event->uqelem);
 	event->expired = false;
 	event->available = false;
 	event->available_row = 0;
 	event->rbnode = NULL;
+	event->yetadd = true;
 	return event;
 }
 
@@ -169,31 +167,13 @@ static inline void __fly_add_time_from_now(fly_time_t *t1, fly_time_t *t2)
 int fly_event_register(fly_event_t *event)
 {
 	struct epoll_event ev;
-	epoll_data_t data;
 	int op;
+	epoll_data_t data;
 
 	if (fly_unlikely_null(event))
 		return -1;
 
-	op = EPOLL_CTL_ADD;
-	/* if exist some event. */
-	if (event->manager->first != event->manager->dummy){
-		for (fly_event_t *e=event->manager->dummy->next; e!=event->manager->dummy; e=e->next){
-			if (e->fd == event->fd){
-				/* if not same event */
-				if (e != event){
-					if (event->tflag & FLY_INHERIT)
-						__fly_event_inherit_time(event, e);
-					memcpy(e, event, sizeof(fly_event_t));
-					/* release event. */
-					fly_pbfree(event->manager->pool, event);
-				}
-				op = EPOLL_CTL_MOD;
-				break;
-			}
-		}
-	}
-
+	op = fly_event_op(event);
 	if (op == EPOLL_CTL_ADD){
 		/* add to red black tree */
 		if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event)){
@@ -201,20 +181,11 @@ int fly_event_register(fly_event_t *event)
 			event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout);
 		}
 
-		if (fly_event_monitorable(event)){
-			if (event->manager->first == event->manager->dummy){
-				event->manager->first = event;
-				event->manager->dummy->next = event->manager->first;
-			}else{
-				event->manager->last->next = event;
-				event->prev = event->manager->last;
-			}
-			event->manager->dummy->prev = event;
-			event->next = event->manager->dummy;
-			event->manager->last = event;
-		}else{
-			fly_queue_push(&event->manager->unmonitorable, &event->qelem);
-		}
+		if (fly_event_monitorable(event))
+			fly_queue_push(&event->manager->monitorable, &event->qelem);
+		else
+			fly_queue_push(&event->manager->unmonitorable, &event->uqelem);
+		event->yetadd = false;
 		event->manager->evlen++;
 	}else{
 		/* delete & add (for changing timeout) */
@@ -241,51 +212,17 @@ int fly_event_unregister(fly_event_t *event)
 {
 
 	if (fly_event_nomonitorable(event)){
-		fly_queue_remove(&event->qelem);
-		if (fly_is_queue_empty(&event->manager->unmonitorable))
-			fly_queue_empty(&event->manager->unmonitorable);
+		fly_queue_remove(&event->uqelem);
 		fly_pbfree(event->manager->pool, event);
 		return 0;
 	}else{
-		fly_event_t *e, *prev;
-		for (e=event->manager->dummy->next; e!=event->manager->dummy; e=e->next){
-			/* same fd event */
-			if (event->fd == e->fd){
-				int efd;
+		fly_queue_remove(&event->qelem);
+		if (!(event->flag & FLY_CLOSE_EV))
+			if (epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL) == -1)
+				return -1;
 
-				/* delete from red black tree */
-				if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event))
-					fly_rb_delete(event->manager->rbtree, event->rbnode);
-				/* only one event */
-				if (event == event->manager->first && event == event->manager->last){
-					event->manager->first = event->manager->dummy;
-					event->manager->last = event->manager->dummy;
-					event->manager->dummy->next = event->manager->dummy;
-					/* first event */
-				}else if (e == event->manager->first){
-					event->manager->first = e->next;
-					event->manager->dummy->next = event->manager->first;
-					/* last event */
-				}else if (e == event->manager->last){
-					prev->next = e->next;
-					event->manager->last = prev;
-				}else
-					prev->next = e->next;
-
-				event->manager->evlen--;
-				efd = event->manager->efd;
-
-				/* release event */
-				if (event->flag & FLY_CLOSE_EV){
-					fly_pbfree(event->manager->pool, event);
-					return 0;
-				}else{
-					fly_pbfree(event->manager->pool, event);
-					return epoll_ctl(efd, EPOLL_CTL_DEL, event->fd, NULL);
-				}
-			}
-			prev = e;
-		}
+		fly_pbfree(event->manager->pool, event);
+		return 0;
 	}
 	return -1;
 }
@@ -357,13 +294,11 @@ __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager)
 
 __fly_static int __fly_expired_event(fly_event_manager_t *manager)
 {
-	if (__fly_update_event_timeout(manager) == -1)
-		return -1;
+	struct fly_queue *__q;
+	fly_event_t *e;
 
-	if (manager->first == NULL)
-		return 0;
-
-	for (fly_event_t *e=manager->dummy->next; e!=manager->dummy; e=e->next){
+	fly_for_each_queue(__q, &manager->monitorable){
+		e = fly_queue_data(__q, fly_event_t, qelem);
 		if (e->expired)
 			fly_event_handle(e);
 	}
@@ -406,26 +341,6 @@ void fly_sub_time_from_sec(fly_time_t *t1, float delta)
 	return;
 }
 
-__fly_static void __fly_reconnect_event_by_expired(fly_event_t *event, fly_event_manager_t *manager)
-{
-	if (!event->expired)
-		return;
-
-	if (manager->first == event)
-		return;
-	else{
-		event->prev->next = event->next;
-		event->next->prev = event->prev;
-
-		event->prev = manager->dummy;
-		event->next = manager->dummy->next;
-		manager->dummy->next->prev = event;
-		manager->dummy->next = event;
-		manager->first = event;
-	}
-	return;
-}
-
 __fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_tree_t *tree, fly_rb_node_t *node, fly_time_t *__t)
 {
 	fly_event_t *__e;
@@ -444,8 +359,6 @@ __fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_
 			__e->expired = true;
 			__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
 			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
-
-			__fly_reconnect_event_by_expired(__e, manager);
 			return 0;
 		default:
 			FLY_NOT_COME_HERE
@@ -462,8 +375,6 @@ __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager)
 	fly_time_t now;
 	if (fly_time(&now) == -1)
 		return -1;
-	if (manager->first == NULL)
-		return 0;
 
 	if (manager->rbtree->node_count == 0)
 		return 0;
@@ -511,7 +422,7 @@ __fly_static int __fly_event_handle_nomonitorable(__unused fly_event_manager_t *
 
 	struct fly_queue *__q;
 	for (__q=manager->unmonitorable.next; manager->unmonitorable.count>0; __q=fly_queue_pop(&manager->unmonitorable))
-		fly_event_handle(fly_queue_data(__q, struct fly_event, qelem));
+		fly_event_handle(fly_queue_data(__q, struct fly_event, uqelem));
 
 	return 0;
 }

@@ -62,6 +62,7 @@ static inline bool fly_is_queue_empty(struct fly_queue *__h)
 
 #define fly_for_each_queue(__q, start)		\
 		for (__q=(start)->next; __q!=start; __q=__q->next)
+#define fly_for_each_queue_data()			\
 
 #endif
 

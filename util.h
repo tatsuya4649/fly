@@ -15,7 +15,7 @@
 #define __destructor		__attribute__((destructor))
 #define __direct_log
 
-#ifdef FLY_TEST
+#ifdef DEBUG
 #define __fly_static
 #else
 #define __fly_static			static

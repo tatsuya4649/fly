@@ -1,9 +1,9 @@
 CC = gcc
 CPP = g++
 CFLAG := -g3 -O0 -W -Wall -Werror -Wcast-align
-DEBUG_CFLAG := -g3 -O0
+DEBUG_CFLAG := -pg -g3 -O0
 TARGET = fly
-BUILD_FILES := server.o response.o header.o alloc.o mount.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o lang.o cache.o scheme.o buffer.o rbtree.o ssl.o v2.o queue.o bllist.o
+BUILD_FILES := server.o response.o header.o alloc.o mount.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o lang.o cache.o scheme.o buffer.o rbtree.o ssl.o v2.o queue.o bllist.o config.o
 PYBUILD_FILES := pyroute.o
 SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
 PYSOURCE_FILES := $(PYBUILD_FILES:%.o=%.c)
@@ -21,8 +21,8 @@ BUILDDIR := build
 TESTDIR := test
 TESTPRE := __fly_
 TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_route.cpp test_request.cpp test_util.cpp test_math.cpp test_body.cpp test_connect.cpp test_log.cpp
-ifdef FLY_TEST
-MACROS := $(MACROS) -D FLY_TEST
+ifdef DEBUG
+MACROS := $(MACROS) -D DEBUG
 endif
 PYTHON := python
 
@@ -45,7 +45,7 @@ pybuild:
 
 lib: $(SOURCE_FILES)
 	@mkdir -p $(LIBDIR)
-	@gcc $(CFLAG) -shared $(MACROS) -fPIC -Wl,-soname,$(LIBNAME) $(DEPEND_LIBS) -o $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(filter-out main.c, $^)
+	gcc $(CFLAG) -shared $(MACROS) -fPIC -Wl,-soname,$(LIBNAME) $(DEPEND_LIBS) -o $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(filter-out main.c, $^)
 	@ldconfig -n $(LIBDIR)
 	@ln -s $(LIBNAME) $(LIBDIR)/lib$(TARGET).so
 
