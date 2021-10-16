@@ -411,3 +411,27 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 			"log resource release error."
 		);
 }
+
+int fly_log_event_register(fly_event_manager_t *manager, struct fly_logcont *lc)
+{
+	fly_event_t *e;
+
+	e = fly_event_init(manager);
+	if (fly_unlikely_null(e))
+		return -1;
+
+	fly_log_now(&lc->when);
+	e->read_or_write = FLY_WRITE;
+	e->fd = lc->__log->file;
+	FLY_EVENT_HANDLER(e, fly_log_event_handler);
+	e->flag = 0;
+	e->tflag = 0;
+	e->eflag = 0;
+	e->expired = false;
+	e->available = false;
+	e->event_data = (void *) lc;
+	fly_event_regular(e);
+	fly_time_zero(e->timeout);
+
+	return fly_event_register(e);
+}

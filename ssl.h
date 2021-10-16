@@ -3,6 +3,7 @@
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
+#include "context.h"
 #include "event.h"
 
 /*
@@ -24,5 +25,7 @@
 int fly_listen_socket_ssl_handler(fly_event_t *e);
 struct fly_connect;
 void fly_ssl_connected_release(struct fly_connect *conn);
+int fly_ssl_error_log(fly_event_manager_t *manager);
+void fly_listen_socket_ssl_setting(fly_context_t *ctx, fly_sockinfo_t *sockinfo);
 
 #endif

@@ -108,5 +108,6 @@ int fly_log_now(fly_time_t *t);
 #define FLY_NOTICE_DIRECT_LOG_MAXLENGTH			200
 #define FLY_NOTICE_DIRECT_LOG					fly_notice_direct_log
 void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...);
+int fly_log_event_register(fly_event_manager_t *manager, struct fly_logcont *lc);
 
 #endif
