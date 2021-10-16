@@ -3,6 +3,7 @@
 #include "response.h"
 #include "connect.h"
 #include <sys/sendfile.h>
+#include <openssl/err.h>
 
 fly_hv2_stream_t *fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid_t id, bool from_client);
 int fly_hv2_request_event_handler(fly_event_t *e);
@@ -237,12 +238,14 @@ static fly_hv2_stream_t *__fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid
 	__s->weight = FLY_HV2_STREAM_DEFAULT_WEIGHT;
 	__s->frame_count = 0;
 	__s->yetsend_count = 0;
-	__s->end_send_headers = false;
-	__s->end_send_data = false;
 	__s->window_size = state->p_initial_window_size;
 	__s->yetack_count = 0;
+	__s->end_send_headers = false;
+	__s->end_send_data = false;
 	__s->can_response = false;
 	__s->end_request_response = false;
+	__s->exclusive = false;
+	__s->peer_end_headers = false;
 
 	__s->request = fly_request_init(state->connect);
 	if (fly_unlikely_null(__s->request))
@@ -250,7 +253,6 @@ static fly_hv2_stream_t *__fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid
 	__s->request->stream = __s;
 	fly_queue_init(&__s->rqelem);
 
-	__s->exclusive = false;
 	return __s;
 }
 
@@ -417,15 +419,12 @@ fly_hv2_state_t *fly_hv2_state_init(fly_connect_t *conn)
 	fly_bllist_add_head(&state->streams, &roots->blelem);
 	state->stream_count = 1;
 	fly_queue_init(&state->reserved);
-	state->responses = fly_pballoc(state->pool, sizeof(struct fly_hv2_response));
-	if (fly_unlikely_null(state->responses))
-		goto responses_error;
+	fly_queue_init(&state->responses);
 
 	fly_queue_init(&state->send);
 	state->send_count = 0;
-	state->responses->next = state->responses;
-	state->responses->prev = state->responses;
-	state->lresponse = state->responses;
+
+	fly_queue_init(&state->responses);
 	state->reserved_count = 0;
 	state->connection_state = FLY_HV2_CONNECTION_STATE_INIT;
 	state->max_sid = FLY_HV2_STREAM_ROOT_ID;
@@ -446,8 +445,6 @@ fly_hv2_state_t *fly_hv2_state_init(fly_connect_t *conn)
 emergency_error:
 	fly_hv2_dynamic_table_release(state);
 dynamic_table_error:
-	fly_pbfree(conn->pool, state->responses);
-responses_error:
 streams_error:
 	fly_pbfree(conn->pool, state);
 state_error:
@@ -461,7 +458,6 @@ void fly_hv2_dynamic_table_release(struct fly_hv2_state *state);
 void fly_hv2_state_release(fly_hv2_state_t *state)
 {
 	fly_hv2_dynamic_table_release(state);
-	fly_pbfree(state->pool, state->responses);
 	fly_pbfree(state->pool, state->emergency_ptr);
 	fly_pbfree(state->pool, state);
 }
@@ -893,6 +889,7 @@ int fly_send_ping_frame(fly_hv2_state_t *state, uint64_t opaque_data)
 	frame->payload = fly_pballoc(frame->pool, frame->payload_len);
 	if (fly_unlikely_null(frame->payload))
 		return -1;
+	memset(frame->payload, '\0', frame->payload_len);
 
 	fly_fh_setting(&frame->frame_header, frame->payload_len, frame->type, 0, false, frame->sid);
 
@@ -1025,7 +1022,9 @@ int fly_hv2_goaway_handle(fly_event_t *e, fly_hv2_state_t *state)
 		goto close_connection;
 
 	fly_hv2_stream_t *__s;
-	for (struct fly_bllist *__b=state->streams.next; __b!=&state->streams; __b=__b->next){
+	struct fly_bllist *__b;
+
+	fly_for_each_bllist(__b, &state->streams){
 		__s = fly_bllist_data(__b, fly_hv2_stream_t, blelem);
 		if (!__s->peer_end_headers || (!__s->can_response && !__s->yetsend_count)){
 			if (fly_hv2_close_stream(__s) == -1)
@@ -1436,8 +1435,6 @@ frame_header_parse:
 				last_stream_id = fly_hv2_last_sid(&pl, &plbufc);
 				error_code = fly_hv2_error_code(&pl, &plbufc);
 
-				state->goaway = true;
-
 				/* send GOAWAY frame to receiver and connection close */
 				if (fly_hv2_goaway(state, r, last_stream_id, error_code) == -1)
 					goto emergency;
@@ -1726,27 +1723,27 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 	return total;
 }
 
-int fly_send_frame_h_event_handler(fly_event_t *e);
-int fly_send_frame_h_event(fly_event_manager_t *manager, fly_hv2_stream_t *stream, int read_or_write)
-{
-	fly_event_t *e;
-
-	e = fly_event_init(manager);
-	if (fly_unlikely_null(e))
-		return -1;
-
-	e->fd = stream->request->connect->c_sockfd;
-	e->read_or_write = read_or_write;
-	e->event_data = (void *) stream;
-	FLY_EVENT_HANDLER(e, fly_send_frame_h_event_handler);
-	e->flag = 0;
-	e->tflag = 0;
-	e->eflag = 0;
-	fly_sec(&e->timeout, FLY_SEND_FRAME_TIMEOUT);
-	fly_event_socket(e);
-
-	return fly_event_register(e);
-}
+//int fly_send_frame_h_event_handler(fly_event_t *e);
+//int fly_send_frame_h_event(fly_event_manager_t *manager, fly_hv2_stream_t *stream, int read_or_write)
+//{
+//	fly_event_t *e;
+//
+//	e = fly_event_init(manager);
+//	if (fly_unlikely_null(e))
+//		return -1;
+//
+//	e->fd = stream->request->connect->c_sockfd;
+//	e->read_or_write = read_or_write;
+//	e->event_data = (void *) stream;
+//	FLY_EVENT_HANDLER(e, fly_send_frame_h_event_handler);
+//	e->flag = 0;
+//	e->tflag = 0;
+//	e->eflag = 0;
+//	fly_sec(&e->timeout, FLY_SEND_FRAME_TIMEOUT);
+//	fly_event_socket(e);
+//
+//	return fly_event_register(e);
+//}
 
 struct __fly_frame_header_data{
 	fly_buffer_t *buf;
@@ -1758,13 +1755,13 @@ struct __fly_frame_header_data{
 int __fly_send_frame_h(fly_event_t *e, fly_response_t *res);
 void __fly_hv2_remove_yet_send_frame(struct fly_hv2_send_frame *frame);
 
-int fly_send_frame_h_event_handler(fly_event_t *e)
-{
-	fly_response_t *res;
-
-	res = (fly_response_t *) e->event_data;
-	return __fly_send_frame_h(e, res);
-}
+//int fly_send_frame_h_event_handler(fly_event_t *e)
+//{
+//	fly_response_t *res;
+//
+//	res = (fly_response_t *) e->event_data;
+//	return __fly_send_frame_h(e, res);
+//}
 
 int fly_send_data_frame(fly_event_t *e, fly_response_t *res);
 #define FLY_SEND_DATA_FH_SUCCESS			(1)
@@ -1810,6 +1807,7 @@ send:
 	while(total< FLY_HV2_FRAME_HEADER_LENGTH){
 		if (FLY_CONNECT_ON_SSL(res->request->connect)){
 			SSL *ssl = res->request->connect->ssl;
+			ERR_clear_error();
 			numsend = SSL_write(ssl, ((uint8_t *) fh)+total, FLY_HV2_FRAME_HEADER_LENGTH-total);
 
 			switch(SSL_get_error(ssl, numsend)){
@@ -1961,6 +1959,7 @@ send:
 			while(true){
 				send_ptr = fly_update_chain(&chain, send_ptr, numsend);
 				if (FLY_CONNECT_ON_SSL(res->request->connect)){
+					ERR_clear_error();
 					SSL *ssl = res->request->connect->ssl;
 					numsend = SSL_write(ssl, send_ptr, FLY_SENDLEN_UNTIL_CHAIN_LPTR(chain, send_ptr));
 
@@ -2010,6 +2009,7 @@ send:
 			while(total < (size_t) body->body_len){
 				if (FLY_CONNECT_ON_SSL(res->request->connect)){
 					SSL *ssl=res->request->connect->ssl;
+					ERR_clear_error();
 					numsend = SSL_write(ssl, body->body+total, body->body_len-total);
 					switch(SSL_get_error(ssl, numsend)){
 					case SSL_ERROR_NONE:
@@ -2054,6 +2054,7 @@ send:
 			while(total < res->count){
 				if (FLY_CONNECT_ON_SSL(res->request->connect)){
 					SSL *ssl=res->request->connect->ssl;
+					ERR_clear_error();
 					char send_buf[FLY_SEND_BUF_LENGTH];
 					ssize_t numread;
 
@@ -2108,6 +2109,7 @@ send:
 			while(total < res->response_len){
 				if (FLY_CONNECT_ON_SSL(res->request->connect)){
 					SSL *ssl=res->request->connect->ssl;
+					ERR_clear_error();
 					char send_buf[FLY_SEND_BUF_LENGTH];
 					ssize_t numread;
 
@@ -2183,9 +2185,9 @@ int fly_state_send_frame(fly_event_t *e, fly_hv2_state_t *state)
 {
 	struct fly_hv2_send_frame *__s;
 retry:
-	for (struct fly_queue *__q=state->send.next; __q!=&state->send; __q=__q->next){
-
-		__s = fly_queue_data(__q, struct fly_hv2_send_frame, qelem);
+	struct fly_queue *__q;
+	fly_for_each_queue(__q, &state->send){
+		__s = fly_queue_data(__q, struct fly_hv2_send_frame, sqelem);
 		switch(__fly_send_frame(__s)){
 		case __FLY_SEND_FRAME_READING_BLOCKING:
 			goto read_blocking;
@@ -2415,13 +2417,11 @@ void __fly_hv2_remove_yet_send_frame(struct fly_hv2_send_frame *frame)
 
 	/* for stream */
 	stream = frame->stream;
-
 	fly_queue_remove(&frame->qelem);
 	stream->yetsend_count--;
 
 	/* for state */
 	state = stream->state;
-
 	fly_queue_remove(&frame->sqelem);
 	state->send_count--;
 }
@@ -2435,11 +2435,11 @@ void __fly_hv2_add_yet_send_frame(struct fly_hv2_send_frame *frame)
 	state = stream->state;
 
 	/* for stream */
-	fly_queue_push(&stream->yetsend, &frame->sqelem);
+	fly_queue_push(&stream->yetsend, &frame->qelem);
 	stream->yetsend_count++;
 
 	/* for state */
-	fly_queue_push(&state->send, &frame->qelem);
+	fly_queue_push(&state->send, &frame->sqelem);
 	state->send_count++;
 }
 
@@ -2528,6 +2528,7 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame)
 	while(!(frame->send_fase == FLY_HV2_SEND_FRAME_FASE_PAYLOAD && total>=frame->payload_len)){
 		if (FLY_CONNECT_ON_SSL(frame->stream->request->connect)){
 			SSL *ssl = frame->stream->request->connect->ssl;
+			ERR_clear_error();
 			if (frame->send_fase == FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER)
 				numsend = SSL_write(ssl, ((uint8_t *) &frame->frame_header)+total, FLY_HV2_FRAME_HEADER_LENGTH-total);
 			else
@@ -3823,49 +3824,38 @@ int fly_hv2_response_event(fly_event_t *e);
 
 int fly_hv2_responses(fly_event_t *e, fly_hv2_state_t *state __unused)
 {
-	fly_response_t *res;
+	struct fly_hv2_response *res;
+	struct fly_queue *__q;
 
-	res = state->responses->next->response;
-	e->event_data = res;
+	__q = state->responses.next;
+	res = fly_queue_data(__q, struct fly_hv2_response, qelem);
+	e->event_data = res->response;
 
 	return fly_hv2_response_event(e);
 }
 
 void fly_hv2_add_response(fly_hv2_state_t *state, struct fly_hv2_response *res)
 {
-	state->lresponse->next = res;
-	res->next = state->responses;
-	res->prev = state->lresponse;
-	state->responses->prev = res;
+	fly_queue_push(&state->responses, &res->qelem);
 	state->response_count++;
-	state->lresponse = res;
 	return;
 }
 
 void fly_hv2_remove_hv2_response(fly_hv2_state_t *state, struct fly_hv2_response *res)
 {
-	struct fly_hv2_response *__r;
-
-	for (__r=state->responses->next; __r!=state->responses; __r=__r->next){
-		if (__r == res){
-			__r->prev->next = __r->next;
-			__r->next->prev = __r->prev;
-			if (__r == state->lresponse)
-				state->lresponse = __r->prev;
-
-			fly_pbfree(state->pool, res);
-			state->response_count--;
-			return;
-		}
-	}
+	fly_queue_remove(&res->qelem);
+	fly_pbfree(state->pool, res);
+	state->response_count--;
 	return;
 }
 
 void fly_hv2_remove_response(fly_hv2_state_t *state, fly_response_t *res)
 {
+	struct fly_queue *__q;
 	struct fly_hv2_response *__r;
 
-	for (__r=state->responses->next; __r!=state->responses; __r=__r->next){
+	fly_for_each_queue(__q, &state->responses){
+		__r = fly_queue_data(__q, struct fly_hv2_response, qelem);
 		if (__r->response == res)
 			return fly_hv2_remove_hv2_response(state, __r);
 	}

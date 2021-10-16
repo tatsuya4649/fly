@@ -15,6 +15,18 @@ static inline bool fly_rb_no_child(struct fly_rb_node *node);
 static inline bool fly_rb_all_child(struct fly_rb_node *node);
 static inline bool fly_rb_part_child(struct fly_rb_node *node);
 static inline void fly_rb_root(struct fly_rb_tree *tree, struct fly_rb_node *node);
+#ifdef DEBUG
+enum __fly_rbtree_debug_type{
+	__FLY_RBTREE_DEBUG_DELETE,
+	__FLY_RBTREE_DEBUG_INSERT,
+	__FLY_RBTREE_DEBUG_NOCHILD,
+	__FLY_RBTREE_DEBUG_NORIGHT,
+	__FLY_RBTREE_DEBUG_TWOCHILD
+};
+
+void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __unused);
+void __fly_rbtree_node_debug(fly_rb_tree_t *tree __unused, fly_rb_node_t *node, int *black_count);
+#endif
 
 struct fly_rb_tree *fly_rb_tree_init(fly_rb_cmp_t cmp)
 {
@@ -307,17 +319,15 @@ fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *ke
 	if (fly_unlikely_null(node))
 		return NULL;
 	fly_rb_tree_insert_node(tree, node);
+#ifdef DEBUG
+	__fly_rbtree_debug(tree, __FLY_RBTREE_DEBUG_INSERT);
+#endif
 	return node;
 }
 
 void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node)
 {
     struct fly_rb_node *__n, *__p, *__g, *__u;
-
-    node->color = FLY_RB_RED;
-    node->c_right = nil_node_ptr;
-    node->c_left = nil_node_ptr;
-    node->parent = nil_node_ptr;
 
     if (tree->node_count == 0){
         tree->root = fly_rb_root_init(tree, node);
@@ -488,20 +498,20 @@ recursion:
 		/* sibling is red */
 		if (fly_is_red(__s->color)){
 			/*
-			 *	   P(B)
-			 *	   / \
-			 *	N(B)  S(R)
-			 *		  / \
-			 *		Sl   Sr
+			 *	   P(B)						S(B)
+			 *	   / \						/ \
+			 *	N(B)  S(R)		->		 P(R)  Sr(B)
+			 *		  / \				 / \
+			 *	 Sl(B)   Sr(B)		  N(B)	Sl(B)
 			 */
 			if (__p->c_left == node){
 				fly_rb_rotate_left(__p, tree);
 			/*
-			 *		   P(B)
-			 *		   / \
-			 *		S(B)  N(R)
-			 *		/ \
-			 *	  Sl   Sr
+			 *		   P(B)					S(B)
+			 *		   / \					/  \
+			 *		S(R)  N(R)	->		Sl(B)	P(R)
+			 *		/ \							/ \
+			 *	Sl(B)   Sr(B)				Sr(B)  N(B)
 			 */
 			}else if (__p->c_right == node){
 				fly_rb_rotate_right(__p, tree);
@@ -509,9 +519,11 @@ recursion:
 				FLY_NOT_COME_HERE
 
 			/* parent become red */
-			fly_rb_reverse_color(__p);
+			fly_rb_color_update(__p, FLY_RB_RED);
+			fly_rb_color_update(__s, FLY_RB_BLACK);
 			/* sibling become black */
-			fly_rb_reverse_color(__s);
+//			fly_rb_reverse_color(__s);
+//			fly_rb_reverse_color(__p);
 
 			__s = (__p->c_left==node) ? __p->c_right : __p->c_left;
 			goto recursion;
@@ -550,10 +562,12 @@ recursion:
 			 *	  Sl(R)   Sr(B)
 			 */
 			} else if (fly_is_red(__s->c_left->color) && fly_is_black(__s->c_right->color) && __p->c_left == node){
+				fly_rb_node_t *__sl = __s->c_left;
 				fly_rb_rotate_right(__s, tree);
 				fly_rb_color_update(__s, FLY_RB_RED);
-				fly_rb_color_update(__s->c_left, FLY_RB_BLACK);
+				fly_rb_color_update(__sl, FLY_RB_BLACK);
 
+				__s = __sl;
 				goto recursion;
 			/*
 			 *		   P(B or B)
@@ -563,10 +577,12 @@ recursion:
 			 *	Sl(B)   Sr(R)
 			 */
 			} else if (fly_is_black(__s->c_left->color) && fly_is_red(__s->c_right->color) && __p->c_right == node){
+				fly_rb_node_t *__sr = __s->c_right;
 				fly_rb_rotate_left(__s, tree);
 				fly_rb_color_update(__s, FLY_RB_RED);
-				fly_rb_color_update(__s->c_right, FLY_RB_BLACK);
+				fly_rb_color_update(__sr, FLY_RB_BLACK);
 
+				__s = __sr;
 				goto recursion;
 			/*
 			 *		   P(B or B)
@@ -624,12 +640,16 @@ static inline bool fly_rb_part_child(struct fly_rb_node *node)
 
 void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 {
-#ifdef FLY_TEST
+#ifdef DEBUG
 	assert(node != NULL);
 #endif
 	if (tree->node_count <= 0)
 		return;
 
+#ifdef DEBUG
+	enum __fly_rbtree_debug_type type;
+	__fly_rbtree_debug(tree, __FLY_RBTREE_DEBUG_DELETE);
+#endif
 	if (fly_rb_no_child(node)){
 		if (fly_rb_node_is_root(tree, node)){
 			return fly_rb_root_release(tree);
@@ -645,6 +665,9 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 		/* release resource of rb */
 		tree->node_count--;
 		fly_free(node);
+#ifdef DEBUG
+		type = __FLY_RBTREE_DEBUG_NOCHILD;
+#endif
 	}else if (node->c_right == nil_node_ptr){
 		struct fly_rb_node *target;
 
@@ -665,6 +688,9 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 		/* release resource of rb */
 		tree->node_count--;
 		fly_free(node);
+#ifdef DEBUG
+		type = __FLY_RBTREE_DEBUG_NORIGHT;
+#endif
 	}else{
 		struct fly_rb_node *__p, *__m, *__mrc;
 
@@ -697,7 +723,77 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 		/* release resource of rb */
 		tree->node_count--;
 		fly_free(__m);
+#ifdef DEBUG
+		type = __FLY_RBTREE_DEBUG_TWOCHILD;
+#endif
 	}
+#ifdef DEBUG
+	__fly_rbtree_debug(tree, type);
+#endif
 	return;
 }
 
+/*
+ *	Red Black Tree Rules.
+ *	1. Node have red or black color.
+ *	2. Root node is black.
+ *	3. All leaf node is black.
+ *	4. Child of red node is black node.
+ *	5. Every path from a given node to any of its descendant leaf nil nodes goed through the same number of black nodes.
+ */
+
+void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __unused)
+{
+	fly_rb_node_t *node;
+	int black_count=0;
+	if (tree->node_count == 0)
+		return;
+
+	node = tree->root->node;
+
+	/* Rule.2 */
+	if (fly_rb_node_is_root(tree, node))
+		assert(fly_is_black(node->color));
+
+	__fly_rbtree_node_debug(tree, node, &black_count);
+}
+
+void __fly_rbtree_node_debug(fly_rb_tree_t *tree __unused, fly_rb_node_t *node, int *black_count)
+{
+	int left_black_count=*black_count;
+	int right_black_count=*black_count;
+
+	/* Rule.1 */
+	assert(fly_is_black(node->color) || fly_is_red(node->color));
+	if (node->c_left == nil_node_ptr){
+		/* Rule.3 */
+		assert(fly_is_black(node->c_left->color));
+		left_black_count++;
+	}
+	if (fly_is_red(node->color))
+		/* Rule.4 */
+		assert(fly_is_black(node->c_left->color));
+
+	if (node->c_right == nil_node_ptr){
+		/* Rule.3 */
+		assert(fly_is_black(node->c_right->color));
+		right_black_count++;
+	}
+	if (fly_is_red(node->color))
+		/* Rule.4 */
+		assert(fly_is_black(node->c_right->color));
+
+	if (node->c_left != nil_node_ptr)
+		__fly_rbtree_node_debug(tree, node->c_left, &left_black_count);
+
+	if (node->c_right != nil_node_ptr)
+		__fly_rbtree_node_debug(tree, node->c_right, &right_black_count);
+
+	/* Rule.5 */
+	assert(left_black_count == right_black_count);
+
+	*black_count = left_black_count;
+	if (fly_is_black(node->color))
+		(*black_count)++;
+	return;
+}

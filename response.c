@@ -93,6 +93,7 @@ fly_response_t *fly_response_init(void)
 	response->blocking = false;
 	response->encoded = false;
 	response->rcbs = NULL;
+	response->send_len = 0;
 	return response;
 }
 

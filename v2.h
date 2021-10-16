@@ -48,28 +48,28 @@ struct fly_hv2_frame{
 
 struct fly_hv2_stream;
 struct fly_hv2_send_frame{
-	struct fly_hv2_stream *stream;
-	fly_pool_t *pool;
-	fly_sid_t sid;
-	fly_hv2_frame_header_t frame_header;
-	uint8_t *payload;
-	uint8_t type;
-	size_t payload_len;
-	size_t send_len;
-	size_t can_send_len;
+	struct fly_hv2_stream			*stream;
+	fly_pool_t						*pool;
+	fly_sid_t						sid;
+	fly_hv2_frame_header_t			frame_header;
+	uint8_t							*payload;
+	uint8_t 						type;
+	size_t							payload_len;
+	size_t 							send_len;
+	size_t 							can_send_len;
 	enum {
 		FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER,
 		FLY_HV2_SEND_FRAME_FASE_PAYLOAD,
 		FLY_HV2_SEND_FRAME_FASE_END
-	} send_fase;
+	}								send_fase;
 
 	/* send frame queue element */
-	struct fly_queue			qelem;
+	struct fly_queue				qelem;
 	/* required ack send frame queue element */
-	struct fly_bllist			aqelem;
+	struct fly_bllist				aqelem;
 	/* send frame queue of state element */
-	struct fly_queue			sqelem;
-	fly_bit_t need_ack:	1;
+	struct fly_queue				sqelem;
+	fly_bit_t						need_ack:	1;
 };
 
 /*
@@ -83,9 +83,8 @@ enum fly_hv2_connection_state{
 };
 
 struct fly_hv2_response{
-	fly_response_t *response;
-	struct fly_hv2_response *next;
-	struct fly_hv2_response *prev;
+	fly_response_t		*response;
+	struct fly_queue	qelem;
 };
 
 struct fly_hv2_state{
@@ -99,8 +98,7 @@ struct fly_hv2_state{
 	struct fly_bllist				streams;
 	/* last handle stream */
 	struct fly_hv2_stream			*lhstream;
-	struct fly_hv2_response			*responses;
-	struct fly_hv2_response			*lresponse;
+	struct fly_queue				responses;
 	int								response_count;
 	struct fly_queue				reserved;
 
@@ -180,12 +178,12 @@ struct fly_hv2_stream{
 	struct fly_hv2_stream			*dprev;
 	ssize_t							window_size;
 	struct fly_queue				frames;
+	int 							frame_count;
 	/* sent frame that rave not yet received ack */
 	struct fly_bllist				yetack;
 	int								yetack_count;
 	struct fly_queue				yetsend;
 	int								yetsend_count;
-	int 							frame_count;
 	uint16_t						weight;
 
 	fly_bit_t						from_client: 1;

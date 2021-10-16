@@ -6,6 +6,7 @@
 #include "cache.h"
 #include "response.h"
 #include "ssl.h"
+#include "context.h"
 
 __fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
@@ -425,6 +426,8 @@ __fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_soc
 	e->fd = sockinfo->fd;
 	e->read_or_write = FLY_READ;
 	if (sockinfo->flag & FLY_SOCKINFO_SSL){
+		/* SSL setting */
+		fly_listen_socket_ssl_setting(manager->ctx, sockinfo);
 		/* tcp+ssl/tls connection */
 		FLY_EVENT_HANDLER(e, fly_listen_socket_ssl_handler);
 	}else{
