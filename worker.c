@@ -64,7 +64,11 @@ __fly_static void __fly_modupdate(fly_mount_parts_t *parts)
 
 	char rpath[FLY_PATH_MAX];
 
-	for (struct fly_mount_parts_file *__f=parts->files; __f; __f=__f->next){
+	struct fly_bllist *__b;
+	struct fly_mount_parts_file *__f;
+
+	fly_for_each_bllist(__b, &parts->files){
+		__f = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if (fly_join_path(rpath, parts->mount_path, __f->filename) == -1)
 			return;
 		if (fly_hash_update_from_parts_file_path(rpath, __f) == -1)
@@ -130,7 +134,6 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 			goto error;
 		__fly_path_cpy(__pf->filename, __path, mount_point);
 		__pf->parts = parts;
-		__pf->next = NULL;
 		__pf->infd = parts->infd;
 		__pf->mime_type = fly_mime_type_from_path_name(__path);
 		__pf->wd = inotify_add_watch(parts->infd, __path, FLY_INOTIFY_WATCH_FLAG_PF);
@@ -153,13 +156,13 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __unused char *pa
 		return -1;
 
 	char __path[FLY_PATH_MAX];
-	struct fly_mount_parts_file *prev;
-	for (struct fly_mount_parts_file *__pf=parts->files; __pf; __pf=__pf->next){
+	struct fly_mount_parts_file *__pf;
+	struct fly_bllist *__b;
+
+	fly_for_each_bllist(__b, &parts->files){
+		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if (fly_join_path(__path, (char *) mount_point, __pf->filename) == -1){
-			if (prev == NULL)
-				parts->files = __pf->next;
-			else
-				prev->next = __pf->next;
+			fly_bllist_remove(&__pf->blelem);
 			/* release pf */
 			fly_pbfree(parts->pool, __pf);
 			if (__pf->fd != -1)
@@ -167,7 +170,6 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __unused char *pa
 					return -1;
 			parts->file_count--;
 		}
-		prev = __pf;
 	}
 
 	return 0;
@@ -175,8 +177,12 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __unused char *pa
 
 __fly_static int __fly_work_unmount(fly_mount_parts_t *parts)
 {
+	struct fly_mount_parts_file *__pf;
+	struct fly_bllist *__b;
+
 	/* close all mount file */
-	for (struct fly_mount_parts_file *__pf=parts->files; __pf; __pf=__pf->next){
+	fly_for_each_bllist(__b, &parts->files){
+		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if (__pf->fd != -1 && close(__pf->fd) == -1)
 			return -1;
 		parts->file_count--;
@@ -201,7 +207,11 @@ __fly_static void __fly_unmount_by_signal(fly_mount_parts_t *parts)
 
 __fly_static int __fly_signal_handler(fly_context_t *ctx, int mount_number, void (*handler)(fly_mount_parts_t *))
 {
-	for (fly_mount_parts_t *parts=ctx->mount->parts; parts; parts=parts->next){
+	struct fly_bllist *__b;
+	struct fly_mount_parts *parts;
+
+	fly_for_each_bllist(__b, &ctx->mount->parts){
+		parts = fly_bllist_data(__b, struct fly_mount_parts, mbelem);
 		if (parts->mount_number == mount_number){
 			handler(parts);
 			return 0;
@@ -502,19 +512,42 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 		return -1;
 
 	char rpath[FLY_PATH_MAX];
-	for (fly_mount_parts_t *__p=ctx->mount->parts; __p; __p=__p->next){
+	fly_mount_parts_t *__p;
+	struct fly_mount_parts_file *__pf;
+	struct fly_bllist *__b, *__pfb;
+
+	fly_for_each_bllist(__b, &ctx->mount->parts){
+		__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
 		if (__p->file_count == 0)
 			continue;
 
-		for (struct fly_mount_parts_file *__pf=__p->files; __pf; __pf=__pf->next){
+		fly_for_each_bllist(__pfb, &__p->files){
+			__pf = fly_bllist_data(__pfb, struct fly_mount_parts_file, blelem);
 			if (fly_join_path(rpath, __p->mount_path, __pf->filename) == -1)
 				continue;
 
 			__pf->fd = open(rpath, O_RDONLY);
-			if (fstat(__pf->fd, &__pf->fs) == -1)
-				return -1;
 			if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
 				return -1;
+			/* pre encode */
+			if (fly_over_encoding_threshold(__pf->fs.st_size)){
+				struct fly_de *__de;
+
+				__de = fly_de_init(__p->pool);
+				__de->type = FLY_DE_ESEND_FROM_PATH;
+				__de->fd = __pf->fd;
+				__de->offset = 0;
+				__de->count = __pf->fs.st_size;
+				__de->etype = fly_encoding_from_type(__pf->encode_type);
+				if (fly_unlikely_null(__de->decbuf) || \
+						fly_unlikely_null(__de->encbuf))
+					return -1;
+				if (__de->etype->encode(__de) == -1)
+					return -1;
+
+				__pf->de = __de;
+				__pf->encoded = true;
+			}
 		}
 	}
 	return 0;
@@ -522,14 +555,7 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 
 __fly_static void __fly_add_rcbs(fly_context_t *ctx, fly_rcbs_t *__r)
 {
-	if (ctx->rcbs == NULL)
-		ctx->rcbs = __r;
-	else{
-		for (fly_rcbs_t *r=ctx->rcbs; r->next; r=r->next){
-			r->next = __r;
-		}
-	}
-	return;
+	fly_bllist_add_tail(&ctx->rcbs, &__r->blelem);
 }
 
 /* open worker default content by status code */
@@ -547,16 +573,38 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 		/* there is a default content path */
 		if (defenv || __res->default_path){
 			struct fly_response_content_by_stcode *__frc;
-			__frc = fly_pballoc(ctx->pool, sizeof(struct fly_response_content_by_stcode));
+			__frc = fly_rcbs_init(ctx);
 			if (fly_unlikely_null(__frc))
 				return -1;
 			__frc->status_code = __res->type;
 			__frc->content_path = defenv ? defenv : __res->default_path;
 			__frc->mime = fly_mime_type_from_path_name(__frc->content_path);
-			__frc->next = NULL;
 			__frc->fd = open(__frc->content_path, O_RDONLY);
 			if (__frc->fd == -1)
 				return -1;
+
+			if (fstat(__frc->fd, &__frc->fs) == -1)
+				return -1;
+
+			if (fly_over_encoding_threshold(__frc->fs.st_size)){
+				struct fly_de *__de;
+
+				__de = fly_de_init(ctx->pool);
+				__de->type = FLY_DE_ESEND_FROM_PATH;
+				__de->fd = __frc->fd;
+				__de->offset = 0;
+				__de->count = __frc->fs.st_size;
+				__de->etype = fly_encoding_from_type(__frc->encode_type);
+				if (fly_unlikely_null(__de->decbuf) || \
+						fly_unlikely_null(__de->encbuf))
+					return -1;
+				if (__de->etype->encode(__de) == -1)
+					return -1;
+
+				__frc->de = __de;
+				__frc->encoded = true;
+			}
+
 			__fly_add_rcbs(ctx, __frc);
 		}
 	}

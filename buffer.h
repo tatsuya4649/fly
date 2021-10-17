@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include "util.h"
 #include "alloc.h"
+#include "bllist.h"
 
 #define FLY_BUF_FULL				0x01
 #define FLY_BUF_HALF				0x02
@@ -20,14 +21,12 @@ struct fly_buffer_chain{
 	size_t use_len;
 	size_t unuse_len;
 
-	struct fly_buffer_chain *next;
-	struct fly_buffer_chain *prev;
+	struct fly_bllist		blelem;
 	fly_bit_t status: 4;
 };
 
 struct fly_buffer{
-	struct fly_buffer_chain *chain;
-	struct fly_buffer_chain *lchain;
+	struct fly_bllist		chain;
 	size_t chain_count;
 	fly_pool_t *pool;
 
@@ -37,15 +36,121 @@ struct fly_buffer{
 	size_t per_len;
 	size_t use_len;
 };
-#define first_chain				chain->next
-#define first_ptr				chain->next->ptr
-#define first_useptr			chain->next->use_ptr
-#define lunuse_ptr				lchain->unuse_ptr
-#define lunuse_len				lchain->unuse_len
-#define fly_buf_act_len(c)		(((c)->lptr-(c)->use_ptr)+1)
 
+//#define fly_buffer_chain(__b)	fly_bllist_data((__b), struct fly_buffer_chain, blelem)
+//#define fly_buffer_first_chain(__b)		fly_buffer_chain((__b)->chain.next)
+//#define fly_buffer_last_chain(__b)		fly_buffer_chain((__b)->chain.prev)
+//#define fly_buffer_first_ptr(__b)		fly_buffer_first_chain((__b))->ptr
+//#define fly_buffer_first_useptr(__b)		({
+//		struct fly_buffer_chain *__c = fly_buffer_first_chain((__b));
+//		__c->use_ptr;
+//	})
+//#define fly_buffer_lunuse_ptr(__b)			({
+//		struct fly_buffer_chain *__c = fly_buffer_last_chain((__b));
+//		__c->unuse_ptr;
+//	})
+//#define fly_buffer_lunuse_len(__b)			({
+//		struct fly_buffer_chain *__c = fly_buffer_last_chain((__b));
+//		__c->unuse_len;
+//	})
+//#define fly_buffer_luse_len(__b)			({
+//		struct fly_buffer_chain *__c = fly_buffer_last_chain((__b));
+//		__c->use_len;
+//	})
+//#define fly_buffer_luse_ptr(__b)			({
+//		struct fly_buffer_chain *__c = fly_buffer_last_chain((__b));
+//		__c->use_ptr;
+//	})
+
+#ifdef DEBUG
+	#define FLY_BUFFER_DEBUG_CHAIN_COUNT(__b)		\
+			assert((__b)->chain_count > 0)
+#else
+	#define FLY_BUFFER_DEBUG_CHAIN_COUNT(__b)
+#endif
 typedef struct fly_buffer fly_buffer_t;
 typedef struct fly_buffer_chain fly_buffer_c;
+
+static inline fly_buffer_c *fly_buffer_chain(struct fly_bllist *__b)
+{
+	return fly_bllist_data(__b, struct fly_buffer_chain, blelem);
+}
+
+static inline bool fly_is_chain_buffer_chain(struct fly_buffer *buf, struct fly_bllist *__b)
+{
+	return (&buf->chain == __b) ? true : false;
+}
+
+static inline bool fly_is_chain_term(struct fly_buffer_chain *__c)
+{
+	return fly_is_chain_buffer_chain(__c->buffer, __c->blelem.next);
+}
+
+
+static inline fly_buffer_c *fly_buffer_next_chain(fly_buffer_c *__c)
+{
+	if (fly_is_chain_term(__c))
+		return NULL;
+	return fly_buffer_chain(__c->blelem.next);
+}
+
+static inline fly_buffer_c *fly_buffer_first_chain(fly_buffer_t *__b)
+{
+	FLY_BUFFER_DEBUG_CHAIN_COUNT(__b);
+	return fly_buffer_chain(__b->chain.next);
+}
+
+static inline fly_buffer_c *fly_buffer_last_chain(fly_buffer_t *__b)
+{
+	FLY_BUFFER_DEBUG_CHAIN_COUNT(__b);
+	return fly_buffer_chain(__b->chain.prev);
+}
+
+static inline fly_buf_p fly_buffer_first_ptr(fly_buffer_t *__b)
+{
+	fly_buffer_c *__c = fly_buffer_first_chain(__b);
+	return __c->ptr;
+}
+
+static inline fly_buf_p fly_buffer_first_useptr(fly_buffer_t *__b)
+{
+	fly_buffer_c *__c = fly_buffer_first_chain(__b);
+	return __c->use_ptr;
+}
+
+static inline fly_buf_p fly_buffer_lunuse_ptr(fly_buffer_t *__b)
+{
+	fly_buffer_c *__c = fly_buffer_last_chain(__b);
+	return __c->unuse_ptr;
+}
+
+static inline size_t fly_buffer_lunuse_len(fly_buffer_t *__b)
+{
+	fly_buffer_c *__c = fly_buffer_last_chain(__b);
+	return __c->unuse_len;
+}
+
+static inline size_t fly_buffer_luse_len(fly_buffer_t *__b)
+{
+	fly_buffer_c *__c = fly_buffer_last_chain(__b);
+	return __c->use_len;
+}
+
+static inline fly_buf_p fly_buffer_luse_ptr(fly_buffer_t *__b)
+{
+	fly_buffer_c *__c = fly_buffer_last_chain(__b);
+	return __c->use_ptr;
+}
+
+
+//#define first_chain				chain->next
+//#define first_ptr				chain->next->ptr
+//#define first_useptr			chain->next->use_ptr
+//#define lunuse_ptr				lchain->unuse_ptr
+//#define lunuse_len				lchain->unuse_len
+#define fly_buf_act_len(c)		(((c)->lptr-(c)->use_ptr)+1)
+//#define fly_buffer_next_chain(__c)			fly_buffer_chain(__c->blelem.next)
+
 #define FLY_BUF_CHAIN_INFINITY		(-1)
 
 #define FLY_BUF_ADD_CHAIN_SUCCESS	(1)
@@ -77,5 +182,11 @@ void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len);
 void fly_buffer_release(fly_buffer_t *buf);
 fly_buffer_c *fly_get_buf_chain(fly_buffer_t *buf, int i);
 void fly_buffer_chain_refresh(fly_buffer_c *__c);
+
+#define FLY_LEN_UNTIL_CHAIN_LPTR(__c , __p)		\
+		(((__c) != fly_buffer_last_chain((__c)->buffer)) ? \
+	((void *) (__c)->unuse_ptr - (void *) (__p) + 1) : \
+	((void *) (__c)->unuse_ptr - (void *) (__p)))
+
 
 #endif

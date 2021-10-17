@@ -474,6 +474,8 @@ int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e, bool hv2)
 {
 	char *encname;
 
+	if (e == NULL)
+		return 0;
 	encname = fly_decided_encoding_name(e);
 	if (encname == NULL)
 		return -1;

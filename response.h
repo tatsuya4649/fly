@@ -141,8 +141,6 @@ struct fly_itm_response{
 	fly_request_t *req;
 };
 typedef struct fly_itm_response fly_itm_response_t;
-//int fly_4xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
-//int fly_5xx_error_event(fly_event_t *, fly_request_t *, fly_stcode_t);
 struct fly_response_content;
 int fly_304_event(fly_event_t *e);
 int fly_400_event(fly_event_t *e, fly_request_t *req);
@@ -174,17 +172,28 @@ struct fly_response_content{
 
 /* default response content(static content) */
 struct fly_response_content_by_stcode{
-	fly_stcode_t status_code;
-	char *content_path;
-	int fd;
-	fly_mime_type_t *mime;
+	fly_stcode_t				status_code;
+	char						*content_path;
+	int							fd;
+	fly_mime_type_t				*mime;
+	fly_de_t					*de;
 
-	struct fly_response_content_by_stcode *next;
+	struct stat					fs;
+	fly_encoding_e				encode_type;
+	struct fly_bllist			blelem;
+	fly_bit_t					encoded: 1;
 };
+#define FLY_RCBS_DEFAULT_ENCODE_TYPE		fly_gzip
+struct fly_response_content_by_stcode *fly_rcbs_init(fly_context_t *ctx);
 typedef struct fly_response_content_by_stcode fly_rcbs_t;
 fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);
 int __fly_response_log(fly_response_t *res, fly_event_t *e);
 const char *fly_status_code_str_from_type(fly_stcode_t type);
 fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf);
+
+static inline int fly_encode_do(fly_response_t *res)
+{
+	return (res->encoding != NULL && res->encoding->actqty);
+}
 
 #endif

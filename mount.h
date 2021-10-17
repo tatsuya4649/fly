@@ -8,41 +8,52 @@
 #include "alloc.h"
 #include "header.h"
 #include "mime.h"
+#include "bllist.h"
+#include "encode.h"
+
 #define FLY_PATHNAME_MAX	_POSIX_NAME_MAX
 #define FLY_PATH_MAX	_POSIX_PATH_MAX
 #define FLY_MOUNT_POOL_PAGE		((fly_page_t) 10)
 #define FLY_MOUNT_INIT_NUMBER		0
 #define FLY_DATE_LENGTH			(50)
 
+#define FLY_MOUNT_DEFAULT_ENCODE_TYPE			fly_gzip
 struct fly_mount_parts_file{
-	int fd;
-	int wd;
-	int infd;
-	struct stat fs;
-	char filename[FLY_PATHNAME_MAX];
-	char last_modified[FLY_DATE_LENGTH];
-	struct fly_mount_parts *parts;
-	struct fly_file_hash *hash;
-	fly_mime_type_t *mime_type;
+	int						fd;
+	int 					wd;
+	int 					infd;
+	struct stat				fs;
+	char					filename[FLY_PATHNAME_MAX];
+	char 					last_modified[FLY_DATE_LENGTH];
+	struct fly_mount_parts	*parts;
+	struct fly_file_hash	*hash;
+	fly_mime_type_t			*mime_type;
 
-	struct fly_mount_parts_file *next;
+	struct fly_bllist		blelem;
+
+	fly_encoding_e			encode_type;
+	struct fly_de			*de;
+	fly_bit_t				encoded: 1;
 };
 
 struct fly_mount_parts{
-	int wd;
-	int infd;
-	char mount_path[FLY_PATH_MAX];
-	int mount_number; struct fly_mount_parts_file *files; int file_count;
+	int						wd;
+	int 					infd;
+	char					mount_path[FLY_PATH_MAX];
+	int						mount_number;
 
-	struct fly_mount_parts *next;
-	struct fly_mount *mount;
-	fly_pool_t *pool;
+	struct fly_bllist		files;
+	int						file_count;
+
+	struct fly_bllist		mbelem;
+	struct fly_mount		*mount;
+	fly_pool_t				*pool;
 };
 
 struct fly_context;
 typedef struct fly_context fly_context_t;
 struct fly_mount{
-	struct fly_mount_parts *parts;
+	struct fly_bllist		parts;
 	int mount_count;
 
 	fly_context_t *ctx;
@@ -60,7 +71,6 @@ ssize_t fly_file_size(const char *path);
 int fly_mount_number(fly_mount_t *mnt, const char *path);
 char *fly_content_from_path(int mount_number, char *filepath);
 int fly_join_path(char *buffer, char *join1, char *join2);
-//int fly_from_path(int c_sockfd, fly_mount_t *mnt, int mount_number, char *filename, off_t *offset, size_t count);
 
 int fly_mount_inotify(fly_mount_t *mount, int ifd);
 
