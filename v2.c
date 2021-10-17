@@ -368,7 +368,7 @@ int fly_hv2_init_connection_preface(fly_connect_t *conn)
 {
 	fly_buffer_t *buf = conn->buffer;
 
-	switch(fly_buffer_memcmp(FLY_CONNECTION_PREFACE, buf->first_useptr, buf->chain, strlen(FLY_CONNECTION_PREFACE))){
+	switch(fly_buffer_memcmp(FLY_CONNECTION_PREFACE, fly_buffer_first_useptr(buf), fly_buffer_first_chain(buf), strlen(FLY_CONNECTION_PREFACE))){
 	case FLY_BUFFER_MEMCMP_OVERFLOW:
 		return FLY_HV2_INIT_CONNECTION_PREFACE_CONTINUATION;
 	case FLY_BUFFER_MEMCMP_EQUAL:
@@ -505,7 +505,7 @@ connection_preface:
 	}
 
 	/* release connection preface from buffer */
-	fly_buffer_chain_release_from_length(buf->first_chain, strlen(FLY_CONNECTION_PREFACE));
+	fly_buffer_chain_release_from_length(fly_buffer_first_chain(buf), strlen(FLY_CONNECTION_PREFACE));
 
 	conn->v2_state->connection_state = FLY_HV2_CONNECTION_STATE_CONNECTION_PREFACE;
 	return fly_hv2_request_event_handler(e);
@@ -1179,8 +1179,8 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			goto blocking;
 
 frame_header_parse:
-		bufp = conn->buffer->first_useptr;
-		bufc = conn->buffer->first_chain;
+		bufp = fly_buffer_first_useptr(conn->buffer);
+		bufc = fly_buffer_first_chain(conn->buffer);
 
 		/* if frrme length more than limits, must send FRAME_SIZE_ERROR */
 		fly_hv2_stream_t *__stream;
@@ -1496,7 +1496,7 @@ frame_header_parse:
 		 */
 		fly_buffer_t *__buf=bufc->buffer;
 		fly_buffer_chain_release_from_length(bufc, FLY_HV2_FRAME_HEADER_LENGTH+length);
-		bufc = __buf->first_chain;
+		bufc = fly_buffer_first_chain(__buf);
 		if (bufc->buffer->use_len == 0)
 			fly_buffer_chain_refresh(bufc);
 
@@ -1642,8 +1642,8 @@ static inline void __fly_hv2_set_huffman_bit(uint8_t *pl, bool huffman)
 uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 {
 #define FLY_HEADERS_INDEX(p)		p+1
-	fly_buffer_c *chain = buf->lchain;
-	uint8_t *ptr = buf->lunuse_ptr;
+	fly_buffer_c *chain = fly_buffer_last_chain(buf);
+	uint8_t *ptr = fly_buffer_lunuse_ptr(buf);
 	uint32_t total = 0;
 	/* static index  */
 	if (c->static_table || c->dynamic_table){
@@ -1672,7 +1672,7 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 		while(value_len--){
 			*(char *) ptr = *value++;
 			fly_update_buffer(buf, 1);
-			ptr = (uint8_t *) buf->lunuse_ptr;
+			ptr = (uint8_t *) fly_buffer_lunuse_ptr(buf);
 			total++;
 		}
 	/* no index name and value  */
@@ -1683,12 +1683,12 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 		fly_hv2_set_index(0, c->index_update, &ptr, &chain, &total);
 		/* set name length */
 		if (c->huffman_name){
-			__fly_hv2_set_huffman_bit(buf->lunuse_ptr, true);
+			__fly_hv2_set_huffman_bit(fly_buffer_lunuse_ptr(buf), true);
 			fly_hv2_set_integer(c->hname_len, &ptr, &chain, &total, FLY_HV2_NAME_PREFIX_BIT);
 			name_len = c->hname_len;
 			name = c->hen_name;
 		}else{
-			__fly_hv2_set_huffman_bit(buf->lunuse_ptr, false);
+			__fly_hv2_set_huffman_bit(fly_buffer_lunuse_ptr(buf), false);
 			fly_hv2_set_integer(c->name_len, &ptr, &chain, &total, FLY_HV2_NAME_PREFIX_BIT);
 			name_len = c->name_len;
 			name = c->name;
@@ -1697,17 +1697,17 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 		while(name_len--){
 			*(char *) ptr = *name++;
 			fly_update_buffer(buf, 1);
-			ptr = (uint8_t *) buf->lunuse_ptr;
+			ptr = (uint8_t *) fly_buffer_lunuse_ptr(buf);
 			total++;
 		}
 		/* set value length */
 		if (c->huffman_value){
-			__fly_hv2_set_huffman_bit(buf->lunuse_ptr, true);
+			__fly_hv2_set_huffman_bit(fly_buffer_lunuse_ptr(buf), true);
 			fly_hv2_set_integer(c->hvalue_len, &ptr, &chain, &total, FLY_HV2_VALUE_PREFIX_BIT);
 			value_len = c->hvalue_len;
 			value = c->hen_value;
 		}else{
-			__fly_hv2_set_huffman_bit(buf->lunuse_ptr, false);
+			__fly_hv2_set_huffman_bit(fly_buffer_lunuse_ptr(buf), false);
 			fly_hv2_set_integer(c->value_len, &ptr, &chain, &total, FLY_HV2_VALUE_PREFIX_BIT);
 			value_len = c->value_len;
 			value = c->value;
@@ -1716,34 +1716,12 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 		while(value_len--){
 			*(char *) ptr = *value++;
 			fly_update_buffer(buf, 1);
-			ptr = (uint8_t *) buf->lunuse_ptr;
+			ptr = (uint8_t *) fly_buffer_lunuse_ptr(buf);
 			total++;
 		}
 	}
 	return total;
 }
-
-//int fly_send_frame_h_event_handler(fly_event_t *e);
-//int fly_send_frame_h_event(fly_event_manager_t *manager, fly_hv2_stream_t *stream, int read_or_write)
-//{
-//	fly_event_t *e;
-//
-//	e = fly_event_init(manager);
-//	if (fly_unlikely_null(e))
-//		return -1;
-//
-//	e->fd = stream->request->connect->c_sockfd;
-//	e->read_or_write = read_or_write;
-//	e->event_data = (void *) stream;
-//	FLY_EVENT_HANDLER(e, fly_send_frame_h_event_handler);
-//	e->flag = 0;
-//	e->tflag = 0;
-//	e->eflag = 0;
-//	fly_sec(&e->timeout, FLY_SEND_FRAME_TIMEOUT);
-//	fly_event_socket(e);
-//
-//	return fly_event_register(e);
-//}
 
 struct __fly_frame_header_data{
 	fly_buffer_t *buf;
@@ -1754,14 +1732,6 @@ struct __fly_frame_header_data{
 
 int __fly_send_frame_h(fly_event_t *e, fly_response_t *res);
 void __fly_hv2_remove_yet_send_frame(struct fly_hv2_send_frame *frame);
-
-//int fly_send_frame_h_event_handler(fly_event_t *e)
-//{
-//	fly_response_t *res;
-//
-//	res = (fly_response_t *) e->event_data;
-//	return __fly_send_frame_h(e, res);
-//}
 
 int fly_send_data_frame(fly_event_t *e, fly_response_t *res);
 #define FLY_SEND_DATA_FH_SUCCESS			(1)
@@ -1936,11 +1906,6 @@ int fly_send_data_frame(fly_event_t *e, fly_response_t *res)
 	return __fly_send_data_fh(e, res, send_len, stream->id, flag);
 
 send:
-#define FLY_SENDLEN_UNTIL_CHAIN_LPTR(__c , __p)		\
-		(((__c) != (__c)->buffer->lchain) ? \
-	((void *) (__c)->unuse_ptr - (void *) (__p) + 1) : \
-	((void *) (__c)->unuse_ptr - (void *) (__p)))
-
 	size_t total = res->byte_from_start ? res->byte_from_start : 0;
 	ssize_t numsend;
 	send_len = res->send_len;
@@ -1953,15 +1918,15 @@ send:
 			fly_de_t *de;
 			de = res->de;
 
-			chain = de->encbuf->first_chain;
-			send_ptr = de->encbuf->first_ptr;
-			numsend = 0;
+			chain = fly_buffer_first_chain(de->encbuf);
+			send_ptr = fly_buffer_first_ptr(de->encbuf);
+			numsend = total;
 			while(true){
 				send_ptr = fly_update_chain(&chain, send_ptr, numsend);
 				if (FLY_CONNECT_ON_SSL(res->request->connect)){
 					ERR_clear_error();
 					SSL *ssl = res->request->connect->ssl;
-					numsend = SSL_write(ssl, send_ptr, FLY_SENDLEN_UNTIL_CHAIN_LPTR(chain, send_ptr));
+					numsend = SSL_write(ssl, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr));
 
 					switch(SSL_get_error(ssl, numsend)){
 					case SSL_ERROR_NONE:
@@ -1985,7 +1950,7 @@ send:
 				}else{
 					int c_sockfd;
 					c_sockfd = res->request->connect->c_sockfd;
-					numsend = send(c_sockfd, send_ptr, FLY_SENDLEN_UNTIL_CHAIN_LPTR(chain, send_ptr), MSG_NOSIGNAL);
+					numsend = send(c_sockfd, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr), MSG_NOSIGNAL);
 					if (FLY_BLOCKING(numsend))
 						goto write_blocking;
 					else if (numsend == -1 && errno == EPIPE)
@@ -2404,7 +2369,7 @@ struct fly_hv2_send_frame *__fly_send_headers_frame(fly_hv2_stream_t *stream, fl
 	}
 	frame->payload_len = total;
 	frame->payload = fly_pballoc(pool, sizeof(uint8_t)*frame->payload_len);
-	fly_buffer_memcpy((char *) frame->payload, buf->first_useptr, buf->first_chain, total);
+	fly_buffer_memcpy((char *) frame->payload, fly_buffer_first_useptr(buf), fly_buffer_first_chain(buf), total);
 	fly_fh_setting(&frame->frame_header, frame->payload_len, frame->type, flag, false, stream->id);
 
 	return frame;
@@ -2469,7 +2434,7 @@ int fly_send_headers_frame(fly_hv2_stream_t *stream, fly_response_t *res)
 		if (total+len >= max_payload){
 			__f = __fly_send_headers_frame(stream, res->pool, buf, total, over, flag);
 			__fly_hv2_add_yet_send_frame(__f);
-			fly_buffer_chain_release_from_length(buf->first_chain, total);
+			fly_buffer_chain_release_from_length(fly_buffer_first_chain(buf), total);
 			over = true;
 			total = 0;
 		}
@@ -2514,7 +2479,7 @@ void fly_send_settings_frame(fly_hv2_stream_t *stream, uint16_t *id, uint32_t *v
 	if (!ack && count)
 		fly_settings_frame_payload_set(frame->payload, id, value, count);
 
-	if (!ack)
+	if (!ack && frame->need_ack)
 		__fly_hv2_add_yet_ack_frame(frame);
 	__fly_hv2_add_yet_send_frame(frame);
 }
@@ -3023,22 +2988,25 @@ static inline bool fly_hv2_is_index_hedaer_noindex(uint8_t *pl)
 #define FLY_HV2_INT_BIT_VALUE(p)			((1<<(7)) - 1)
 void fly_hv2_set_integer(uint32_t integer, uint8_t **pl, fly_buffer_c **__c, __unused uint32_t *update, uint8_t prefix_bit)
 {
+	fly_buffer_t *__b;
 	**pl &= (~FLY_HV2_INT_BIT_PREFIX(prefix_bit));
 	if (integer < (uint32_t) FLY_HV2_INT_BIT_PREFIX(prefix_bit)){
 		if (update)
 			(*update)++;
 		**pl |=  (uint8_t) integer;
 		fly_update_buffer((*__c)->buffer, 1);
-		*pl = (uint8_t *) (*__c)->buffer->lunuse_ptr;
-		*__c = (*__c)->buffer->lchain;
+		__b = (*__c)->buffer;
+		*pl = (uint8_t *) fly_buffer_lunuse_ptr(__b);
+		*__c = fly_buffer_last_chain((*__c)->buffer);
 	}else{
 		int now = integer - FLY_HV2_INT_BIT_PREFIX(prefix_bit);
 		**pl |=  (uint8_t) integer;
 		if (update)
 			(*update)++;
 		fly_update_buffer((*__c)->buffer, 1);
-		*pl = (uint8_t *) (*__c)->buffer->lunuse_ptr;
-		*__c = (*__c)->buffer->lchain;
+		__b = (*__c)->buffer;
+		*pl = (uint8_t *) fly_buffer_lunuse_ptr(__b);
+		*__c = fly_buffer_last_chain((*__c)->buffer);
 
 		while(now>=FLY_HV2_INT_CONTFLAG(prefix_bit)){
 			**pl = (now%FLY_HV2_INT_CONTFLAG(prefix_bit))+FLY_HV2_INT_CONTFLAG(prefix_bit);
@@ -3046,16 +3014,17 @@ void fly_hv2_set_integer(uint32_t integer, uint8_t **pl, fly_buffer_c **__c, __u
 				(*update)++;
 			**pl |= FLY_HV2_INT_CONTFLAG(prefix_bit);
 			fly_update_buffer((*__c)->buffer, 1);
-			*pl = (uint8_t *) (*__c)->buffer->lunuse_ptr;
-			*__c = (*__c)->buffer->lchain;
+			*pl = (uint8_t *) fly_buffer_lunuse_ptr(__b);
+			__b = (*__c)->buffer;
+			*__c = fly_buffer_last_chain((*__c)->buffer);
 			now /= FLY_HV2_INT_CONTFLAG(prefix_bit);
 		}
 
 		**pl = now;
 		**pl &= FLY_HV2_INT_BIT_VALUE(prefix_bit);
 		fly_update_buffer((*__c)->buffer, 1);
-		*pl = (uint8_t *) (*__c)->buffer->lunuse_ptr;
-		*__c = (*__c)->buffer->lchain;
+		*pl = (uint8_t *) fly_buffer_lunuse_ptr(__b);
+		*__c = fly_buffer_last_chain((*__c)->buffer);
 		if (update)
 			(*update)++;
 	}
@@ -3254,11 +3223,11 @@ int fly_hv2_add_header_by_indexname(struct fly_hv2_stream *stream, uint32_t inde
 		if (fly_hv2_huffman_decode(stream->request->header->pool, &buf, &len, value, value_len, __c) == -1)
 			return -1;
 		/* header add */
-		if (fly_header_addbv(buf->first_chain, stream->request->header, (fly_hdr_name *) name, name_len, buf->first_useptr, len) == -1)
+		if (fly_header_addbv(fly_buffer_first_chain(buf), stream->request->header, (fly_hdr_name *) name, name_len, fly_buffer_first_useptr(buf), len) == -1)
 			return -1;
 
 		if (index_type == INDEX_UPDATE){
-			if (fly_hv2_dynamic_table_add_entry_bv(state, (char *) name, name_len, buf->first_chain, buf->first_useptr, buf->use_len) == -1)
+			if (fly_hv2_dynamic_table_add_entry_bv(state, (char *) name, name_len, fly_buffer_first_chain(buf), fly_buffer_first_useptr(buf), buf->use_len) == -1)
 				return -1;
 		}
 
@@ -3301,14 +3270,14 @@ int fly_hv2_add_header_by_name(struct fly_hv2_stream *stream, uint8_t *name, uin
 #define FLY_HV2_ADD_HEADER_NAME_CPY					\
 		huffman_name ? fly_buffer_memcpy(			\
 				__n,								\
-				nbuf->first_ptr,					\
-				nbuf->first_chain, nlen)	:		\
+				fly_buffer_first_ptr(nbuf),					\
+				fly_buffer_first_chain(nbuf), nlen)	:		\
 		memcpy(__n, name, name_len)
 #define FLY_HV2_ADD_HEADER_VALUE_CPY				\
 		huffman_value ? fly_buffer_memcpy(			\
 				__v,								\
-				vbuf->first_ptr,					\
-				vbuf->first_chain, vlen)	:		\
+				fly_buffer_first_ptr(vbuf),					\
+				fly_buffer_first_chain(vbuf), vlen)	:		\
 		memcpy(__v, value, value_len)
 	__n = fly_pballoc(stream->request->header->pool, FLY_HV2_ADD_HEADER_NAME_LEN);
 	if (fly_unlikely_null(__n))
@@ -3668,7 +3637,7 @@ int fly_hv2_huffman_decode(fly_pool_t *pool, fly_buffer_t **res, uint32_t *decod
 	while(len){
 		int step = 0;
 		struct fly_hv2_huffman *code;
-		bufp = buf->lunuse_ptr;
+		bufp = fly_buffer_lunuse_ptr(buf);
 
 		/* padding check */
 		if (len-1==0 && fly_huffman_last_padding(start_bit, ptr)){
@@ -3879,10 +3848,6 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 		goto response_400;
 	}
 
-	/* accept encoding parse */
-	if (fly_accept_encoding(request) == -1)
-		goto error;
-
 	/* accept mime parse */
 	if (fly_accept_mime(request) == -1)
 		goto error;
@@ -4023,6 +3988,7 @@ int fly_hv2_response_event(fly_event_t *e)
 	fly_response_t *res;
 	fly_hv2_stream_t *stream;
 	struct fly_hv2_response *v2_res;
+	__unused struct stat sb;
 
 	res = (fly_response_t *) e->event_data;
 	if (res->header == NULL)
@@ -4068,7 +4034,41 @@ int fly_hv2_response_event(fly_event_t *e)
 		}
 	}
 
-	if (fly_encode_do(res)){
+	if (res->body){
+		res->response_len = res->body->body_len;
+		res->type = FLY_RESPONSE_TYPE_BODY;
+	}else if (res->pf){
+		if (res->pf->encoded){
+			res->type = FLY_RESPONSE_TYPE_ENCODED;
+			res->de = res->pf->de;
+			res->response_len = res->de->contlen;
+			res->encoded = true;
+		}else{
+			res->response_len = res->count;
+			res->type = FLY_RESPONSE_TYPE_PATH_FILE;
+		}
+	}else if (res->rcbs){
+		if (res->rcbs->encoded){
+			res->type = FLY_RESPONSE_TYPE_ENCODED;
+			res->de = res->rcbs->de;
+			res->response_len = res->de->contlen;
+			res->encoded = true;
+		}else{
+			res->response_len = rcbs->fs.st_size;
+			res->type = FLY_RESPONSE_TYPE_DEFAULT;
+		}
+	}else{
+		res->response_len = 0;
+		res->type = FLY_RESPONSE_TYPE_NOCONTENT;
+	}
+
+	/* accept encoding parse */
+	if (fly_over_encoding_threshold_from_response(res) && \
+			(fly_accept_encoding(res) == -1))
+		return -1;
+
+	fly_add_content_encoding(res->header, res->request->encoding, true);
+	if (fly_encode_do(res) && !res->encoded){
 		res->type = FLY_RESPONSE_TYPE_ENCODED;
 		fly_encoding_type_t *enctype=NULL;
 		enctype = fly_decided_encoding_type(res->encoding);
@@ -4081,17 +4081,23 @@ int fly_hv2_response_event(fly_event_t *e)
 		fly_de_t *__de;
 
 		__de = fly_de_init(res->pool);
-		fly_e_buf_add(__de);
-		fly_d_buf_add(__de);
-		__de->type = FLY_DE_ESEND_FROM_PATH;
-		__de->fd = res->pf->fd;
-		__de->offset = res->offset;
-		__de->count = res->pf->fs.st_size;
+		if (res->pf){
+			__de->type = FLY_DE_ESEND_FROM_PATH;
+			__de->fd = res->pf->fd;
+			__de->offset = res->offset;
+			__de->count = res->pf->fs.st_size;
+		}else if (res->rcbs){
+			__de->type = FLY_DE_ESEND_FROM_PATH;
+			__de->fd = res->rcbs->fd;
+			__de->offset = 0;
+			__de->count = res->rcbs->fs.st_size;
+		}
+
+		/* TODO: FLY_RESPONSE_TYPE_BODY encoding */
 		__de->event = e;
 		__de->response = res;
 		__de->c_sockfd = e->fd;
 		__de->etype = enctype;
-		__de->fase = FLY_DE_INIT;
 		__de->bfs = 0;
 		__de->end = false;
 		res->de = __de;
@@ -4102,26 +4108,12 @@ int fly_hv2_response_event(fly_event_t *e)
 		if (enctype->encode(__de) == -1)
 			return -1;
 
+		res->encoded = true;
 		res->response_len = __de->contlen;
-	} else if (res->body){
-		res->response_len = res->body->body_len;
-		res->type = FLY_RESPONSE_TYPE_BODY;
-	}else if (res->pf){
-		res->response_len = res->count;
-		res->type = FLY_RESPONSE_TYPE_PATH_FILE;
-	}else if (res->rcbs){
-		struct stat sb;
-		if (fstat(rcbs->fd, &sb) == -1)
-			return -1;
-
-		res->response_len = sb.st_size;
-		res->type = FLY_RESPONSE_TYPE_DEFAULT;
-	}else{
-		res->response_len = 0;
-		res->type = FLY_RESPONSE_TYPE_NOCONTENT;
 	}
 
-
+	if (res->de)
+		fly_add_content_length(res->header, res->de->contlen, true);
 send_header:
 	if (fly_send_headers_frame(stream, res))
 		return -1;

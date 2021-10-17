@@ -97,6 +97,22 @@ fly_response_t *fly_response_init(void)
 	return response;
 }
 
+struct fly_response_content_by_stcode *fly_rcbs_init(fly_context_t *ctx)
+{
+	struct fly_response_content_by_stcode *__frc;
+
+	__frc = fly_pballoc(ctx->pool, sizeof(struct fly_response_content_by_stcode));
+	if (fly_unlikely_null(__frc))
+		return NULL;
+	__frc->content_path = NULL;
+	__frc->fd = -1;
+	__frc->mime = NULL;
+	__frc->de = NULL;
+	__frc->encode_type = FLY_RCBS_DEFAULT_ENCODE_TYPE;
+	__frc->encoded = false;
+	return __frc;
+}
+
 __fly_static char **__fly_stcode_required_header(fly_stcode_t type)
 {
 	for (fly_status_code *res=responses; res->status_code!=-1; res++){
@@ -775,7 +791,6 @@ int fly_response_event(fly_event_t *e)
 		__de->response = response;
 		__de->c_sockfd = e->fd;
 		__de->etype = enctype;
-		__de->fase = FLY_DE_INIT;
 		__de->bfs = 0;
 		__de->end = false;
 		response->de = __de;
@@ -863,7 +878,9 @@ void fly_response_release(fly_response_t *response)
 		fly_header_release(response->header);
 	if (response->body != NULL)
 		fly_body_release(response->body);
-	if (response->de != NULL)
+	if (response->de != NULL && \
+			((!response->pf || response->pf->de!=response->de) && \
+			(!response->rcbs || response->rcbs->de!=response->de)))
 		fly_de_release(response->de);
 
 	fly_delete_pool(&response->pool);
@@ -1199,7 +1216,6 @@ fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf)
 	fly_add_content_etag(response->header, pf, hv2);
 	fly_add_date(response->header, hv2);
 	fly_add_last_modified(response->header, pf, hv2);
-	fly_add_content_encoding(response->header, req->encoding, hv2);
 	fly_add_content_type(response->header, pf->mime_type, hv2);
 	if (!hv2)
 		fly_add_connection(response->header, KEEP_ALIVE);
