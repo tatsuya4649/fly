@@ -41,8 +41,6 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 	req->encoding = NULL;			/* use request pool */
 	req->language = NULL;			/* use request pool */
 	req->charset = NULL;			/* use request pool */
-	req->bptr = req->buffer->lchain;
-	//memset(req->buffer, 0, FLY_BUFSIZE);
 	req->connect = conn;			/* use connect pool */
 	req->fase = EFLY_REQUEST_FASE_REQUEST_LINE;
 	req->ctx = conn->event->manager->ctx;
@@ -91,9 +89,7 @@ void fly_request_line_release(fly_request_t *req)
 
 struct fly_buffer_chain *fly_get_request_line_buf(fly_buffer_t *__buf)
 {
-	if (fly_unlikely_null(__buf->chain))
-		return NULL;
-	return __buf->chain;
+	return fly_buffer_first_ptr(__buf);
 }
 
 static inline bool __fly_ualpha(char c)
@@ -912,7 +908,7 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 		if (FLY_CONNECT_ON_SSL(connect)){
 			SSL *ssl = connect->ssl;
 
-			recvlen = SSL_read(ssl, __buf->lunuse_ptr,  __buf->lunuse_len);
+			recvlen = SSL_read(ssl, fly_buffer_lunuse_ptr(__buf),  fly_buffer_lunuse_len(__buf));
 			switch(SSL_get_error(ssl, recvlen)){
 			case SSL_ERROR_NONE:
 				break;
@@ -931,7 +927,7 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 				goto error;
 			}
 		}else{
-			recvlen = recv(fd, __buf->lunuse_ptr, __buf->lunuse_len, MSG_DONTWAIT);
+			recvlen = recv(fd, fly_buffer_lunuse_ptr(__buf), fly_buffer_lunuse_len(__buf), MSG_DONTWAIT);
 			switch(recvlen){
 			case 0:
 				goto end_of_connection;
@@ -1079,7 +1075,7 @@ __fase_header:
 	char *header_ptr;
 
 	fly_event_fase(event, HEADER);
-	header_ptr = fly_get_header_lines_ptr(request->buffer->chain);
+	header_ptr = fly_get_header_lines_ptr(fly_buffer_first_chain(request->buffer));
 	if (header_ptr == NULL)
 		goto read_continuation;
 
@@ -1093,8 +1089,8 @@ __fase_header:
 	}
 
 	/* accept encoding parse */
-	if (fly_accept_encoding(request) == -1)
-		goto error;
+//	if (fly_accept_encoding(request) == -1)
+//		goto error;
 
 	/* accept mime parse */
 	if (fly_accept_mime(request) == -1)
@@ -1121,7 +1117,7 @@ __fase_body:
 	if (body == NULL)
 		goto error;
 	request->body = body;
-	body_ptr = fly_get_body_ptr(request->buffer->chain->ptr);
+	body_ptr = fly_get_body_ptr(fly_buffer_first_ptr(request->buffer));
 	/* content-encoding */
 	fly_hdr_value *ev;
 	fly_encoding_type_t *et;

@@ -35,7 +35,7 @@ fly_context_t *fly_context_init(void)
 	ctx->log = fly_log_init();
 	if (ctx->log == NULL)
 		return NULL;
-	ctx->rcbs = NULL;
+	fly_bllist_init(&ctx->rcbs);
 
 	/* ready for emergency error */
 	if (fly_errsys_init(ctx) == -1)
@@ -75,10 +75,11 @@ __fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *p
 
 fly_rcbs_t *fly_default_content_by_stcode(fly_context_t *ctx, enum status_code_type status_code)
 {
-	if (!ctx->rcbs)
-		return NULL;
+	struct fly_bllist *__b;
+	fly_rcbs_t *__r;
 
-	for (fly_rcbs_t *__r=ctx->rcbs; __r; __r=__r->next){
+	fly_for_each_bllist(__b, &ctx->rcbs){
+		__r = fly_bllist_data(__b, fly_rcbs_t, blelem);
 		if (__r->status_code == status_code || __r->fd > 0)
 			return __r;
 	}
@@ -118,13 +119,13 @@ __fly_static int __fly_send_dcbs_blocking_handler(fly_event_t *e)
 int fly_send_default_content_by_stcode(fly_event_t *e, enum status_code_type status_code)
 {
 	fly_context_t *ctx;
+	struct fly_bllist *__b;
+	fly_rcbs_t *__r;
 
 	ctx = e->manager->ctx;
-	if (!ctx->rcbs)
-		return FLY_SEND_DEFAULT_CONTENT_BY_STCODE_NOTFOUND;
 
-	fly_rcbs_t *__r;
-	for (__r=ctx->rcbs; __r; __r=__r->next){
+	fly_for_each_bllist(__b, &ctx->rcbs){
+		__r = fly_bllist_data(__b, fly_rcbs_t, blelem);
 		if (__r->status_code == status_code || __r->fd > 0)
 			return fly_send_default_content(e, __r);
 	}

@@ -6,6 +6,7 @@
 #include "log.h"
 #include "route.h"
 #include "ssl.h"
+#include "bllist.h"
 
 #define FLY_CONTEXT_POOL_SIZE			10
 
@@ -20,7 +21,7 @@ struct fly_context{
 	fly_log_t *log;
 	fly_route_reg_t *route_reg;
 	fly_mount_t *mount;
-	struct fly_response_content_by_stcode *rcbs;
+	struct fly_bllist	rcbs;
 
 	/* for SSL/TLS */
 	SSL_CTX *ssl_ctx;
