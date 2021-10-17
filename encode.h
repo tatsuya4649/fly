@@ -4,12 +4,14 @@
 #include <string.h>
 #include <ctype.h>
 #include <string.h>
-#include "util.h"
-#include "alloc.h"
 /* compress/decompress libraries */
 #include <zlib.h>
 #include <brotli/encode.h>
 #include <brotli/decode.h>
+
+#include "util.h"
+#include "alloc.h"
+#include "bllist.h"
 #include "buffer.h"
 
 #define FLY_ENCODE_TYPE(x, p)		\
@@ -24,9 +26,9 @@ enum __fly_encoding_type{
 //	fly_compress,
 	fly_deflate,
 	fly_identity,
-	/* TODO: add brotli */
 	fly_br,
 	fly_asterisk,
+	fly_noencode,
 };
 typedef enum __fly_encoding_type fly_encoding_e;
 typedef char fly_encname_t;
@@ -40,27 +42,6 @@ typedef ssize_t (*fly_send_t)(int c_sockfd, const void *buf, size_t buflen, int 
 struct fly_response;
 struct fly_encoding_type;
 
-#define FLY_SEND_FROM_PF_BUFLEN				(1024)
-struct fly_de_buf{
-	fly_encbuf_t buf[FLY_SEND_FROM_PF_BUFLEN];
-	size_t buflen;
-	size_t uselen;
-	struct fly_de_buf *next;
-	fly_encbuf_t *ptr;
-	fly_bit_t status: 4;
-};
-
-/*
-#define FLY_DE_BUF_FULL				0x01
-#define FLY_DE_BUF_HALF				0x02
-#define FLY_DE_BUF_EMPTY			0x03
-#define fly_de_buf_full(b)			\
-	do{										\
-		(b)->status = FLY_DE_BUF_FULL;		\
-		(b)->uselen = (b)->buflen;			\
-	} while(0)
-*/
-
 #define FLY_DE_BUF_INITLEN			0
 #define FLY_DE_BUF_MAXLEN			100
 #define FLY_DE_BUF_PERLEN			10
@@ -70,6 +51,7 @@ struct fly_de_buf{
 				FLY_DE_BUF_MAXLEN, \
 				FLY_DE_BUF_PERLEN)
 
+#define fly_etype_from_de(__de)			((__de)->etype)
 struct fly_de{
 	fly_pool_t *pool;
 	struct fly_encoding_type *etype;
@@ -79,12 +61,6 @@ struct fly_de{
 		FLY_DE_ESEND,
 		FLY_DE_ESEND_FROM_PATH,
 	} type;
-	enum{
-		FLY_DE_INIT,
-		FLY_DE_DE,
-		FLY_DE_ENDING,
-		FLY_DE_END,
-	} fase;
 	fly_buffer_t *encbuf;
 	int encbuflen;
 	fly_buffer_t *decbuf;
@@ -97,7 +73,6 @@ struct fly_de{
 	size_t count;
 	/* byte from start for sending */
 	int bfs;
-	struct fly_de_buf *send_ptr;
 	fly_event_t *event;
 	struct fly_response *response;
 
@@ -134,22 +109,25 @@ struct __fly_encoding{
 	fly_encoding_type_t		*type;
 	/* 0~100% */
 	int						quality_value;
-	struct __fly_encoding	*next;
+
+	struct fly_bllist		blelem;
 	fly_bit_t				use: 1;
 };
 
 struct fly_request;
+struct fly_reponse;
 typedef struct fly_request fly_request_t;
 
 struct fly_encoding{
 	fly_pool_t *pool;
-	struct __fly_encoding		*accepts;
+
+	struct fly_bllist			accepts;
 	struct fly_request			*request;
 	/* acceptable quantity */
 	size_t						actqty;
 };
 typedef struct fly_encoding fly_encoding_t;
-int fly_accept_encoding(fly_request_t *req);
+int fly_accept_encoding(struct fly_response *res);
 
 #define FLY_ENCODE_SUCCESS			1
 #define FLY_ENCODE_OVERFLOW			0
@@ -181,16 +159,20 @@ int fly_identity_encode(fly_de_t *de);
 fly_encname_t *fly_decided_encoding_name(fly_encoding_t *enc);
 fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);
 
-//struct fly_de_buf *fly_d_buf_add(fly_de_t *de);
-//struct fly_de_buf *fly_e_buf_add(fly_de_t *de);
 fly_buffer_c *fly_e_buf_add(fly_de_t *de);
 fly_buffer_c *fly_d_buf_add(fly_de_t *de);
 struct fly_response;
 int fly_esend_body(fly_event_t *e, struct fly_response *response);
 struct fly_response;
-int fly_encode_do(struct fly_response *res);
-#include "header.h"
-fly_encoding_type_t *fly_supported_content_encoding(fly_hdr_value *value);
+
+fly_encoding_type_t *fly_supported_content_encoding(char *value);
 void fly_de_release(fly_de_t *de);
+
+#define FLY_ENCODE_THRESHOLD_SIZE			(0)
+#define fly_over_encoding_threshold(st_size)		\
+		(st_size > FLY_ENCODE_THRESHOLD_SIZE)
+#define fly_over_encoding_threshold_from_response(res)		\
+			fly_over_encoding_threshold((res)->response_len)
+
 
 #endif
