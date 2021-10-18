@@ -291,3 +291,17 @@ int fly_ssl_error_log(fly_event_manager_t *manager)
 	return 0;
 }
 
+bool fly_ssl(void)
+{
+	return fly_config_value_bool(FLY_SSL);
+}
+
+char *fly_ssl_crt_path(void)
+{
+	return fly_config_value_str(FLY_SSL_CRT_PATH);
+}
+
+char *fly_ssl_key_path(void)
+{
+	return fly_config_value_str(FLY_SSL_KEY_PATH);
+}

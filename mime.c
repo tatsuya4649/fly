@@ -97,11 +97,13 @@ __fly_static int __fly_accept_mime(fly_hdr_ci *header, fly_hdr_c **c)
 #define __FLY_ACCEPT_MIME_FOUND			1
 #define __FLY_ACCEPT_MIME_ERROR			-1
 	fly_hdr_c *__h;
+	struct fly_bllist *__b;
 
-	if (header->chain_length==0)
+	if (header->chain_count==0)
 		return __FLY_ACCEPT_MIME_NOTFOUND;
 
-	for (__h=header->dummy->next; __h!=header->dummy; __h=__h->next){
+	fly_for_each_bllist(__b, &header->chain){
+		__h = fly_bllist_data(__b, fly_hdr_c, blelem);
 		if (__h->name_len>0 && (strcmp(__h->name, FLY_ACCEPT_HEADER) == 0 || strcmp(__h->name, FLY_ACCEPT_HEADER_SMALL) == 0) && __h->value){
 			*c = __h;
 			return __FLY_ACCEPT_MIME_FOUND;
