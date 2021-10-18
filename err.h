@@ -48,6 +48,10 @@
 #define FLY_ENFOUNDDIR					-15
 /* buffer length error */
 #define FLY_EBUFLEN						-16
+/* mount limit */
+#define FLY_EMOUNT_LIMIT				-17
+/* file limit */
+#define FLY_EFILE_LIMIT					-18
 
 
 /* error log event */

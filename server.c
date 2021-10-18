@@ -7,6 +7,7 @@
 #include "server.h"
 #include "err.h"
 #include "ssl.h"
+#include "config.h"
 
 int fly_socket_nonblocking(fly_sock_t s)
 {
@@ -85,8 +86,11 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	info->flag = flag;
 	info->next = ctx->dummy_sock;
 	if (info->flag & FLY_SOCKINFO_SSL){
-		char *crt_path_env = getenv(FLY_SSL_CRT_PATH_ENV);
-		char *key_path_env = getenv(FLY_SSL_KEY_PATH_ENV);
+		char *crt_path_env = fly_ssl_crt_path();
+		char *key_path_env = fly_ssl_key_path();
+		if (!crt_path_env || !key_path_env)
+			return -1;
+
 		info->crt_path = crt_path_env ? fly_pballoc(ctx->pool, sizeof(char)*(strlen(crt_path_env)+1)) : NULL;
 		info->key_path = key_path_env ? fly_pballoc(ctx->pool, sizeof(char)*(strlen(key_path_env)+1)) : NULL;
 		if (info->crt_path){
@@ -112,11 +116,10 @@ int fly_socket_release(int sockfd)
 	return close(sockfd);
 }
 
-const char *fly_sockport_env(void)
+int fly_server_port(void)
 {
-	return getenv(FLY_PORT_ENV);
+	return fly_config_value_int(FLY_PORT);
 }
-
 
 int fly_socket_close(int fd, int how __unused)
 {

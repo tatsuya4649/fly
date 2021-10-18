@@ -20,11 +20,8 @@ fly_hdr_ci *fly_header_init(void)
 	fly_hdr_ci *chain_info;
 	chain_info = fly_pballoc(pool, sizeof(fly_hdr_ci));
 	chain_info->pool = pool;
-	chain_info->dummy = fly_pballoc(pool, sizeof(fly_hdr_c));
-	chain_info->dummy->next = chain_info->dummy;
-	chain_info->entry = chain_info->dummy;
-	chain_info->last = chain_info->entry;
-	chain_info->chain_length = 0;
+	fly_bllist_init(&chain_info->chain);
+	chain_info->chain_count = 0;
 	return chain_info;
 }
 
@@ -35,27 +32,11 @@ void fly_header_release(fly_hdr_ci *info)
 
 void __fly_header_add_ci(fly_hdr_c *c, fly_hdr_ci *ci, bool beginning)
 {
-	if (ci->chain_length == 0){
-		c->next = ci->dummy;
-		ci->entry = c;
-		ci->dummy->next = c;
-		ci->last = c;
-		ci->chain_length++;
-		return;
-	}else{
-		if (!beginning){
-			ci->last->next = c;
-			c->next = ci->dummy;
-		}else{
-			ci->entry = c;
-			c->next = ci->dummy->next;
-			ci->dummy->next = c;
-		}
-
-		if (!beginning)
-			ci->last = c;
-		ci->chain_length++;
-	}
+	if (beginning)
+		fly_bllist_add_head(&ci->chain, &c->blelem);
+	else
+		fly_bllist_add_tail(&ci->chain, &c->blelem);
+	ci->chain_count++;
 }
 /*
  * WARNING: name_len and value_len is length not including end of '\0'.
@@ -72,7 +53,6 @@ fly_hdr_c *__fly_header_chain_init(fly_hdr_ci *ci)
 	c->value = NULL;
 	c->name_len = 0;
 	c->value_len = 0;
-	c->next = c;
 	c->index = 0;
 	c->hname_len = 0;
 	c->hvalue_len = 0;
@@ -187,10 +167,12 @@ int fly_header_addbv(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *nam
 
 int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
 {
-	fly_hdr_c *new_chain;
+	fly_hdr_c *new_chain, *__c;
 
-	if (chain_info->chain_length){
-		for (fly_hdr_c *__c=chain_info->entry; __c; __c=__c->next){
+	if (chain_info->chain_count > 0){
+		struct fly_bllist *__b;
+		fly_for_each_bllist(__b, &chain_info->chain){
+			__c = fly_bllist_data(__b, fly_hdr_c, blelem);
 			if (strcmp(__c->name, name) == 0){
 				/* release */
 				fly_pbfree(chain_info->pool, __c->value);
@@ -221,18 +203,21 @@ int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_le
 
 int fly_header_delete(fly_hdr_ci *chain_info, char *name)
 {
-	if (chain_info->entry == NULL)
-		return 0;
-
-	fly_hdr_c *prev;
-	for (fly_hdr_c *chain=chain_info->entry; chain!=NULL; chain=chain->next){
-		if (strcmp(chain->name, name) == 0){
-			prev->next = chain->next;
-			chain_info->chain_length--;
+	struct fly_bllist *__b;
+	fly_hdr_c *__c;
+	fly_for_each_bllist(__b, &chain_info->chain){
+		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (strcmp(__c->name, name) == 0){
+			fly_bllist_remove(__b);
+			chain_info->chain_count--;
 			return 0;
 		}
-		prev = chain;
 	}
+
+	/* not found */
+#ifdef DEBUG
+	FLY_NOT_COME_HERE
+#endif
 	return -1;
 }
 
@@ -269,39 +254,41 @@ char *fly_chain_string(char *buffer, fly_hdr_c *chain, char *ebuffer)
 	return ptr;
 }
 
-char *fly_header_from_chain(fly_hdr_ci *chain_info)
-{
-	if (chain_info == NULL)
-		return NULL;
-	if (chain_info->entry == NULL)
-		return NULL;
+//char *fly_header_from_chain(fly_hdr_ci *chain_info)
+//{
+//#ifdef DEBUG
+//	assert(chain_info != NULL);
+//#endif
+//
+//	char *chain_str;
+//	char *ptr;
+//	struct fly_bllist *__b;
+//	fly_hdr_c *c;
+//
+//	chain_str= fly_palloc(chain_info->pool, FLY_HEADER_POOL_PAGESIZE);
+//	if (fly_unlikely_null(chain_str))
+//		return NULL;
+//
+//	ptr = chain_str;
+//	fly_for_each_bllist(__b, &chain_info->chain){
+//		c = fly_bllist_data(__b, fly_hdr_c, blelem);
+//		ptr = fly_chain_string(ptr, c, chain_str+ (int) fly_byte_convert(FLY_HEADER_POOL_PAGESIZE));
+//		if (ptr == NULL)
+//			return NULL;
+//	}
+//	*ptr = '\0';
+//	return chain_str;
+//}
 
-	char *chain_str;
-	char *ptr;
-
-	chain_str= fly_palloc(chain_info->pool, FLY_HEADER_POOL_PAGESIZE);
-	if (chain_str == NULL)
-		return NULL;
-
-	ptr = chain_str;
-	for (fly_hdr_c *c=chain_info->entry; c!=NULL; c=c->next){
-		ptr = fly_chain_string(ptr, c, chain_str+ (int) fly_byte_convert(FLY_HEADER_POOL_PAGESIZE));
-		if (ptr == NULL)
-			return NULL;
-	}
-	*ptr = '\0';
-	return chain_str;
-}
-
-size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info)
-{
-	char *chain_str;
-	chain_str = fly_header_from_chain(chain_info);
-	if (chain_str == NULL)
-		return 0;
-
-	return strlen(chain_str);
-}
+//size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info)
+//{
+//	char *chain_str;
+//	chain_str = fly_header_from_chain(chain_info);
+//	if (chain_str == NULL)
+//		return 0;
+//
+//	return strlen(chain_str);
+//}
 
 char *fly_get_header_lines_ptr(fly_buffer_c *__c)
 {
@@ -315,10 +302,14 @@ char *fly_get_header_lines_ptr(fly_buffer_c *__c)
 
 long long fly_content_length(fly_hdr_ci *ci)
 {
-	if (ci->chain_length == 0)
+	if (ci->chain_count == 0)
 		return 0;
 
-	for (fly_hdr_c *c=ci->dummy->next; c!=ci->dummy; c=c->next){
+	struct fly_bllist *__b;
+	fly_hdr_c *c;
+
+	fly_for_each_bllist(__b, &ci->chain){
+		c = fly_bllist_data(__b, fly_hdr_c, blelem);
 		if (c->name_len>0 && (strcmp(c->name, "Content-Length") == 0 || strcmp(c->name, "content-length") == 0) && c->value){
 			return c->value != NULL ? atoll(c->value) : 0;
 		}
@@ -328,11 +319,14 @@ long long fly_content_length(fly_hdr_ci *ci)
 
 int fly_connection(fly_hdr_ci *ci)
 {
-	if (ci->chain_length == 0)
-		return -1;
+	if (ci->chain_count == 0)
+		return FLY_CONNECTION_KEEP_ALIVE;
 
+	struct fly_bllist *__b;
 	fly_hdr_c *c;
-	for (c=ci->entry; c!=NULL; c=c->next){
+
+	fly_for_each_bllist(__b, &ci->chain){
+		c = fly_bllist_data(__b, fly_hdr_c, blelem);
 		if (strcmp(c->name, "Connection") == 0)
 			goto parse_connection;
 	}
@@ -353,11 +347,14 @@ parse_connection:
 
 fly_hdr_value *__fly_content_encoding(fly_hdr_ci *ci, const char *conen)
 {
-	if (ci->chain_length == 0)
+	if (ci->chain_count == 0)
 		return NULL;
 
+	struct fly_bllist *__b;
 	fly_hdr_c *__c;
-	for (__c=ci->entry; __c; __c=__c->next){
+
+	fly_for_each_bllist(__b, &ci->chain){
+		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
 		if (strcmp(__c->name, conen)== 0){
 			if (!__c->value)
 				return NULL;
@@ -549,4 +546,11 @@ int fly_add_server(fly_hdr_ci *ci, bool hv2)
 		return fly_header_add(ci, fly_header_name_length("server"), fly_header_value_length(FLY_SERVER_NAME));
 	else
 		return fly_header_add(ci, fly_header_name_length("Server"), fly_header_value_length(FLY_SERVER_NAME));
+}
+
+fly_hdr_c *fly_header_chain_debug(struct fly_bllist *__b)
+{
+	fly_hdr_c *__c;
+	__c = fly_bllist_data(__b, fly_hdr_c, blelem);
+	return __c;
 }

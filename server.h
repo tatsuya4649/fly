@@ -33,7 +33,7 @@ struct fly_context;
 int fly_socket_init(struct fly_context *ctx, int port, fly_sockinfo_t *info, int flag);
 int fly_socket_release(int sockfd);
 
-#define FLY_PORT_ENV			"FLY_PORT"
+#define FLY_PORT			"FLY_PORT"
 #define FLY_BACKLOG_DEFAULT		1024
 #define FLY_PORTSTR_LEN			100
 #define FLY_LISTEN_SOCKINFO_FLAG		(NI_NUMERICSERV)
@@ -43,5 +43,6 @@ int fly_socket_nonblocking(fly_sock_t s);
 #define FLY_SOCK_WRTITE_CLOSE			(SHUT_WR)
 #define FLY_SOCK_CLOSE					(SHUT_RDWR)
 int fly_socket_close(int fd, int how);
+int fly_server_port(void);
 
 #endif

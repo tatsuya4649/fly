@@ -14,6 +14,8 @@
 __fly_static void __fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point);
 __fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response, int read_or_write);
+static int fly_mount_max_limit(void);
+static int fly_file_max_limit(void);
 
 int fly_mount_init(fly_context_t *ctx)
 {
@@ -29,6 +31,7 @@ int fly_mount_init(fly_context_t *ctx)
 		return -1;
 
 	mnt->mount_count = 0;
+	mnt->file_count = 0;
 	mnt->ctx = ctx;
 	fly_bllist_init(&mnt->parts);
 	ctx->mount = mnt;
@@ -193,6 +196,11 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 		if (fly_hash_from_parts_file_path(__path, pfile) == -1)
 			goto error;
 		fly_parts_file_add(parts, pfile);
+		parts->mount->file_count++;
+
+		if (parts->mount->file_count > fly_file_max_limit())
+			/* file resource error */
+			return -1;
 	}
 
 	return closedir(__pathd);
@@ -210,6 +218,9 @@ int fly_mount(fly_context_t *ctx, const char *path)
 
 	if (!ctx || !ctx->mount)
 		return -1;
+	if (fly_mount_max_limit() == ctx->mount->mount_count)
+		return FLY_EMOUNT_LIMIT;
+
 	if (realpath(path, rpath) == NULL)
 		return -1;
 	mnt = ctx->mount;
@@ -221,7 +232,7 @@ int fly_mount(fly_context_t *ctx, const char *path)
 
 	pool = ctx->pool;
 	parts = fly_pballoc(pool, sizeof(fly_mount_parts_t));
-	if (parts == NULL)
+	if (fly_unlikely_null(parts))
 		return -1;
 
 	__fly_mount_path_cpy(parts->mount_path, rpath);
@@ -651,4 +662,15 @@ int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, int mask)
 	}
 
 	return 0;
+}
+
+#include "config.h"
+static int fly_mount_max_limit(void)
+{
+	return fly_config_value_int(FLY_MOUNT_MAX);
+}
+
+static int fly_file_max_limit(void)
+{
+	return fly_config_value_int(FLY_FILE_MAX);
 }
