@@ -38,10 +38,12 @@ __fly_static int __fly_accept_lang(fly_hdr_ci *header, fly_hdr_value **value)
 {
 	fly_hdr_c *__h;
 
-	if (header->chain_length == 0)
+	if (header->chain_count == 0)
 		return __FLY_ACCEPT_LANG_FOUND;
 
-	for (__h=header->dummy->next; __h!=header->dummy; __h=__h->next){
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &header->chain){
+		__h = fly_bllist_data(__b, fly_hdr_c, blelem);
 		if (__h->name_len>0 && strcmp(__h->name, FLY_ACCEPT_LANG) == 0){
 			*value = __h->value;
 			return __FLY_ACCEPT_LANG_FOUND;

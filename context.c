@@ -49,26 +49,18 @@ void fly_context_release(fly_context_t *ctx)
 	fly_delete_pool(&ctx->pool);
 }
 
-/* TODO: configuration file add. */
+/* configuration file add. */
 __fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool)
 {
 	fly_sockinfo_t *info;
 	int port;
-	const char *port_str;
 
 	info = fly_pballoc(pool, sizeof(fly_sockinfo_t));
 	if (!info)
 		return NULL;
 
-	port_str = fly_sockport_env();
-	if (!port_str)
-		return NULL;
-
-	port = atoi(port_str);
-	if (!port)
-		return NULL;
-
-	if (fly_socket_init(ctx, port, info, FLY_SOCKINFO_SSL) == -1)
+	port = fly_server_port();
+	if (fly_socket_init(ctx, port, info, fly_ssl()) == -1)
 		return NULL;
 	return info;
 }

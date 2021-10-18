@@ -4,6 +4,7 @@
 #include "server.h"
 #include "response.h"
 #include "ssl.h"
+#include "config.h"
 
 #define TEST_PORT			"1234"
 
@@ -31,14 +32,20 @@ int main()
 	fly_context_t *ctx;
 	fly_route_reg_t *reg;
 
-	if (setenv(FLY_PORT_ENV, TEST_PORT, 1) == -1)
+	if (setenv(FLY_PORT, TEST_PORT, 1) == -1)
 		return -1;
-	if (setenv(FLY_SSL_CRT_PATH_ENV, "conf/server.crt", 1) == -1)
+	if (setenv(FLY_SSL_CRT_PATH, "conf/server.crt", 1) == -1)
 		return -1;
-	if (setenv(FLY_SSL_KEY_PATH_ENV, "conf/server.key", 1) == -1)
+	if (setenv(FLY_SSL_KEY_PATH, "conf/server.key", 1) == -1)
 		return -1;
 	if (setenv("FLY_SETTINGS_FRAME_ENABLE_PUSH", "0", 1) == -1)
 		return -1;
+	if (setenv(FLY_CONFIG_PATH, "test/test.conf", 1) == -1)
+		return -1;
+
+	/* load config file */
+	fly_parse_config_file();
+
 	ctx = fly_context_init();
 
 	if (fly_mount_init(ctx) == -1)

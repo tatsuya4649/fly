@@ -1,6 +1,7 @@
 #include "master.h"
 #include "util.h"
 #include "cache.h"
+#include "config.h"
 
 fly_master_t fly_master_info = {
 	.req_workers = -1,
@@ -110,6 +111,10 @@ int fly_master_daemon(void)
 }
 
 
+static int fly_worker_max_limit(void)
+{
+	return fly_config_value_int(FLY_WORKER_MAX);
+}
 /*
  *  adjust workers number.
  *
@@ -118,10 +123,13 @@ __fly_static void __fly_workers_rebalance(fly_context_t *ctx,int change)
 {
 	/* after change */
 	fly_master_info.now_workers += change;
-	fly_master_worker_spawn(
-		ctx,
-		fly_master_info.worker_process
-	);
+
+	if (fly_master_info.now_workers >= fly_worker_max_limit()){
+		fly_master_worker_spawn(
+			ctx,
+			fly_master_info.worker_process
+		);
+	}
 }
 
 __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *info)
@@ -306,27 +314,21 @@ __fly_static int __fly_master_signal_event(fly_event_manager_t *manager, __unuse
 	return fly_event_register(e);
 }
 
-__fly_static int __fly_get_req_workers(void)
+static int fly_workers_count(void)
 {
-	char *reqworkers_env;
-	reqworkers_env = getenv(FLY_WORKERS_ENV);
-
-	if (reqworkers_env == NULL)
-		return -1;
-
-	return atoi(reqworkers_env);
+	return fly_config_value_int(FLY_WORKER);
 }
 
 fly_context_t *fly_master_init(void)
 {
 	fly_master_info.pid = getpid();
 	fly_master_info.now_workers = 0;
-	fly_master_info.req_workers = __fly_get_req_workers();
+	fly_master_info.req_workers = fly_workers_count();
 	fly_master_info.context = fly_context_init();
 	if (fly_master_info.req_workers <= 0)
 		FLY_STDERR_ERROR(
 			"Workers environment(%s) value is invalid.",
-			FLY_WORKERS_ENV
+			FLY_WORKER
 		);
 	if (fly_master_info.context == NULL)
 		FLY_STDERR_ERROR(

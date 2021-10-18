@@ -30,8 +30,6 @@ int main()
 	fly_context_t *ctx;
 	fly_route_reg_t *reg;
 
-	if (setenv(FLY_PORT_ENV, TEST_PORT, 1) == -1)
-		return -1;
 //	if (setenv("FLY_DEFAULT_CONTENT_PATH_405", "default/405.html", 1) == -1)
 //		return -1;
 	ctx = fly_context_init();

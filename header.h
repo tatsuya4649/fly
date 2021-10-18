@@ -30,7 +30,7 @@ struct fly_hdr_chain{
 	fly_hdr_value *value;
 	size_t name_len;
 	size_t value_len;
-	struct fly_hdr_chain *next;
+	struct fly_bllist blelem;
 
 	/* for HTTP2 */
 	int index;
@@ -49,16 +49,18 @@ struct fly_hdr_chain{
 struct fly_hv2_state;
 struct fly_hdr_chain_info{
 	fly_pool_t *pool;
-	struct fly_hdr_chain *dummy;
-	struct fly_hdr_chain *entry;
-	struct fly_hdr_chain *last;
-	unsigned chain_length;
+	struct fly_bllist	chain;
+	unsigned chain_count;
 
 	/* for HTTP2 */
 	struct fly_hv2_state *state;
 };
 typedef struct fly_hdr_chain fly_hdr_c;
 typedef struct fly_hdr_chain_info fly_hdr_ci;
+
+#ifdef DEBUG
+fly_hdr_c *fly_header_chain_debug(struct fly_bllist *__b);
+#endif
 
 fly_hdr_ci *fly_header_init(void);
 void fly_header_release(fly_hdr_ci *info);

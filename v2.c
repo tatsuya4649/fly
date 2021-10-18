@@ -2419,7 +2419,7 @@ int fly_send_headers_frame(fly_hv2_stream_t *stream, fly_response_t *res)
 	bool over=false;
 	int flag = 0;
 	fly_buffer_t *buf;
-	fly_hdr_c *__h=res->header->dummy->next;
+	fly_hdr_c *__h;
 
 	max_payload = stream->state->max_frame_size;
 	buf = fly_buffer_init(res->pool, FLY_SEND_HEADERS_FRAME_BUFFER_INIT_LEN, FLY_SEND_HEADERS_FRAME_BUFFER_CHAIN_MAX, FLY_SEND_HEADERS_FRAME_BUFFER_PER_LEN);
@@ -2427,7 +2427,9 @@ int fly_send_headers_frame(fly_hv2_stream_t *stream, fly_response_t *res)
 		return -1;
 
 	total = 0;
-	for (; __h!=res->header->dummy; __h=__h->next){
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &res->header->chain){
+		__h = fly_bllist_data(__b, fly_hdr_c, blelem);
 		size_t len;
 		len = __fly_payload_from_headers(buf, __h);
 		/* over limit of payload length */
@@ -3742,7 +3744,10 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 	if (fly_unlikely_null(req->request_line->version))
 		return -1;
 	/* convert pseudo header to request line */
-	for (fly_hdr_c *__c=ci->dummy->next; __c!=ci->dummy; __c=__c->next){
+	fly_hdr_c *__c;
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &ci->chain){
+		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
 		if (__c->name_len>0 && __fly_hv2_pseudo_header(__c)){
 			for (char **__p=(char **) fly_pseudo_request; *__p; __p++){
 				if (strncmp(*__p, __c->name, strlen(*__p)) == 0){
