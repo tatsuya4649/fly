@@ -1,7 +1,10 @@
 CC = gcc
 CPP = g++
+ifdef DEBUG
+CFLAG := -pg -gdwarf-2 -g3 -O0 -W -Wall -Werror -Wcast-align
+else
 CFLAG := -g3 -O0 -W -Wall -Werror -Wcast-align
-DEBUG_CFLAG := -pg -g3 -O0
+endif
 TARGET = fly
 BUILD_FILES := server.o response.o header.o alloc.o mount.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o lang.o cache.o scheme.o buffer.o rbtree.o ssl.o v2.o queue.o bllist.o config.o
 PYBUILD_FILES := pyroute.o

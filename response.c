@@ -130,10 +130,14 @@ __fly_static int __fly_required_header(fly_hdr_ci *header, char **required_heade
 		return __FLY_FOUND;
 
 	for (char **h=required_header; *h!=NULL; h++){
-		if (header == NULL)
-			goto not_found;
+#ifdef DEBUG
+		assert(header != NULL);
+#endif
 
-		for (fly_hdr_c *e=header->entry; e!=NULL; e=e->next){
+		struct fly_bllist *__b;
+		fly_hdr_c *e;
+		fly_for_each_bllist(__b, &header->chain){
+			e = fly_bllist_data(__b, fly_hdr_c, blelem);
 			if (e->name != NULL && strcmp(e->name, *h) == 0)
 				continue;
 		}
@@ -487,7 +491,7 @@ __fly_static int __fly_send_until_header(fly_event_t *e, fly_response_t *respons
 				}
 
 				*byte_from_start = 0;
-				if (response->header && response->header->chain_length)
+				if (response->header && response->header->chain_count)
 					state = HEADER_LINE;
 				else
 					state = HEADER_END;
@@ -497,15 +501,16 @@ __fly_static int __fly_send_until_header(fly_event_t *e, fly_response_t *respons
 			{
 				char __header_line[FLY_HEADER_LINE_MAX];
 				int result, total=0, numsend;
-				fly_hdr_c *start;
-
+				fly_hdr_c *__c;
+				struct fly_bllist *start;
 				response->fase = FLY_RESPONSE_HEADER;
 				if (*send_ptr == NULL)
-					start = response->header->entry;
+					start = response->header->chain.next;
 				else
-					start = (fly_hdr_c *) *send_ptr;
+					start = (struct fly_bllist *) *send_ptr;
 
-				for (fly_hdr_c *__c=start; __c; __c=__c->next){
+				for (struct fly_bllist *__b=start; __b!=&response->header->chain; __b=__b->next){
+					__c = fly_bllist_data(__b, fly_hdr_c, blelem);
 					*send_ptr = __c;
 					total = 0;
 					result = snprintf(__header_line, FLY_HEADER_LINE_MAX, "%s: %s\r\n", __c->name, __c->value!=NULL ? __c->value : "");

@@ -16,6 +16,8 @@
 #define FLY_MOUNT_POOL_PAGE		((fly_page_t) 10)
 #define FLY_MOUNT_INIT_NUMBER		0
 #define FLY_DATE_LENGTH			(50)
+#define FLY_MOUNT_MAX				"FLY_MOUNT_MAX"
+#define FLY_FILE_MAX				"FLY_FILE_MAX"
 
 #define FLY_MOUNT_DEFAULT_ENCODE_TYPE			fly_gzip
 struct fly_mount_parts_file{
@@ -55,6 +57,7 @@ typedef struct fly_context fly_context_t;
 struct fly_mount{
 	struct fly_bllist		parts;
 	int mount_count;
+	int file_count;
 
 	fly_context_t *ctx;
 };

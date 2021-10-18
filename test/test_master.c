@@ -14,7 +14,7 @@ static void worker(__unused fly_context_t *ctx, void *workers)
 	printf("Start Worker %d[%d]: %d\n", info->id, getpid(), (int) info->start);
 	srand(time(NULL));
 
-	rtime = rand() % 1000;
+	rtime = rand() % 100;
 	sleep(rtime);
 }
 
@@ -23,9 +23,9 @@ int main()
 	fly_context_t *ctx;
 	pid_t pid;
 
-	if (setenv(FLY_PORT_ENV, PORT,1) == -1)
-		return -1;
-	assert(setenv(FLY_WORKERS_ENV, WORKERS, 1) != -1);
+	/* config setting */
+	fly_parse_config_file();
+
 	/* master signal test */
 	assert((ctx=fly_master_init()) != NULL);
 

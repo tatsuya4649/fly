@@ -52,8 +52,8 @@ void fly_master_process(fly_context_t *ctx);
 #define FLY_DAEMON_STDERR	__FLY_DEVNULL
 #define FLY_DAEMON_STDIN	__FLY_DEVNULL
 #define fly_master_pid		getpid
-#define FLY_WORKERS_ENV		"FLY_WORKERS"
-
+#define FLY_WORKER			"FLY_WORKER"
+#define FLY_WORKER_MAX		"FLY_WORKER_MAX"
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 
 #endif

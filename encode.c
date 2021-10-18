@@ -719,10 +719,14 @@ __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encodi
 #define __FLY_ACCEPT_ENCODING_NOTFOUND		0
 #define __FLY_ACCEPT_ENCODING_FOUND			1
 #define __FLY_ACCEPT_ENCODING_ERROR			-1
-	if (ci->chain_length == 0)
+	if (ci->chain_count == 0)
 		return __FLY_ACCEPT_ENCODING_NOTFOUND;
 
-	for (fly_hdr_c *c=ci->dummy->next; c!=ci->dummy; c=c->next){
+	struct fly_bllist *__b;
+	fly_hdr_c *c;
+
+	fly_for_each_bllist(__b, &ci->chain){
+		c = fly_bllist_data(__b, fly_hdr_c, blelem);
 		if (c->name_len>0 && (strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER, strlen(FLY_ACCEPT_ENCODING_HEADER)) == 0 || strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER_SMALL, strlen(FLY_ACCEPT_ENCODING_HEADER_SMALL)) == 0)&& c->value != NULL){
 			*accept_encoding = c;
 			return __FLY_ACCEPT_ENCODING_FOUND;
