@@ -6,8 +6,8 @@ else
 CFLAG := -g3 -O0 -W -Wall -Werror -Wcast-align
 endif
 TARGET = fly
-BUILD_FILES := server.o response.o header.o alloc.o mount.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o lang.o cache.o scheme.o buffer.o rbtree.o ssl.o v2.o queue.o bllist.o config.o
-PYBUILD_FILES := pyroute.o
+BUILD_FILES := server.o response.o header.o alloc.o mount.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o main.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o lang.o cache.o scheme.o buffer.o rbtree.o ssl.o v2.o queue.o bllist.o config.o uri.o
+PYBUILD_FILES :=
 SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
 PYSOURCE_FILES := $(PYBUILD_FILES:%.o=%.c)
 .PHONY: all clean lib build test
@@ -43,7 +43,7 @@ build:	$(BUILD_FILES)
 	gcc -o $(BUILDDIR)/$(TARGET) $^
 
 pybuild:
-	@rm -rf fly/fly*.so
+	#@rm -rf fly/fly*.so
 	$(PYTHON) setup.py build
 
 lib: $(SOURCE_FILES)

@@ -7,12 +7,12 @@ int fly_errsys_init(fly_context_t *ctx);
 __fly_static int __fly_send_dcbs_blocking(fly_event_t *e, fly_response_t *res, int read_or_write);
 __fly_static int __fly_send_dcbs_blocking_handler(fly_event_t *e);
 
-fly_context_t *fly_context_init(void)
+fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 {
 	fly_context_t *ctx;
 	fly_pool_t *pool;
 
-	pool = fly_create_pool(FLY_CONTEXT_POOL_SIZE);
+	pool = fly_create_pool(__pm, FLY_CONTEXT_POOL_SIZE);
 	if (!pool)
 		return NULL;
 
@@ -22,17 +22,18 @@ fly_context_t *fly_context_init(void)
 
 	memset(ctx, 0, sizeof(fly_context_t));
 	ctx->pool = pool;
-	ctx->misc_pool = fly_create_pool(FLY_CONTEXT_POOL_SIZE);
+	ctx->pool_manager = __pm;
+	ctx->misc_pool = fly_create_pool(__pm, FLY_CONTEXT_POOL_SIZE);
 	if (!ctx->misc_pool)
 		return NULL;
 	FLY_DUMMY_SOCK_INIT(ctx);
 	ctx->listen_sock = __fly_listen_sock(ctx, pool);
 	if (ctx->listen_sock == NULL)
 		return NULL;
-	ctx->route_reg = fly_route_reg_init();
+	ctx->route_reg = fly_route_reg_init(ctx);
 	if (ctx->route_reg == NULL)
 		return NULL;
-	ctx->log = fly_log_init();
+	ctx->log = fly_log_init(ctx);
 	if (ctx->log == NULL)
 		return NULL;
 	fly_bllist_init(&ctx->rcbs);
@@ -46,7 +47,7 @@ fly_context_t *fly_context_init(void)
 
 void fly_context_release(fly_context_t *ctx)
 {
-	fly_delete_pool(&ctx->pool);
+	fly_delete_pool(ctx->pool);
 }
 
 /* configuration file add. */

@@ -11,11 +11,11 @@
 #include "cache.h"
 #include "response.h"
 
-__fly_static void __fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point);
 __fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response, int read_or_write);
 static int fly_mount_max_limit(void);
 static int fly_file_max_limit(void);
+static int __fly_mount_search_cmp(void *k1, void *k2);
 
 int fly_mount_init(fly_context_t *ctx)
 {
@@ -33,10 +33,18 @@ int fly_mount_init(fly_context_t *ctx)
 	mnt->mount_count = 0;
 	mnt->file_count = 0;
 	mnt->ctx = ctx;
+	mnt->index = NULL;
 	fly_bllist_init(&mnt->parts);
+	mnt->rbtree = fly_rb_tree_init(__fly_mount_search_cmp);
 	ctx->mount = mnt;
 
 	return 0;
+}
+
+void fly_mount_release(fly_mount_t *mnt)
+{
+	fly_rb_tree_release(mnt->rbtree);
+	fly_pbfree(mnt->ctx->pool, mnt);
 }
 
 int fly_isdir(const char *path)
@@ -89,7 +97,7 @@ void fly_parts_file_add(fly_mount_parts_t *parts, struct fly_mount_parts_file *p
 	return;
 }
 
-int fly_parts_file_remove(fly_mount_parts_t *parts, char *filename)
+int fly_parts_file_remove_from_path(fly_mount_parts_t *parts, char *filename)
 {
 	if (parts->file_count == 0)
 		return -1;
@@ -98,14 +106,14 @@ int fly_parts_file_remove(fly_mount_parts_t *parts, char *filename)
 	fly_for_each_bllist(__b, &parts->files){
 		struct fly_mount_parts_file *__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if (strcmp(__pf->filename, filename) == 0){
-			__fly_parts_file_remove(parts, __pf);
+			fly_parts_file_remove(parts, __pf);
 			return 0;
 		}
 	}
 	return -1;
 }
 
-__fly_static void __fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf)
+void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf)
 {
 	fly_bllist_remove(&pf->blelem);
 	fly_pbfree(parts->mount->ctx->pool, pf);
@@ -142,6 +150,7 @@ static struct fly_mount_parts_file *__fly_pf_init(fly_mount_parts_t *parts, stru
 	pfile->de = NULL;
 	pfile->encode_type = FLY_MOUNT_DEFAULT_ENCODE_TYPE;
 	pfile->encoded = false;
+	pfile->dir = false;
 
 	return pfile;
 }
@@ -156,6 +165,9 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 	int res;
 
 
+	if (parts->mount->file_count > fly_file_max_limit())
+		/* file resource error */
+		return -1;
 	__pathd = opendir(path);
 	if (__pathd == NULL)
 		return -1;
@@ -179,6 +191,8 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 				goto error;
 
 		pfile = __fly_pf_init(parts, &sb);
+		if (S_ISDIR(sb.st_mode))
+			pfile->dir = true;
 		if (fly_unlikely_null(pfile))
 			goto error;
 		__fly_path_cpy_with_mp(pfile->filename, __path, mount_point);
@@ -197,10 +211,6 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 			goto error;
 		fly_parts_file_add(parts, pfile);
 		parts->mount->file_count++;
-
-		if (parts->mount->file_count > fly_file_max_limit())
-			/* file resource error */
-			return -1;
 	}
 
 	return closedir(__pathd);
@@ -429,7 +439,7 @@ __fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
 		i++;
 
 	if (uri->ptr[i] == '\0' || i>=uri->len){
-		uri_str = FLY_URI_INDEX_NAME;
+		uri_str = (char *) fly_index_path();
 		uri_len = strlen(uri_str);
 	}else{
 		uri_str = uri->ptr+i;
@@ -448,26 +458,24 @@ __fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
 
 int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mount_parts_file **res)
 {
-	fly_mount_parts_t *__p;
-	struct fly_bllist *__b, *__pfb;
 	struct fly_mount_parts_file *__pf;
+	char *filename;
 
-	fly_for_each_bllist(__b, &mnt->parts){
-		__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
-		if (fly_unlikely(__p->file_count == 0))
-			continue;
+	filename = uri->ptr;
+	while(fly_slash(*filename++))
+		;
 
-		fly_for_each_bllist(__pfb, &__p->files){
-			__pf = fly_bllist_data(__pfb, struct fly_mount_parts_file, blelem);
-			if (__fly_uri_matching(__pf->filename, uri) == 0){
-				*res = __pf;
-				return FLY_FOUND_CONTENT_FROM_PATH_FOUND;
-			}
-		}
+	__pf = (struct fly_mount_parts_file *) \
+				fly_rb_node_data_from_key(mnt->rbtree, filename);
+
+	if (__pf != NULL){
+		*res = __pf;
+		return FLY_FOUND_CONTENT_FROM_PATH_FOUND;
+	}else{
+		*res = NULL;
+		return FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND;
 	}
-
-	*res = NULL;
-	return FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND;
+	FLY_NOT_COME_HERE
 }
 
 int fly_mount_inotify(fly_mount_t *mount, int ifd)
@@ -629,7 +637,7 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if(inotify_rm_watch(__pf->infd, __pf->wd) == -1)
 			return -1;
-		__fly_parts_file_remove(parts, __pf);
+		fly_parts_file_remove(parts, __pf);
 	}
 
 	struct stat statb;
@@ -657,11 +665,25 @@ int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, int mask)
 			if (mask & IN_MOVED_FROM && \
 					inotify_rm_watch(__pf->infd, __pf->wd) == -1)
 				return -1;
-			__fly_parts_file_remove(parts, __pf);
+			fly_parts_file_remove(parts, __pf);
 		}
 	}
 
 	return 0;
+}
+
+int fly_mount_files_count(fly_mount_t *mnt, int mount_number)
+{
+	struct fly_bllist *__b;
+	struct fly_mount_parts *__p;
+
+	fly_for_each_bllist(__b, &mnt->parts){
+		__p = fly_bllist_data(__b, struct fly_mount_parts, mbelem);
+		if (__p->mount_number == mount_number)
+			return __p->file_count;
+	}
+	/* not found */
+	return -1;
 }
 
 #include "config.h"
@@ -673,4 +695,32 @@ static int fly_mount_max_limit(void)
 static int fly_file_max_limit(void)
 {
 	return fly_config_value_int(FLY_FILE_MAX);
+}
+
+static int __fly_mount_search_cmp(void *k1, void *k2)
+{
+	char *c1, *c2;
+	int res;
+	size_t minlen;
+
+	c1 = (char *) k1;
+	c2 = (char *) k2;
+
+	minlen = (strlen(c1) < strlen(c2)) ? strlen(c1) : strlen(c2);
+	res = strncmp(c1, c2, minlen);
+
+	if (res == 0)
+		return FLY_RB_CMP_EQUAL;
+	else if (res > 0)
+		return FLY_RB_CMP_BIG;
+	else
+		return FLY_RB_CMP_SMALL;
+
+	FLY_NOT_COME_HERE
+}
+
+
+const char *fly_index_path(void)
+{
+	return (const char *) fly_config_value_str(FLY_INDEX_PATH);
 }

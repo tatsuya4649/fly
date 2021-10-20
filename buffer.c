@@ -12,24 +12,7 @@ fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_ma
 	if (fly_unlikely_null(buffer))
 		return NULL;
 
-	/* dummy chain */
 	fly_bllist_init(&buffer->chain);
-//	buffer->chain = fly_pballoc(pool, sizeof(fly_buffer_c));;
-//	if (fly_unlikely_null(buffer->chain))
-//		return NULL;
-//	buffer->chain->ptr = NULL;
-//	buffer->chain->use_ptr = NULL;
-//	buffer->chain->lptr = buffer->chain->ptr;
-//	buffer->chain->unuse_ptr = NULL;
-//	buffer->chain->buffer = buffer;
-//	buffer->chain->next = buffer->chain;
-//	buffer->chain->prev = buffer->chain;
-//	buffer->chain->len = 0;
-//	buffer->chain->use_len = 0;
-//	buffer->chain->unuse_len = 0;
-//	buffer->chain->status = FLY_BUF_EMPTY;
-
-//	buffer->lchain = buffer->chain;
 	buffer->chain_count = 0;
 	buffer->pool = pool;
 	buffer->chain_max = chain_max;
@@ -61,7 +44,6 @@ void fly_buffer_release(fly_buffer_t *buf)
 	while(buf->chain_count)
 		fly_buffer_chain_release(fly_buffer_chain(buf->chain.next));
 
-//	fly_pbfree(pool, buf->chain);
 	fly_pbfree(pool, buf);
 }
 
@@ -88,16 +70,8 @@ int fly_buffer_add_chain(fly_buffer_t *buffer)
 	chain->use_ptr = chain->ptr;
 	chain->lptr = chain->ptr + chain->len - 1;
 	chain->unuse_ptr = chain->ptr;
-//	chain->next = buffer->chain;
-//	chain->prev = buffer->lchain;
 
 	fly_bllist_add_tail(&buffer->chain, &chain->blelem);
-//	if (buffer->chain_count == 0)
-//		buffer->chain->next = chain;
-//	else
-//		buffer->lchain->next = chain;
-//	buffer->chain->prev = chain;
-//	buffer->lchain = chain;
 	buffer->chain_count++;
 	return FLY_BUF_ADD_CHAIN_SUCCESS;
 }
@@ -105,15 +79,8 @@ int fly_buffer_add_chain(fly_buffer_t *buffer)
 void fly_buffer_chain_release(fly_buffer_c *__c)
 {
 	fly_bllist_remove(&__c->blelem);
-//	fly_buffer_c *prev = __c->prev;
-//	fly_buffer_c *next = __c->next;
-//
-//	prev->next = next;
-//	next->prev = prev;
 
 	__c->buffer->chain_count--;
-//	if (__c->buffer->lchain == __c)
-//		__c->buffer->lchain = prev;
 
 	fly_pbfree(__c->buffer->pool, __c->ptr);
 	fly_pbfree(__c->buffer->pool, __c);

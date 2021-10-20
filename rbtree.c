@@ -741,7 +741,7 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
  *	4. Child of red node is black node.
  *	5. Every path from a given node to any of its descendant leaf nil nodes goed through the same number of black nodes.
  */
-
+#ifdef DEBUG
 void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __unused)
 {
 	fly_rb_node_t *node;
@@ -797,3 +797,5 @@ void __fly_rbtree_node_debug(fly_rb_tree_t *tree __unused, fly_rb_node_t *node, 
 		(*black_count)++;
 	return;
 }
+
+#endif

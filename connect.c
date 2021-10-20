@@ -14,7 +14,7 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	fly_pool_t *pool;
 	fly_connect_t *conn;
 
-	pool = fly_create_pool(FLY_CONNECTION_POOL_SIZE);
+	pool = fly_create_pool(FLY_POOL_MANAGER_FROM_EVENT(event), FLY_CONNECTION_POOL_SIZE);
 	conn = fly_pballoc(pool, sizeof(fly_connect_t));
 	if (conn == NULL)
 		return NULL;
@@ -58,7 +58,7 @@ int fly_connect_release(fly_connect_t *conn)
 	if (fly_socket_close(conn->c_sockfd, FLY_SOCK_CLOSE) == -1)
 		return -1;
 
-	fly_delete_pool(&conn->pool);
+	fly_delete_pool(conn->pool);
 	return 0;
 }
 

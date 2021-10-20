@@ -5,13 +5,13 @@ import subprocess
 make fly library
 """
 subprocess.run("make lib", shell=True);
-route = Extension(
-	name="_fly_route",
-	sources=["pyroute.c"],
-	library_dirs=["./lib"],
-	libraries=["fly"],
-	runtime_library_dirs=["./lib"],
-)
+#route = Extension(
+#	name="_fly_route",
+#	sources=["pyroute.c"],
+#	library_dirs=["./lib"],
+#	libraries=["fly"],
+#	runtime_library_dirs=["./lib"],
+#)
 server = Extension(
 	name="_fly_server",
 	sources=["pyserver.c"],
@@ -32,7 +32,7 @@ setup(
 	version="1.0",
 	description="tiny web/app server with C/Python",
 	ext_modules = [
-		route,
+#		route,
 		server,
 		signal,
 	],

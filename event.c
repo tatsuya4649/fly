@@ -3,12 +3,11 @@
 
 
 fly_pool_t *fly_event_pool = NULL;
-__fly_static fly_pool_t * __fly_event_pool_init(void);
+__fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx);
 __fly_static int __fly_event_fd_init(void);
 __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager);
 __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager);
 inline float fly_diff_time(fly_time_t new, fly_time_t old);
-__fly_static void __fly_event_inherit_time(fly_event_t *dist, fly_event_t *src);
 int fly_milli_time(fly_time_t t);
 __fly_static int __fly_expired_event(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manager);
@@ -17,12 +16,12 @@ __fly_static int __fly_event_handle_failure_log(fly_event_t *e);
 __fly_static int __fly_event_cmp(void *k1, void *k2);
 static void fly_event_handle(fly_event_t *e);
 
-__fly_static fly_pool_t *__fly_event_pool_init(void)
+__fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx)
 {
 	if (fly_event_pool)
 		return fly_event_pool;
 
-	fly_event_pool = fly_create_pool(FLY_EVENT_POOL_SIZE);
+	fly_event_pool = fly_create_pool(ctx->pool_manager, FLY_EVENT_POOL_SIZE);
 	if (!fly_event_pool)
 		return NULL;
 
@@ -48,7 +47,7 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	fly_event_manager_t *manager;
 	int fd;
 
-	if ((pool=__fly_event_pool_init()) == NULL)
+	if ((pool=__fly_event_pool_init(ctx)) == NULL)
 		return NULL;
 
 	manager = fly_pballoc(pool, sizeof(fly_event_manager_t));
@@ -75,7 +74,7 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 
 	return manager;
 error:
-	fly_delete_pool(&manager->pool);
+	fly_delete_pool(manager->pool);
 	return NULL;
 }
 
@@ -108,7 +107,7 @@ int fly_event_manager_release(fly_event_manager_t *manager)
 		return -1;
 
 	fly_rb_tree_release(manager->rbtree);
-	fly_delete_pool(&manager->pool);
+	fly_delete_pool(manager->pool);
 	return 0;
 }
 
@@ -142,13 +141,6 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	event->rbnode = NULL;
 	event->yetadd = true;
 	return event;
-}
-
-__fly_static void __fly_event_inherit_time(fly_event_t *dist, fly_event_t *src)
-{
-	dist->timeout.tv_sec = src->timeout.tv_sec;
-	dist->timeout.tv_usec = src->timeout.tv_usec;
-	return;
 }
 
 static inline void __fly_add_time_from_now(fly_time_t *t1, fly_time_t *t2)

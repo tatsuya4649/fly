@@ -3,10 +3,6 @@
 #include "err.h"
 #include "rbtree.h"
 
-static fly_pool_t init_pool = {
-	.next = &init_pool,
-};
-
 struct fly_size_bytes fly_sizes[] = {
 	{XS, 1},
 	{S, 1000},
@@ -84,59 +80,61 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	}
 	new_block->last = new_block->entry+size-1;
 	new_block->size = size;
-	new_block->next = pool->dummy;
-	new_block->prev = pool->dummy;
 	if (fly_unlikely_null(fly_rb_tree_insert(pool->rbtree, new_block, new_block->entry))){
 		__fly_free(new_block->entry);
 		__fly_free(new_block);
 		return NULL;
 	}
 
-	if (pool->entry == pool->dummy){
-		pool->entry = new_block;
-		pool->dummy->next = pool->entry;
-	}
+	fly_bllist_add_tail(&pool->blocks, &new_block->blelem);
 	pool->block_size++;
-	pool->last_block->next = new_block;
-	new_block->prev = pool->last_block;
-	pool->dummy->prev = new_block;
-	pool->last_block = new_block;
 	return new_block->entry;
 }
 
+struct fly_pool_manager *fly_pool_manager_init(void)
+{
+	struct fly_pool_manager *__pm;
+
+	__pm = fly_malloc(sizeof(struct fly_pool_manager));
+	if (fly_unlikely_null(__pm))
+		return NULL;
+
+	fly_bllist_init(&__pm->pools);
+	__pm->total_pool_count = 0;
+	return __pm;
+}
+
+void fly_pool_manager_release(struct fly_pool_manager *__pm)
+{
+	fly_free(__pm);
+}
+
 #include <stdio.h>
-static fly_pool_t *__fly_create_pool(size_t size){
+static fly_pool_t *__fly_create_pool(struct fly_pool_manager *__pm, size_t size){
 	fly_pool_t *pool;
 	pool = __fly_malloc(sizeof(fly_pool_t));
 	if (pool == NULL)
 		return NULL;
 	pool->max = fly_max_size(size);
-	pool->current = pool;
-	pool->next = &init_pool;
+	pool->manager = __pm;
+
+	fly_bllist_init(&pool->blocks);
+	fly_bllist_init(&pool->pbelem);
 	pool->block_size = 0;
-	FLY_POOL_DUMMY_INIT(pool);
-	if (fly_unlikely_null(pool->dummy))
-		return NULL;
-	pool->dummy->next = pool->dummy;
-	pool->entry = pool->dummy;
-	pool->last_block = pool->entry;
 	pool->rbtree = fly_rb_tree_init(__fly_rb_search_block);
-	if (init_pool.next == &init_pool){
-		init_pool.next = pool;
-	}else{
-		fly_pool_t *p;
-		for (p=init_pool.next; p->next!=&init_pool; p=p->next)
-			;
-		p->next = pool;
-	}
+	if (fly_unlikely_null(pool->rbtree))
+		return NULL;
+
+	fly_bllist_add_tail(&__pm->pools, &pool->pbelem);
+	__pm->total_pool_count++;
 	return pool;
 }
 
-fly_pool_t *fly_create_pool(fly_page_t	page){
-	return __fly_create_pool(fly_byte_convert(page));
+fly_pool_t *fly_create_pool(struct fly_pool_manager *__pm, fly_page_t	page){
+	return __fly_create_pool(__pm, fly_byte_convert(page));
 }
-fly_pool_t *fly_create_poolb(size_t	size){
-	return __fly_create_pool(size);
+fly_pool_t *fly_create_poolb(struct fly_pool_manager *__pm, size_t	size){
+	return __fly_create_pool(__pm, size);
 }
 
 void fly_pbfree(fly_pool_t *pool, void *ptr)
@@ -151,19 +149,11 @@ void fly_pbfree(fly_pool_t *pool, void *ptr)
 		return;
 
 	__db = (fly_pool_b *) __dn->data;
-	__db->prev->next = __db->next;
-	__db->next->prev = __db->prev;
-
-	if (pool->last_block == __db)
-		pool->last_block = __db->prev;
-
+	fly_bllist_remove(&__db->blelem);
 	fly_rb_delete(pool->rbtree, __dn);
 	__fly_free(__db->entry);
 	__fly_free(__db);
 	pool->block_size--;
-	if (pool->block_size == 0){
-		pool->entry = pool->dummy;
-	}
 
 	return;
 }
@@ -178,40 +168,23 @@ void *fly_pballoc(fly_pool_t *pool, size_t size)
 	return __fly_palloc(pool, size);
 }
 
-void fly_delete_pool(fly_pool_t **pool)
+void fly_delete_pool(fly_pool_t *pool)
 {
-	fly_pool_t *prev = NULL;
-	fly_pool_t *next = NULL;
-	for (fly_pool_t *p=init_pool.next; p!=&init_pool; p=next){
-		next = p->next;
-		if (p == *pool){
-			/* only init_pool */
-			if (next == &init_pool && prev == NULL)
-				init_pool.next = &init_pool;
-			/* init_pool */
-			else if (prev == NULL)
-				init_pool.next = p->next;
-			else if (next == &init_pool)
-				prev->next = &init_pool;
-			/* others */
-			else
-				prev->next = p->next;
+	struct fly_bllist *__b, *__n;
 
-			if (p->block_size){
-				fly_pool_b *nblock;
-				for (fly_pool_b *block=p->dummy->next; block!=p->dummy;block=nblock){
-					nblock = block->next;
-					__fly_free(block->entry);
-					__fly_free(block);
-					p->block_size--;
-				}
-			}
+	fly_pool_b *block;
 
-			fly_rb_tree_release(p->rbtree);
-			__fly_free(p->dummy);
-			__fly_free(p);
-			return;
-		}
-		prev = p;
+	for (__b=pool->blocks.next; __b!=&pool->blocks; __b=__n){
+		__n = __b->next;
+		block = fly_bllist_data(__b, struct fly_pool_block, blelem);
+
+		__fly_free(block->entry);
+		__fly_free(block);
+		pool->block_size--;
 	}
+
+	fly_rb_tree_release(pool->rbtree);
+	fly_bllist_remove(&pool->pbelem);
+	pool->manager->total_pool_count--;
+	__fly_free(pool);
 }

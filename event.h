@@ -76,6 +76,8 @@ struct fly_event{
 	fly_bit_t					yetadd: 1;
 };
 
+#define FLY_POOL_MANAGER_FROM_EVENT(__e)			\
+			((__e)->manager->ctx->pool_manager)
 #define FLY_EVENT_HANDLER(e, __handler)	\
 	do{									\
 		(e)->handler = (__handler);		\

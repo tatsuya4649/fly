@@ -82,6 +82,7 @@ struct fly_de{
 	size_t				contlen;
 	fly_bit_t			end : 1;
 	fly_bit_t			target_already_alloc: 1;
+	fly_bit_t			overflow: 1;
 };
 typedef struct fly_de fly_de_t;
 struct fly_de *fly_de_init(fly_pool_t *pool);
@@ -132,6 +133,10 @@ int fly_accept_encoding(struct fly_response *res);
 #define FLY_ENCODE_SUCCESS			1
 #define FLY_ENCODE_OVERFLOW			0
 #define FLY_ENCODE_ERROR			-1
+#define FLY_ENCODE_SEEK_ERROR		-2
+#define FLY_ENCODE_TYPE_ERROR		-3
+#define FLY_ENCODE_READ_ERROR		-4
+#define FLY_ENCODE_BUFFER_ERROR		-5
 #define FLY_DECODE_SUCCESS			1
 #define FLY_DECODE_OVERFLOW			0
 #define FLY_DECODE_ERROR			-1

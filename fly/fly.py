@@ -1,7 +1,7 @@
 import sys
 import os
 from enum import Enum
-from .fs import FlyFs
+from .mount import FlyMount
 from ._fly_server import _fly_server
 from .signal import FlySignal
 from .route import FlyRoute
@@ -11,37 +11,25 @@ class FlyMethod(Enum):
     GET = "get"
     POST = "post"
 
-class Fly(FlySignal, FlyFs, _fly_server):
+class Fly(FlySignal, FlyMount, FlyRoute, _fly_server):
     def __init__(
         self,
-        host=None,
-        port=None,
-        root=".",
-        workers=None,
+        config_path=None,
     ):
         FlySignal.__init__(self)
-        FlyFs.__init__(self)
-        self._env = FlyEnv()
-        self._env.port = port
-        self._env.host = host
-        self._env.workers = workers
-        self._port = self._env.port
-        self._host = self._env.host
-        self._workers = self._env.workers
+        FlyMount.__init__(self)
+        FlyRoute.__init__(self)
 
         # socket make, bind, listen
         _fly_server.__init__(
             self,
-            host=self._env.host,
-            port=self._env.port,
-            ip_v=self._env.ip_v,
+            config_path = config_path,
         )
-        self._route = FlyRoute()
-        self._root = os.path.abspath(root)
-        if not os.path.isdir(self._root):
-            raise ValueError(
-                f"\"{self._root}\" not found. root must be directory."
-            )
+
+    def mount(self, path):
+        super().mount(path)
+
+        self._mount(path)
 
     def route(self, path, method):
         if not isinstance(path, str):
@@ -53,7 +41,7 @@ class Fly(FlySignal, FlyFs, _fly_server):
                 "method must be FlyMethod."
             )
         def __route(func):
-            self._route.register_route(
+            self.register_route(
                 uri=path,
                 func=func,
                 method=method.value
@@ -66,12 +54,26 @@ class Fly(FlySignal, FlyFs, _fly_server):
 
     def post(self, path):
         return self.route(path, FlyMethod.POST)
-	
-    def run(self):
+
+    def run(self, daemon=False):
+        if self.mounts_count == 0:
+            raise RuntimeError("fly must have one or more mount points.")
+
         print("\n", file=sys.stderr)
         print(f"    \033[1m*\033[0m Fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
-        print(f"    \033[1m*\033[0m Fly \033[1m{self._workers}\033[0m workers", file=sys.stderr)
-        print(f"    \033[1m*\033[0m Root path ({self._root})", file=sys.stderr)
-        print(f"    \033[1m*\033[0m Mount paths ({','.join(self.mounts)})", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Fly \033[1m{self._worker}\033[0m workers", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Mount paths (\033[1m{','.join(self.mounts)}\033[0m)", file=sys.stderr)
+        print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m")
+        print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m")
+        print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m")
+
+        max_len = 0
+        for mount in self.mounts:
+            max_len = len(mount) if max_len < len(mount) else max_len
+
+        for mount in self.mounts:
+            __mn = self._mount_number(mount)
+            __mfc = self._mount_files(__mn)
+            print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, __mfc, width=max_len, mn=__mn), file=sys.stderr)
         print("\n", file=sys.stderr)
-        super().run(self._route)
+        super().run(daemon)

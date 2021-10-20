@@ -118,13 +118,13 @@ static inline int __fly_log_stderr(const char *env)
 	return getenv(env) != NULL ? __FLY_LOGFILE_INIT_STDERR: 0;
 }
 
-fly_log_t *fly_log_init(void)
+fly_log_t *fly_log_init(fly_context_t *ctx)
 {
 	fly_log_t *lt;
 	__fly_log_t *alp, *elp, *nlp;
 
 	if (fly_log_pool == NULL)
-		fly_log_pool = fly_create_pool(FLY_LOG_POOL_SIZE);
+		fly_log_pool = fly_create_pool(ctx->pool_manager, FLY_LOG_POOL_SIZE);
 
 	if (!fly_log_pool)
 		goto error;
@@ -170,7 +170,7 @@ int fly_log_release(fly_log_t *lt)
 	if (close(lt->notice->file) == -1)
 		return -1;
 
-	fly_delete_pool(&lt->pool);
+	fly_delete_pool(lt->pool);
 	return 0;
 }
 

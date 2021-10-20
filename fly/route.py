@@ -1,10 +1,9 @@
-from _fly_route import _fly_route
+#from _fly_route import _fly_route
 from .method import FlyMethod, method_from_name
 
 
-class FlyRoute(_fly_route):
+class FlyRoute():
     def __init__(self):
-        super().__init__()
         self._routes = list()
 
     @property
@@ -26,7 +25,6 @@ class FlyRoute(_fly_route):
             )
 
         method_str = method if isinstance(method, str) else method.value
-        super().register_route(*(uri, method_str))
 
         _rd = dict()
         _rd.setdefault("uri", uri)
