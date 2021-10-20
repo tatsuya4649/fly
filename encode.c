@@ -173,10 +173,10 @@ int fly_gzip_encode(fly_de_t *de)
 {
 	switch (de->type){
 	case FLY_DE_DECODE:
-		return -1;
+		return FLY_ENCODE_TYPE_ERROR;
 	case FLY_DE_ESEND_FROM_PATH:
 		if (lseek(de->fd, de->offset, SEEK_SET) == -1)
-			return -1;
+			return FLY_ENCODE_SEEK_ERROR;
 	default:
 		break;
 	}
@@ -221,7 +221,7 @@ int fly_gzip_encode(fly_de_t *de)
 				{
 					int numread;
 					if ((numread=read(de->fd, chain->use_ptr, fly_buf_act_len(chain))) == -1)
-						return -1;
+						return FLY_ENCODE_READ_ERROR;
 					__zstream.next_in = chain->use_ptr;
 					__zstream.avail_in = numread;
 				}
@@ -235,13 +235,20 @@ int fly_gzip_encode(fly_de_t *de)
 		status = deflate(&__zstream, flush);
 		if (status == Z_STREAM_END)
 			break;
-		if (status != Z_OK)
+
+		switch(status){
+		case Z_OK:
+			break;
+		case Z_BUF_ERROR:
+			return FLY_ENCODE_BUFFER_ERROR;
+		default:
 			return FLY_ENCODE_ERROR;
+		}
 
 		if (__zstream.avail_out == 0){
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->encbuf, fly_buf_act_len(fly_buffer_last_chain(de->encbuf))) == -1)
-				return FLY_ENCODE_ERROR;
+				return FLY_ENCODE_BUFFER_ERROR;
 
 			__zstream.next_out = fly_buffer_lunuse_ptr(de->encbuf);
 			__zstream.avail_out = fly_buffer_lunuse_len(de->encbuf);
@@ -250,7 +257,7 @@ int fly_gzip_encode(fly_de_t *de)
 
 	fly_buffer_c *__lc = fly_buffer_last_chain(de->encbuf);
 	if (fly_update_buffer(de->encbuf, __lc->len-__zstream.avail_out) == -1)
-		return FLY_ENCODE_ERROR;
+		return FLY_ENCODE_BUFFER_ERROR;
 
 	__lc = fly_buffer_last_chain(de->encbuf);
 	contlen += __lc->len-__zstream.avail_out;
@@ -261,7 +268,7 @@ int fly_gzip_encode(fly_de_t *de)
 		return FLY_ENCODE_ERROR;
 
 	de->contlen = contlen;
-	return 0;
+	return FLY_ENCODE_SUCCESS;
 }
 
 /* brotli compress/decompress */
@@ -1419,6 +1426,7 @@ struct fly_de *fly_de_init(fly_pool_t *pool)
 	de->already_ptr = NULL;
 	de->already_len = 0;
 	de->target_already_alloc = false;
+	de->overflow = false;
 
 	fly_e_buf_add(de);
 	fly_d_buf_add(de);

@@ -11,11 +11,11 @@
 fly_response_t *hello(fly_request_t *request)
 {
 	fly_response_t *res;
-	res = fly_response_init();
+	res = fly_response_init(request->ctx);
 	if (res == NULL)
 		return NULL;
-	res->header = fly_header_init();
-	res->body = fly_body_init();
+	res->header = fly_header_init(request->ctx);
+	res->body = fly_body_init(request->ctx);
 	if (fly_header_add(res->header, fly_header_name_length("Hello"), fly_header_value_length("World")) == -1)
 		return NULL;
 	if (fly_header_add(res->header, fly_header_name_length("Connection"), fly_header_value_length("keep-alive")) == -1)
@@ -31,6 +31,7 @@ int main()
 {
 	fly_context_t *ctx;
 	fly_route_reg_t *reg;
+	struct fly_pool_manager pm;
 
 	if (setenv(FLY_PORT, TEST_PORT, 1) == -1)
 		return -1;
@@ -46,9 +47,13 @@ int main()
 	/* load config file */
 	fly_parse_config_file();
 
-	ctx = fly_context_init();
+	ctx = fly_context_init(&pm);
 
 	if (fly_mount_init(ctx) == -1)
+		return -1;
+	if (fly_mount(ctx, "./test") == -1)
+		return -1;
+	if (fly_mount(ctx, "./lib") == -1)
 		return -1;
 	if (fly_mount(ctx, "./mnt") == -1)
 		return -1;

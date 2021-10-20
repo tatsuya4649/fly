@@ -17,7 +17,7 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 {
 	fly_pool_t *pool;
 	fly_request_t *req;
-	pool = fly_create_pool(FLY_REQUEST_POOL_SIZE);
+	pool = fly_create_pool(FLY_POOL_MANAGER_FROM_EVENT(conn->event), FLY_REQUEST_POOL_SIZE);
 	if (pool == NULL)
 		return NULL;
 	req = fly_pballoc(pool, sizeof(fly_request_t));
@@ -62,7 +62,7 @@ int fly_request_release(fly_request_t *req)
 	if (req->request_line)
 		fly_request_line_release(req);
 
-	fly_delete_pool(&req->pool);
+	fly_delete_pool(req->pool);
 	return 0;
 }
 
@@ -885,7 +885,7 @@ in_the_middle:
 int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain, char *header_ptr)
 {
 	fly_hdr_ci *rchain_info;
-	rchain_info = fly_header_init();
+	rchain_info = fly_header_init(req->ctx);
 	if (rchain_info == NULL)
 		return -1;
 
@@ -1113,7 +1113,7 @@ __fase_header:
 	/* parse body */
 __fase_body:
 	fly_event_fase(event, BODY);
-	body = fly_body_init();
+	body = fly_body_init(request->ctx);
 	if (body == NULL)
 		goto error;
 	request->body = body;

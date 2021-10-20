@@ -62,7 +62,8 @@ typedef struct fly_hdr_chain_info fly_hdr_ci;
 fly_hdr_c *fly_header_chain_debug(struct fly_bllist *__b);
 #endif
 
-fly_hdr_ci *fly_header_init(void);
+struct fly_context;
+fly_hdr_ci *fly_header_init(struct fly_context *ctx);
 void fly_header_release(fly_hdr_ci *info);
 int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 fly_hdr_c *fly_header_addc(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);

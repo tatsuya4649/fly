@@ -7,6 +7,7 @@
 #include "response.h"
 #include "ssl.h"
 #include "context.h"
+#include "config.h"
 
 __fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
@@ -115,9 +116,11 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		if (fly_join_path(__path, parts->mount_path, __ent->d_name) == -1)
 			goto error;
 
-		if (fly_isdir(__path) == 1)
+		if (fly_isdir(__path) == 1){
 			if (__fly_work_add_nftw(parts, __path, mount_point) == -1)
 				goto error;
+			continue;
+		}
 
 		__pf = fly_pf_from_parts(__path, parts);
 		/* already register in parts */
@@ -523,30 +526,60 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 
 		fly_for_each_bllist(__pfb, &__p->files){
 			__pf = fly_bllist_data(__pfb, struct fly_mount_parts_file, blelem);
-			if (fly_join_path(rpath, __p->mount_path, __pf->filename) == -1)
-				continue;
+			if (__pf->dir){
+				fly_parts_file_remove(__p, __pf);
+			}else{
+				if (fly_join_path(rpath, __p->mount_path, __pf->filename) == -1)
+					continue;
 
-			__pf->fd = open(rpath, O_RDONLY);
-			if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
-				return -1;
-			/* pre encode */
-			if (fly_over_encoding_threshold(__pf->fs.st_size)){
-				struct fly_de *__de;
+				__pf->fd = open(rpath, O_RDONLY);
+				/* add rbnode to rbtree */
+				fly_rb_tree_insert(ctx->mount->rbtree, (void *) __pf, (void *) __pf->filename);
+				/* if index, setting */
+				const char *index_path = fly_index_path();
+				if (strncmp(__pf->filename, index_path, strlen(index_path)) == 0)
+					fly_mount_index_parts_file(__pf);
 
-				__de = fly_de_init(__p->pool);
-				__de->type = FLY_DE_ESEND_FROM_PATH;
-				__de->fd = __pf->fd;
-				__de->offset = 0;
-				__de->count = __pf->fs.st_size;
-				__de->etype = fly_encoding_from_type(__pf->encode_type);
-				if (fly_unlikely_null(__de->decbuf) || \
-						fly_unlikely_null(__de->encbuf))
+				if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
 					return -1;
-				if (__de->etype->encode(__de) == -1)
-					return -1;
+				/* pre encode */
+				if (fly_over_encoding_threshold(__pf->fs.st_size)){
+					struct fly_de *__de;
+					int res;
 
-				__pf->de = __de;
-				__pf->encoded = true;
+					__de = fly_de_init(__p->pool);
+					__de->type = FLY_DE_ESEND_FROM_PATH;
+					__de->fd = __pf->fd;
+					__de->offset = 0;
+					__de->count = __pf->fs.st_size;
+					__de->etype = fly_encoding_from_type(__pf->encode_type);
+					if (fly_unlikely_null(__de->decbuf) || \
+							fly_unlikely_null(__de->encbuf))
+						return -1;
+					res = __de->etype->encode(__de);
+					switch(res){
+					case FLY_ENCODE_SUCCESS:
+						break;
+					case FLY_ENCODE_OVERFLOW:
+						FLY_NOT_COME_HERE
+					case FLY_ENCODE_ERROR:
+						return -1;
+					case FLY_ENCODE_SEEK_ERROR:
+						return -1;
+					case FLY_ENCODE_TYPE_ERROR:
+						return -1;
+					case FLY_ENCODE_READ_ERROR:
+						return -1;
+					case FLY_ENCODE_BUFFER_ERROR:
+						__de->overflow = true;
+						break;
+					default:
+						return -1;
+					}
+
+					__pf->de = __de;
+					__pf->encoded = true;
+				}
 			}
 		}
 	}

@@ -1,12 +1,13 @@
 #include "body.h"
 #include "request.h"
+#include "context.h"
 
-fly_body_t *fly_body_init(void)
+fly_body_t *fly_body_init(fly_context_t *ctx)
 {
 	fly_pool_t *pool;
 	fly_body_t *body;
 
-	pool = fly_create_pool(FLY_REQBODY_SIZE);
+	pool = fly_create_pool(ctx->pool_manager, FLY_REQBODY_SIZE);
 	if (pool == NULL)
 		return NULL;
 
@@ -21,7 +22,7 @@ fly_body_t *fly_body_init(void)
 
 void fly_body_release(fly_body_t *body)
 {
-	fly_delete_pool(&body->pool);
+	fly_delete_pool(body->pool);
 }
 
 int fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer, size_t content_length)
