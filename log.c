@@ -1,6 +1,8 @@
+#include <string.h>
 #include "log.h"
 #include <errno.h>
 #include "err.h"
+#include "config.h"
 
 __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type);
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc);
@@ -10,30 +12,68 @@ __fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t);
 fly_pool_t *fly_log_pool = NULL;
 __fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize);
 
-__fly_static fly_path_t *__fly_log_path(const char *env)
+__fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 {
-	return getenv(env);
+	const char *path;
+	char *__lp = log_path_buf;
+
+	path = fly_log_path();
+
+	memset(log_path_buf, '\0', buflen);
+	if (path != NULL){
+		memcpy(log_path_buf, path, strlen(path));
+		log_path_buf += strlen(path);
+		memcpy(log_path_buf, "/", 1);
+		log_path_buf += 1;
+		memcpy(log_path_buf, FLY_ERRORLOG_FILENAME, strlen(FLY_ERRORLOG_FILENAME));
+		if (__lp+buflen <= log_path_buf)
+			return -1;
+	}else
+		memcpy(log_path_buf, FLY_ERRORLOG_DEFAULT, strlen(FLY_ERRORLOG_DEFAULT));
+
+	return 0;
 }
 
-__fly_static fly_path_t *__fly_error_log_path(void)
+__fly_static int __fly_access_log_path(char *log_path_buf, size_t buflen)
 {
-	char *path;
-	path = __fly_log_path(FLY_ERRORLOG_ENV);
-	return path != NULL ? (fly_path_t *) path : FLY_ERRORLOG_DEFAULT;
+	const char *path;
+	char *__lp = log_path_buf;
+
+	path = fly_log_path();
+	memset(log_path_buf, '\0', buflen);
+	if (path != NULL){
+		memcpy(log_path_buf, path, strlen(path));
+		log_path_buf += strlen(path);
+		memcpy(log_path_buf, "/", 1);
+		log_path_buf += 1;
+		memcpy(log_path_buf, FLY_ACCESLOG_FILENAME, strlen(FLY_ACCESLOG_FILENAME));
+
+		if (__lp+buflen <= log_path_buf)
+			return -1;
+	}else
+		memcpy(log_path_buf, FLY_ACCESLOG_DEFAULT, strlen(FLY_ACCESLOG_DEFAULT));
+	return 0;
 }
 
-__fly_static fly_path_t *__fly_access_log_path(void)
+__fly_static int __fly_notice_log_path(char *log_path_buf, size_t buflen)
 {
-	char *path;
-	path = __fly_log_path(FLY_ACCESLOG_ENV);
-	return path != NULL ? (fly_path_t *) path : FLY_ACCESLOG_DEFAULT;
-}
+	const char *path;
+	char *__lp = log_path_buf;
 
-__fly_static fly_path_t *__fly_notice_log_path(void)
-{
-	char *path;
-	path = __fly_log_path(FLY_NOTICLOG_ENV);
-	return path != NULL ? (fly_path_t *) path : FLY_NOTICLOG_DEFAULT;
+	path = fly_log_path();
+	memset(log_path_buf, '\0', buflen);
+	if (path != NULL){
+		memcpy(log_path_buf, path, strlen(path));
+		log_path_buf += strlen(path);
+		memcpy(log_path_buf, "/", 1);
+		log_path_buf += 1;
+		memcpy(log_path_buf, FLY_NOTICLOG_FILENAME, strlen(FLY_NOTICLOG_FILENAME));
+
+		if (__lp+buflen <= log_path_buf)
+			return -1;
+	}else
+		memcpy(log_path_buf, FLY_NOTICLOG_DEFAULT, strlen(FLY_NOTICLOG_DEFAULT));
+	return 0;
 }
 
 #define __FLY_LOGFILE_INIT_STDOUT			1 << 0
@@ -68,7 +108,8 @@ __fly_static __fly_log_t *__fly_logfile_init(const fly_path_t *fly_log_path, int
 	return lt;
 }
 
-#define __fly_log_path(name)			__fly_ ## name ## _log_path()
+#define __fly_log_path(name, buf, buflen)		\
+			__fly_ ## name ## _log_path((buf), (buflen))
 
 __fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize)
 {
@@ -120,6 +161,7 @@ static inline int __fly_log_stderr(const char *env)
 
 fly_log_t *fly_log_init(fly_context_t *ctx)
 {
+	char log_path_buf[FLY_PATH_MAX];
 	fly_log_t *lt;
 	__fly_log_t *alp, *elp, *nlp;
 
@@ -133,18 +175,26 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 	if (!lt)
 		goto error;
 
+	if (__fly_log_path(access, log_path_buf, FLY_PATH_MAX) == -1)
+		return NULL;
 	alp = __fly_logfile_init(
-		__fly_log_path(access),
+		log_path_buf,
 		__fly_log_stdout(FLY_STDOUT_ENV(ACCESS)) | \
 		__fly_log_stderr(FLY_STDERR_ENV(ACCESS))
 	);
+
+	if (__fly_log_path(error, log_path_buf, FLY_PATH_MAX) == -1)
+		return NULL;
 	elp = __fly_logfile_init(
-		__fly_log_path(error),
+		log_path_buf,
 		__fly_log_stdout(FLY_STDOUT_ENV(ERROR)) | \
 		__fly_log_stderr(FLY_STDERR_ENV(ERROR))
 	);
+
+	if (__fly_log_path(notice, log_path_buf, FLY_PATH_MAX) == -1)
+		return NULL;
 	nlp = __fly_logfile_init(
-		__fly_log_path(notice),
+		log_path_buf,
 		__fly_log_stdout(FLY_STDOUT_ENV(NOTICE)) | \
 		__fly_log_stderr(FLY_STDERR_ENV(NOTICE))
 	);
@@ -434,4 +484,9 @@ int fly_log_event_register(fly_event_manager_t *manager, struct fly_logcont *lc)
 	fly_time_zero(e->timeout);
 
 	return fly_event_register(e);
+}
+
+const char *fly_log_path(void)
+{
+	return fly_config_value_str(FLY_LOG_PATH);
 }
