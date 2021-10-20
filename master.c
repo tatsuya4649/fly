@@ -5,8 +5,8 @@
 #include "config.h"
 
 __fly_static int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data);
-__fly_static int __fly_master_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
-__fly_static int __fly_msignal_handle(fly_context_t *ctx, struct signalfd_siginfo *info);
+__fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx);
+__fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info);
 __fly_static int __fly_master_signal_handler(fly_event_t *);
 __fly_static void __fly_workers_rebalance(fly_master_t *master);
 __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *info);
@@ -227,7 +227,20 @@ decrement:
 	__fly_workers_rebalance((fly_master_t *) ctx->data);
 }
 
-__fly_static int __fly_msignal_handle(fly_context_t *ctx, struct signalfd_siginfo *info)
+__noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
+{
+	struct fly_bllist *__b;
+	fly_worker_t *__w;
+
+	fly_for_each_bllist(__b, &master->workers){
+		__w = fly_bllist_data(__b, fly_worker_t, blelem);
+		fly_send_signal(__w->pid, si->ssi_signo, 0);
+	}
+
+	exit(0);
+}
+
+__fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info)
 {
 
 	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++){
@@ -236,7 +249,7 @@ __fly_static int __fly_msignal_handle(fly_context_t *ctx, struct signalfd_siginf
 			if (__s->handler)
 				__s->handler(ctx, info);
 			else
-				fly_signal_default_handler(info);
+				fly_master_signal_default_handler(master, ctx, info);
 		}
 	}
 	return 0;
@@ -255,14 +268,14 @@ __fly_static int __fly_master_signal_handler(fly_event_t *e)
 			else
 				return -1;
 		}
-		if (__fly_msignal_handle(e->manager->ctx, &info) == -1)
+		if (__fly_msignal_handle((fly_master_t *) e->event_data, e->manager->ctx, &info) == -1)
 			return -1;
 	}
 
 	return 0;
 }
 
-__fly_static int __fly_master_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx)
+__fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx)
 {
 	sigset_t master_set;
 	fly_event_t *e;
@@ -270,13 +283,13 @@ __fly_static int __fly_master_signal_event(fly_event_manager_t *manager, __unuse
 
 	if (fly_refresh_signal() == -1)
 		return -1;
-	if (sigemptyset(&master_set) == -1)
+	if (sigfillset(&master_set) == -1)
 		return -1;
 
-	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++){
-		if (sigaddset(&master_set, fly_master_signals[i].number) == -1)
-			return -1;
-	}
+//	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++){
+//		if (sigaddset(&master_set, fly_master_signals[i].number) == -1)
+//			return -1;
+//	}
 
 	sigfd = fly_signal_register(&master_set);
 	if (sigfd == -1)
@@ -295,6 +308,7 @@ __fly_static int __fly_master_signal_event(fly_event_manager_t *manager, __unuse
 	e->event_state = NULL;
 	e->expired = false;
 	e->available = false;
+	e->event_data = (void *) master;
 	FLY_EVENT_HANDLER(e, __fly_master_signal_handler);
 
 	fly_time_null(e->timeout);
@@ -357,7 +371,7 @@ __direct_log __noreturn void fly_master_process(fly_master_t *master)
 		);
 
 	/* initial event setting */
-	if (__fly_master_signal_event(manager, master->context) == -1)
+	if (__fly_master_signal_event(master, manager, master->context) == -1)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_READY,
 			"initialize worker signal error."
