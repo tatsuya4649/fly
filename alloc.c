@@ -80,7 +80,7 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	}
 	new_block->last = new_block->entry+size-1;
 	new_block->size = size;
-	if (fly_unlikely_null(fly_rb_tree_insert(pool->rbtree, new_block, new_block->entry))){
+	if (fly_unlikely_null(fly_rb_tree_insert(pool->rbtree, new_block, new_block->entry, NULL))){
 		__fly_free(new_block->entry);
 		__fly_free(new_block);
 		return NULL;
