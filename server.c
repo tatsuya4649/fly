@@ -116,6 +116,11 @@ int fly_socket_release(int sockfd)
 	return close(sockfd);
 }
 
+char *fly_server_host(void)
+{
+	return fly_config_value_str(FLY_HOST);
+}
+
 int fly_server_port(void)
 {
 	return fly_config_value_int(FLY_PORT);

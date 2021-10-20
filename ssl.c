@@ -189,7 +189,7 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 			if (errno == EPIPE)
 				goto disconnect;
 			/* unexpected EOF from the peer */
-			if (errno == 0)
+			else if (errno == 0)
 				goto disconnect;
 			goto connect_error;
 		case SSL_ERROR_SSL:

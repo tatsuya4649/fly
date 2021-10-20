@@ -14,8 +14,10 @@
 struct fly_response_content_by_stcode;
 struct fly_context{
 	fly_pool_t *pool;
+	struct fly_pool_manager *pool_manager;
 	fly_pool_t *misc_pool;
 	fly_sockinfo_t *listen_sock;
+	/* TODO: change to bllist */
 	fly_sockinfo_t *dummy_sock;
 	int listen_count;
 	fly_log_t *log;
@@ -23,6 +25,7 @@ struct fly_context{
 	fly_mount_t *mount;
 	struct fly_bllist	rcbs;
 
+	void *data;
 	/* for SSL/TLS */
 	SSL_CTX *ssl_ctx;
 };
@@ -36,7 +39,7 @@ typedef struct fly_context fly_context_t;
 		(ctx)->dummy_sock->next = (ctx)->dummy_sock;	\
 	}
 
-fly_context_t *fly_context_init(void);
+fly_context_t *fly_context_init(struct fly_pool_manager *__pm);
 void fly_context_release(fly_context_t *ctx);
 
 #define FLY_SEND_DEFAULT_CONTENT_BY_STCODE_SUCCESS		(1)

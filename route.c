@@ -1,12 +1,13 @@
 #include "route.h"
 #include "alloc.h"
+#include "context.h"
 
-fly_route_reg_t *fly_route_reg_init(void)
+fly_route_reg_t *fly_route_reg_init(fly_context_t *ctx)
 {
 	fly_pool_t *pool;
 	fly_route_reg_t *reg;
 
-	pool = fly_create_pool(FLY_ROUTEREG_POOL_SIZE);
+	pool = fly_create_pool(ctx->pool_manager, FLY_ROUTEREG_POOL_SIZE);
 	if (pool == NULL)
 		return NULL;
 
@@ -22,7 +23,7 @@ fly_route_reg_t *fly_route_reg_init(void)
 
 void fly_route_reg_release(fly_route_reg_t *reg)
 {
-	fly_delete_pool(&reg->pool);
+	fly_delete_pool(reg->pool);
 }
 
 int fly_register_route(

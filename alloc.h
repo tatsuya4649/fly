@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include "util.h"
+#include "bllist.h"
 
 enum fly_pool_size{
 	XS,		/* max 1KB */
@@ -41,37 +42,35 @@ typedef enum fly_pool_size fly_pool_e;
 struct fly_rb_node;
 struct fly_rb_tree;
 struct fly_pool_block{
-	void *entry;
-	void *last;
-	unsigned size;				/* byte */
-	struct fly_pool_block *next;
-	struct fly_pool_block *prev;
+	void				*entry;
+	void				*last;
+	unsigned			size;				/* byte */
+	struct fly_bllist	blelem;
 };
+
+struct fly_pool_manager{
+	size_t					total_pool_count;
+	struct fly_bllist		pools;
+};
+struct fly_pool_manager *fly_pool_manager_init(void);
+void fly_pool_manager_release(struct fly_pool_manager *__pm);
+
 
 struct fly_pool{
-	fly_page_t max;			/* per page size */
-	fly_pool_t *current;	/* now pointed pool */
-	fly_pool_t *next;		/* next pool */
-	fly_pool_b *entry;		/* actual memory */
-	fly_pool_b *last_block;
-	fly_pool_b *dummy;		/* for sequential search */
-	struct fly_rb_tree *rbtree;
-	size_t block_size;
+	fly_page_t				max;			/* per page size */
+	fly_pool_t 				*current;	/* now pointed pool */
+
+	struct fly_pool_manager *manager;
+	struct fly_bllist		pbelem;
+
+	struct fly_bllist		blocks;
+	struct fly_rb_tree  	*rbtree;
+	size_t					block_size;
 };
 
-#define FLY_POOL_DUMMY_INIT(p)				\
-	do{																\
-		(p)->dummy = __fly_malloc(sizeof(struct fly_pool_block));	\
-		(p)->dummy->next = (p)->dummy;								\
-		(p)->dummy->prev = (p)->dummy;								\
-		(p)->dummy->entry = NULL;									\
-		(p)->dummy->size = 0;										\
-		(p)->dummy->last = NULL;									\
-	} while(0)
-
-fly_pool_t *fly_create_pool(fly_page_t size);
-fly_pool_t *fly_create_poolb(size_t size);
-void fly_delete_pool(fly_pool_t **pool);
+fly_pool_t *fly_create_pool(struct fly_pool_manager *__pm, fly_page_t size);
+fly_pool_t *fly_create_poolb(struct fly_pool_manager *__pm, size_t size);
+void fly_delete_pool(fly_pool_t *pool);
 void *fly_palloc(fly_pool_t *pool, fly_page_t size);
 void *fly_pballoc(fly_pool_t *pool, size_t size);
 void fly_pfree(fly_pool_t *pool, void *ptr);

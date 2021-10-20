@@ -311,9 +311,7 @@ char *fly_config_value_str(char *name)
 			return env_value;
 		}
 	}
-#ifdef DEBUG
 	FLY_NOT_COME_HERE
-#endif
 }
 
 int fly_config_value_int(char *name)
@@ -326,9 +324,7 @@ int fly_config_value_int(char *name)
 			return atoi(env_value);
 		}
 	}
-#ifdef DEBUG
 	FLY_NOT_COME_HERE
-#endif
 }
 
 bool fly_config_value_bool(char *name)
@@ -344,7 +340,5 @@ bool fly_config_value_bool(char *name)
 				return false;
 		}
 	}
-#ifdef DEBUG
 	FLY_NOT_COME_HERE
-#endif
 }

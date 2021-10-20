@@ -21,7 +21,7 @@ __fly_static struct {
 int fly_errsys_init(fly_context_t *ctx)
 {
 	if (fly_err_pool == NULL)
-		fly_err_pool = fly_create_pool(FLY_ERR_POOL_SIZE);
+		fly_err_pool = fly_create_pool(ctx->pool_manager, FLY_ERR_POOL_SIZE);
 
 	if (fly_err_pool == NULL)
 		return -1;
@@ -268,12 +268,19 @@ void fly_emergency_error(enum fly_emergency_status end_status, int __errno, cons
 #define __FLY_EMERGENCY_ERROR_CONTENT_MAX		100
 	va_list va;
 	char err_content[__FLY_EMERGENCY_ERROR_CONTENT_MAX];
+
+	memset(err_content, '\0', __FLY_EMERGENCY_ERROR_CONTENT_MAX);
 	va_start(va, format);
 
 	snprintf(err_content, __FLY_EMERGENCY_ERROR_CONTENT_MAX, format, va);
 
 	va_end(va);
-	/* write error content in log */
-	__fly_write_to_log_emerge(err_content, end_status, __errno);
+
+	if (isatty(STDERR_FILENO))
+		/* if no daemon, error to stderr */
+		fprintf(stderr, err_content);
+	else
+		/* write error content in log */
+		__fly_write_to_log_emerge(err_content, end_status, __errno);
 	exit((int) end_status);
 }
