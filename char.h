@@ -58,4 +58,9 @@ static inline bool fly_numeral(char c)
 	return (c>=0x30 && c<=0x39) ? true : false;
 }
 
+static inline bool fly_slash(char c)
+{
+	return c == 0x2F ? true : false;
+}
+
 #endif

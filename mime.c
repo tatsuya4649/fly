@@ -9,9 +9,10 @@ fly_mime_type_t mimes[] = {
 	{__FLY_MTYPE_SET(text, xml), __FLY_MTYPE_EXTS("xml", NULL)},
 	{__FLY_MTYPE_SET(text, javascript), __FLY_MTYPE_EXTS("js", NULL)},
 	{__FLY_MTYPE_SET(text, richtext), __FLY_MTYPE_EXTS("rtf", NULL)},
-	{__FLY_MTYPE_SET(application, octet_stream), __FLY_MTYPE_EXTS(NULL)},
-	{-1, "", NULL}
+	{__FLY_MTYPE_SET(application, octet_stream), __FLY_MTYPE_EXTS(NULL)}
 };
+#define FLY_MIMES_LENGTH			\
+	((int) (sizeof(mimes)/sizeof(fly_mime_type_t)))
 fly_mime_type_t unknown_mime = {
 	.type = fly_mime_unknown,
 	.extensions = NULL,
@@ -1074,7 +1075,8 @@ fly_mime_type_t *fly_mime_type_from_path_name(char *path)
 		ptr = __next+1;
 
 	/* ptr display extension */
-	for (fly_mime_type_t *__m=mimes; __m->type>=0; __m++){
+	for (int i=0; i<FLY_MIMES_LENGTH; i++){
+		fly_mime_type_t *__m = mimes+i;
 		if (__m->extensions == NULL)
 			continue;
 

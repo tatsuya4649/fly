@@ -1,28 +1,19 @@
 #include "master.h"
+#include "alloc.h"
 #include "util.h"
 #include "cache.h"
 #include "config.h"
 
-fly_master_t fly_master_info = {
-	.req_workers = -1,
-	.now_workers = 0,
-	.worker_process = NULL,
-	.pool = NULL,
-};
-__fly_static int __fly_get_req_workers(void);
-__fly_static int __fly_master_fork(fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data);
-__fly_static void __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *));
-__fly_static int __fly_insert_workerp(fly_worker_t *w);
-__fly_static fly_worker_id __fly_get_worker_id(void);
-__fly_static void __fly_remove_workerp(pid_t cpid);
+__fly_static int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data);
 __fly_static int __fly_master_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
 __fly_static int __fly_msignal_handle(fly_context_t *ctx, struct signalfd_siginfo *info);
 __fly_static int __fly_master_signal_handler(fly_event_t *);
-__fly_static void __fly_workers_rebalance(fly_context_t *ctx, int change);
+__fly_static void __fly_workers_rebalance(fly_master_t *master);
 __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *info);
-__fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
-__fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
+__fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_manager_t *manager);
 __fly_static int __fly_master_inotify_handler(fly_event_t *);
+__fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
+__fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 
 fly_signal_t fly_master_signals[] = {
@@ -119,15 +110,12 @@ static int fly_worker_max_limit(void)
  *  adjust workers number.
  *
  */
-__fly_static void __fly_workers_rebalance(fly_context_t *ctx,int change)
+__fly_static void __fly_workers_rebalance(fly_master_t *master)
 {
-	/* after change */
-	fly_master_info.now_workers += change;
-
-	if (fly_master_info.now_workers >= fly_worker_max_limit()){
+	if (master->now_workers <= fly_worker_max_limit()){
 		fly_master_worker_spawn(
-			ctx,
-			fly_master_info.worker_process
+			master,
+			master->worker_process
 		);
 	}
 }
@@ -149,7 +137,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 			goto decrement;
 		case FLY_EMERGENCY_STATUS_NOMEM:
 			FLY_NOTICE_DIRECT_LOG(
-				fly_master_info.context->log,
+				ctx->log,
 				"master process(%d) detect to end of worker process(%d).  because of no memory(exit status: %d)",
 				getpid(),
 				info->ssi_pid,
@@ -158,7 +146,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 			break;
 		case FLY_EMERGENCY_STATUS_PROCS:
 			FLY_NOTICE_DIRECT_LOG(
-				fly_master_info.context->log,
+				ctx->log,
 				"master process(%d) detect to end of worker process(%d). because of process error (exit status: %d)",
 				getpid(),
 				info->ssi_pid,
@@ -167,7 +155,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 			break;
 		case FLY_EMERGENCY_STATUS_READY:
 			FLY_NOTICE_DIRECT_LOG(
-				fly_master_info.context->log,
+				ctx->log,
 				"master process(%d) detect to end of worker process(%d). because of ready error (exit status: %d)",
 				getpid(),
 				info->ssi_pid,
@@ -176,7 +164,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 			break;
 		case FLY_EMERGENCY_STATUS_ELOG:
 			FLY_NOTICE_DIRECT_LOG(
-				fly_master_info.context->log,
+				ctx->log,
 				"master process(%d) detect to end of worker process(%d). because of log error (exit status: %d)",
 				getpid(),
 				info->ssi_pid,
@@ -185,7 +173,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 			break;
 		case FLY_EMERGENCY_STATUS_NOMOUNT:
 			FLY_NOTICE_DIRECT_LOG(
-				fly_master_info.context->log,
+				ctx->log,
 				"master process(%d) detect to end of worker process(%d). because of mount error (exit status: %d)",
 				getpid(),
 				info->ssi_pid,
@@ -194,7 +182,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 			break;
 		case FLY_EMERGENCY_STATUS_MODF:
 			FLY_NOTICE_DIRECT_LOG(
-				fly_master_info.context->log,
+				ctx->log,
 				"master process(%d) detect to end of worker process(%d). because of modify file(hash update) error (exit status: %d)",
 				getpid(),
 				info->ssi_pid,
@@ -229,14 +217,14 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 decrement:
 	/* worker process is gone */
 	FLY_NOTICE_DIRECT_LOG(
-		fly_master_info.context->log,
+		ctx->log,
 		"worker process(pid: %d) is gone by %d(si_code).\n",
 		info->ssi_pid,
 		info->ssi_code
 	);
 
-	__fly_workers_rebalance(ctx, -1);
-	__fly_remove_workerp(info->ssi_pid);
+	fly_remove_worker((fly_master_t *) ctx->data, (pid_t) info->ssi_pid);
+	__fly_workers_rebalance((fly_master_t *) ctx->data);
 }
 
 __fly_static int __fly_msignal_handle(fly_context_t *ctx, struct signalfd_siginfo *info)
@@ -259,7 +247,7 @@ __fly_static int __fly_master_signal_handler(fly_event_t *e)
 	struct signalfd_siginfo info;
 	ssize_t res;
 
-	while(1){
+	while(true){
 		res = read(e->fd, (void *) &info,sizeof(struct signalfd_siginfo));
 		if (res == -1){
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -319,36 +307,49 @@ static int fly_workers_count(void)
 	return fly_config_value_int(FLY_WORKER);
 }
 
-fly_context_t *fly_master_init(void)
+void fly_master_release(fly_master_t *master)
 {
-	fly_master_info.pid = getpid();
-	fly_master_info.now_workers = 0;
-	fly_master_info.req_workers = fly_workers_count();
-	fly_master_info.context = fly_context_init();
-	if (fly_master_info.req_workers <= 0)
-		FLY_STDERR_ERROR(
-			"Workers environment(%s) value is invalid.",
-			FLY_WORKER
-		);
-	if (fly_master_info.context == NULL)
-		FLY_STDERR_ERROR(
-			"Master context setting error."
-		);
-
-	fly_master_info.pool = fly_create_pool(FLY_MASTER_POOL_SIZE);
-	if (fly_master_info.pool == NULL)
-		FLY_STDERR_ERROR(
-			"Making master pool error."
-		);
-
-	return fly_master_info.context;
+	assert(master != NULL);
+	fly_context_release(master->context);
+	fly_pool_manager_release(master->pool_manager);
+	fly_free(master);
 }
 
-__direct_log __noreturn void fly_master_process(fly_context_t *ctx)
+fly_master_t *fly_master_init(void)
+{
+	struct fly_pool_manager *__pm;
+	fly_master_t *__m;
+	fly_context_t *__ctx;
+
+	__pm = fly_pool_manager_init();
+	if (fly_unlikely_null(__pm))
+		return NULL;
+
+	__m = fly_malloc(sizeof(fly_master_t));
+	if (fly_unlikely_null(__m))
+		return NULL;
+
+	__ctx = fly_context_init(__pm);
+	if (fly_unlikely_null(__ctx))
+		return NULL;
+
+	__m->pid = getpid();
+	__m->req_workers = fly_workers_count();
+	__m->now_workers = 0;
+	__m->worker_process = NULL;
+	__m->pool_manager = __pm;
+	fly_bllist_init(&__m->workers);
+	__m->context = __ctx;
+	__m->context->data = __m;
+
+	return __m;
+}
+
+__direct_log __noreturn void fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
 
-	manager = fly_event_manager_init(ctx);
+	manager = fly_event_manager_init(master->context);
 	if (manager == NULL)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_READY,
@@ -356,12 +357,19 @@ __direct_log __noreturn void fly_master_process(fly_context_t *ctx)
 		);
 
 	/* initial event setting */
-	if (__fly_master_signal_event(manager, ctx) == -1)
+	if (__fly_master_signal_event(manager, master->context) == -1)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_READY,
 			"initialize worker signal error."
 		);
-	if (__fly_master_inotify_event(manager, ctx) == -1)
+	if (__fly_master_inotify_event(master, manager) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_READY,
+			"initialize worker inotify error."
+		);
+
+	/* destructor setting */
+	if (atexit(fly_remove_pidfile) == -1)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_READY,
 			"initialize worker inotify error."
@@ -376,6 +384,32 @@ __direct_log __noreturn void fly_master_process(fly_context_t *ctx)
 
 	/* will not come here. */
 	FLY_NOT_COME_HERE
+}
+
+int fly_create_pidfile_noexit(void)
+{
+	pid_t pid;
+	int pidfd, res;
+	char pidbuf[FLY_PID_MAXSTRLEN];
+
+	pidfd = open(FLY_PID_FILE, O_WRONLY|O_CREAT|O_EXCL, S_IRUSR|S_IWUSR);
+	if (pidfd == -1)
+		return -1;
+
+	memset(pidbuf, 0, FLY_PID_MAXSTRLEN);
+	pid = fly_master_pid();
+	if (pid == -1)
+		return -1;
+	res = snprintf(pidbuf, FLY_PID_MAXSTRLEN, "%ld", (long) pid);
+	if (res < 0 || res >= FLY_PID_MAXSTRLEN)
+		return -1;
+
+	if (write(pidfd, pidbuf, strlen(pidbuf)) == -1)
+		return -1;
+
+	if (close(pidfd) == -1)
+		return -1;
+	return 0;
 }
 
 int fly_create_pidfile(void)
@@ -411,7 +445,7 @@ int fly_create_pidfile(void)
 	return 0;
 }
 
-__destructor int fly_remove_pidfile(void)
+void fly_remove_pidfile(void)
 {
 	int pidfd, res;
 	pid_t pid;
@@ -432,33 +466,29 @@ __destructor int fly_remove_pidfile(void)
 
 	pid = (pid_t) atol(pidbuf);
 	if (pid != getpid())
-		return 0;
+		return;
 	else{
 		printf("Remove PID file(%ld)\n", (long) pid);
-		return remove(FLY_PID_FILE);
+		remove(FLY_PID_FILE);
+		return;
 	}
 }
 
-__fly_static void __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *))
+__fly_static void __fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *, void *))
 {
 
-	if (fly_master_info.req_workers <= 0)
+	if (master->req_workers <= 0)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_PROCS,
 			"invalid required workers %d",
-			fly_master_info.req_workers
+			master->req_workers
 		);
 
-
-	fly_master_info.worker_process = proc;
-	for (int i=fly_master_info.now_workers;
-			i<fly_master_info.req_workers;
-			i=fly_master_info.now_workers){
-		fly_worker_i info;
-
-		info.id = __fly_get_worker_id();
-		info.start = time(NULL);
-		if (__fly_master_fork(WORKER, proc, fly_master_info.context, &info) == -1)
+	master->worker_process = proc;
+	for (int i=master->now_workers;
+			i<master->req_workers;
+			i=master->now_workers){
+		if (__fly_master_fork(master, WORKER, proc, master->context, NULL) == -1)
 			FLY_EMERGENCY_ERROR(
 				FLY_EMERGENCY_STATUS_PROCS,
 				"spawn working process error."
@@ -466,51 +496,35 @@ __fly_static void __fly_master_worker_spawn(void (*proc)(fly_context_t *, void *
 	}
 }
 
-void fly_master_worker_spawn(fly_context_t *ctx, void (*proc)(fly_context_t *, void *))
+void fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *, void *))
 {
-	if (!ctx || !ctx->mount)
+	if (!master->context || !master->context->mount)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_PROCS,
 			"not found mounts info. need one or more mount points."
 		);
-	__fly_master_worker_spawn(proc);
+	__fly_master_worker_spawn(master, proc);
 }
 
-__fly_static int __fly_insert_workerp(fly_worker_t *w)
+__fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w)
 {
-	if (w == NULL)
-		return -1;
-
-	if (fly_master_info.workers == NULL){
-		fly_master_info.workers = w;
-		return 0;
-	}
-
-	fly_worker_t *i;
-	for (i=fly_master_info.workers; i->next!=NULL; i=i->next)
-		;
-
-	i->next = w;
-	return 0;
+	w->master = m;
+	fly_bllist_add_tail(&m->workers, &w->blelem);
 }
 
-__fly_static void __fly_remove_workerp(pid_t cpid)
+__fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid)
 {
-	fly_worker_t *w, *prev;
+	fly_worker_t *w;
+	struct fly_bllist *__b;
 
-	if (cpid == fly_master_info.pid)
-		return;
-
-	for (w=fly_master_info.workers;
-			w!=NULL; w=w->next){
+	fly_for_each_bllist(__b, &m->workers){
+		w = fly_bllist_data(__b, struct fly_worker, blelem);
 		if (w->pid == cpid){
-			if (w == fly_master_info.workers)
-				fly_master_info.workers = w->next;
-			else
-				prev->next = w->next;
+			fly_bllist_remove(&w->blelem);
+			fly_free(w);
+			m->now_workers--;
 			return;
 		}
-		prev = w;
 	}
 	return;
 }
@@ -526,7 +540,7 @@ const char *fly_proc_type_str(fly_proc_type type)
 	return NULL;
 }
 
-int __fly_master_fork(fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data)
+int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data)
 {
 	pid_t pid;
 	switch((pid=fork())){
@@ -536,7 +550,7 @@ int __fly_master_fork(fly_proc_type type, void (*proc)(fly_context_t *, void *),
 		break;
 	default:
 		/* parent */
-		fly_master_info.now_workers++;
+		master->now_workers++;
 		goto child_register;
 	}
 	/* new process only */
@@ -546,23 +560,22 @@ child_register:
 	switch(type){
 	case WORKER:
 		{
-			fly_worker_t *worker = fly_pballoc(fly_master_info.pool, sizeof(fly_worker_t));
+			fly_worker_t *worker = fly_malloc(sizeof(fly_worker_t));
 			if (worker == NULL)
 				goto error;
 			worker->pid = pid;
 			worker->ppid = getppid();
-			worker->next = NULL;
-
-			if (__fly_insert_workerp(worker) == -1)
+			fly_add_worker(master, worker);
+			if (time(&worker->start) == (time_t) -1)
 				goto error;
 
 			/* spawn process notice log */
 			FLY_NOTICE_DIRECT_LOG(
-				fly_master_info.context->log,
+				master->context->log,
 				"spawn %s(pid: %d). there are %d worker processes.\n",
 				fly_proc_type_str(type),
 				worker->pid,
-				fly_master_info.now_workers
+				master->now_workers
 			);
 		}
 		return 0;
@@ -580,19 +593,12 @@ error:
 
 }
 
-__fly_static fly_worker_id __fly_get_worker_id(void)
-{
-	int i=0;
-
-	for (fly_worker_t *w=fly_master_info.workers; w!=NULL; w=w->next)
-		i++;
-	return i;
-}
-
-__fly_static int __fly_inotify_in_mp(fly_mount_parts_t *parts, __unused struct inotify_event *ie)
+__fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, __unused struct inotify_event *ie)
 {
 	int mask;
 	__unused int signum = 0;
+	fly_worker_t *__w;
+	struct fly_bllist *__b;
 
 	mask = ie->mask;
 	if (mask & IN_CREATE){
@@ -626,7 +632,8 @@ __fly_static int __fly_inotify_in_mp(fly_mount_parts_t *parts, __unused struct i
 			return -1;
 	}
 
-	for (fly_worker_t *__w=fly_master_info.workers; __w; __w=__w->next){
+	fly_for_each_bllist(__b, &master->workers){
+		__w = fly_bllist_data(__b, struct fly_worker, blelem);
 		if (fly_send_signal(__w->pid, signum, parts->mount_number) == -1)
 			return -1;
 	}
@@ -654,7 +661,7 @@ __fly_static int __fly_inotify_in_pf(__unused struct fly_mount_parts_file *pf, s
 	return 0;
 }
 
-__fly_static int __fly_inotify_handle(fly_context_t *ctx, __unused struct inotify_event *ie)
+__fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, __unused struct inotify_event *ie)
 {
 	int wd;
 	fly_mount_parts_t *parts = NULL;
@@ -664,7 +671,7 @@ __fly_static int __fly_inotify_handle(fly_context_t *ctx, __unused struct inotif
 	/* occurred in mount point directory */
 	parts = fly_wd_from_parts(wd, ctx->mount);
 	if (parts)
-		return __fly_inotify_in_mp(parts, ie);
+		return __fly_inotify_in_mp(master, parts, ie);
 
 	pf = fly_wd_from_mount(wd, ctx->mount);
 	if (pf)
@@ -680,10 +687,12 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 	void *inobuf;
 	char *__ptr;
 	fly_context_t *ctx;
+	fly_master_t *master;
 	struct inotify_event *__e;
 	fly_pool_t *pool;
 
-	ctx = (fly_context_t *) e->event_data;
+	master = (fly_master_t *) e->event_data;
+	ctx = master->context;
 	inofd = e->fd;
 	inobuf_size = FLY_NUMBER_OF_INOBUF*(sizeof(struct inotify_event) + NAME_MAX + 1);
 	pool = e->manager->pool;
@@ -702,7 +711,7 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 
 		for (__ptr=inobuf; __ptr < (char *) (inobuf+num_read);){
 			__e = (struct inotify_event *) __ptr;
-			if (__fly_inotify_handle(ctx, __e) == -1)
+			if (__fly_inotify_handle(master, ctx, __e) == -1)
 				return -1;
 			__ptr += sizeof(struct inotify_event) + __e->len;
 		}
@@ -713,10 +722,11 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 	return 0;
 }
 
-__fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, fly_context_t *ctx)
+__fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_manager_t *manager)
 {
 	fly_event_t *e;
 	int inofd;
+	fly_context_t *ctx = master->context;
 
 	e = fly_event_init(manager);
 	if (fly_unlikely_null(e))
@@ -738,7 +748,7 @@ __fly_static int __fly_master_inotify_event(fly_event_manager_t *manager, fly_co
 	fly_time_null(e->timeout);
 	e->flag = FLY_PERSISTENT;
 	e->tflag = FLY_INFINITY;
-	e->event_data = (void *) ctx;
+	e->event_data = (void *) master;
 	FLY_EVENT_HANDLER(e, __fly_master_inotify_handler);
 	e->expired = false;
 	e->available = false;

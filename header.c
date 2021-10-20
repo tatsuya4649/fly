@@ -11,9 +11,9 @@
 #include "uri.h"
 #include "v2.h"
 
-fly_hdr_ci *fly_header_init(void)
+fly_hdr_ci *fly_header_init(fly_context_t *ctx)
 {
-	fly_pool_t *pool = fly_create_pool(FLY_HEADER_POOL_PAGESIZE);
+	fly_pool_t *pool = fly_create_pool(ctx->pool_manager, FLY_HEADER_POOL_PAGESIZE);
 	if (pool == NULL)
 		return NULL;
 
@@ -27,7 +27,7 @@ fly_hdr_ci *fly_header_init(void)
 
 void fly_header_release(fly_hdr_ci *info)
 {
-	fly_delete_pool(&info->pool);
+	fly_delete_pool(info->pool);
 }
 
 void __fly_header_add_ci(fly_hdr_c *c, fly_hdr_ci *ci, bool beginning)

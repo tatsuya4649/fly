@@ -52,7 +52,7 @@ struct __fly_log{
 	fly_bit_t		tty: 1;
 };
 
-fly_log_t *fly_log_init(void);
+fly_log_t *fly_log_init(fly_context_t *ctx);
 int fly_log_release(fly_log_t *log);
 
 #include "ftime.h"

@@ -46,10 +46,9 @@ struct fly_route_reg{
 };
 typedef struct fly_route_reg fly_route_reg_t;
 
-//int fly_route_init(void);
-//int fly_route_release(void);
 void fly_route_reg_release(fly_route_reg_t *reg);
-fly_route_reg_t *fly_route_reg_init(void);
+struct fly_context;
+fly_route_reg_t *fly_route_reg_init(struct fly_context *ctx);
 
 int fly_register_route(fly_route_reg_t *reg, fly_route_handler *func, fly_path *uri, fly_method_e method, fly_flag_t flag);
 fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *path, fly_method_e method);

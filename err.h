@@ -1,7 +1,9 @@
 #ifndef _FLY_ERR_H
 #define _FLY_ERR_H
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>

@@ -37,31 +37,6 @@ struct fly_buffer{
 	size_t use_len;
 };
 
-//#define fly_buffer_chain(__b)	fly_bllist_data((__b), struct fly_buffer_chain, blelem)
-//#define fly_buffer_first_chain(__b)		fly_buffer_chain((__b)->chain.next)
-//#define fly_buffer_last_chain(__b)		fly_buffer_chain((__b)->chain.prev)
-//#define fly_buffer_first_ptr(__b)		fly_buffer_first_chain((__b))->ptr
-//#define fly_buffer_first_useptr(__b)		({
-//		struct fly_buffer_chain *__c = fly_buffer_first_chain((__b));
-//		__c->use_ptr;
-//	})
-//#define fly_buffer_lunuse_ptr(__b)			({
-//		struct fly_buffer_chain *__c = fly_buffer_last_chain((__b));
-//		__c->unuse_ptr;
-//	})
-//#define fly_buffer_lunuse_len(__b)			({
-//		struct fly_buffer_chain *__c = fly_buffer_last_chain((__b));
-//		__c->unuse_len;
-//	})
-//#define fly_buffer_luse_len(__b)			({
-//		struct fly_buffer_chain *__c = fly_buffer_last_chain((__b));
-//		__c->use_len;
-//	})
-//#define fly_buffer_luse_ptr(__b)			({
-//		struct fly_buffer_chain *__c = fly_buffer_last_chain((__b));
-//		__c->use_ptr;
-//	})
-
 #ifdef DEBUG
 	#define FLY_BUFFER_DEBUG_CHAIN_COUNT(__b)		\
 			assert((__b)->chain_count > 0)

@@ -14,7 +14,8 @@ struct fly_body{
 
 typedef struct fly_body fly_body_t;
 
-fly_body_t *fly_body_init(void);
+struct fly_context;
+fly_body_t *fly_body_init(struct fly_context *ctx);
 void fly_body_release(fly_body_t *body);
 int fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer, size_t content_length);
 

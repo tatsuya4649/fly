@@ -10,6 +10,7 @@
 #include "mime.h"
 #include "bllist.h"
 #include "encode.h"
+#include "rbtree.h"
 
 #define FLY_PATHNAME_MAX	_POSIX_NAME_MAX
 #define FLY_PATH_MAX	_POSIX_PATH_MAX
@@ -36,6 +37,7 @@ struct fly_mount_parts_file{
 	fly_encoding_e			encode_type;
 	struct fly_de			*de;
 	fly_bit_t				encoded: 1;
+	fly_bit_t				dir: 1;
 };
 
 struct fly_mount_parts{
@@ -55,9 +57,12 @@ struct fly_mount_parts{
 struct fly_context;
 typedef struct fly_context fly_context_t;
 struct fly_mount{
-	struct fly_bllist		parts;
-	int mount_count;
-	int file_count;
+	struct fly_bllist			parts;
+	int							mount_count;
+	int 						file_count;
+
+	struct fly_mount_parts_file	*index;
+	struct fly_rb_tree			*rbtree;
 
 	fly_context_t *ctx;
 };
@@ -72,10 +77,12 @@ int fly_isdir(const char *path);
 int fly_isfile(const char *path);
 ssize_t fly_file_size(const char *path);
 int fly_mount_number(fly_mount_t *mnt, const char *path);
+int fly_mount_files_count(fly_mount_t *mnt, int mount_number);
 char *fly_content_from_path(int mount_number, char *filepath);
 int fly_join_path(char *buffer, char *join1, char *join2);
 
 int fly_mount_inotify(fly_mount_t *mount, int ifd);
+void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 
 struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts);
 fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt);
@@ -94,13 +101,24 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts);
 #define FLY_NUMBER_OF_INOBUF				(100)
 #define is_fly_myself(ie)				((ie)->len == 0)
 
-int fly_parts_file_remove(fly_mount_parts_t *parts, char *filename);
+int fly_parts_file_remove_from_path(fly_mount_parts_t *parts, char *filename);
 
 struct fly_mount_parts_file *fly_pf_from_parts(char *path, fly_mount_parts_t *parts);
 void fly_parts_file_add(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
+const char *fly_index_path(void);
 #include "uri.h"
 int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mount_parts_file **res);
 #include "event.h"
 int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count);
+
+static inline void fly_mount_index_parts_file(struct fly_mount_parts_file *pf)
+{
+	pf->parts->mount->index = pf;
+}
+
+static inline bool fly_have_mount_index(struct fly_mount *mount)
+{
+	return mount->index != NULL ? true : false;
+}
 
 #endif

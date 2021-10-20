@@ -115,7 +115,7 @@ struct fly_response{
 typedef struct fly_response fly_response_t;
 #define fly_disconnect_from_response(res)		((res)->request->connect->peer_closed = true)
 
-fly_response_t *fly_response_init(void);
+fly_response_t *fly_response_init(struct fly_context *ctx);
 void fly_response_release(fly_response_t *response);
 
 typedef struct{
@@ -153,6 +153,7 @@ fly_response_t *fly_304_response(fly_request_t *req, struct fly_mount_parts_file
 fly_response_t *fly_400_response(fly_request_t *req);
 fly_response_t *fly_404_response(fly_request_t *req);
 fly_response_t *fly_405_response(fly_request_t *req);
+fly_response_t *fly_413_response(fly_request_t *req);
 fly_response_t *fly_414_response(fly_request_t *req);
 fly_response_t *fly_415_response(fly_request_t *req);
 fly_response_t *fly_500_response(fly_request_t *req);

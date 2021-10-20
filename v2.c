@@ -301,7 +301,7 @@ fly_hv2_stream_t *fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid_t id, bo
 	ns = __fly_hv2_create_stream(state, id, from_client);
 	if (fly_unlikely_null(ns))
 		return NULL;
-	ns->request->header = fly_header_init();
+	ns->request->header = fly_header_init(ns->request->ctx);
 	if (fly_unlikely_null(ns->request->header))
 		return NULL;
 	__fly_hv2_add_stream(state, ns);
@@ -1940,6 +1940,8 @@ send:
 					case SSL_ERROR_SYSCALL:
 						if (errno == EPIPE)
 							goto disconnect;
+						else if (errno == 0)
+							goto disconnect;
 						return FLY_SEND_DATA_FH_ERROR;
 					case SSL_ERROR_SSL:
 						return FLY_SEND_DATA_FH_ERROR;
@@ -1986,6 +1988,10 @@ send:
 					case SSL_ERROR_WANT_WRITE:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
+						if (errno == EPIPE)
+							goto disconnect;
+						else if (errno == 0)
+							goto disconnect;
 						return FLY_SEND_DATA_FH_ERROR;
 					case SSL_ERROR_SSL:
 						return FLY_SEND_DATA_FH_ERROR;
@@ -2041,6 +2047,8 @@ send:
 					case SSL_ERROR_SYSCALL:
 						if (errno == EPIPE)
 							goto disconnect;
+						else if (errno == 0)
+							goto disconnect;
 						return FLY_SEND_DATA_FH_ERROR;
 					case SSL_ERROR_SSL:
 						return FLY_SEND_DATA_FH_ERROR;
@@ -2095,6 +2103,8 @@ send:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
 						if (errno == EPIPE)
+							goto disconnect;
+						else if (errno == 0)
 							goto disconnect;
 						return FLY_SEND_DATA_FH_ERROR;
 					case SSL_ERROR_SSL:
@@ -3693,7 +3703,7 @@ int fly_hv2_parse_data(fly_hv2_stream_t *stream, uint32_t length, uint8_t *paylo
 	fly_request_t *req;
 
 	req = stream->request;
-	body = fly_body_init();
+	body = fly_body_init(req->ctx);
 	if (fly_unlikely_null(body))
 		return -1;
 
@@ -3899,6 +3909,12 @@ __response:
 	route = fly_found_route(route_reg, request->request_line->uri.ptr, __mtype);
 	mount = e->manager->ctx->mount;
 	if (route == NULL){
+		if (fly_is_uri_index(&request->request_line->uri) && \
+				fly_have_mount_index(mount)){
+			pf = mount->index;
+			goto response_path;
+		}
+
 		int found_res;
 		/* search from uri */
 		found_res = fly_found_content_from_path(mount, &request->request_line->uri, &pf);
@@ -3993,11 +4009,10 @@ int fly_hv2_response_event(fly_event_t *e)
 	fly_response_t *res;
 	fly_hv2_stream_t *stream;
 	struct fly_hv2_response *v2_res;
-	__unused struct stat sb;
 
 	res = (fly_response_t *) e->event_data;
 	if (res->header == NULL)
-		res->header = fly_header_init();
+		res->header = fly_header_init(res->request->ctx);
 	stream = res->request->stream;
 	res->header->state = stream->state;
 
@@ -4117,6 +4132,9 @@ int fly_hv2_response_event(fly_event_t *e)
 		res->response_len = __de->contlen;
 	}
 
+	/* content length over limit */
+	if (res->de->overflow)
+		goto response_413;
 	if (res->de)
 		fly_add_content_length(res->header, res->de->contlen, true);
 send_header:
@@ -4157,6 +4175,16 @@ register_handler:
 	e->eflag = 0;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	return fly_event_register(e);
+
+response_413:
+	fly_request_t *req;
+
+	req = res->request;
+	fly_hv2_remove_response(stream->state, res);
+	fly_response_release(res);
+	res = fly_413_response(req);
+	e->event_data = (void *) res;
+	return fly_hv2_response_event(e);
 }
 
 int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning)
