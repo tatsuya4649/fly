@@ -83,7 +83,7 @@ int fly_signal_register(sigset_t *mask)
 	return sigfd;
 }
 
-__noreturn int fly_signal_default_handler(struct signalfd_siginfo *)
+__noreturn int fly_signal_default_handler(fly_context_t *, struct signalfd_siginfo *)
 {
 	exit(0);
 }

@@ -40,7 +40,7 @@ int fly_refresh_signal(void);
 
 extern fly_signum_t fly_signals[];
 int fly_signal_register(sigset_t *mask);
-__noreturn int fly_signal_default_handler(struct signalfd_siginfo *);
+__noreturn int fly_signal_default_handler(fly_context_t *, struct signalfd_siginfo *);
 int fly_send_signal(pid_t pid, int signumber, int value);
 
 static inline void FLY_SIG_IGN(fly_context_t *, struct signalfd_siginfo *){}
