@@ -34,6 +34,44 @@ static fly_signal_t fly_worker_signals[] = {
 	{SIGPIPE,			FLY_SIG_IGN, NULL},
 };
 
+/*
+ *	 alloc resource:
+ *	 pool_manager, struct fly_worker, struct fly_context
+ */
+struct fly_worker *fly_worker_init(void)
+{
+	struct fly_pool_manager *__pm;
+	fly_worker_t *__w;
+	fly_context_t *__ctx;
+
+	__pm = fly_pool_manager_init();
+	if (fly_unlikely_null(__pm))
+		return NULL;
+
+	__w = fly_malloc(sizeof(fly_worker_t));
+	if (fly_unlikely_null(__w))
+		return NULL;
+
+	__ctx = fly_context_init(__pm);
+	if (fly_unlikely_null(__ctx))
+		return NULL;
+
+	__w->pid = getpid();
+	__w->ppid = getppid();
+	__w->master = NULL;
+	__w->start = time(NULL);
+	__w->pool_manager = __pm;
+
+	return __w;
+}
+
+void fly_worker_release(fly_worker_t *worker)
+{
+	assert(worker != NULL);
+	fly_pool_manager_release(worker->pool_manager);
+	fly_free(worker);
+}
+
 __fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler)
 {
 	fly_signal_t *__nf;
@@ -267,6 +305,7 @@ __fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused 
 
 __noreturn void fly_worker_signal_default_handler(fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
 {
+	fly_pool_manager_release(ctx->pool_manager);
 	exit(0);
 }
 
@@ -414,14 +453,12 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 			"initialize worker signal error."
 		);
 
-	/* TODO: make socket for each socket info */
-	for (fly_sockinfo_t *i=ctx->listen_sock; i!=ctx->dummy_sock; i=i->next){
-		if (__fly_listen_socket_event(manager, i) == -1)
-			FLY_EMERGENCY_ERROR(
-				FLY_EMERGENCY_STATUS_PROCS,
-				"fail to register listen socket event."
-			);
-	}
+	/* make socket for each socket info */
+	if (__fly_listen_socket_event(manager, ctx->listen_sock) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_PROCS,
+			"fail to register listen socket event."
+		);
 
 	/* log event start here */
 	if (fly_event_handler(manager) == -1)
@@ -523,14 +560,15 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 	char rpath[FLY_PATH_MAX];
 	fly_mount_parts_t *__p;
 	struct fly_mount_parts_file *__pf;
-	struct fly_bllist *__b, *__pfb;
+	struct fly_bllist *__b, *__pfb, *__n;
 
 	fly_for_each_bllist(__b, &ctx->mount->parts){
 		__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
 		if (__p->file_count == 0)
 			continue;
 
-		fly_for_each_bllist(__pfb, &__p->files){
+		for (__pfb=__p->files.next; __pfb!=&__p->files; __pfb=__n){
+			__n = __pfb->next;
 			__pf = fly_bllist_data(__pfb, struct fly_mount_parts_file, blelem);
 			if (__pf->dir){
 				fly_parts_file_remove(__p, __pf);

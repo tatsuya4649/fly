@@ -25,7 +25,6 @@ struct fly_sockinfo{
 
 #define FLY_SOCKINFO_SSL		(1<<0)
 	int flag;
-	struct fly_sockinfo *next;
 };
 typedef struct fly_sockinfo fly_sockinfo_t;
 #define FLY_SOCKET_OPTION		1

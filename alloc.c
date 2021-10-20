@@ -104,8 +104,23 @@ struct fly_pool_manager *fly_pool_manager_init(void)
 	return __pm;
 }
 
+void fly_release_all_pool(struct fly_pool_manager *__pm)
+{
+	if (__pm->total_pool_count == 0)
+		return;
+
+	struct fly_bllist *__b, *__n;
+	struct fly_pool *__p;
+	for (__b=__pm->pools.next; __b!=&__pm->pools; __b=__n){
+		__n = __b->next;
+		__p = fly_bllist_data(__b, struct fly_pool, pbelem);
+		fly_delete_pool(__p);
+	}
+}
+
 void fly_pool_manager_release(struct fly_pool_manager *__pm)
 {
+	fly_release_all_pool(__pm);
 	fly_free(__pm);
 }
 

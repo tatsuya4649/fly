@@ -17,8 +17,6 @@ struct fly_context{
 	struct fly_pool_manager *pool_manager;
 	fly_pool_t *misc_pool;
 	fly_sockinfo_t *listen_sock;
-	/* TODO: change to bllist */
-	fly_sockinfo_t *dummy_sock;
 	int listen_count;
 	fly_log_t *log;
 	fly_route_reg_t *route_reg;
@@ -30,14 +28,6 @@ struct fly_context{
 	SSL_CTX *ssl_ctx;
 };
 typedef struct fly_context fly_context_t;
-
-#define FLY_DUMMY_SOCK_INIT(ctx)			\
-	{										\
-		(ctx)->dummy_sock = fly_pballoc((ctx)->pool, sizeof(fly_sockinfo_t));	\
-		if (fly_unlikely_null((ctx)->dummy_sock))		\
-			return NULL;								\
-		(ctx)->dummy_sock->next = (ctx)->dummy_sock;	\
-	}
 
 fly_context_t *fly_context_init(struct fly_pool_manager *__pm);
 void fly_context_release(fly_context_t *ctx);

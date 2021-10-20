@@ -26,7 +26,6 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 	ctx->misc_pool = fly_create_pool(__pm, FLY_CONTEXT_POOL_SIZE);
 	if (!ctx->misc_pool)
 		return NULL;
-	FLY_DUMMY_SOCK_INIT(ctx);
 	ctx->listen_sock = __fly_listen_sock(ctx, pool);
 	if (ctx->listen_sock == NULL)
 		return NULL;

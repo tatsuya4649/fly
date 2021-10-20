@@ -17,15 +17,7 @@ int fly_socket_nonblocking(fly_sock_t s)
 
 void fly_add_sockinfo(fly_context_t *ctx, fly_sockinfo_t *info)
 {
-	if (ctx->listen_count == 0){
-		ctx->dummy_sock->next = info;
-		ctx->listen_sock = info;
-	}else{
-		fly_sockinfo_t *__i;
-		for (__i=ctx->listen_sock; __i->next!=ctx->dummy_sock; __i=__i->next)
-			;
-		__i->next = info;
-	}
+	ctx->listen_sock = info;
 	ctx->listen_count++;
 	return;
 }
@@ -84,7 +76,6 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	memcpy(&info->addr, rp->ai_addr, rp->ai_addrlen);
 	info->addrlen = rp->ai_addrlen;
 	info->flag = flag;
-	info->next = ctx->dummy_sock;
 	if (info->flag & FLY_SOCKINFO_SSL){
 		char *crt_path_env = fly_ssl_crt_path();
 		char *key_path_env = fly_ssl_key_path();
