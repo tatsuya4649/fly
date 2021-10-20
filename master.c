@@ -593,10 +593,10 @@ error:
 
 }
 
-__fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, __unused struct inotify_event *ie)
+__fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, struct inotify_event *ie)
 {
 	int mask;
-	__unused int signum = 0;
+	int signum = 0;
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
 
@@ -633,7 +633,7 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	}
 
 	fly_for_each_bllist(__b, &master->workers){
-		__w = fly_bllist_data(__b, struct fly_worker, blelem);
+		__w = fly_bllist_data(__b, fly_worker_t, blelem);
 		if (fly_send_signal(__w->pid, signum, parts->mount_number) == -1)
 			return -1;
 	}
@@ -641,21 +641,32 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	return 0;
 }
 
-__fly_static int __fly_inotify_in_pf(__unused struct fly_mount_parts_file *pf, struct inotify_event *ie)
+__fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, struct inotify_event *ie)
 {
 	int mask;
 	char rpath[FLY_PATH_MAX];
+	fly_worker_t *__w;
+	int signum = 0;
 
 	if (fly_join_path(rpath, pf->parts->mount_path, pf->filename) == -1)
 		return -1;
 
 	mask = ie->mask;
 	if (mask & IN_MODIFY){
+		signum |= FLY_SIGNAL_MODF;
 		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
 			return -1;
 	}
 	if (mask & IN_ATTRIB){
+		signum |= FLY_SIGNAL_MODF;
 		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+			return -1;
+	}
+
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &master->workers){
+		__w = fly_bllist_data(__b, struct fly_worker, blelem);
+		if (fly_send_signal(__w->pid, signum, pf->parts->mount_number) == -1)
 			return -1;
 	}
 	return 0;
@@ -675,7 +686,7 @@ __fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, 
 
 	pf = fly_wd_from_mount(wd, ctx->mount);
 	if (pf)
-		return __fly_inotify_in_pf(pf, ie);
+		return __fly_inotify_in_pf(master, pf, ie);
 
 	return 0;
 }
