@@ -265,6 +265,11 @@ __fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused 
 	__fly_signal_handler(ctx, mount_number, __fly_unmount_by_signal);
 }
 
+__noreturn void fly_worker_signal_default_handler(fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
+{
+	exit(0);
+}
+
 __fly_static int __fly_wsignal_handle(fly_context_t *ctx, struct signalfd_siginfo *info)
 {
 	fly_signal_t *__s;
@@ -273,7 +278,7 @@ __fly_static int __fly_wsignal_handle(fly_context_t *ctx, struct signalfd_siginf
 			if (__s->handler)
 				__s->handler(ctx, info);
 			else
-				fly_signal_default_handler(info);
+				fly_worker_signal_default_handler(ctx, info);
 
 			return 0;
 		}
@@ -321,7 +326,9 @@ __fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, fly_con
 
 	if (fly_refresh_signal() == -1)
 		return -1;
-	if (sigemptyset(&sset) == -1)
+//	if (sigemptyset(&sset) == -1)
+//		return -1;
+	if (sigfillset(&sset) == -1)
 		return -1;
 
 	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++){
