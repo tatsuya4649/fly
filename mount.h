@@ -31,6 +31,7 @@ struct fly_mount_parts_file{
 	struct fly_mount_parts	*parts;
 	struct fly_file_hash	*hash;
 	fly_mime_type_t			*mime_type;
+	struct fly_rb_node		*rbnode;
 
 	struct fly_bllist		blelem;
 
@@ -83,6 +84,7 @@ int fly_join_path(char *buffer, char *join1, char *join2);
 
 int fly_mount_inotify(fly_mount_t *mount, int ifd);
 void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
+struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *sb);
 
 struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts);
 fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt);
@@ -104,6 +106,7 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts);
 int fly_parts_file_remove_from_path(fly_mount_parts_t *parts, char *filename);
 
 struct fly_mount_parts_file *fly_pf_from_parts(char *path, fly_mount_parts_t *parts);
+struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount_parts_t *parts);
 void fly_parts_file_add(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 const char *fly_index_path(void);
 #include "uri.h"
@@ -120,5 +123,12 @@ static inline bool fly_have_mount_index(struct fly_mount *mount)
 {
 	return mount->index != NULL ? true : false;
 }
+
+#ifdef DEBUG
+__unused static struct fly_mount_parts_file *fly_pf_debug(struct fly_bllist *__b)
+{
+	return (struct fly_mount_parts_file *) fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
+}
+#endif
 
 #endif

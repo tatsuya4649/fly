@@ -28,6 +28,7 @@ struct fly_rb_node{
 	void *key;
 	/* node data */
 	void *data;
+	struct fly_rb_node **node_data;
 	struct fly_rb_node *parent;
 	struct fly_rb_node *c_right;
 	struct fly_rb_node *c_left;
@@ -43,7 +44,7 @@ typedef int fly_rb_color_t;
 
 struct fly_rb_tree *fly_rb_tree_init(fly_rb_cmp_t cmp);
 void fly_rb_tree_release(struct fly_rb_tree *tree);
-fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key);
+fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key, struct fly_rb_node **node_data);
 void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node);
 void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node);
 fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key);

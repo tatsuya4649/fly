@@ -268,6 +268,7 @@ fly_rb_node_t *__fly_node_init(void *data, void *key)
 	node->parent = nil_node_ptr;
 	node->c_right = nil_node_ptr;
 	node->c_left = nil_node_ptr;
+	node->node_data = NULL;
 	fly_rb_color_update(node, FLY_RB_RED);
 
 	return node;
@@ -311,13 +312,15 @@ fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key)
 	return NULL;
 }
 
-fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key)
+fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key, struct fly_rb_node **node_data)
 {
 	fly_rb_node_t *node;
 
 	node = __fly_node_init(data, key);
 	if (fly_unlikely_null(node))
 		return NULL;
+
+	node->node_data = node_data;
 	fly_rb_tree_insert_node(tree, node);
 #ifdef DEBUG
 	__fly_rbtree_debug(tree, __FLY_RBTREE_DEBUG_INSERT);
@@ -696,15 +699,12 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 
 		__m = fly_rb_min_from_node(node);
 		__p = __m->parent;
-        //fly_rb_swap(tree, node, __m);
-		//__m->data = node->data;
-		//__m->key = node->key;
-        //__mrc = node->c_right;
-		//__p->c_left = __mrc;
-		//fly_rb_parent(__mrc, node);
 
 		node->data = __m->data;
 		node->key = __m->key;
+
+		if (__m->node_data)
+			*__m->node_data = node;
 		/* __m have one or zero child. */
 		__mrc = __m->c_right;
 

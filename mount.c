@@ -10,6 +10,7 @@
 #include "err.h"
 #include "cache.h"
 #include "response.h"
+#include "rbtree.h"
 
 __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point);
 __fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response, int read_or_write);
@@ -116,6 +117,8 @@ int fly_parts_file_remove_from_path(fly_mount_parts_t *parts, char *filename)
 void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf)
 {
 	fly_bllist_remove(&pf->blelem);
+	if (pf->rbnode != NULL)
+		fly_rb_delete(parts->mount->rbtree, pf->rbnode);
 	fly_pbfree(parts->mount->ctx->pool, pf);
 	parts->file_count--;
 }
@@ -131,7 +134,7 @@ __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *moun
 		*dist++ = *src++;
 }
 
-static struct fly_mount_parts_file *__fly_pf_init(fly_mount_parts_t *parts, struct stat *sb)
+struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *sb)
 {
 	fly_pool_t *pool;
 	struct fly_mount_parts_file *pfile;
@@ -151,6 +154,7 @@ static struct fly_mount_parts_file *__fly_pf_init(fly_mount_parts_t *parts, stru
 	pfile->encode_type = FLY_MOUNT_DEFAULT_ENCODE_TYPE;
 	pfile->encoded = false;
 	pfile->dir = false;
+	pfile->rbnode = NULL;
 
 	return pfile;
 }
@@ -190,7 +194,7 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 			if (__fly_nftw(parts, __path, mount_point, infd) == -1)
 				goto error;
 
-		pfile = __fly_pf_init(parts, &sb);
+		pfile = fly_pf_init(parts, &sb);
 		if (S_ISDIR(sb.st_mode))
 			pfile->dir = true;
 		if (fly_unlikely_null(pfile))
@@ -209,6 +213,9 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 
 		if (fly_hash_from_parts_file_path(__path, pfile) == -1)
 			goto error;
+
+		/* add rbnode to rbtree */
+		pfile->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) pfile, (void *) pfile->filename, &pfile->rbnode);
 		fly_parts_file_add(parts, pfile);
 		parts->mount->file_count++;
 	}
@@ -517,23 +524,38 @@ int fly_mount_inotify(fly_mount_t *mount, int ifd)
 
 struct fly_mount_parts_file *fly_pf_from_parts(char *path, fly_mount_parts_t *parts)
 {
-	char __path[FLY_PATH_MAX];
-	int res;
-	struct fly_bllist *__b;
 	struct fly_mount_parts_file *__pf;
 
 	if (parts->file_count == 0)
 		return NULL;
 
-	fly_for_each_bllist(__b, &parts->files){
-		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
-		res = snprintf(__path, FLY_PATH_MAX, "%s/%s", parts->mount_path, __pf->filename);
-		if (res < 0 || res >= FLY_PATH_MAX)
-			return NULL;
-		if (strcmp(path, __path) == 0)
-			return __pf;
-	}
-	return NULL;
+	__pf = fly_rb_node_data_from_key(parts->mount->rbtree, path);
+	return __pf;
+}
+
+struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount_parts_t *parts)
+{
+	char __path[FLY_PATH_MAX];
+	char *mnt_path;
+	__unused fly_mount_t *mnt;
+
+	if (parts->file_count == 0)
+		return NULL;
+
+	mnt_path = parts->mount_path;
+	mnt = parts->mount;
+
+	while(*path++ == *mnt_path++)
+		if (*mnt_path == '\0')
+			break;
+
+	while(fly_slash(*path))
+		path++;
+
+	memset(__path, '\0', FLY_PATH_MAX);
+	strncpy(__path, path, strlen(path));
+
+	return fly_pf_from_parts(__path, parts);
 }
 
 struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts)
@@ -594,22 +616,30 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path)
 	if (fly_join_path(rpath, parts->mount_path, path) == -1)
 		return -1;
 
-	if (fly_isdir(rpath))
+	if (fly_isdir(rpath)){
 		if (__fly_nftw(parts, (const char *) rpath, parts->mount_path, parts->infd) == -1)
 			return -1;
+	}else{
+		struct stat sb;
 
-	__npf = fly_pballoc(parts->mount->ctx->pool, sizeof(struct fly_mount_parts_file));
-	if (fly_unlikely_null(__npf))
-		return -1;
+		if (stat(rpath, &sb) == -1)
+			return -1;
 
-	__npf->infd = parts->infd;
-	__npf->fd = -1;
-	__npf->wd = inotify_add_watch(__npf->infd, rpath, FLY_INOTIFY_WATCH_FLAG_PF);
-	__npf->parts = parts;
-	strcpy(__npf->filename, path);
-	if (fly_hash_from_parts_file_path(rpath, __npf) == -1)
-		return -1;
-	fly_parts_file_add(parts, __npf);
+		__npf = fly_pf_init(parts, &sb);
+		if (fly_unlikely_null(__npf))
+			return -1;
+
+		__npf->infd = parts->infd;
+		__npf->wd = inotify_add_watch(__npf->infd, rpath, FLY_INOTIFY_WATCH_FLAG_PF);
+		__npf->parts = parts;
+		strcpy(__npf->filename, path);
+		if (fly_hash_from_parts_file_path(rpath, __npf) == -1)
+			return -1;
+
+		__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __npf, (void *) __npf->filename, &__npf->rbnode);
+		fly_parts_file_add(parts, __npf);
+		parts->mount->file_count++;
+	}
 	return 0;
 }
 
@@ -635,9 +665,12 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 	/* remove mount point */
 	fly_for_each_bllist(__b, &parts->files){
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
-		if(inotify_rm_watch(__pf->infd, __pf->wd) == -1)
-			return -1;
+		if (__pf->infd > 0 && __pf->wd > 0)
+			if(inotify_rm_watch(__pf->infd, __pf->wd) == -1)
+				return -1;
+
 		fly_parts_file_remove(parts, __pf);
+		parts->mount->file_count--;
 	}
 
 	struct stat statb;
@@ -656,19 +689,18 @@ int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, int mask)
 	if (parts->file_count == 0)
 		return -1;
 
-	struct fly_bllist *__b;
 	struct fly_mount_parts_file *__pf;
 
-	fly_for_each_bllist(__b, &parts->files){
-		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
-		if (__fly_samedir_cmp(__pf->filename, path) == 0){
-			if (mask & IN_MOVED_FROM && \
-					inotify_rm_watch(__pf->infd, __pf->wd) == -1)
-				return -1;
-			fly_parts_file_remove(parts, __pf);
-		}
-	}
+	__pf = fly_pf_from_parts(path, parts);
+	if (!__pf)
+		return 0;
 
+	if (mask & IN_MOVED_FROM && \
+			inotify_rm_watch(__pf->infd, __pf->wd) == -1)
+		return -1;
+
+	fly_parts_file_remove(parts, __pf);
+	parts->mount->file_count--;
 	return 0;
 }
 

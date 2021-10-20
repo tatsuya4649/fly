@@ -170,7 +170,7 @@ int fly_event_register(fly_event_t *event)
 		/* add to red black tree */
 		if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event)){
 			__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
-			event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout);
+			event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout, &event->rbnode);
 		}
 
 		if (fly_event_monitorable(event))
@@ -187,7 +187,7 @@ int fly_event_register(fly_event_t *event)
 			if (!(event->tflag & FLY_INFINITY) && !(event->tflag & FLY_INHERIT))
 					__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
 			if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event))
-				event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout);
+				event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout, &event->rbnode);
 		}
 	}
 	data.ptr = event;
@@ -209,6 +209,8 @@ int fly_event_unregister(fly_event_t *event)
 		return 0;
 	}else{
 		fly_queue_remove(&event->qelem);
+		if (event->rbnode)
+			fly_rb_delete(event->manager->rbtree, event->rbnode);
 		if (!(event->flag & FLY_CLOSE_EV))
 			if (epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL) == -1)
 				return -1;
