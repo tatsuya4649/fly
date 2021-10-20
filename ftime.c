@@ -72,10 +72,10 @@ int fly_imt_fixdate(char *buf, size_t buflen, time_t *time)
 	if (gmtime_r(time, &gmtm) == NULL)
 		return -1;
 
+	memset(buf, '\0', buflen);
 	len = strftime(buf, buflen, FLY_IMT_FIXDATE_FORMAT, &gmtm);
 	if (len == 0)
 		return -1;
-	buf[buflen] = '\0';
 	return 0;
 }
 

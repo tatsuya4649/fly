@@ -12,7 +12,6 @@
 __fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
 __fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen);
-//__fly_static int __fly_listen_connected(fly_event_t *);
 __fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
 __fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler);
@@ -98,12 +97,8 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 	struct dirent *__ent;
 	char __path[FLY_PATH_MAX];
 	struct fly_mount_parts_file *__pf;
-	fly_pool_t *pool;
+	struct stat sb;
 
-	if (parts->infd == -1)
-		return -1;
-
-	pool = parts->mount->ctx->pool;
 	__pathd = opendir(path);
 	if (__pathd == NULL)
 		return -1;
@@ -122,13 +117,16 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 			continue;
 		}
 
-		__pf = fly_pf_from_parts(__path, parts);
+		__pf = fly_pf_from_parts_by_fullpath(__path, parts);
 		/* already register in parts */
 		if (__pf)
 			continue;
 
 		/* new file regsiter in parts */
-		__pf = fly_pballoc(pool, sizeof(struct fly_mount_parts_file));
+		if (stat(__path, &sb) == -1)
+			goto error;
+
+		__pf = fly_pf_init(parts, &sb);
 		if (fly_unlikely_null(__pf))
 			goto error;
 
@@ -139,13 +137,12 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		__pf->parts = parts;
 		__pf->infd = parts->infd;
 		__pf->mime_type = fly_mime_type_from_path_name(__path);
-		__pf->wd = inotify_add_watch(parts->infd, __path, FLY_INOTIFY_WATCH_FLAG_PF);
-		if (__pf->wd == -1)
-			goto error;
 		if (fly_hash_from_parts_file_path(__path, __pf) == -1)
 			goto error;
 
 		fly_parts_file_add(parts, __pf);
+		parts->mount->file_count++;
+		__pf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __pf, (void *) __pf->filename, &__pf->rbnode);
 	}
 	return closedir(__pathd);
 error:
@@ -164,14 +161,14 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __unused char *pa
 
 	fly_for_each_bllist(__b, &parts->files){
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
-		if (fly_join_path(__path, (char *) mount_point, __pf->filename) == -1){
-			fly_bllist_remove(&__pf->blelem);
-			/* release pf */
-			fly_pbfree(parts->pool, __pf);
+		if (fly_join_path(__path, (char *) mount_point, __pf->filename) == -1 \
+				&& errno == ENOENT){
 			if (__pf->fd != -1)
 				if (close(__pf->fd) == -1)
 					return -1;
-			parts->file_count--;
+
+			fly_parts_file_remove(parts, __pf);
+			parts->mount->file_count--;
 		}
 	}
 
@@ -188,7 +185,9 @@ __fly_static int __fly_work_unmount(fly_mount_parts_t *parts)
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if (__pf->fd != -1 && close(__pf->fd) == -1)
 			return -1;
-		parts->file_count--;
+
+		fly_parts_file_remove(parts, __pf);
+		parts->mount->file_count--;
 	}
 	return fly_unmount(parts->mount, parts->mount_path);
 }
@@ -287,7 +286,7 @@ __fly_static int __fly_worker_signal_handler(__unused fly_event_t *e)
 	struct signalfd_siginfo info;
 	ssize_t res;
 
-	while(1){
+	while(true){
 		res = read(e->fd, (void *) &info,sizeof(struct signalfd_siginfo));
 		if (res == -1){
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -533,8 +532,6 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 					continue;
 
 				__pf->fd = open(rpath, O_RDONLY);
-				/* add rbnode to rbtree */
-				fly_rb_tree_insert(ctx->mount->rbtree, (void *) __pf, (void *) __pf->filename);
 				/* if index, setting */
 				const char *index_path = fly_index_path();
 				if (strncmp(__pf->filename, index_path, strlen(index_path)) == 0)
