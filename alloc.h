@@ -68,6 +68,7 @@ struct fly_pool{
 	size_t					block_size;
 };
 
+void fly_release_all_pool(struct fly_pool_manager *__pm);
 fly_pool_t *fly_create_pool(struct fly_pool_manager *__pm, fly_page_t size);
 fly_pool_t *fly_create_poolb(struct fly_pool_manager *__pm, size_t size);
 void fly_delete_pool(fly_pool_t *pool);

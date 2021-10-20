@@ -17,9 +17,14 @@
 #define FLY_ERRORLOG_ENV				"FYL_ERRORLOG_ENV"
 #define FLY_NOTICLOG_ENV				"FYL_NOTICLOG_ENV"
 #define FLY_DEFAULT_LOGDIR				(fly_path_t *) 	"./log/"
+
+#define FLY_ERRORLOG_FILENAME					"fly_error.log"
+#define FLY_ACCESLOG_FILENAME					"fly_error.log"
+#define FLY_NOTICLOG_FILENAME					"fly_error.log"
 #define FLY_ACCESLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_access.log")
 #define FLY_ERRORLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_error.log")
 #define FLY_NOTICLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_notice.log")
+#define FLY_LOG_PATH					"FLY_LOG_PATH"
 typedef char				fly_path_t;
 typedef char				fly_logc_t;
 typedef int					fly_logfile_t;
@@ -109,5 +114,7 @@ int fly_log_now(fly_time_t *t);
 #define FLY_NOTICE_DIRECT_LOG					fly_notice_direct_log
 void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...);
 int fly_log_event_register(fly_event_manager_t *manager, struct fly_logcont *lc);
+
+const char *fly_log_path(void);
 
 #endif

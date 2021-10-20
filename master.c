@@ -237,6 +237,7 @@ __noreturn static void fly_master_signal_default_handler(fly_master_t *master, f
 		fly_send_signal(__w->pid, si->ssi_signo, 0);
 	}
 
+	fly_master_release(master);
 	exit(0);
 }
 
@@ -324,7 +325,6 @@ static int fly_workers_count(void)
 void fly_master_release(fly_master_t *master)
 {
 	assert(master != NULL);
-	fly_context_release(master->context);
 	fly_pool_manager_release(master->pool_manager);
 	fly_free(master);
 }
@@ -557,10 +557,23 @@ const char *fly_proc_type_str(fly_proc_type type)
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data)
 {
 	pid_t pid;
+	fly_worker_t *worker;
+
 	switch((pid=fork())){
 	case -1:
 		return -1;
 	case 0:
+		{
+			/* unnecessary resource release */
+			fly_master_release(master);
+
+			/* alloc worker resource */
+			worker = fly_worker_init();
+			if (!worker)
+				exit(1);
+
+			ctx = worker->context;
+		}
 		break;
 	default:
 		/* parent */
