@@ -19,11 +19,16 @@
 #include "master.h"
 
 struct fly_worker{
-	pid_t				pid;
-	pid_t 				ppid;
-	struct fly_master	*master;
-	struct fly_bllist 	blelem;
-	time_t				start;
+	pid_t						pid;
+	pid_t 						ppid;
+	time_t						start;
+
+	struct fly_pool_manager		*pool_manager;
+	fly_context_t				*context;
+
+	/* use in master process */
+	struct fly_master			*master;
+	struct fly_bllist 			blelem;
 };
 
 typedef int fly_worker_id;
@@ -31,6 +36,8 @@ typedef int fly_worker_id;
 typedef struct fly_worker fly_worker_t;
 
 __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, void *data);
+struct fly_worker *fly_worker_init(void);
+void fly_worker_release(fly_worker_t *worker);
 
 #define FLY_WORKER_SUCCESS_EXIT			0
 void fly_worker_signal(void);
