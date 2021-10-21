@@ -5,6 +5,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <stddef.h>
 
 #ifndef __GNUC__
 #define __attribute__((x))		/* NOTHING */

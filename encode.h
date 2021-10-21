@@ -137,9 +137,14 @@ int fly_accept_encoding(struct fly_response *res);
 #define FLY_ENCODE_TYPE_ERROR		-3
 #define FLY_ENCODE_READ_ERROR		-4
 #define FLY_ENCODE_BUFFER_ERROR		-5
+
 #define FLY_DECODE_SUCCESS			1
 #define FLY_DECODE_OVERFLOW			0
 #define FLY_DECODE_ERROR			-1
+#define FLY_DECODE_SEEK_ERROR		-2
+#define FLY_DECODE_TYPE_ERROR		-3
+#define FLY_DECODE_READ_ERROR		-4
+#define FLY_DECODE_BUFFER_ERROR		-5
 
 /* gzip encode/decode */
 int fly_gzip_decode(fly_de_t *de);

@@ -98,6 +98,7 @@ __fly_static int __fly_event_cmp(void *k1, void *k2)
 	FLY_NOT_COME_HERE;
 }
 
+/* TODO: event end handle */
 int fly_event_manager_release(fly_event_manager_t *manager)
 {
 	if (manager == NULL || manager->pool == NULL)

@@ -27,6 +27,7 @@ struct fly_master{
 	int now_workers;
 	void (*worker_process)(fly_context_t *ctx, void *data);
 	struct fly_pool_manager *pool_manager;
+	struct fly_event_manager *event_manager;
 
 	struct fly_bllist workers;
 	fly_context_t *context;
@@ -43,6 +44,7 @@ void fly_remove_pidfile(void);
 //fly_context_t *fly_master_init(void);
 fly_master_t *fly_master_init(void);
 void fly_master_release(fly_master_t *master);
+fly_context_t *fly_master_release_except_context(fly_master_t *master);
 /*
  * waiting for signal foever. wait or end.
  */
