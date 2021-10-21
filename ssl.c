@@ -160,6 +160,14 @@ __fly_static int __fly_ssl_alpn(SSL *ssl __unused, const unsigned char **out __u
 	return SSL_TLSEXT_ERR_NOACK;
 }
 
+void fly_listen_socket_end_handler(fly_event_t *__e)
+{
+	fly_connect_t *conn;
+
+	conn = (fly_connect_t *) __e->end_event_data;
+	fly_connect_release(conn);
+}
+
 
 __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_accept *__ac)
 {
@@ -219,6 +227,8 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 	e->event_data = __fly_ssl_connected(__ac->listen_sock, conn_sock, e,(struct sockaddr *) &__ac->addr, __ac->addrlen, __ac->ssl, __ac->ctx);
 	if (fly_unlikely_null(e->event_data))
 		return -1;
+	e->end_event_data = (void *) e->event_data;
+	e->end_handler = fly_listen_socket_end_handler;
 	fly_event_socket(e);
 
 	/* release accept resource */
