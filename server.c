@@ -15,6 +15,11 @@ int fly_socket_nonblocking(fly_sock_t s)
 	return ioctl(s, FIONBIO, &val);
 }
 
+int fly_backlog(void)
+{
+	return fly_config_value_int(FLY_BACKLOG);
+}
+
 void fly_add_sockinfo(fly_context_t *ctx, fly_sockinfo_t *info)
 {
 	ctx->listen_sock = info;
@@ -69,7 +74,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 
 	if (getnameinfo((const struct sockaddr *) rp->ai_addr, (socklen_t) rp->ai_addrlen, info->hostname, NI_MAXHOST, info->servname, NI_MAXSERV, FLY_LISTEN_SOCKINFO_FLAG) != 0)
 		goto error;
-	if (listen(sockfd, FLY_BACKLOG_DEFAULT) == -1)
+	if (listen(sockfd, fly_backlog()) == -1)
 		goto error;
 
 	info->fd = sockfd;

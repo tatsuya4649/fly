@@ -55,7 +55,6 @@ struct fly_pool_manager{
 struct fly_pool_manager *fly_pool_manager_init(void);
 void fly_pool_manager_release(struct fly_pool_manager *__pm);
 
-
 struct fly_pool{
 	fly_page_t				max;			/* per page size */
 	fly_pool_t 				*current;	/* now pointed pool */
@@ -66,7 +65,16 @@ struct fly_pool{
 	struct fly_bllist		blocks;
 	struct fly_rb_tree  	*rbtree;
 	size_t					block_size;
+
+	fly_bit_t				self_delete: 1;
 };
+
+#ifdef DEBUG
+__unused static struct fly_pool *fly_pool_debug(struct fly_bllist *__b)
+{
+	return (struct fly_pool *) fly_bllist_data(__b, struct fly_pool, pbelem);
+}
+#endif
 
 void fly_release_all_pool(struct fly_pool_manager *__pm);
 fly_pool_t *fly_create_pool(struct fly_pool_manager *__pm, fly_page_t size);

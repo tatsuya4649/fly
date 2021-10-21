@@ -24,6 +24,7 @@ struct fly_worker{
 	time_t						start;
 
 	struct fly_pool_manager		*pool_manager;
+	struct fly_event_manager	*event_manager;
 	fly_context_t				*context;
 
 	/* use in master process */
@@ -36,7 +37,7 @@ typedef int fly_worker_id;
 typedef struct fly_worker fly_worker_t;
 
 __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, void *data);
-struct fly_worker *fly_worker_init(void);
+struct fly_worker *fly_worker_init(fly_context_t *mcontext);
 void fly_worker_release(fly_worker_t *worker);
 
 #define FLY_WORKER_SUCCESS_EXIT			0

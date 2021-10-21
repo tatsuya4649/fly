@@ -9,7 +9,6 @@ __fly_static int __fly_log_write_logcont(fly_logcont_t *lc);
 __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc);
 __fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t);
 
-fly_pool_t *fly_log_pool = NULL;
 __fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize);
 
 __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
@@ -78,12 +77,12 @@ __fly_static int __fly_notice_log_path(char *log_path_buf, size_t buflen)
 
 #define __FLY_LOGFILE_INIT_STDOUT			1 << 0
 #define __FLY_LOGFILE_INIT_STDERR			1 << 1
-__fly_static __fly_log_t *__fly_logfile_init(const fly_path_t *fly_log_path, int flag)
+__fly_static __fly_log_t *__fly_logfile_init(fly_pool_t *pool, const fly_path_t *fly_log_path, int flag)
 {
 	__fly_log_t *lt;
 	fly_logfile_t lfile;
 
-	lt = fly_pballoc(fly_log_pool, sizeof(__fly_log_t));
+	lt = fly_pballoc(pool, sizeof(__fly_log_t));
 	if (lt == NULL)
 		return NULL;
 
@@ -165,19 +164,14 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 	fly_log_t *lt;
 	__fly_log_t *alp, *elp, *nlp;
 
-	if (fly_log_pool == NULL)
-		fly_log_pool = fly_create_pool(ctx->pool_manager, FLY_LOG_POOL_SIZE);
-
-	if (!fly_log_pool)
-		goto error;
-
-	lt = fly_pballoc(fly_log_pool, sizeof(fly_log_t));
+	lt = fly_pballoc(ctx->pool, sizeof(fly_log_t));
 	if (!lt)
 		goto error;
 
 	if (__fly_log_path(access, log_path_buf, FLY_PATH_MAX) == -1)
 		return NULL;
 	alp = __fly_logfile_init(
+		ctx->pool,
 		log_path_buf,
 		__fly_log_stdout(FLY_STDOUT_ENV(ACCESS)) | \
 		__fly_log_stderr(FLY_STDERR_ENV(ACCESS))
@@ -186,6 +180,7 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 	if (__fly_log_path(error, log_path_buf, FLY_PATH_MAX) == -1)
 		return NULL;
 	elp = __fly_logfile_init(
+		ctx->pool,
 		log_path_buf,
 		__fly_log_stdout(FLY_STDOUT_ENV(ERROR)) | \
 		__fly_log_stderr(FLY_STDERR_ENV(ERROR))
@@ -194,6 +189,7 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 	if (__fly_log_path(notice, log_path_buf, FLY_PATH_MAX) == -1)
 		return NULL;
 	nlp = __fly_logfile_init(
+		ctx->pool,
 		log_path_buf,
 		__fly_log_stdout(FLY_STDOUT_ENV(NOTICE)) | \
 		__fly_log_stderr(FLY_STDERR_ENV(NOTICE))
@@ -204,7 +200,7 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 	lt->access = alp;
 	lt->error = elp;
 	lt->notice = nlp;
-	lt->pool = fly_log_pool;
+	lt->pool = ctx->pool;
 	return lt;
 error:
 	return NULL;
@@ -220,7 +216,7 @@ int fly_log_release(fly_log_t *lt)
 	if (close(lt->notice->file) == -1)
 		return -1;
 
-	fly_delete_pool(lt->pool);
+	fly_pbfree(lt->pool, lt);
 	return 0;
 }
 

@@ -14,3 +14,5 @@ GPATH
 GRTAGS
 GTAGS
 gdb.*
+vgcore.*
+valgrind.log

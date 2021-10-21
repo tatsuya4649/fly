@@ -12,13 +12,14 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 	fly_context_t *ctx;
 	fly_pool_t *pool;
 
+	ctx = fly_malloc(sizeof(fly_context_t));
+	if (!ctx)
+		return NULL;
+
 	pool = fly_create_pool(__pm, FLY_CONTEXT_POOL_SIZE);
 	if (!pool)
 		return NULL;
-
-	ctx = fly_pballoc(pool, sizeof(fly_context_t));
-	if (!ctx)
-		return NULL;
+	pool->self_delete = true;
 
 	memset(ctx, 0, sizeof(fly_context_t));
 	ctx->pool = pool;
@@ -26,17 +27,22 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 	ctx->misc_pool = fly_create_pool(__pm, FLY_CONTEXT_POOL_SIZE);
 	if (!ctx->misc_pool)
 		return NULL;
+	ctx->misc_pool->self_delete = true;
+	ctx->listen_count = 0;
 	ctx->listen_sock = __fly_listen_sock(ctx, pool);
 	if (ctx->listen_sock == NULL)
-		return NULL;
-	ctx->route_reg = fly_route_reg_init(ctx);
-	if (ctx->route_reg == NULL)
 		return NULL;
 	ctx->log = fly_log_init(ctx);
 	if (ctx->log == NULL)
 		return NULL;
+	ctx->route_reg = fly_route_reg_init(ctx);
+	if (ctx->route_reg == NULL)
+		return NULL;
+	ctx->mount = NULL;
 	fly_bllist_init(&ctx->rcbs);
 
+	/* for SSL/TLS */
+	ctx->ssl_ctx = NULL;
 	/* ready for emergency error */
 	if (fly_errsys_init(ctx) == -1)
 		return NULL;
@@ -46,10 +52,19 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 
 void fly_context_release(fly_context_t *ctx)
 {
+	if (ctx->listen_sock)
+		close(ctx->listen_sock->fd);
+	if (ctx->ssl_ctx)
+		SSL_CTX_free(ctx->ssl_ctx);
+
+	if (ctx->mount)
+		fly_mount_release(ctx);
+
+	fly_delete_pool(ctx->misc_pool);
 	fly_delete_pool(ctx->pool);
+	fly_free(ctx);
 }
 
-/* configuration file add. */
 __fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool)
 {
 	fly_sockinfo_t *info;
