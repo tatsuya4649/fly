@@ -107,6 +107,19 @@ int fly_event_manager_release(fly_event_manager_t *manager)
 	if (close(manager->efd) == -1)
 		return -1;
 
+	struct fly_queue *__b;
+	fly_event_t *__e;
+	fly_for_each_queue(__b, &manager->monitorable){
+		__e = fly_bllist_data(__b, fly_event_t, qelem);
+		if (__e->end_handler)
+			__e->end_handler(__e);
+	}
+	fly_for_each_queue(__b, &manager->unmonitorable){
+		__e = fly_bllist_data(__b, fly_event_t, qelem);
+		if (__e->end_handler)
+			__e->end_handler(__e);
+	}
+
 	fly_rb_tree_release(manager->rbtree);
 	fly_delete_pool(manager->pool);
 	return 0;
@@ -130,6 +143,7 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	fly_time_zero(event->abs_timeout);
 	fly_time_zero(event->start);
 	event->handler = NULL;
+	event->end_handler = NULL;
 	event->handler_name = NULL;
 	event->fail_close = NULL;
 	if (fly_time(&event->spawn_time) == -1)
