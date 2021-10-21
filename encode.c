@@ -112,7 +112,7 @@ int fly_gzip_decode(fly_de_t *de)
 		return FLY_DECODE_ERROR;
 
 	if ((!de->target_already_alloc && (de->encbuf == NULL || !de->encbuflen)) || de->decbuf == NULL || !de->decbuflen)
-		return FLY_ENCODE_ERROR;
+		return FLY_DECODE_ERROR;
 
 	__zstream.zalloc = Z_NULL;
 	__zstream.zfree = Z_NULL;
@@ -121,7 +121,7 @@ int fly_gzip_decode(fly_de_t *de)
 	__zstream.next_in = Z_NULL;
 	__zstream.avail_in = 0;
 	if (inflateInit2(&__zstream, 47) != Z_OK)
-		return -1;
+		return FLY_DECODE_ERROR;
 
 	__zstream.next_out = fly_buffer_lunuse_ptr(de->decbuf);
 	__zstream.avail_out = fly_buf_act_len(fly_buffer_last_chain(de->decbuf));
@@ -148,15 +148,22 @@ int fly_gzip_decode(fly_de_t *de)
 		status = inflate(&__zstream, Z_NO_FLUSH);
 		if (status == Z_STREAM_END)
 			break;
-		if (status != Z_OK)
-			return FLY_ENCODE_ERROR;
+
+		switch(status){
+		case Z_OK:
+			break;
+		case Z_BUF_ERROR:
+			goto buffer_error;
+		default:
+			goto error;
+		}
 
 		if (__zstream.avail_out == 0){
 			if (de->target_already_alloc)
-				return FLY_DECODE_OVERFLOW;
+				goto buffer_error;
 
 			if (fly_unlikely_null(fly_d_buf_add(de)))
-				return FLY_DECODE_ERROR;
+				goto buffer_error;
 			__zstream.next_out = fly_buffer_lunuse_ptr(de->decbuf);
 			__zstream.avail_out = fly_buffer_lunuse_len(de->decbuf);
 		}
@@ -165,8 +172,17 @@ int fly_gzip_decode(fly_de_t *de)
 	de->end = true;
 	de->decbuflen = de->decbuf->chain_count;
 	if (inflateEnd(&__zstream) != Z_OK)
-		return FLY_ENCODE_ERROR;
-	return 0;
+		return FLY_DECODE_ERROR;
+	return FLY_DECODE_SUCCESS;
+
+buffer_error:
+	if (inflateEnd(&__zstream) != Z_OK)
+		return FLY_DECODE_ERROR;
+	return FLY_DECODE_BUFFER_ERROR;
+error:
+	if (inflateEnd(&__zstream) != Z_OK)
+		return FLY_DECODE_ERROR;
+	return FLY_DECODE_ERROR;
 }
 
 int fly_gzip_encode(fly_de_t *de)
@@ -221,7 +237,7 @@ int fly_gzip_encode(fly_de_t *de)
 				{
 					int numread;
 					if ((numread=read(de->fd, chain->use_ptr, fly_buf_act_len(chain))) == -1)
-						return FLY_ENCODE_READ_ERROR;
+						goto error;
 					__zstream.next_in = chain->use_ptr;
 					__zstream.avail_in = numread;
 				}
@@ -240,15 +256,15 @@ int fly_gzip_encode(fly_de_t *de)
 		case Z_OK:
 			break;
 		case Z_BUF_ERROR:
-			return FLY_ENCODE_BUFFER_ERROR;
+			goto buffer_error;
 		default:
-			return FLY_ENCODE_ERROR;
+			goto error;
 		}
 
 		if (__zstream.avail_out == 0){
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->encbuf, fly_buf_act_len(fly_buffer_last_chain(de->encbuf))) == -1)
-				return FLY_ENCODE_BUFFER_ERROR;
+				goto buffer_error;
 
 			__zstream.next_out = fly_buffer_lunuse_ptr(de->encbuf);
 			__zstream.avail_out = fly_buffer_lunuse_len(de->encbuf);
@@ -257,7 +273,7 @@ int fly_gzip_encode(fly_de_t *de)
 
 	fly_buffer_c *__lc = fly_buffer_last_chain(de->encbuf);
 	if (fly_update_buffer(de->encbuf, __lc->len-__zstream.avail_out) == -1)
-		return FLY_ENCODE_BUFFER_ERROR;
+		goto buffer_error;
 
 	__lc = fly_buffer_last_chain(de->encbuf);
 	contlen += __lc->len-__zstream.avail_out;
@@ -269,6 +285,14 @@ int fly_gzip_encode(fly_de_t *de)
 
 	de->contlen = contlen;
 	return FLY_ENCODE_SUCCESS;
+buffer_error:
+	if (deflateEnd(&__zstream) != Z_OK)
+		return FLY_ENCODE_ERROR;
+	return FLY_ENCODE_BUFFER_ERROR;
+error:
+	if (deflateEnd(&__zstream) != Z_OK)
+		return FLY_ENCODE_ERROR;
+	return FLY_ENCODE_ERROR;
 }
 
 /* brotli compress/decompress */
@@ -331,11 +355,11 @@ int fly_br_decode(fly_de_t *de)
 
 		if (available_out == 0){
 			if (de->target_already_alloc)
-				return FLY_DECODE_OVERFLOW;
+				goto buffer_error;
 
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->decbuf, fly_buf_act_len(fly_buffer_last_chain(de->decbuf))) == -1)
-				return FLY_ENCODE_ERROR;
+				goto buffer_error;
 
 			next_out = fly_buffer_lunuse_ptr(de->decbuf);
 			available_out = fly_buffer_lunuse_len(de->decbuf);
@@ -357,17 +381,20 @@ end_decode:
 	return 0;
 error:
 	BrotliDecoderDestroyInstance(state);
-	return -1;
+	return FLY_DECODE_ERROR;
+buffer_error:
+	BrotliDecoderDestroyInstance(state);
+	return FLY_DECODE_BUFFER_ERROR;
 }
 
 int fly_br_encode(fly_de_t *de)
 {
 	switch (de->type){
 	case FLY_DE_DECODE:
-		return -1;
+		return FLY_ENCODE_ERROR;
 	case FLY_DE_ESEND_FROM_PATH:
 		if (lseek(de->fd, de->offset, SEEK_SET) == -1)
-			return -1;
+			return FLY_ENCODE_ERROR;
 	default:
 		break;
 	}
@@ -409,7 +436,7 @@ int fly_br_encode(fly_de_t *de)
 				{
 					int numread = 0;
 					if ((numread=read(de->fd, chain->use_ptr, fly_buf_act_len(chain))) == -1)
-						return -1;
+						goto error;
 					next_in = chain->use_ptr;
 					available_in = numread;
 				}
@@ -441,7 +468,7 @@ int fly_br_encode(fly_de_t *de)
 			next_out = fly_buffer_lunuse_ptr(de->encbuf);
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->encbuf, fly_buf_act_len(fly_buffer_last_chain(de->encbuf))) == -1)
-				return FLY_ENCODE_ERROR;
+				goto buffer_error;
 
 			next_out = fly_buffer_lunuse_ptr(de->encbuf);
 			available_out = fly_buffer_lunuse_len(de->encbuf);
@@ -462,7 +489,10 @@ int fly_br_encode(fly_de_t *de)
 
 error:
 	BrotliEncoderDestroyInstance(state);
-	return -1;
+	return FLY_ENCODE_ERROR;
+buffer_error:
+	BrotliEncoderDestroyInstance(state);
+	return FLY_ENCODE_BUFFER_ERROR;
 }
 
 __fly_static int __fly_esend_blocking_handler(fly_event_t *e)
@@ -554,7 +584,7 @@ int fly_deflate_decode(fly_de_t *de)
 	case FLY_DE_DECODE:
 		break;
 	default:
-		return -1;
+		return FLY_DECODE_ERROR;
 	}
 	int status;
 	z_stream __zstream;
@@ -562,7 +592,7 @@ int fly_deflate_decode(fly_de_t *de)
 	size_t contlen = 0;
 
 	if (de->encbuf == NULL || !de->encbuflen || de->decbuf == NULL || !de->decbuflen)
-		return FLY_ENCODE_ERROR;
+		return FLY_DECODE_ERROR;
 
 	__zstream.zalloc = Z_NULL;
 	__zstream.zfree = Z_NULL;
@@ -571,7 +601,7 @@ int fly_deflate_decode(fly_de_t *de)
 	__zstream.next_in = Z_NULL;
 	__zstream.avail_in = 0;
 	if (inflateInit(&__zstream) != Z_OK)
-		return -1;
+		return FLY_DECODE_ERROR;
 
 	__zstream.next_out = fly_buffer_lunuse_ptr(de->decbuf);
 	__zstream.avail_out = fly_buf_act_len(fly_buffer_last_chain(de->decbuf));
@@ -599,15 +629,22 @@ int fly_deflate_decode(fly_de_t *de)
 		status = inflate(&__zstream, Z_NO_FLUSH);
 		if (status == Z_STREAM_END)
 			break;
-		if (status != Z_OK)
-			return FLY_ENCODE_ERROR;
+
+		switch(status){
+		case Z_OK:
+			break;
+		case Z_BUF_ERROR:
+			goto buffer_error;
+		default:
+			goto error;
+		}
 		if (__zstream.avail_out == 0){
 			if (de->target_already_alloc)
-				return FLY_ENCODE_OVERFLOW;
+				goto buffer_error;
 
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->decbuf, fly_buf_act_len(fly_buffer_last_chain(de->decbuf))) == -1)
-				return FLY_ENCODE_ERROR;
+				goto buffer_error;
 			__zstream.next_out = fly_buffer_lunuse_ptr(de->decbuf);
 			__zstream.avail_out = fly_buffer_lunuse_len(de->decbuf);
 		}
@@ -617,18 +654,27 @@ int fly_deflate_decode(fly_de_t *de)
 	contlen += (fly_buffer_lunuse_ptr(de->encbuf)-fly_buffer_luse_ptr(de->encbuf));
 	de->contlen = contlen;
 	if (inflateEnd(&__zstream) != Z_OK)
-		return FLY_ENCODE_ERROR;
-	return 0;
+		return FLY_DECODE_ERROR;
+	return FLY_DECODE_SUCCESS;
+
+buffer_error:
+	if (inflateEnd(&__zstream) != Z_OK)
+		return FLY_DECODE_ERROR;
+	return FLY_DECODE_BUFFER_ERROR;
+error:
+	if (inflateEnd(&__zstream) != Z_OK)
+		return FLY_DECODE_ERROR;
+	return FLY_DECODE_ERROR;
 }
 
 int fly_deflate_encode(fly_de_t *de)
 {
 	switch (de->type){
 	case FLY_DE_DECODE:
-		return -1;
+		return FLY_ENCODE_ERROR;
 	case FLY_DE_ESEND_FROM_PATH:
 		if (lseek(de->fd, de->offset, SEEK_SET) == -1)
-			return -1;
+			return FLY_ENCODE_ERROR;
 	default:
 		break;
 	}
@@ -674,7 +720,7 @@ int fly_deflate_encode(fly_de_t *de)
 					int numread = 0;
 					numread = read(de->fd, chain->use_ptr, fly_buf_act_len(chain));
 					if (numread == -1)
-						return -1;
+						goto error;
 
 					__zstream.next_in = chain->use_ptr;
 					__zstream.avail_in = numread;
@@ -689,13 +735,20 @@ int fly_deflate_encode(fly_de_t *de)
 		status = deflate(&__zstream, flush);
 		if (status == Z_STREAM_END)
 			break;
-		if (status != Z_OK)
-			return FLY_ENCODE_ERROR;
+
+		switch(status){
+		case Z_OK:
+			break;
+		case Z_BUF_ERROR:
+			goto buffer_error;
+		default:
+			goto error;
+		}
 
 		if (__zstream.avail_out == 0){
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->decbuf, fly_buf_act_len(fly_buffer_last_chain(de->decbuf))) == -1)
-				return FLY_ENCODE_ERROR;
+				goto error;
 
 			__zstream.next_out = fly_buffer_lunuse_ptr(de->encbuf);
 			__zstream.avail_out = fly_buffer_lunuse_len(de->encbuf);
@@ -704,7 +757,8 @@ int fly_deflate_encode(fly_de_t *de)
 
 	fly_buffer_c *__lc = fly_buffer_last_chain(de->encbuf);
 	if (fly_update_buffer(de->encbuf, __lc->len-__zstream.avail_out) == -1)
-		return -1;
+		goto buffer_error;
+
 	__lc = fly_buffer_last_chain(de->encbuf);
 	contlen += __lc->len-__zstream.avail_out;
 
@@ -714,7 +768,16 @@ int fly_deflate_encode(fly_de_t *de)
 		return FLY_ENCODE_ERROR;
 
 	de->contlen = contlen;
-	return 0;
+	return FLY_ENCODE_SUCCESS;
+
+buffer_error:
+	if (deflateEnd(&__zstream) != Z_OK)
+		return FLY_ENCODE_ERROR;
+	return FLY_ENCODE_BUFFER_ERROR;
+error:
+	if (deflateEnd(&__zstream) != Z_OK)
+		return FLY_ENCODE_ERROR;
+	return FLY_ENCODE_ERROR;
 }
 
 __unused int fly_identity_decode(__unused fly_de_t *de){ return 0; }
