@@ -57,9 +57,11 @@ struct fly_event{
 	struct fly_rb_node			*rbnode;
 
 	int (*handler)(struct fly_event *);
+	void (*end_handler)(struct fly_event *);
 	char						*handler_name;
 
 	void						*event_data;
+	void						*end_event_data;
 	void 						*event_fase;
 	void 						*event_state;
 
