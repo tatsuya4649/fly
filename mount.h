@@ -71,6 +71,7 @@ typedef struct fly_mount fly_mount_t;
 typedef struct fly_mount_parts fly_mount_parts_t;
 
 int fly_mount_init(fly_context_t *ctx);
+void fly_mount_release(fly_context_t *ctx);
 int fly_mount(fly_context_t *ctx, const char *path);
 int fly_unmount(fly_mount_t *mnt, const char *path);
 

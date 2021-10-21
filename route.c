@@ -4,18 +4,13 @@
 
 fly_route_reg_t *fly_route_reg_init(fly_context_t *ctx)
 {
-	fly_pool_t *pool;
 	fly_route_reg_t *reg;
 
-	pool = fly_create_pool(ctx->pool_manager, FLY_ROUTEREG_POOL_SIZE);
-	if (pool == NULL)
-		return NULL;
-
-	reg = fly_pballoc(pool, sizeof(fly_route_reg_t));
+	reg = fly_pballoc(ctx->pool, sizeof(fly_route_reg_t));
 	if (reg == NULL)
 		return NULL;
 
-	reg->pool = pool;
+	reg->pool = ctx->pool;
 	reg->regcount = 0;
 	reg->entry = NULL;
 	return reg;
@@ -23,7 +18,7 @@ fly_route_reg_t *fly_route_reg_init(fly_context_t *ctx)
 
 void fly_route_reg_release(fly_route_reg_t *reg)
 {
-	fly_delete_pool(reg->pool);
+	fly_pbfree(reg->pool, reg);
 }
 
 int fly_register_route(

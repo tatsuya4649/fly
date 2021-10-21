@@ -59,9 +59,7 @@ void fly_rb_tree_release(struct fly_rb_tree *tree)
 	if (tree->node_count == 0){
 		fly_free(tree);
 		return;
-	}
-
-	if (tree->root){
+	}else{
 		__n = tree->root->node;
 		__fly_rb_tree_release(tree, __n);
 		fly_free(tree->root);
@@ -82,6 +80,7 @@ static struct fly_rb_root *fly_rb_root_init(struct fly_rb_tree *tree, struct fly
 
 	tree->root = r;
 	fly_rb_root(tree, node);
+	tree->node_count = 1;
 	return r;
 }
 
@@ -320,6 +319,9 @@ fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *ke
 	if (fly_unlikely_null(node))
 		return NULL;
 
+#ifdef DEBUG
+	assert(tree!=NULL);
+#endif
 	node->node_data = node_data;
 	fly_rb_tree_insert_node(tree, node);
 #ifdef DEBUG
@@ -334,7 +336,6 @@ void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node)
 
     if (tree->node_count == 0){
         tree->root = fly_rb_root_init(tree, node);
-        tree->node_count++;
         return;
     }
 
@@ -342,6 +343,7 @@ void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node)
     while(true){
 		switch(tree->cmp(node->key, __n->key)){
 		case FLY_RB_CMP_EQUAL:
+			fly_free(node);
             return;
 		case FLY_RB_CMP_SMALL:
         /* go left */

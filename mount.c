@@ -42,10 +42,10 @@ int fly_mount_init(fly_context_t *ctx)
 	return 0;
 }
 
-void fly_mount_release(fly_mount_t *mnt)
+void fly_mount_release(fly_context_t *ctx)
 {
-	fly_rb_tree_release(mnt->rbtree);
-	fly_pbfree(mnt->ctx->pool, mnt);
+	fly_rb_tree_release(ctx->mount->rbtree);
+	fly_pbfree(ctx->pool, ctx->mount);
 }
 
 int fly_isdir(const char *path)

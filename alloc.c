@@ -114,7 +114,8 @@ void fly_release_all_pool(struct fly_pool_manager *__pm)
 	for (__b=__pm->pools.next; __b!=&__pm->pools; __b=__n){
 		__n = __b->next;
 		__p = fly_bllist_data(__b, struct fly_pool, pbelem);
-		fly_delete_pool(__p);
+		if (!__p->self_delete)
+			fly_delete_pool(__p);
 	}
 }
 
@@ -139,6 +140,7 @@ static fly_pool_t *__fly_create_pool(struct fly_pool_manager *__pm, size_t size)
 	pool->rbtree = fly_rb_tree_init(__fly_rb_search_block);
 	if (fly_unlikely_null(pool->rbtree))
 		return NULL;
+	pool->self_delete = false;
 
 	fly_bllist_add_tail(&__pm->pools, &pool->pbelem);
 	__pm->total_pool_count++;

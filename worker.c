@@ -12,7 +12,7 @@
 __fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
 __fly_static int __fly_listen_socket_handler(struct fly_event *);
 __fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen);
-__fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, __unused fly_context_t *ctx);
+__fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
 __fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler);
 __fly_static void FLY_SIGNAL_MODF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
@@ -38,36 +38,52 @@ static fly_signal_t fly_worker_signals[] = {
  *	 alloc resource:
  *	 pool_manager, struct fly_worker, struct fly_context
  */
-struct fly_worker *fly_worker_init(void)
+struct fly_worker *fly_worker_init(fly_context_t *mcontext)
 {
 	struct fly_pool_manager *__pm;
 	fly_worker_t *__w;
-	fly_context_t *__ctx;
 
 	__pm = fly_pool_manager_init();
 	if (fly_unlikely_null(__pm))
-		return NULL;
+		goto pm_error;
 
 	__w = fly_malloc(sizeof(fly_worker_t));
 	if (fly_unlikely_null(__w))
-		return NULL;
+		goto w_error;
 
-	__ctx = fly_context_init(__pm);
-	if (fly_unlikely_null(__ctx))
-		return NULL;
+	__w->context = mcontext;
+	__w->context->pool_manager = __pm;
 
+	/* move to master pool manager to worker pool manager */
+	__w->context->pool->manager = __pm;
+	__w->context->misc_pool->manager = __pm;
+	fly_bllist_add_tail(&__pm->pools, &__w->context->pool->pbelem);
+	fly_bllist_add_tail(&__pm->pools, &__w->context->misc_pool->pbelem);
 	__w->pid = getpid();
 	__w->ppid = getppid();
 	__w->master = NULL;
 	__w->start = time(NULL);
 	__w->pool_manager = __pm;
+	__w->event_manager = NULL;
 
 	return __w;
+
+w_error:
+	fly_pool_manager_release(__pm);
+pm_error:
+	return NULL;
 }
 
 void fly_worker_release(fly_worker_t *worker)
 {
 	assert(worker != NULL);
+
+	if (worker->event_manager)
+		fly_event_manager_release(worker->event_manager);
+
+	/* context is self delete */
+	fly_context_release(worker->context);
+
 	fly_pool_manager_release(worker->pool_manager);
 	fly_free(worker);
 }
@@ -303,13 +319,13 @@ __fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused 
 	__fly_signal_handler(ctx, mount_number, __fly_unmount_by_signal);
 }
 
-__noreturn void fly_worker_signal_default_handler(fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
+__noreturn void fly_worker_signal_default_handler(fly_worker_t *worker, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
 {
-	fly_pool_manager_release(ctx->pool_manager);
+	fly_worker_release(worker);
 	exit(0);
 }
 
-__fly_static int __fly_wsignal_handle(fly_context_t *ctx, struct signalfd_siginfo *info)
+__fly_static int __fly_wsignal_handle(fly_worker_t *worker, fly_context_t *ctx, struct signalfd_siginfo *info)
 {
 	fly_signal_t *__s;
 	for (__s=fly_worker_sigptr; __s; __s=__s->next){
@@ -317,7 +333,7 @@ __fly_static int __fly_wsignal_handle(fly_context_t *ctx, struct signalfd_siginf
 			if (__s->handler)
 				__s->handler(ctx, info);
 			else
-				fly_worker_signal_default_handler(ctx, info);
+				fly_worker_signal_default_handler(worker, ctx, info);
 
 			return 0;
 		}
@@ -325,7 +341,7 @@ __fly_static int __fly_wsignal_handle(fly_context_t *ctx, struct signalfd_siginf
 	return 0;
 }
 
-__fly_static int __fly_worker_signal_handler(__unused fly_event_t *e)
+__fly_static int __fly_worker_signal_handler(fly_event_t *e)
 {
 	struct signalfd_siginfo info;
 	ssize_t res;
@@ -338,7 +354,7 @@ __fly_static int __fly_worker_signal_handler(__unused fly_event_t *e)
 			else
 				return -1;
 		}
-		if (__fly_wsignal_handle(e->manager->ctx, &info) == -1)
+		if (__fly_wsignal_handle((fly_worker_t *) e->event_data, e->manager->ctx, &info) == -1)
 			return -1;
 	}
 
@@ -354,7 +370,7 @@ __fly_static int __fly_worker_rtsig_added(fly_context_t *ctx, sigset_t *sset)
 	return 0;
 }
 
-__fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, fly_context_t *ctx)
+__fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx)
 {
 	sigset_t sset;
 	int sigfd;
@@ -365,8 +381,6 @@ __fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, fly_con
 
 	if (fly_refresh_signal() == -1)
 		return -1;
-//	if (sigemptyset(&sset) == -1)
-//		return -1;
 	if (sigfillset(&sset) == -1)
 		return -1;
 
@@ -404,6 +418,7 @@ __fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, fly_con
 	e->expired = false;
 	e->available = false;
 	e->handler = __fly_worker_signal_handler;
+	e->event_data = (void *) worker;
 
 	fly_time_null(e->timeout);
 	fly_event_file_type(e, SIGNAL);
@@ -418,8 +433,10 @@ __fly_static int __fly_worker_signal_event(fly_event_manager_t *manager, fly_con
  */
 __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused void *data)
 {
+	fly_worker_t *worker;
 	fly_event_manager_t *manager;
 
+	worker = (fly_worker_t *) data;
 	if (!ctx)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_READY,
@@ -445,9 +462,10 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 			"initialize event manager error."
 		);
 
+	worker->event_manager = manager;
 	/* initial event */
 	/* signal setting */
-	if (__fly_worker_signal_event(manager, ctx) == -1)
+	if (__fly_worker_signal_event(worker, manager, ctx) == -1)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_READY,
 			"initialize worker signal error."

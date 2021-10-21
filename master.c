@@ -4,7 +4,7 @@
 #include "cache.h"
 #include "config.h"
 
-__fly_static int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data);
+int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
 __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx);
 __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info);
 __fly_static int __fly_master_signal_handler(fly_event_t *);
@@ -287,11 +287,6 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 	if (sigfillset(&master_set) == -1)
 		return -1;
 
-//	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++){
-//		if (sigaddset(&master_set, fly_master_signals[i].number) == -1)
-//			return -1;
-//	}
-
 	sigfd = fly_signal_register(&master_set);
 	if (sigfd == -1)
 		return -1;
@@ -325,8 +320,28 @@ static int fly_workers_count(void)
 void fly_master_release(fly_master_t *master)
 {
 	assert(master != NULL);
+
+	if (master->event_manager)
+		fly_event_manager_release(master->event_manager);
+
+	fly_context_release(master->context);
 	fly_pool_manager_release(master->pool_manager);
 	fly_free(master);
+}
+
+fly_context_t *fly_master_release_except_context(fly_master_t *master)
+{
+	assert(master != NULL);
+
+	fly_context_t *ctx = master->context;
+	ctx->pool_manager = NULL;
+
+	if (master->event_manager)
+		fly_event_manager_release(master->event_manager);
+	fly_pool_manager_release(master->pool_manager);
+	fly_free(master);
+
+	return ctx;
 }
 
 fly_master_t *fly_master_init(void)
@@ -352,6 +367,7 @@ fly_master_t *fly_master_init(void)
 	__m->now_workers = 0;
 	__m->worker_process = NULL;
 	__m->pool_manager = __pm;
+	__m->event_manager = NULL;
 	fly_bllist_init(&__m->workers);
 	__m->context = __ctx;
 	__m->context->data = __m;
@@ -363,6 +379,13 @@ __direct_log __noreturn void fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
 
+	/* destructor setting */
+	if (atexit(fly_remove_pidfile) == -1)
+		FLY_EMERGENCY_ERROR(
+			FLY_EMERGENCY_STATUS_READY,
+			"initialize worker inotify error."
+		);
+
 	manager = fly_event_manager_init(master->context);
 	if (manager == NULL)
 		FLY_EMERGENCY_ERROR(
@@ -370,6 +393,7 @@ __direct_log __noreturn void fly_master_process(fly_master_t *master)
 			"master initialize event manager error."
 		);
 
+	master->event_manager = manager;
 	/* initial event setting */
 	if (__fly_master_signal_event(master, manager, master->context) == -1)
 		FLY_EMERGENCY_ERROR(
@@ -382,12 +406,6 @@ __direct_log __noreturn void fly_master_process(fly_master_t *master)
 			"initialize worker inotify error."
 		);
 
-	/* destructor setting */
-	if (atexit(fly_remove_pidfile) == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"initialize worker inotify error."
-		);
 
 	/* event handler start here */
 	if (fly_event_handler(manager) == -1)
@@ -502,7 +520,7 @@ __fly_static void __fly_master_worker_spawn(fly_master_t *master, void (*proc)(f
 	for (int i=master->now_workers;
 			i<master->req_workers;
 			i=master->now_workers){
-		if (__fly_master_fork(master, WORKER, proc, master->context, NULL) == -1)
+		if (__fly_master_fork(master, WORKER, proc, master->context) == -1)
 			FLY_EMERGENCY_ERROR(
 				FLY_EMERGENCY_STATUS_PROCS,
 				"spawn working process error."
@@ -554,7 +572,7 @@ const char *fly_proc_type_str(fly_proc_type type)
 	return NULL;
 }
 
-int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx, void *data)
+int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx)
 {
 	pid_t pid;
 	fly_worker_t *worker;
@@ -564,14 +582,16 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 		return -1;
 	case 0:
 		{
+			fly_context_t *mctx;
 			/* unnecessary resource release */
-			fly_master_release(master);
+			mctx = fly_master_release_except_context(master);
 
 			/* alloc worker resource */
-			worker = fly_worker_init();
+			worker = fly_worker_init(mctx);
 			if (!worker)
 				exit(1);
 
+			/* set master context */
 			ctx = worker->context;
 		}
 		break;
@@ -581,7 +601,7 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 		goto child_register;
 	}
 	/* new process only */
-	proc(ctx, data);
+	proc(ctx, (void *) worker);
 	exit(0);
 child_register:
 	switch(type){
