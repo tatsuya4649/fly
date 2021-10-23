@@ -1,7 +1,7 @@
 CC = gcc
 CPP = g++
 ifdef DEBUG
-CFLAG := -pg -gdwarf-2 -g3 -O0 -W -Wall -Werror -Wcast-align
+CFLAG := -gdwarf-2 -g3 -O0 -W -Wall -Werror -Wcast-align
 else
 CFLAG := -g3 -O0 -W -Wall -Werror -Wcast-align
 endif

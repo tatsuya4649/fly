@@ -55,21 +55,8 @@ __fly_static int __fly_accept_lang(fly_hdr_ci *header, fly_hdr_value **value)
 
 __fly_static void __fly_accept_lang_add(fly_lang_t *l, struct __fly_lang *__nl)
 {
-	if (l->langqty == 0){
-		l->langs = __nl;
-		__nl->next = NULL;
-	}else{
-		struct __fly_lang *__l;
-		for (__l=l->langs; __l->next; __l=__l->next){
-			if (strcmp(__l->lname, __nl->lname) == 0)
-				return;
-		}
-
-		__l->next = __nl;
-		__nl->next = NULL;
-	}
-
-	l->langqty++;
+	fly_bllist_add_tail(&l->langs, &__nl->blelem);
+	l->lang_count++;
 }
 
 __fly_static int __fly_accept_lang_add_asterisk(fly_request_t *req)
@@ -81,7 +68,6 @@ __fly_static int __fly_accept_lang_add_asterisk(fly_request_t *req)
 		return -1;
 
 	strcpy(__l->lname, "*");
-	__l->next = NULL;
 	__l->quality_value = FLY_LANG_QVALUE_MAX;
 	__l->asterisk = true;
 	__fly_accept_lang_add(req->language, __l);
@@ -101,8 +87,8 @@ __fly_static int __fly_accept_lang_init(fly_request_t *req)
 	if (lang == NULL)
 		return -1;
 
-	lang->langqty = 0;
-	lang->langs = NULL;
+	lang->lang_count = 0;
+	fly_bllist_init(&lang->langs);
 	lang->request = req;
 	req->language = lang;
 
@@ -353,7 +339,6 @@ __fly_static int __fly_al_parse(fly_lang_t *l, fly_hdr_value *accept_lang)
 				__nl = fly_pballoc(l->request->pool, sizeof(struct __fly_lang));
 				if (__nl == NULL)
 					return __FLY_AL_PARSE_ERROR;
-				__nl->next = NULL;
 				__nl->quality_value = __fly_qvalue_from_str(qvalue);
 				__fly_lname_cpy(__nl->lname, lang_str);
 				__fly_check_of_asterisk(__nl);

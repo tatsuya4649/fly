@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <ctype.h>
 #include <string.h>
+#include "bllist.h"
 
 enum method_type{
 	GET,
@@ -19,15 +20,15 @@ enum method_type{
 typedef enum method_type fly_method_e;
 
 struct fly_http_method{
-	char *name;
-	enum method_type type;
+	const char			*name;
+	enum method_type	type;
+	struct fly_bllist	blelem;
 };
 typedef struct fly_http_method fly_http_method_t;
 
 struct fly_http_method_chain{
-	struct fly_http_method *method;
-	int chain_length;
-	struct fly_http_method_chain *next;
+	int					chain_length;
+	struct fly_bllist	method_chain;
 };
 
 extern fly_http_method_t methods[];

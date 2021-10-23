@@ -155,6 +155,7 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 	pfile->encoded = false;
 	pfile->dir = false;
 	pfile->rbnode = NULL;
+	pfile->overflow = false;
 
 	return pfile;
 }
@@ -436,7 +437,7 @@ int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *
 #define FLY_FOUND_CONTENT_FROM_PATH_FOUND		1
 #define FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND	0
 #define FLY_FOUND_CONTENT_FROM_PATH_ERROR		-1
-__fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
+__unused __fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
 {
 	size_t i=0, j=0, uri_len;
 	char *uri_str;
@@ -469,8 +470,8 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mou
 	char *filename;
 
 	filename = uri->ptr;
-	while(fly_slash(*filename++))
-		;
+	while(fly_slash(*filename))
+		filename++;
 
 	__pf = (struct fly_mount_parts_file *) \
 				fly_rb_node_data_from_key(mnt->rbtree, filename);
@@ -643,7 +644,7 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path)
 	return 0;
 }
 
-__fly_static int __fly_samedir_cmp(char *s1, char *s2)
+__unused static int __fly_samedir_cmp(char *s1, char *s2)
 {
 	bool slash = false;
 	while(*s1 == *s2 && *s1 != '\0'){
