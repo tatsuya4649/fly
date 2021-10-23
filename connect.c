@@ -72,7 +72,7 @@ __fly_static int __fly_info_of_connect(fly_connect_t *conn)
 		NI_MAXHOST,
 		conn->servname,
 		NI_MAXSERV,
-		NI_NUMERICHOST
+		NI_NUMERICHOST|NI_NUMERICSERV
 	);
 	if (gname_err != 0){
 		return -1;

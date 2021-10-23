@@ -87,7 +87,7 @@ fly_rcbs_t *fly_default_content_by_stcode(fly_context_t *ctx, enum status_code_t
 
 	fly_for_each_bllist(__b, &ctx->rcbs){
 		__r = fly_bllist_data(__b, fly_rcbs_t, blelem);
-		if (__r->status_code == status_code || __r->fd > 0)
+		if (__r->status_code == status_code && __r->fd > 0)
 			return __r;
 	}
 	return NULL;

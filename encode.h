@@ -45,6 +45,7 @@ struct fly_encoding_type;
 #define FLY_DE_BUF_INITLEN			0
 #define FLY_DE_BUF_MAXLEN			100
 #define FLY_DE_BUF_PERLEN			10
+#define FLY_MAX_DE_BUF_SIZE			((size_t) (FLY_DE_BUF_MAXLEN*FLY_DE_BUF_PERLEN))
 #define fly_de_buffer_init(pool)		\
 		fly_buffer_init((pool), \
 				FLY_DE_BUF_INITLEN, \
@@ -53,36 +54,36 @@ struct fly_encoding_type;
 
 #define fly_etype_from_de(__de)			((__de)->etype)
 struct fly_de{
-	fly_pool_t *pool;
-	struct fly_encoding_type *etype;
+	fly_pool_t						*pool;
+	struct fly_encoding_type		*etype;
 	enum{
 		FLY_DE_ENCODE,
 		FLY_DE_DECODE,
 		FLY_DE_ESEND,
 		FLY_DE_ESEND_FROM_PATH,
 	} type;
-	fly_buffer_t *encbuf;
-	int encbuflen;
-	fly_buffer_t *decbuf;
-	int decbuflen;
-	int c_sockfd;
-	int fd;
+	fly_buffer_t					*encbuf;
+	int								encbuflen;
+	fly_buffer_t					*decbuf;
+	int								decbuflen;
+	int								c_sockfd;
+	int								fd;
 	/* where to start encoding of fd */
-	off_t offset;
+	off_t							offset;
 	/* how many encoding count */
-	size_t count;
+	size_t							count;
 	/* byte from start for sending */
-	int bfs;
-	fly_event_t *event;
-	struct fly_response *response;
+	int								bfs;
+	fly_event_t						*event;
+	struct fly_response				*response;
 
-	char *already_ptr;
-	size_t already_len;
+	char							*already_ptr;
+	size_t							already_len;
 
-	size_t				contlen;
-	fly_bit_t			end : 1;
-	fly_bit_t			target_already_alloc: 1;
-	fly_bit_t			overflow: 1;
+	size_t							contlen;
+	fly_bit_t						end : 1;
+	fly_bit_t						target_already_alloc: 1;
+	fly_bit_t						overflow: 1;
 };
 typedef struct fly_de fly_de_t;
 struct fly_de *fly_de_init(fly_pool_t *pool);
@@ -93,7 +94,7 @@ struct fly_encoding_type{
 	fly_encoding_e	type;
 	fly_encname_t	*name;
 	/* if same quality value, used */
-	int			   priority;
+	int				priority;
 
 	fly_encode_t	encode;
 	fly_decode_t	decode;
@@ -125,10 +126,11 @@ struct fly_encoding{
 	struct fly_bllist			accepts;
 	struct fly_request			*request;
 	/* acceptable quantity */
-	size_t						actqty;
+	size_t						accept_count;
 };
 typedef struct fly_encoding fly_encoding_t;
-int fly_accept_encoding(struct fly_response *res);
+int fly_accept_encoding(struct fly_request *req);
+bool fly_encoding_matching(struct fly_encoding *enc, struct fly_encoding_type *type);
 
 #define FLY_ENCODE_SUCCESS			1
 #define FLY_ENCODE_OVERFLOW			0

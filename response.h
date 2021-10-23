@@ -94,13 +94,14 @@ struct fly_response{
 		FLY_RESPONSE_TYPE_NOCONTENT
 	} type;
 	size_t						response_len;
+	size_t						original_response_len;
 	void						*send_ptr;
 	int							 byte_from_start;
 	size_t						 send_len;
 	struct fly_mount_parts_file *pf;
 	off_t						 offset;
 	size_t						 count;
-	fly_encoding_t				*encoding;
+	struct fly_encoding_type	*encoding_type;
 	fly_de_t					*de;			/* use response pool */
 	fly_rcbs_t					*rcbs;
 	union{
@@ -194,7 +195,8 @@ fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf);
 
 static inline int fly_encode_do(fly_response_t *res)
 {
-	return (res->encoding != NULL && res->encoding->actqty);
+	return (res->encoding_type != NULL);
+//	return (res->encoding != NULL && res->encoding->accept_count);
 }
 
 #endif

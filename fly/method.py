@@ -1,8 +1,8 @@
 from enum import Enum
 
 class FlyMethod(Enum):
-    GET = "get"
-    POST = "post"
+    GET = "GET"
+    POST = "POST"
 
 
 def method_from_name(method):

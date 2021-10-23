@@ -2,24 +2,24 @@
 #define _LANG_H
 
 #include "util.h"
+#include "bllist.h"
 
 #define FLY_LANG_MAXLEN			(10)
 #define FLY_LANG_QVALUE_MAX		1.000
 #define FLY_LANG_QVALUE_MIN		0.000
 struct __fly_lang{
-	char lname[FLY_LANG_MAXLEN];
-	float quality_value;
-	struct __fly_lang *next;
-	fly_bit_t asterisk: 1;
+	char					lname[FLY_LANG_MAXLEN];
+	float					quality_value;
+	struct fly_bllist		blelem;
+	fly_bit_t				asterisk: 1;
 };
 
 struct fly_request;
 typedef struct fly_request fly_request_t;
 struct fly_lang{
-	struct __fly_lang *langs;
-	int langqty;
-
-	fly_request_t *request;
+	struct fly_bllist		langs;
+	int						lang_count;
+	fly_request_t			*request;
 };
 typedef struct fly_lang fly_lang_t;
 

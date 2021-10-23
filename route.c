@@ -12,7 +12,7 @@ fly_route_reg_t *fly_route_reg_init(fly_context_t *ctx)
 
 	reg->pool = ctx->pool;
 	reg->regcount = 0;
-	reg->entry = NULL;
+	fly_bllist_init(&reg->regs);
 	return reg;
 }
 
@@ -21,45 +21,30 @@ void fly_route_reg_release(fly_route_reg_t *reg)
 	fly_pbfree(reg->pool, reg);
 }
 
-int fly_register_route(
-	fly_route_reg_t *reg,
-	fly_route_handler *func,
-	fly_path *uri,
-	fly_method_e method,
-	fly_flag_t flag
-){
+int fly_register_route(fly_route_reg_t *reg, fly_route_handler *func, fly_path *uri, fly_method_e method, fly_flag_t flag, void *data){
 	fly_http_method_t *mtd;
 	fly_route_t *route;
-	__fly_route_t *__route;
 
-	if (reg->pool == NULL)
-		return -1;
+#ifdef DEBUG
+	assert(reg->pool != NULL);
+#endif
 	/* allocated register info */
 	mtd = fly_match_method_type(method);
-	if (mtd == NULL)
+	if (fly_unlikely_null(mtd))
 		return -1;
 
 	route = fly_pballoc(reg->pool, sizeof(fly_route_t));
-	if (route == NULL)
+	if (fly_unlikely_null(route))
 		return -1;
 
 	route->function = func;
 	route->uri = uri;
-	route->method = *mtd;
+	route->method = mtd;
 	route->flag = flag;
+	route->reg = reg;
+	route->data = data;
 
-	/* allocated wrapper register info */
-	__route = fly_pballoc(reg->pool, sizeof(__fly_route_t));
-	if (__route == NULL)
-		return -1;
-	__route->next = NULL;
-	__route->route = route;
-
-	if (reg->entry == NULL)
-		reg->entry = __route;
-	else
-		reg->last->next = __route;
-	reg->last = __route;
+	fly_bllist_add_tail(&reg->regs, &route->blelem);
 	reg->regcount++;
 
 	return 0;
@@ -67,52 +52,61 @@ int fly_register_route(
 
 fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *uri, fly_method_e method)
 {
-	if (reg == NULL || reg->entry == NULL)
-		return NULL;
+	struct fly_bllist *__b;
+	fly_route_t *__r;
+#if DEBUG
+	assert(reg != NULL);
+#endif
 
-	for(__fly_route_t *r=reg->entry; r!=NULL; r=r->next){
-		if (strcmp(r->route->uri, uri) == 0 && r->route->method.type==method)
-			return r->route;
+	fly_for_each_bllist(__b, &reg->regs){
+		__r = fly_bllist_data(__b, fly_route_t, blelem);
+		if (strncmp(__r->uri, uri, strlen(__r->uri)) == 0 && \
+				__r->method->type==method)
+			return __r;
 	}
 	return NULL;
 }
 
-__fly_static void __fly_connect_method_chain(struct fly_http_method_chain *base, struct fly_http_method_chain *nc)
-{
-	struct fly_http_method_chain *__c;
-	for (__c=base; __c->next; __c=__c->next)
-		;
-	__c->next = nc;
-	nc->next = NULL;
-	base->chain_length++;
-	nc->chain_length = base->chain_length;
-	return;
-}
-
 struct fly_http_method_chain *fly_valid_method(fly_pool_t *pool, fly_route_reg_t *reg, fly_path *uri)
 {
-	struct fly_http_method_chain *__c;
+	struct fly_http_method_chain *__mc;
 
-	__c = fly_pballoc(pool, sizeof(struct fly_http_method_chain));
-	if (fly_unlikely_null(__c))
+#ifdef DEBUG
+	assert(reg != NULL);
+#endif
+
+	struct fly_bllist *__b;
+	fly_route_t *__r;
+
+	__mc = fly_pballoc(pool, sizeof(struct fly_http_method_chain));
+	if (fly_unlikely_null(__mc))
 		return NULL;
-	__c->method = fly_match_method_type(GET);
-	__c->chain_length = 1;
-	__c->next = NULL;
+	__mc->chain_length = 0;
+	fly_bllist_init(&__mc->method_chain);
 
-	if (reg == NULL || reg->entry == NULL)
-		return __c;
+	struct fly_http_method *__gc, *__get;
+	__gc = fly_pballoc(pool, sizeof(struct fly_http_method));
+	if (fly_unlikely_null(__gc))
+		return NULL;
+	__get = fly_match_method_type(GET);
+	__gc->name = __get->name;
+	__gc->type = __get->type;
+	fly_bllist_add_tail(&__mc->method_chain, &__gc->blelem);
+	__mc->chain_length++;
 
-	for (__fly_route_t *__r=reg->entry; __r; __r=__r->next){
-		if (strcmp(__r->route->uri, uri) == 0){
-			struct fly_http_method_chain *__nc;
-			__nc = fly_pballoc(pool, sizeof(struct fly_http_method_chain));
+	fly_for_each_bllist(__b, &reg->regs){
+		__r = fly_bllist_data(__b, fly_route_t, blelem);
+		if (strncmp(__r->uri, uri, strlen(__r->uri)) == 0 && \
+				__r->method->type != GET){
+			struct fly_http_method *__nc;
+			__nc = fly_pballoc(pool, sizeof(struct fly_http_method));
 			if (fly_unlikely_null(__nc))
 				return NULL;
-			__nc->method = &__r->route->method;
-			__nc->next = NULL;
-			__fly_connect_method_chain(__c, __nc);
+			__nc->name = __r->method->name;
+			__nc->type = __r->method->type;
+			fly_bllist_add_tail(&__mc->method_chain, &__nc->blelem);
+			__mc->chain_length++;
 		}
 	}
-	return __c;
+	return __mc;
 }
