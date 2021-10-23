@@ -817,7 +817,7 @@ __fly_static int __fly_encode_init(fly_request_t *req)
 		return -1;
 
 	enc->pool = pool;
-	enc->actqty = 0;
+	enc->accept_count = 0;
 	enc->request = req;
 	req->encoding = enc;
 
@@ -830,7 +830,7 @@ __fly_static void __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_en
 	ne->encoding = enc;
 
 	fly_bllist_add_tail(&enc->accepts, &ne->blelem);
-	enc->actqty++;
+	enc->accept_count++;
 }
 
 __fly_static inline int __fly_quality_value(struct __fly_encoding *e, int qvalue)
@@ -888,26 +888,20 @@ static inline bool fly_is_accept_type(fly_encoding_t *e, fly_encoding_type_t *ty
 	return false;
 }
 
-int fly_accept_encoding(struct fly_response *res)
+int fly_accept_encoding(struct fly_request *req)
 {
 	fly_hdr_ci *header;
 	fly_hdr_c  *accept_encoding;
-	fly_request_t *req;
-	fly_encoding_type_t *type=NULL;
 
-	req = res->request;
 	header = req->header;
 
-	/* already encoded */
-	if (res->encoded)
-		type = fly_etype_from_de(res->de);
-	if (req == NULL || req->pool == NULL || req->header == NULL)
-		return -1;
+#ifdef DEBUG
+	assert(req != NULL && req->pool != NULL && req->header != NULL);
+#endif
 
 	if (__fly_encode_init(req) == -1)
 		return -1;
 
-	res->encoding = req->encoding;
 	switch (__fly_accept_encoding(header, &accept_encoding)){
 	case __FLY_ACCEPT_ENCODING_ERROR:
 		req->encoding = NULL;
@@ -916,33 +910,15 @@ int fly_accept_encoding(struct fly_response *res)
 		if(__fly_add_accept_encode_asterisk(req) == -1)
 			return -1;
 
-		if (type)
-			goto already_type;
-		else
-			return __fly_decide_encoding(req->encoding);
+		return __fly_decide_encoding(req->encoding);
 	case __FLY_ACCEPT_ENCODING_FOUND:
 		if (__fly_parse_accept_encoding(req, accept_encoding) == -1)
 			return -1;
-
-		if (type && fly_is_accept_type(req->encoding, type))
-			goto already_type;
-		else
-			return 0;
+		return 0;
 	default:
 		return -1;
 	}
 	FLY_NOT_COME_HERE
-
-already_type:
-	struct fly_bllist *__b;
-	struct __fly_encoding *__a;
-
-	fly_for_each_bllist(__b, &req->encoding->accepts){
-		__a = fly_bllist_data(__b, struct __fly_encoding, blelem);
-		__a->type = type;
-		__a->use = true;
-	}
-	return 0;
 }
 
 static inline bool __fly_ualpha(char c)
@@ -1373,7 +1349,7 @@ __fly_static int __fly_quality_value_from_str(char *qvalue)
 
 __fly_static int __fly_decide_encoding(fly_encoding_t *__e)
 {
-	if (__e == NULL || !__e->actqty)
+	if (__e == NULL || !__e->accept_count)
 		return 0;
 
 	int max_quality_value = 0;
@@ -1407,7 +1383,7 @@ __fly_static int __fly_decide_encoding(fly_encoding_t *__e)
 
 fly_encname_t *fly_decided_encoding_name(fly_encoding_t *enc)
 {
-	if (enc->actqty == 0)
+	if (enc->accept_count == 0)
 		return NULL;
 
 	struct fly_bllist *__b;
@@ -1423,7 +1399,7 @@ fly_encname_t *fly_decided_encoding_name(fly_encoding_t *enc)
 
 fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc)
 {
-	if (enc->actqty == 0)
+	if (enc->accept_count == 0)
 		return NULL;
 
 	struct fly_bllist *__b;
@@ -1503,4 +1479,18 @@ void fly_de_release(fly_de_t *de)
 	__pool = de->pool;
 	fly_pbfree(__pool, de);
 	return;
+}
+
+/* test whetheer type in enc */
+bool fly_encoding_matching(struct fly_encoding *enc, struct fly_encoding_type *type)
+{
+	struct fly_bllist *__b;
+	struct __fly_encoding *__e;
+	fly_for_each_bllist(__b, &enc->accepts){
+		__e = fly_bllist_data(__b, struct __fly_encoding, blelem);
+		if (__e->type->type == type->type)
+			return true;
+	}
+	/* not found */
+	return false;
 }

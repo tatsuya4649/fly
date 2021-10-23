@@ -616,25 +616,31 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 					if (fly_unlikely_null(__de->decbuf) || \
 							fly_unlikely_null(__de->encbuf))
 						return -1;
-					res = __de->etype->encode(__de);
-					switch(res){
-					case FLY_ENCODE_SUCCESS:
-						break;
-					case FLY_ENCODE_OVERFLOW:
-						FLY_NOT_COME_HERE
-					case FLY_ENCODE_ERROR:
-						return -1;
-					case FLY_ENCODE_SEEK_ERROR:
-						return -1;
-					case FLY_ENCODE_TYPE_ERROR:
-						return -1;
-					case FLY_ENCODE_READ_ERROR:
-						return -1;
-					case FLY_ENCODE_BUFFER_ERROR:
+
+					if ((size_t) __pf->fs.st_size <= FLY_MAX_DE_BUF_SIZE){
+						res = __de->etype->encode(__de);
+						switch(res){
+						case FLY_ENCODE_SUCCESS:
+							break;
+						case FLY_ENCODE_OVERFLOW:
+							FLY_NOT_COME_HERE
+						case FLY_ENCODE_ERROR:
+							return -1;
+						case FLY_ENCODE_SEEK_ERROR:
+							return -1;
+						case FLY_ENCODE_TYPE_ERROR:
+							return -1;
+						case FLY_ENCODE_READ_ERROR:
+							return -1;
+						case FLY_ENCODE_BUFFER_ERROR:
+							__de->overflow = true;
+							break;
+						default:
+							return -1;
+						}
+					}else{
 						__de->overflow = true;
-						break;
-					default:
-						return -1;
+						__pf->overflow = true;
 					}
 
 					__pf->de = __de;

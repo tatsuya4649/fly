@@ -165,40 +165,30 @@ int fly_header_addbv(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *nam
 	return 0;
 }
 
-int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
+int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool hv2)
 {
-	fly_hdr_c *new_chain, *__c;
+	fly_hdr_c *__c;
 
-	if (chain_info->chain_count > 0){
-		struct fly_bllist *__b;
-		fly_for_each_bllist(__b, &chain_info->chain){
-			__c = fly_bllist_data(__b, fly_hdr_c, blelem);
-			if (strcmp(__c->name, name) == 0){
-				/* release */
-				fly_pbfree(chain_info->pool, __c->value);
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &chain_info->chain){
+		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (strcmp(__c->name, name) == 0){
+			/* release */
+			fly_pbfree(chain_info->pool, __c->value);
 
-				__c->value = fly_pballoc(chain_info->pool, value_len+1);
-				__c->value_len = value_len;
-				__c->value[value_len] = '\0';
-				memcpy(__c->value, value, value_len);
-				return 0;
-			}
+			__c->value = fly_pballoc(chain_info->pool, value_len+1);
+			__c->value_len = value_len;
+			__c->value[value_len] = '\0';
+			memcpy(__c->value, value, value_len);
+			return 0;
 		}
 	}
 
 	/* if no */
-	new_chain = fly_pballoc(chain_info->pool, sizeof(fly_hdr_c));
-	if (new_chain == NULL)
-		return -1;
-	new_chain->name = fly_pballoc(chain_info->pool, name_len+1);
-	memcpy(new_chain->name, name, name_len);
-	new_chain->value = fly_pballoc(chain_info->pool, value_len+1);
-	memcpy(new_chain->value, value, value_len);
-	new_chain->name[name_len] = '\0';
-	new_chain->value[value_len] = '\0';
-
-	__fly_header_add_ci(new_chain, chain_info, false);
-	return 0;
+	if (hv2)
+		return fly_header_add_v2(chain_info, name, name_len, value, value_len, false);
+	else
+		return fly_header_add(chain_info, name, name_len, value, value_len);
 }
 
 int fly_header_delete(fly_hdr_ci *chain_info, char *name)
@@ -467,16 +457,15 @@ int fly_add_connection(fly_hdr_ci *ci, enum fly_header_connection_e connection)
 	return -1;
 }
 
-int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e, bool hv2)
+int fly_add_content_encoding(fly_hdr_ci *ci, struct fly_encoding_type *e, bool hv2)
 {
 	char *encname;
 
-	if (e == NULL)
-		return 0;
-	encname = fly_decided_encoding_name(e);
-	if (encname == NULL)
-		return -1;
+#ifdef DEBUG
+	assert(e);
+#endif
 
+	encname = fly_encname_from_type(e->type);
 	if (hv2)
 		return fly_header_add_v2(ci, fly_header_name_length("content-encoding"), fly_header_value_length(encname), false);
 	else
@@ -497,16 +486,17 @@ int fly_add_content_length(fly_hdr_ci *ci, size_t cl, bool hv2)
 		return -1;
 
 	if (hv2)
-		return fly_header_addmodify(ci, fly_header_name_length("content-length"), fly_header_value_length(contlen_str));
+		return fly_header_addmodify(ci, fly_header_name_length("content-length"), fly_header_value_length(contlen_str), hv2);
 	else
-		return fly_header_addmodify(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str));
+		return fly_header_addmodify(ci, fly_header_name_length("Content-Length"), fly_header_value_length(contlen_str), hv2);
 }
 
 int fly_add_allow(fly_hdr_ci *ci, fly_request_t *req)
 {
 	fly_uri_t *uri;
 	fly_route_reg_t *route_reg;
-	struct fly_http_method_chain *__c, *c;
+	struct fly_http_method_chain *__c;
+	struct fly_http_method *c;
 	size_t vallen;
 	fly_hdr_value *value, *ptr;
 
@@ -519,17 +509,22 @@ int fly_add_allow(fly_hdr_ci *ci, fly_request_t *req)
 		return -1;
 	/* method->method str */
 	vallen = 0;
-	for (c=__c; c; c=c->next){
-		vallen += strlen(c->method->name);
-		if (c->next)
+
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &__c->method_chain){
+		c = fly_bllist_data(__b, struct fly_http_method, blelem);
+		vallen += strlen(c->name);
+		if (__b->next != &__c->method_chain)
 			vallen += strlen(", ");
 	}
 	value = fly_pballoc(ci->pool, sizeof(fly_hdr_value)*(vallen+1));
 	ptr = value;
-	for (c=__c; c; c=c->next){
-		memcpy(ptr, c->method->name, strlen(c->method->name));
-		ptr += strlen(c->method->name);
-		if (c->next){
+
+	fly_for_each_bllist(__b, &__c->method_chain){
+		c = fly_bllist_data(__b, struct fly_http_method, blelem);
+		memcpy(ptr, c->name, strlen(c->name));
+		ptr += strlen(c->name);
+		if (__b->next != &__c->method_chain){
 			memcpy(ptr , ", ", strlen(", "));
 			ptr += strlen(", ");
 		}

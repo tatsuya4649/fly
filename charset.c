@@ -55,21 +55,8 @@ __fly_static int __fly_accept_charset(fly_hdr_ci *header, fly_hdr_value **value)
 
 __fly_static void __fly_accept_add(fly_charset_t *cs, struct __fly_charset *__nc)
 {
-	if (cs->charqty == 0){
-		cs->charsets = __nc;
-		__nc->next = NULL;
-	}else{
-		struct __fly_charset *__c;
-		for (__c=cs->charsets; __c->next; __c=__c->next){
-			if (strcmp(__c->cname, __nc->cname) == 0)
-				return;
-		}
-
-		__c->next = __nc;
-		__nc->next = NULL;
-	}
-
-	cs->charqty++;
+	fly_bllist_add_tail(&cs->charsets, &__nc->blelem);
+	cs->charset_count++;
 }
 
 __fly_static int __fly_accept_add_asterisk(fly_request_t *req)
@@ -82,7 +69,6 @@ __fly_static int __fly_accept_add_asterisk(fly_request_t *req)
 
 	strcpy(__cs->cname, "*");
 	__cs->quality_value = FLY_CHARSET_QVALUE_MAX;
-	__cs->next = NULL;
 	__cs->asterisk = true;
 
 	__fly_accept_add(req->charset, __cs);
@@ -102,10 +88,10 @@ __fly_static int __fly_accept_charset_init(fly_request_t *req)
 	if (charset == NULL)
 		return -1;
 
-	charset->charqty = 0;
-	charset->charsets = NULL;
+	charset->charset_count = 0;
 	charset->request = req;
 	req->charset = charset;
+	fly_bllist_init(&charset->charsets);
 
 	return 0;
 }
@@ -354,7 +340,6 @@ __fly_static int __fly_ac_parse(fly_charset_t *cs, fly_hdr_value *accept_charset
 				__nc = fly_pballoc(cs->request->pool, sizeof(struct __fly_charset));
 				if (__nc == NULL)
 					return __FLY_AC_PARSE_ERROR;
-				__nc->next = NULL;
 				__nc->quality_value = __fly_qvalue_from_str(qvalue);
 				__fly_cname_cpy(__nc->cname, charset_str);
 				__fly_check_of_asterisk(__nc);

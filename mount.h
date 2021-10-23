@@ -39,6 +39,7 @@ struct fly_mount_parts_file{
 	struct fly_de			*de;
 	fly_bit_t				encoded: 1;
 	fly_bit_t				dir: 1;
+	fly_bit_t				overflow: 1;
 };
 
 struct fly_mount_parts{
@@ -129,6 +130,10 @@ static inline bool fly_have_mount_index(struct fly_mount *mount)
 __unused static struct fly_mount_parts_file *fly_pf_debug(struct fly_bllist *__b)
 {
 	return (struct fly_mount_parts_file *) fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
+}
+__unused static struct fly_mount_parts *fly_parts_debug(struct fly_bllist *__b)
+{
+	return (struct fly_mount_parts *) fly_bllist_data(__b, struct fly_mount_parts, mbelem);
 }
 #endif
 

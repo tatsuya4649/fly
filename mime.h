@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "alloc.h"
 #include "util.h"
+#include "bllist.h"
 
 enum __fly_mime_list{
 	/* text */
@@ -148,7 +149,6 @@ struct __fly_mime_subtype{
 	do{													\
 		(am)->type.type = FLY_MIME_TYPE(asterisk);		\
 		(am)->subtype.asterisk = true;					\
-		(am)->next = NULL;								\
 	} while(0)
 
 /*
@@ -168,7 +168,7 @@ struct __fly_mime{
 	struct __fly_accept_ext		*extension;
 	int							extqty;
 
-	struct __fly_mime			*next;
+	struct fly_bllist			blelem;
 };
 #define fly_same_type(m1, m2)		\
 		(((m1)->type.type == (m2)->type.type) && (strcmp((m1)->subtype.subtype, (m2)->subtype.subtype)))
@@ -179,10 +179,9 @@ struct __fly_mime{
 struct fly_mime{
 	fly_pool_t					*pool;
 	fly_request_t				*request;
-
-	struct __fly_mime			*accepts;
+	struct fly_bllist			accepts;
 	/* accept quantity */
-	int							acqty;
+	int							accept_count;
 };
 
 typedef struct fly_mime fly_mime_t;

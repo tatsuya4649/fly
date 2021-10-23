@@ -8,8 +8,8 @@ from .route import FlyRoute
 from .env import FlyEnv
 
 class FlyMethod(Enum):
-    GET = "get"
-    POST = "post"
+    GET = "GET"
+    POST = "POST"
 
 class Fly(FlySignal, FlyMount, FlyRoute, _fly_server):
     def __init__(
@@ -41,6 +41,15 @@ class Fly(FlySignal, FlyMount, FlyRoute, _fly_server):
                 "method must be FlyMethod."
             )
         def __route(func):
+            if not callable(func):
+                raise TypeError(
+                    "func must be function object."
+                )
+            self._register_route(
+                func,
+                path,
+                method.value
+            )
             self.register_route(
                 uri=path,
                 func=func,
@@ -61,12 +70,12 @@ class Fly(FlySignal, FlyMount, FlyRoute, _fly_server):
 
         print("\n", file=sys.stderr)
         print(f"    \033[1m*\033[0m Fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
-        print(f"    \033[1m*\033[0m Fly \033[1m{self._worker}\033[0m workers", file=sys.stderr)
-        print(f"    \033[1m*\033[0m Mount paths (\033[1m{','.join(self.mounts)}\033[0m)", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
         print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m")
         print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m")
         print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m")
 
+        print(f"    \033[1m*\033[0m Mount paths (\033[1m{','.join(self.mounts)}\033[0m)", file=sys.stderr)
         max_len = 0
         for mount in self.mounts:
             max_len = len(mount) if max_len < len(mount) else max_len

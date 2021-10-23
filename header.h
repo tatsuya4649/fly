@@ -69,7 +69,7 @@ int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly
 fly_hdr_c *fly_header_addc(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);
 int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 int fly_header_addbv(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
-int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
+int fly_header_addmodify(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool hv2);
 int fly_header_delete(fly_hdr_ci *chain_info, char *name);
 char *fly_header_from_chain(fly_hdr_ci *chain_info);
 size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info);
@@ -95,7 +95,7 @@ enum fly_header_connection_e{
 };
 int fly_add_connection(fly_hdr_ci *ci, enum fly_header_connection_e connection);
 #include "encode.h"
-int fly_add_content_encoding(fly_hdr_ci *ci, fly_encoding_t *e, bool hv2);
+int fly_add_content_encoding(fly_hdr_ci *ci, struct fly_encoding_type *e, bool hv2);
 int fly_add_content_length(fly_hdr_ci *ci, size_t cl, bool hv2);
 fly_hdr_value *fly_content_encoding(fly_hdr_ci *ci);
 fly_hdr_value *fly_content_encoding_s(fly_hdr_ci *ci);
