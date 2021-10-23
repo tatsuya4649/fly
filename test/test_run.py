@@ -16,13 +16,17 @@ fly = Fly(config_path="test/test.conf")
 print("Hello fly")
 
 @fly.get("/")
-def a():
-    print("a")
+def a(request):
+    response = dict()
+    print(request)
+    response["header"] = list()
+    response["body"] = bytes()
+    return response
 
 print(fly.routes)
 
-fly.mount("test")
-fly.mount("lib")
+#fly.mount("test")
+#fly.mount("lib")
 fly.mount("mnt")
 fly.run()
 #del fly

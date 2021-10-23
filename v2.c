@@ -1897,6 +1897,9 @@ int fly_send_data_frame(fly_event_t *e, fly_response_t *res)
 	if (stream->window_size <= 0 || state->window_size <= 0)
 		goto cant_send;
 
+	if (res->response_len == 0)
+		goto success;
+
 	max_can_send = stream->window_size > state->window_size ? state->window_size : stream->window_size;
 	send_len = res->response_len;
 	if ((size_t) send_len < max_can_send)
@@ -3863,6 +3866,10 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 		goto response_400;
 	}
 
+	/* accept encoding type */
+	if (fly_accept_encoding(request) == -1)
+		goto error;
+
 	/* accept mime parse */
 	if (fly_accept_mime(request) == -1)
 		goto error;
@@ -3926,7 +3933,7 @@ __response:
 	}
 
 	/* defined handler */
-	response = route->function(request);
+	response = route->function(request, route->data);
 	if (response == NULL)
 		goto response_500;
 
@@ -4007,6 +4014,7 @@ int __fly_hv2_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream)
 int fly_hv2_response_event(fly_event_t *e)
 {
 	fly_response_t *res;
+	fly_request_t *req;
 	fly_hv2_stream_t *stream;
 	struct fly_hv2_response *v2_res;
 
@@ -4016,10 +4024,6 @@ int fly_hv2_response_event(fly_event_t *e)
 	stream = res->request->stream;
 	res->header->state = stream->state;
 
-	if (stream->stream_state != FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE){
-		/* invalid state */
-	}
-
 	/* already send headers */
 	if (stream->end_send_data)
 		goto log;
@@ -4027,6 +4031,10 @@ int fly_hv2_response_event(fly_event_t *e)
 		goto send_body;
 	else if (res->fase == FLY_RESPONSE_HEADER)
 		goto register_handler;
+
+	if (stream->stream_state != FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE)
+		/* invalid state */
+		goto response_500;
 
 	v2_res = fly_pballoc(stream->state->pool, sizeof(struct fly_hv2_response));
 	if (fly_unlikely_null(v2_res))
@@ -4062,9 +4070,12 @@ int fly_hv2_response_event(fly_event_t *e)
 			res->type = FLY_RESPONSE_TYPE_ENCODED;
 			res->de = res->pf->de;
 			res->response_len = res->de->contlen;
+			res->original_response_len = res->pf->fs.st_size;
 			res->encoded = true;
+			res->encoding_type = res->de->etype;
 		}else{
 			res->response_len = res->count;
+			res->original_response_len = res->response_len;
 			res->type = FLY_RESPONSE_TYPE_PATH_FILE;
 		}
 	}else if (res->rcbs){
@@ -4072,9 +4083,12 @@ int fly_hv2_response_event(fly_event_t *e)
 			res->type = FLY_RESPONSE_TYPE_ENCODED;
 			res->de = res->rcbs->de;
 			res->response_len = res->de->contlen;
+			res->original_response_len = res->rcbs->fs.st_size;
 			res->encoded = true;
+			res->encoding_type = res->de->etype;
 		}else{
 			res->response_len = rcbs->fs.st_size;
+			res->original_response_len = res->response_len;
 			res->type = FLY_RESPONSE_TYPE_DEFAULT;
 		}
 	}else{
@@ -4082,16 +4096,24 @@ int fly_hv2_response_event(fly_event_t *e)
 		res->type = FLY_RESPONSE_TYPE_NOCONTENT;
 	}
 
-	/* accept encoding parse */
-	if (fly_over_encoding_threshold_from_response(res) && \
-			(fly_accept_encoding(res) == -1))
-		return -1;
+	/* encoding matching test */
+	if (res->encoded \
+			&& !fly_encoding_matching(res->request->encoding, res->encoding_type)){
+		res->encoded = false;
+		res->response_len = res->original_response_len;
+	}
 
-	fly_add_content_encoding(res->header, res->request->encoding, true);
+	if (res->encoded || fly_over_encoding_threshold(res->response_len)){
+		if (!res->encoded)
+			res->encoding_type = fly_decided_encoding_type(res->request->encoding);
+		fly_add_content_encoding(res->header, res->encoding_type, true);
+	}
+
+	/* if yet response body encoding */
 	if (fly_encode_do(res) && !res->encoded){
 		res->type = FLY_RESPONSE_TYPE_ENCODED;
 		fly_encoding_type_t *enctype=NULL;
-		enctype = fly_decided_encoding_type(res->encoding);
+		enctype = fly_decided_encoding_type(res->request->encoding);
 		if (fly_unlikely_null(enctype))
 			return -1;
 
@@ -4133,10 +4155,12 @@ int fly_hv2_response_event(fly_event_t *e)
 	}
 
 	/* content length over limit */
-	if (res->de->overflow)
+	if (res->de && res->de->overflow)
 		goto response_413;
 	if (res->de)
 		fly_add_content_length(res->header, res->de->contlen, true);
+	else
+		fly_add_content_length(res->header, res->response_len, true);
 send_header:
 	if (fly_send_headers_frame(stream, res))
 		return -1;
@@ -4177,12 +4201,20 @@ register_handler:
 	return fly_event_register(e);
 
 response_413:
-	fly_request_t *req;
 
 	req = res->request;
 	fly_hv2_remove_response(stream->state, res);
 	fly_response_release(res);
 	res = fly_413_response(req);
+	e->event_data = (void *) res;
+	return fly_hv2_response_event(e);
+
+response_500:
+
+	req = res->request;
+	fly_hv2_remove_response(stream->state, res);
+	fly_response_release(res);
+	res = fly_500_response(req);
 	e->event_data = (void *) res;
 	return fly_hv2_response_event(e);
 }

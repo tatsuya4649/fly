@@ -84,8 +84,8 @@ fly_mime_type_t *fly_mime_from_type(fly_mime_e type)
 	if (mime == NULL)
 		return -1;
 	mime->pool = req->pool;
-	mime->acqty = 0;
-	mime->accepts = NULL;
+	mime->accept_count = 0;
+	fly_bllist_init(&mime->accepts);
 	mime->request = req;
 	req->mime = mime;
 
@@ -116,42 +116,8 @@ __fly_static int __fly_accept_mime(fly_hdr_ci *header, fly_hdr_c **c)
 __fly_static int __fly_add_accept_mime(fly_mime_t *m, struct __fly_mime *nm)
 {
 	nm->mime = m;
-	if (m->acqty == 0){
-		m->accepts = nm;
-		nm->next = NULL;
-		goto increment;
-	}else{
-		struct __fly_mime *__m, *prev;
-		for (__m=m->accepts; __m->next; __m=__m->next){
-			if (fly_same_type(__m, nm)){
-				if (__m->quality_value < nm->quality_value){
-					nm->next = __m->next;
-					if (prev)
-						prev->next = nm;
-					/* release __m */
-					fly_pbfree(__m->mime->pool, __m);
-					return 0;
-				}else if (__m->quality_value == nm->quality_value){
-					if (__m->extqty > nm->extqty){
-						nm->next = __m->next;
-						if (prev)
-							prev->next = nm;
-						/* release __m */
-						fly_pbfree(__m->mime->pool, __m);
-						return 0;
-					}
-				}else{
-					fly_pbfree(nm->mime->pool, nm);
-					return 0;
-				}
-			}
-			prev = __m;
-		}
-		__m->next = nm;
-		goto increment;
-	}
-increment:
-	m->acqty++;
+	fly_bllist_add_tail(&m->accepts, &nm->blelem);
+	m->accept_count++;
 	return 0;
 }
 
@@ -806,7 +772,6 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 				__fly_accept_type_from_str(mime, &__nm->type, type);
 				if(__fly_accept_subtype_from_str(&__nm->subtype, subtype) == -1)
 					return FLY_MIME_PARSE_PERROR;
-				__nm->next = NULL;
 
 				__fly_add_accept_mime(mime, __nm);
 			}

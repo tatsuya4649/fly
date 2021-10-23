@@ -1,15 +1,15 @@
 #include "method.h"
 
 fly_http_method_t methods[] = {
-	{"GET", GET},
-	{"HEAD", HEAD},
-	{"POST", POST},
-	{"PUT", PUT},
-	{"DELETE", DELETE},
-	{"CONNECT", CONNECT},
-	{"OPTIONS", OPTIONS},
-	{"TRACE", TRACE},
-	{"PATCH", PATCH},
+	{.name="GET", 			.type=GET},
+	{.name="HEAD", 			.type=HEAD},
+	{.name="POST", 			.type=POST},
+	{.name="PUT",			.type=PUT},
+	{.name="DELETE",		.type=DELETE},
+	{.name="CONNECT",		.type=CONNECT},
+	{.name="OPTIONS", 		.type=OPTIONS},
+	{.name="TRACE",			.type=TRACE},
+	{.name="PATCH", 		.type=PATCH},
 	{NULL}
 };
 
@@ -20,7 +20,7 @@ fly_http_method_t *fly_match_method_name(char *method_name)
 
 	fly_http_method_t *m;
     for (m=methods; m->name!=NULL; m++){
-        if (strcmp(method_name, m->name) == 0){
+        if (strncmp(method_name, m->name, strlen(m->name)) == 0){
             return m;
 		}
     }
@@ -33,11 +33,11 @@ fly_http_method_t *fly_match_method_name_with_end(char *method_name, char end_of
 		return NULL;
 
 	fly_http_method_t *m;
-	char *__ptr;
+	const char *__ptr;
     for (m=methods; m->name!=NULL; m++){
 		char *ptr;
 
-		ptr = m->name;
+		ptr = (char *) m->name;
 		__ptr = method_name;
 		while(*__ptr++ == *ptr++){
 			if (*__ptr == end_of_char)
@@ -61,7 +61,7 @@ fly_method_e *fly_match_method_name_e(char *name)
 {
 	fly_http_method_t *m;
     for (m=methods; m->name!=NULL; m++){
-        if (strcmp(name, m->name) == 0)
+        if (strncmp(name, m->name, strlen(m->name)) == 0)
             return &m->type;
     }
     return NULL;

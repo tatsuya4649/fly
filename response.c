@@ -88,12 +88,14 @@ fly_response_t *fly_response_init(struct fly_context *ctx)
 	response->pf = NULL;
 	response->offset = 0;
 	response->count = 0;
-	response->encoding = NULL;
+	response->encoding_type = NULL;
 	response->de = NULL;
 	response->blocking = false;
 	response->encoded = false;
 	response->rcbs = NULL;
 	response->send_len = 0;
+	response->response_len = 0;
+	response->original_response_len = 0;
 	return response;
 }
 
@@ -771,13 +773,7 @@ int fly_response_event(fly_event_t *e)
 	}
 
 	if (fly_encode_do(response)){
-		fly_encoding_type_t *enctype=NULL;
-		enctype = fly_decided_encoding_type(response->encoding);
-		if (fly_unlikely_null(enctype))
-			return -1;
-
-
-		if (enctype->type == fly_identity)
+		if (response->encoding_type->type == fly_identity)
 			goto end_of_encoding;
 
 		fly_de_t *__de;
@@ -795,7 +791,7 @@ int fly_response_event(fly_event_t *e)
 		__de->event = e;
 		__de->response = response;
 		__de->c_sockfd = e->fd;
-		__de->etype = enctype;
+		__de->etype = response->encoding_type;
 		__de->bfs = 0;
 		__de->end = false;
 		response->de = __de;
@@ -803,7 +799,7 @@ int fly_response_event(fly_event_t *e)
 		if (fly_unlikely_null(__de->decbuf) || \
 				fly_unlikely_null(__de->encbuf))
 			return -1;
-		if (enctype->encode(__de) == -1)
+		if (response->encoding_type->encode(__de) == -1)
 			return -1;
 	}
 end_of_encoding:
@@ -1142,7 +1138,6 @@ fly_response_t *fly_413_response(fly_request_t *req)
 	res->offset = 0;
 	res->byte_from_start = 0;
 
-	fly_add_allow(res->header, req);
 	fly_add_server(res->header, is_fly_request_http_v2(req));
 	fly_add_date(res->header, is_fly_request_http_v2(req));
 	if (!is_fly_request_http_v2(req))
@@ -1209,7 +1204,7 @@ fly_response_t *fly_500_response(fly_request_t *req)
 	if (is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
 	res->version = req->request_line->version->type;
-	res->status_code = _415;
+	res->status_code = _500;
 	res->request = req;
 	res->encoded = false;
 	res->offset = 0;
@@ -1232,25 +1227,29 @@ fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf)
 	if (fly_unlikely_null(response))
 		return NULL;
 
-	response->request = req;
-	response->status_code = _200;
-	response->version = !hv2 ? V1_1 : V2;
-	response->header = fly_header_init(req->ctx);
-	if (hv2)
-		response->header->state = req->stream->state;
-	response->encoding = req->encoding;
-	response->pf = pf;
-	response->offset = 0;
-	response->count = pf->fs.st_size;
-	response->byte_from_start = 0;
+	if (pf->overflow)
+		response = fly_413_response(req);
+	else{
+		response->request = req;
+		response->status_code = _200;
+		response->version = !hv2 ? V1_1 : V2;
+		response->header = fly_header_init(req->ctx);
+		if (hv2)
+			response->header->state = req->stream->state;
+		response->encoding_type = fly_encoding_from_type(pf->encode_type);
+		response->pf = pf;
+		response->offset = 0;
+		response->count = pf->fs.st_size;
+		response->byte_from_start = 0;
 
-	fly_add_content_length_from_stat(response->header, &pf->fs, hv2);
-	fly_add_content_etag(response->header, pf, hv2);
-	fly_add_date(response->header, hv2);
-	fly_add_last_modified(response->header, pf, hv2);
-	fly_add_content_type(response->header, pf->mime_type, hv2);
-	if (!hv2)
-		fly_add_connection(response->header, KEEP_ALIVE);
+		fly_add_content_length_from_stat(response->header, &pf->fs, hv2);
+		fly_add_content_etag(response->header, pf, hv2);
+		fly_add_date(response->header, hv2);
+		fly_add_last_modified(response->header, pf, hv2);
+		fly_add_content_type(response->header, pf->mime_type, hv2);
+		if (!hv2)
+			fly_add_connection(response->header, KEEP_ALIVE);
+	}
 
 	return response;
 }

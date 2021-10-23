@@ -303,7 +303,7 @@ __fly_static enum method_type __fly_request_method(fly_reqlinec_t *c)
 
 	return -1;
 parse_method:
-	char *ptr;
+	const char *ptr;
 	ptr = __m->name;
 	while(*ptr)
 		if (*ptr++ != *c++)
@@ -1089,8 +1089,8 @@ __fase_header:
 	}
 
 	/* accept encoding parse */
-//	if (fly_accept_encoding(request) == -1)
-//		goto error;
+	if (fly_accept_encoding(request) == -1)
+		goto error;
 
 	/* accept mime parse */
 	if (fly_accept_mime(request) == -1)
@@ -1156,7 +1156,7 @@ __fase_end_of_parse:
 	}
 
 	/* defined handler */
-	response = route->function(request);
+	response = route->function(request, route->data);
 	if (response == NULL)
 		goto response_500;
 
