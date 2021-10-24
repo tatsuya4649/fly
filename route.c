@@ -57,11 +57,11 @@ fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *uri, fly_method_e m
 #if DEBUG
 	assert(reg != NULL);
 #endif
-
 	fly_for_each_bllist(__b, &reg->regs){
 		__r = fly_bllist_data(__b, fly_route_t, blelem);
-		if (strncmp(__r->uri, uri, strlen(__r->uri)) == 0 && \
-				__r->method->type==method)
+		if ((strlen(__r->uri) == strlen(uri)) && \
+				(strncmp(__r->uri, uri, strlen(__r->uri)) == 0) && \
+				(__r->method->type==method))
 			return __r;
 	}
 	return NULL;
