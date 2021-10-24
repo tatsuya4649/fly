@@ -92,6 +92,7 @@ enum __fly_mime_list{
 	fly_mime_noextension,
 };
 extern struct fly_mime_type noext_mime;
+extern struct fly_mime_type default_route_response_mime;
 typedef enum __fly_mime_list fly_mime_e;
 #define __FLY_MTYPE_SET(__t, __st)	.type = fly_mime_ ## __t ## _ ## __st, .name = #__t "/" #__st
 #define __FLY_MTYPE_EXTS(...)		.extensions = FLY_STRING_ARRAY(__VA_ARGS__)
@@ -134,7 +135,7 @@ struct __fly_mime_type{
 		fly_mime_type_asterisk,
 		fly_mime_type_unknown,
 	} type;
-	char *type_name;
+	const char *type_name;
 };
 #define FLY_MIME_TYPE(n)				(fly_mime_type_ ## n)
 #define __FLY_MIME_TYPE(n)				{fly_mime_type_ ## n, #n}
@@ -142,7 +143,7 @@ struct __fly_mime_type{
 #define FLY_MIME_TYPE_MAXLEN				30
 #define FLY_MIME_SUBTYPE_MAXLEN				30
 struct __fly_mime_subtype{
-	char subtype[FLY_MIME_SUBTYPE_MAXLEN];
+	const char subtype[FLY_MIME_SUBTYPE_MAXLEN];
 	fly_bit_t asterisk: 1;
 };
 #define FLY_MIME_ASTERISK(am)			\
@@ -170,6 +171,12 @@ struct __fly_mime{
 
 	struct fly_bllist			blelem;
 };
+#ifdef DEBUG
+__unused static struct __fly_mime *fly_mime_debug(struct fly_bllist *__b)
+{
+	return (struct __fly_mime *) fly_bllist_data(__b, struct __fly_mime, blelem);
+}
+#endif
 #define fly_same_type(m1, m2)		\
 		(((m1)->type.type == (m2)->type.type) && (strcmp((m1)->subtype.subtype, (m2)->subtype.subtype)))
 
@@ -192,4 +199,5 @@ int fly_accept_mime(fly_request_t *request);
 
 fly_mime_type_t *fly_mime_type_from_path_name(char *path);
 bool fly_mime_invalid(fly_mime_type_t *type);
+fly_mime_type_t *fly_mime_type_from_str(const char *str, size_t len);
 #endif

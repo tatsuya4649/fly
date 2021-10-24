@@ -190,7 +190,7 @@ int fly_gzip_encode(fly_de_t *de)
 	switch (de->type){
 	case FLY_DE_DECODE:
 		return FLY_ENCODE_TYPE_ERROR;
-	case FLY_DE_ESEND_FROM_PATH:
+	case FLY_DE_FROM_PATH:
 		if (lseek(de->fd, de->offset, SEEK_SET) == -1)
 			return FLY_ENCODE_SEEK_ERROR;
 	default:
@@ -202,7 +202,7 @@ int fly_gzip_encode(fly_de_t *de)
 	z_stream __zstream;
 	fly_buffer_c *chain;
 
-	if (de->encbuf == NULL || !de->encbuflen || de->decbuf == NULL || !de->decbuflen)
+	if (de->encbuf == NULL || !de->encbuflen || (de->type != FLY_DE_ENCODE && (de->decbuf == NULL || !de->decbuflen)))
 		return FLY_ENCODE_ERROR;
 
 	__zstream.zalloc = Z_NULL;
@@ -219,21 +219,22 @@ int fly_gzip_encode(fly_de_t *de)
 	flush = Z_NO_FLUSH;
 	status = Z_OK;
 
-	chain = fly_buffer_first_chain(de->decbuf);
+	if (!de->target_already_alloc)
+		chain = fly_buffer_first_chain(de->decbuf);
 	while(status != Z_STREAM_END){
 		if (flush != Z_FINISH && __zstream.avail_in == 0){
 			switch(de->type){
 			case FLY_DE_ENCODE:
-				__zstream.next_in = chain->use_ptr;
-				__zstream.avail_in = chain->unuse_ptr-chain->use_ptr;
-				fly_update_chain(&chain, __zstream.next_in, __zstream.avail_in);
+				if (de->target_already_alloc){
+					__zstream.next_in = (Bytef *) de->already_ptr;
+					__zstream.avail_in = de->already_len;
+				}else{
+					__zstream.next_in = chain->use_ptr;
+					__zstream.avail_in = chain->unuse_ptr-chain->use_ptr;
+					fly_update_chain(&chain, __zstream.next_in, __zstream.avail_in);
+				}
 				break;
-			case FLY_DE_ESEND:
-				__zstream.next_in = chain->use_ptr;
-				__zstream.avail_in = chain->unuse_ptr-chain->use_ptr;
-				fly_update_chain(&chain, __zstream.next_in, __zstream.avail_in);
-				break;
-			case FLY_DE_ESEND_FROM_PATH:
+			case FLY_DE_FROM_PATH:
 				{
 					int numread;
 					if ((numread=read(de->fd, chain->use_ptr, fly_buf_act_len(chain))) == -1)
@@ -246,6 +247,8 @@ int fly_gzip_encode(fly_de_t *de)
 				FLY_NOT_COME_HERE
 			}
 			if (__zstream.avail_in < fly_buf_act_len(chain))
+				flush = Z_FINISH;
+			else if (de->target_already_alloc)
 				flush = Z_FINISH;
 		}
 		status = deflate(&__zstream, flush);
@@ -262,6 +265,9 @@ int fly_gzip_encode(fly_de_t *de)
 		}
 
 		if (__zstream.avail_out == 0){
+#ifdef DEBUG
+			assert(!de->target_already_alloc);
+#endif
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->encbuf, fly_buf_act_len(fly_buffer_last_chain(de->encbuf))) == -1)
 				goto buffer_error;
@@ -392,7 +398,7 @@ int fly_br_encode(fly_de_t *de)
 	switch (de->type){
 	case FLY_DE_DECODE:
 		return FLY_ENCODE_ERROR;
-	case FLY_DE_ESEND_FROM_PATH:
+	case FLY_DE_FROM_PATH:
 		if (lseek(de->fd, de->offset, SEEK_SET) == -1)
 			return FLY_ENCODE_ERROR;
 	default:
@@ -406,7 +412,7 @@ int fly_br_encode(fly_de_t *de)
 	size_t contlen = 0;
 	fly_buffer_c *chain;
 
-	if (fly_unlikely_null(de->encbuf) || fly_unlikely(!de->encbuflen) ||  fly_unlikely_null(de->decbuf) || fly_unlikely(!de->decbuflen))
+	if (fly_unlikely_null(de->encbuf) || fly_unlikely(!de->encbuflen) || ( (de->type != FLY_DE_ENCODE) && (fly_unlikely_null(de->decbuf) || fly_unlikely(!de->decbuflen))))
 		return FLY_ENCODE_ERROR;
 
 	state = BrotliEncoderCreateInstance(0, 0, NULL);
@@ -418,21 +424,22 @@ int fly_br_encode(fly_de_t *de)
 	available_out = fly_buf_act_len(fly_buffer_first_chain(de->encbuf));
 
 	op = BROTLI_OPERATION_PROCESS;
-	chain = fly_buffer_first_chain(de->decbuf);
+	if (!de->target_already_alloc)
+		chain = fly_buffer_first_chain(de->decbuf);
 	while(op != BROTLI_OPERATION_FINISH){
 		if (available_in == 0){
 			switch(de->type){
 			case FLY_DE_ENCODE:
-				next_in = chain->use_ptr;
-				available_in = chain->unuse_ptr-chain->use_ptr;
-				fly_update_chain(&chain, next_in, available_in);
+				if (de->target_already_alloc){
+					next_in = (uint8_t *) de->already_ptr;
+					available_in = de->already_len;
+				}else{
+					next_in = chain->use_ptr;
+					available_in = chain->unuse_ptr-chain->use_ptr;
+					fly_update_chain(&chain, next_in, available_in);
+				}
 				break;
-			case FLY_DE_ESEND:
-				next_in = chain->use_ptr;
-				available_in = chain->unuse_ptr-chain->use_ptr;
-				fly_update_chain(&chain, next_in, available_in);
-				break;
-			case FLY_DE_ESEND_FROM_PATH:
+			case FLY_DE_FROM_PATH:
 				{
 					int numread = 0;
 					if ((numread=read(de->fd, chain->use_ptr, fly_buf_act_len(chain))) == -1)
@@ -446,6 +453,8 @@ int fly_br_encode(fly_de_t *de)
 			}
 
 			if (available_in < (size_t) fly_buf_act_len(fly_buffer_last_chain(de->decbuf)))
+				op = BROTLI_OPERATION_FINISH;
+			else if (de->target_already_alloc)
 				op = BROTLI_OPERATION_FINISH;
 			else
 				op = BROTLI_OPERATION_PROCESS;
@@ -465,6 +474,9 @@ int fly_br_encode(fly_de_t *de)
 
 		/* lack of output buffer */
 		if (available_out == 0){
+#ifdef DEBUG
+			assert(!de->target_already_alloc);
+#endif
 			next_out = fly_buffer_lunuse_ptr(de->encbuf);
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->encbuf, fly_buf_act_len(fly_buffer_last_chain(de->encbuf))) == -1)
@@ -672,7 +684,7 @@ int fly_deflate_encode(fly_de_t *de)
 	switch (de->type){
 	case FLY_DE_DECODE:
 		return FLY_ENCODE_ERROR;
-	case FLY_DE_ESEND_FROM_PATH:
+	case FLY_DE_FROM_PATH:
 		if (lseek(de->fd, de->offset, SEEK_SET) == -1)
 			return FLY_ENCODE_ERROR;
 	default:
@@ -684,8 +696,7 @@ int fly_deflate_encode(fly_de_t *de)
 	fly_buffer_c *chain;
 	size_t contlen = 0;
 
-	if (de->decbuf == NULL || !de->decbuf->use_len || \
-			de->encbuf == NULL || !de->encbuflen)
+	if (de->encbuf == NULL || !de->encbuflen || (de->type != FLY_DE_ENCODE && (de->decbuf == NULL || !de->decbuflen)))
 		return FLY_ENCODE_ERROR;
 
 	__zstream.zalloc = Z_NULL;
@@ -700,22 +711,23 @@ int fly_deflate_encode(fly_de_t *de)
 	__zstream.avail_out = fly_buf_act_len(fly_buffer_first_chain(de->encbuf));
 
 	flush = Z_NO_FLUSH;
-	chain = fly_buffer_first_chain(de->decbuf);
+	if (!de->target_already_alloc)
+		chain = fly_buffer_first_chain(de->decbuf);
 	while(status != Z_STREAM_END){
 		if (flush != Z_FINISH && __zstream.avail_in == 0){
 			/* point to encoded buf */
 			switch(de->type){
 			case FLY_DE_ENCODE:
-				__zstream.next_in = chain->use_ptr;
-				__zstream.avail_in = chain->unuse_ptr-chain->use_ptr;
-				fly_update_chain(&chain, __zstream.next_in, __zstream.avail_in);
+				if (de->target_already_alloc){
+					__zstream.next_in = (Bytef *) de->already_ptr;
+					__zstream.avail_in = de->already_len;
+				}else{
+					__zstream.next_in = chain->use_ptr;
+					__zstream.avail_in = chain->unuse_ptr-chain->use_ptr;
+					fly_update_chain(&chain, __zstream.next_in, __zstream.avail_in);
+				}
 				break;
-			case FLY_DE_ESEND:
-				__zstream.next_in = chain->use_ptr;
-				__zstream.avail_in = chain->unuse_ptr-chain->use_ptr;
-				fly_update_chain(&chain, __zstream.next_in, __zstream.avail_in);
-				break;
-			case FLY_DE_ESEND_FROM_PATH:
+			case FLY_DE_FROM_PATH:
 				{
 					int numread = 0;
 					numread = read(de->fd, chain->use_ptr, fly_buf_act_len(chain));
@@ -730,6 +742,8 @@ int fly_deflate_encode(fly_de_t *de)
 				FLY_NOT_COME_HERE
 			}
 			if (__zstream.avail_in < fly_buffer_luse_len(de->decbuf))
+				flush = Z_FINISH;
+			else if (de->target_already_alloc)
 				flush = Z_FINISH;
 		}
 		status = deflate(&__zstream, flush);
@@ -746,6 +760,9 @@ int fly_deflate_encode(fly_de_t *de)
 		}
 
 		if (__zstream.avail_out == 0){
+#ifdef DEBUG
+			assert(!de->target_already_alloc);
+#endif
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->decbuf, fly_buf_act_len(fly_buffer_last_chain(de->decbuf))) == -1)
 				goto error;

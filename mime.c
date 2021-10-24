@@ -1,5 +1,6 @@
 #include "mime.h"
 #include "request.h"
+#include <string.h>
 
 fly_mime_type_t mimes[] = {
 	{__FLY_MTYPE_SET(text, plain), __FLY_MTYPE_EXTS("txt", NULL)},
@@ -20,6 +21,9 @@ fly_mime_type_t unknown_mime = {
 fly_mime_type_t noext_mime = {
 	__FLY_MTYPE_SET(text, plain), __FLY_MTYPE_EXTS("txt", NULL)
 };
+fly_mime_type_t default_route_response_mime = {
+	__FLY_MTYPE_SET(text, plain), __FLY_MTYPE_EXTS("txt", NULL)
+};
 bool fly_mime_invalid(fly_mime_type_t *type)
 {
 	return (type==&unknown_mime || type==&noext_mime) ? true : false;
@@ -32,8 +36,8 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 #define FLY_MIME_PARSE_ERROR	-1
 #define FLY_MIME_PARSE_PERROR	0
 #define FLY_MIME_PARSE_SUCCESS	1
-__fly_static int __fly_accept_type_from_str(fly_mime_t *mime, struct __fly_mime_type *type, fly_hdr_value *type_str);
-__fly_static int __fly_accept_subtype_from_str(struct __fly_mime_subtype *subtype, fly_hdr_value *subtype_str);
+__fly_static int __fly_accept_type_from_str(fly_mime_t *mime, struct __fly_mime_type *type, fly_hdr_value *type_str, size_t type_len);
+__fly_static int __fly_accept_subtype_from_str(struct __fly_mime_subtype *subtype, fly_hdr_value *subtype_str, size_t subtype_len);
 __fly_static int __fly_accept_qvalue_from_str(fly_hdr_value *qptr);
 __fly_static void __fly_mime_ext_add(struct __fly_mime *mime, struct __fly_accept_ext *ext);
 __fly_static void __fly_mime_param_add(struct __fly_mime *mime, struct __fly_accept_param *param);
@@ -90,6 +94,17 @@ fly_mime_type_t *fly_mime_from_type(fly_mime_e type)
 	req->mime = mime;
 
 	return 0;
+}
+
+fly_mime_type_t *fly_mime_type_from_str(const char *str, size_t len)
+{
+	for (fly_mime_type_t *m=mimes; m->extensions!=NULL; m++){
+		if (len == strlen(m->name) &&  \
+				(strncmp(str, m->name, len) == 0))
+			return m;
+	}
+	/* not found */
+	return NULL;
 }
 
 __fly_static int __fly_accept_mime(fly_hdr_ci *header, fly_hdr_c **c)
@@ -298,7 +313,8 @@ static inline bool __fly_quoted_string(char *c)
 __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 {
 	fly_hdr_value *ptr;
-	__unused char *param_tokenl = NULL, *param_tokenr=NULL, *qvalue_ptr=NULL, *ext_tokenl=NULL, *ext_tokenr=NULL, *type=NULL, *subtype=NULL;
+	char *param_tokenl = NULL, *param_tokenr=NULL, *qvalue_ptr=NULL, *ext_tokenl=NULL, *ext_tokenr=NULL, *type=NULL, *subtype=NULL;
+	size_t type_len=0, subtype_len=0;
 	int decimal_places;
 	struct __fly_mime *__nm;
 
@@ -306,7 +322,7 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 		MEDIA_RANGE,
 		ACCEPT_PARAMS,
 	} pfase;
-	__unused enum{
+	enum{
 		__FLY_ACCEPT_MIME_MEDIA_RANGE_INIT,
 		__FLY_ACCEPT_MIME_MEDIA_RANGE_TYPE,
 		__FLY_ACCEPT_MIME_MEDIA_RANGE_SLASH,
@@ -362,6 +378,8 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			ext_tokenr = NULL;
 			type = NULL;
 			subtype = NULL;
+			type_len = 0;
+			subtype_len = 0;
 			__nm = NULL;
 			__nm = fly_pballoc(mime->pool, sizeof(struct __fly_mime));
 			if (__nm == NULL)
@@ -377,6 +395,7 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			return FLY_MIME_PARSE_PERROR;
 		case __FLY_ACCEPT_MIME_MEDIA_RANGE_TYPE:
 			if (__fly_slash(*ptr)){
+				type_len = ptr-type;
 				pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_SLASH;
 				break;
 			}
@@ -393,10 +412,12 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			goto perror;
 		case __FLY_ACCEPT_MIME_MEDIA_RANGE_SUBTYPE:
 			if (__fly_comma(*ptr)){
+				subtype_len = ptr-subtype;
 				pstatus = __FLY_ACCEPT_MIME_COMMA;
 				continue;
 			}
 			if (__fly_zeros(*ptr)){
+				subtype_len = ptr-subtype;
 				pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_END;
 				continue;
 			}
@@ -404,11 +425,13 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			if (__fly_subtype(*ptr) || __fly_asterisk(*ptr)) break;
 
 			if (__fly_space(*ptr)){
+				subtype_len = ptr-subtype;
 				pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_OWS1;
 				continue;
 			}
 
 			if (__fly_semicolon(*ptr)){
+				subtype_len = ptr-subtype;
 				pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_SEMICOLON;
 				break;
 			}
@@ -769,8 +792,9 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 				if (__nm->quality_value == -1)
 					return FLY_MIME_PARSE_ERROR;
 
-				__fly_accept_type_from_str(mime, &__nm->type, type);
-				if(__fly_accept_subtype_from_str(&__nm->subtype, subtype) == -1)
+				if (__fly_accept_type_from_str(mime, &__nm->type, type, type_len) == -1)
+					return FLY_MIME_PARSE_PERROR;
+				if(__fly_accept_subtype_from_str(&__nm->subtype, subtype, subtype_len) == -1)
 					return FLY_MIME_PARSE_PERROR;
 
 				__fly_add_accept_mime(mime, __nm);
@@ -819,7 +843,7 @@ static inline char __fly_lu_ignore(char c)
 	return __fly_ualpha(c) ? (c+0x20) : c;
 }
 
-__fly_static int __fly_same_type(char *t1, char *t2)
+__unused __fly_static int __fly_same_type(char *t1, char *t2)
 {
 	while(!__fly_slash(*t2))
 		if (__fly_lu_ignore(*t1++) != __fly_lu_ignore(*t2++))
@@ -828,7 +852,16 @@ __fly_static int __fly_same_type(char *t1, char *t2)
 	return 0;
 }
 
-__fly_static int __fly_copy_type(char *dist, char *src)
+__fly_static int __fly_same_type_n(const char *t1, const char *t2, size_t n)
+{
+	size_t i=0;
+	while(__fly_lu_ignore(*t1++) == __fly_lu_ignore(*t2++))
+		if (i++ <= n)
+			return 1;
+
+	return 0;
+}
+__unused __fly_static int __fly_copy_type(char *dist, char *src)
 {
 	int i=0;
 	while(!__fly_slash(*src)){
@@ -841,7 +874,7 @@ __fly_static int __fly_copy_type(char *dist, char *src)
 	return 0;
 }
 
-__fly_static int __fly_copy_subtype(char *dist, char *src)
+__unused __fly_static int __fly_copy_subtype(char *dist, char *src)
 {
 	int i=0;
 	while(__fly_subtype(*src)){
@@ -855,10 +888,10 @@ __fly_static int __fly_copy_subtype(char *dist, char *src)
 	return 0;
 }
 
-__fly_static int __fly_accept_type_from_str(fly_mime_t *mime, struct __fly_mime_type *type, fly_hdr_value *type_str)
+__fly_static int __fly_accept_type_from_str(fly_mime_t *mime, struct __fly_mime_type *type, fly_hdr_value *type_str, size_t type_len)
 {
 	for (struct __fly_mime_type *__t=__fly_mime_type_list; __t->type_name; __t++){
-		if (__fly_same_type(__t->type_name, type_str) == 0){
+		if (__fly_same_type_n(__t->type_name, type_str, type_len)){
 			type->type = __t->type;
 			type->type_name = __t->type_name;
 			return 0;
@@ -866,15 +899,18 @@ __fly_static int __fly_accept_type_from_str(fly_mime_t *mime, struct __fly_mime_
 	}
 
 	type->type = fly_mime_type_unknown;
-	type->type_name = fly_pballoc(mime->request->pool, sizeof(char)*FLY_MIME_TYPE_MAXLEN);
-	return __fly_copy_type(type->type_name, type_str);
+	type->type_name = fly_pballoc(mime->request->pool, sizeof(char)*(type_len+1));
+	memset((char *) type->type_name, '\0', type_len+1);
+	if (type_len >= FLY_MIME_TYPE_MAXLEN)
+		return -1;
+	memcpy((char *) type->type_name, type_str, type_len);
+	return 0;
 }
 
 
-__fly_static int __fly_accept_subtype_from_str(__unused struct __fly_mime_subtype *subtype, __unused fly_hdr_value *subtype_str)
+__fly_static int __fly_accept_subtype_from_str(__unused struct __fly_mime_subtype *subtype, __unused fly_hdr_value *subtype_str, size_t subtype_len)
 {
-	if (__fly_copy_subtype(subtype->subtype, subtype_str) == -1)
-		return -1;
+	memcpy((char *) subtype->subtype, subtype_str, subtype_len);
 
 	if (strcmp(subtype->subtype, "*") == 0)
 		subtype->asterisk = true;

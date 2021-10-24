@@ -6,10 +6,10 @@
 typedef char fly_bodyc_t;
 #define FLY_REQBODY_SIZE			(FLY_PAGESIZE*100)
 struct fly_body{
-	fly_pool_t *pool;
+	fly_pool_t			*pool;
 	/* non null terminated */
-	fly_bodyc_t *body;
-	int body_len;
+	fly_bodyc_t			*body;
+	int					body_len;
 };
 
 typedef struct fly_body fly_body_t;
@@ -17,7 +17,7 @@ typedef struct fly_body fly_body_t;
 struct fly_context;
 fly_body_t *fly_body_init(struct fly_context *ctx);
 void fly_body_release(fly_body_t *body);
-int fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer, size_t content_length);
+void fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer, size_t content_length);
 
 fly_bodyc_t *fly_get_body_ptr(char *buffer);
 #include "encode.h"

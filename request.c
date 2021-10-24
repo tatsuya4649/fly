@@ -1129,10 +1129,8 @@ __fase_body:
 			goto response_415;
 		if (fly_decode_body(body_ptr, et, body, content_length) == NULL)
 			goto error;
-	}else{
-		if (fly_body_setting(body, body_ptr, content_length) == -1)
-			goto error;
-	}
+	}else
+		fly_body_setting(body, body_ptr, content_length);
 
 
 __fase_end_of_parse:
