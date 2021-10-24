@@ -65,7 +65,10 @@ fly_hdr_c *fly_header_chain_debug(struct fly_bllist *__b);
 struct fly_context;
 fly_hdr_ci *fly_header_init(struct fly_context *ctx);
 void fly_header_release(fly_hdr_ci *info);
-int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
+int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, size_t name_len, fly_hdr_value *value, size_t value_len);
+int fly_header_add_ifno(fly_hdr_ci *chain_info, fly_hdr_name *name, size_t name_len, fly_hdr_value *value, size_t value_len);
+int fly_header_add_ver(fly_hdr_ci *ci, fly_hdr_name *name, size_t name_len, fly_hdr_value *value, size_t value_len, bool hv2);
+int fly_header_add_ver_ifno(fly_hdr_ci *ci, fly_hdr_name *name, size_t name_len, fly_hdr_value *value, size_t value_len, bool hv2);
 fly_hdr_c *fly_header_addc(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);
 int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
 int fly_header_addbv(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len);
@@ -102,5 +105,10 @@ fly_hdr_value *fly_content_encoding_s(fly_hdr_ci *ci);
 struct fly_request;
 int fly_add_allow(fly_hdr_ci *ci, struct fly_request *req);
 int fly_add_server(fly_hdr_ci *ci, bool hv2);
+
+struct fly_response;
+struct fly_request;
+void fly_header_state(fly_hdr_ci *__ci, struct fly_request *__req);
+void fly_response_header_init(struct fly_response *__res, struct fly_request *__req);
 
 #endif

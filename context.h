@@ -10,22 +10,22 @@
 
 #define FLY_CONTEXT_POOL_SIZE			10
 
-
 struct fly_response_content_by_stcode;
 struct fly_context{
-	fly_pool_t *pool;
-	struct fly_pool_manager *pool_manager;
-	fly_pool_t *misc_pool;
-	fly_sockinfo_t *listen_sock;
-	int listen_count;
-	fly_log_t *log;
-	fly_route_reg_t *route_reg;
-	fly_mount_t *mount;
-	struct fly_bllist	rcbs;
+	fly_pool_t					*pool;
+	struct fly_pool_manager		*pool_manager;
+	fly_pool_t					*misc_pool;
+	fly_sockinfo_t				*listen_sock;
+	int							listen_count;
+	fly_log_t					*log;
+	fly_route_reg_t				*route_reg;
+	fly_mount_t					*mount;
+	struct fly_bllist			rcbs;
 
-	void *data;
+	void						*data;
+	long long					max_response_content_length;
 	/* for SSL/TLS */
-	SSL_CTX *ssl_ctx;
+	SSL_CTX						*ssl_ctx;
 };
 typedef struct fly_context fly_context_t;
 

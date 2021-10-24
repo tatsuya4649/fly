@@ -14,6 +14,7 @@
 #define FLY_RESPONSE_POOL_PAGE		100
 #define DEFAULT_RESPONSE_VERSION			"1.1"
 #define FLY_DEFAULT_CONTENT_PATH_LEN		(30)
+#define FLY_MAX_RESPONSE_CONTENT_LENGTH	"FLY_MAX_RESPONSE_CONTENT_LENGTH"
 
 typedef unsigned long long fly_flag_t;
 
@@ -57,7 +58,8 @@ enum status_code_type{
 	_502,
 	_503,
 	_504,
-	_505
+	_505,
+	INVALID_STATUS_CODE,
 };
 typedef enum status_code_type fly_stcode_t;
 #define FLY_PATH_FROM_STATIC(p)			(__FLY_PATH_FROM_ROOT(static) "/" # p)
@@ -191,12 +193,14 @@ typedef struct fly_response_content_by_stcode fly_rcbs_t;
 fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);
 int __fly_response_log(fly_response_t *res, fly_event_t *e);
 const char *fly_status_code_str_from_type(fly_stcode_t type);
+fly_stcode_t fly_status_code_from_long(long __l);
 fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf);
 
 static inline int fly_encode_do(fly_response_t *res)
 {
 	return (res->encoding_type != NULL);
-//	return (res->encoding != NULL && res->encoding->accept_count);
 }
+
+int fly_response_content_max_length(void);
 
 #endif

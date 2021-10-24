@@ -59,8 +59,7 @@ struct fly_de{
 	enum{
 		FLY_DE_ENCODE,
 		FLY_DE_DECODE,
-		FLY_DE_ESEND,
-		FLY_DE_ESEND_FROM_PATH,
+		FLY_DE_FROM_PATH,
 	} type;
 	fly_buffer_t					*encbuf;
 	int								encbuflen;

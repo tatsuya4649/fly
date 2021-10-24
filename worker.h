@@ -42,4 +42,5 @@ void fly_worker_release(fly_worker_t *worker);
 
 #define FLY_WORKER_SUCCESS_EXIT			0
 void fly_worker_signal(void);
+
 #endif
