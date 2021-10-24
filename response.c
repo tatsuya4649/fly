@@ -177,6 +177,15 @@ __fly_static int __fly_status_code_from_type(fly_stcode_t type)
 	return -1;
 }
 
+fly_stcode_t fly_status_code_from_long(long __l)
+{
+	for (fly_status_code *st=responses; st->status_code!=-1; st++){
+		if ((long) st->status_code == __l)
+			return st->type;
+	}
+	return INVALID_STATUS_CODE;
+}
+
 const char *fly_status_code_str_from_type(fly_stcode_t type)
 {
 	for (fly_status_code *st=responses; st->status_code!=-1; st++){
@@ -780,7 +789,7 @@ int fly_response_event(fly_event_t *e)
 
 		__de = fly_pballoc(response->pool, sizeof(fly_de_t));
 		__de->pool = response->pool;
-		__de->type = FLY_DE_ESEND_FROM_PATH;
+		__de->type = FLY_DE_FROM_PATH;
 		__de->encbuflen = 0;
 		__de->decbuflen = 0;
 		__de->encbuf = fly_buffer_init(__de->pool, FLY_DE_BUF_INITLEN, FLY_DE_BUF_MAXLEN, FLY_DE_BUF_PERLEN);
@@ -1284,5 +1293,10 @@ int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_pa
 		return -1;
 
 	return fly_event_register(e);
+}
+
+int fly_response_content_max_length(void)
+{
+	return fly_config_value_int(FLY_MAX_RESPONSE_CONTENT_LENGTH);
 }
 

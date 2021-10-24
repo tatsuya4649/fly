@@ -4,6 +4,7 @@
 #include "connect.h"
 #include <sys/sendfile.h>
 #include <openssl/err.h>
+#include "mime.h"
 
 fly_hv2_stream_t *fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid_t id, bool from_client);
 int fly_hv2_request_event_handler(fly_event_t *e);
@@ -3717,8 +3718,7 @@ int fly_hv2_parse_data(fly_hv2_stream_t *stream, uint32_t length, uint8_t *paylo
 
 	/* copy receive buffer to body content. */
 	fly_buffer_memcpy((char *) bc, (char *) payload, __c, length);
-	if (fly_body_setting(body, bc, length) == -1)
-		return -1;
+	fly_body_setting(body, bc, length);
 
 	return 0;
 }
@@ -3936,6 +3936,15 @@ __response:
 	response = route->function(request, route->data);
 	if (response == NULL)
 		goto response_500;
+	fly_response_header_init(response, request);
+
+#define FLY_REQ_HV2				is_fly_request_http_v2(request)
+	if (fly_add_date(response->header, FLY_REQ_HV2) == -1)
+		goto response_500;
+	if (fly_add_server(response->header, FLY_REQ_HV2) == -1)
+		goto response_500;
+	if (fly_add_content_type(response->header, &default_route_response_mime, FLY_REQ_HV2) == -1)
+		goto response_500;
 
 	response->request = request;
 	goto response;
@@ -4112,34 +4121,34 @@ int fly_hv2_response_event(fly_event_t *e)
 	/* if yet response body encoding */
 	if (fly_encode_do(res) && !res->encoded){
 		res->type = FLY_RESPONSE_TYPE_ENCODED;
-		fly_encoding_type_t *enctype=NULL;
-		enctype = fly_decided_encoding_type(res->request->encoding);
-		if (fly_unlikely_null(enctype))
-			return -1;
-
-		if (enctype->type == fly_identity)
+		if (res->encoding_type->type == fly_identity)
 			goto send_header;
 
 		fly_de_t *__de;
 
 		__de = fly_de_init(res->pool);
 		if (res->pf){
-			__de->type = FLY_DE_ESEND_FROM_PATH;
+			__de->type = FLY_DE_FROM_PATH;
 			__de->fd = res->pf->fd;
 			__de->offset = res->offset;
 			__de->count = res->pf->fs.st_size;
 		}else if (res->rcbs){
-			__de->type = FLY_DE_ESEND_FROM_PATH;
+			__de->type = FLY_DE_FROM_PATH;
 			__de->fd = res->rcbs->fd;
 			__de->offset = 0;
 			__de->count = res->rcbs->fs.st_size;
-		}
+		}else if (res->body){
+			__de->type = FLY_DE_ENCODE;
+			__de->already_ptr = res->body->body;
+			__de->already_len = res->body->body_len;
+			__de->target_already_alloc = true;
+		}else
+			FLY_NOT_COME_HERE
 
-		/* TODO: FLY_RESPONSE_TYPE_BODY encoding */
 		__de->event = e;
 		__de->response = res;
 		__de->c_sockfd = e->fd;
-		__de->etype = enctype;
+		__de->etype = res->encoding_type;
 		__de->bfs = 0;
 		__de->end = false;
 		res->de = __de;
@@ -4147,11 +4156,12 @@ int fly_hv2_response_event(fly_event_t *e)
 		if (fly_unlikely_null(__de->decbuf) || \
 				fly_unlikely_null(__de->encbuf))
 			return -1;
-		if (enctype->encode(__de) == -1)
+		if (res->encoding_type->encode(__de) == -1)
 			return -1;
 
 		res->encoded = true;
 		res->response_len = __de->contlen;
+		res->type = FLY_RESPONSE_TYPE_ENCODED;
 	}
 
 	/* content length over limit */
@@ -4267,4 +4277,3 @@ int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, 
 	}
 	return 0;
 }
-

@@ -10,6 +10,7 @@
 #include "request.h"
 #include "uri.h"
 #include "v2.h"
+#include "response.h"
 
 fly_hdr_ci *fly_header_init(fly_context_t *ctx)
 {
@@ -97,12 +98,55 @@ fly_hdr_c *__fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, size_t n
 	return new_chain;
 }
 
-int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len)
+int fly_header_add_ifno(fly_hdr_ci *chain_info, fly_hdr_name *name, size_t name_len, fly_hdr_value *value, size_t value_len)
+{
+	fly_hdr_c *__c;
+
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &chain_info->chain){
+		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (strcmp(__c->name, name) == 0)
+			return 0;
+	}
+
+	if (__fly_header_add(chain_info, name, name_len, value, value_len, false))
+		return 0;
+	else
+		return -1;
+}
+
+int fly_header_add(fly_hdr_ci *chain_info, fly_hdr_name *name, size_t name_len, fly_hdr_value *value, size_t value_len)
 {
 	if (__fly_header_add(chain_info, name, name_len, value, value_len, false))
 		return 0;
 	else
 		return -1;
+}
+
+/* if yet not have name of header, add */
+int fly_header_add_ver_ifno(fly_hdr_ci *ci, fly_hdr_name *name, size_t name_len, fly_hdr_value *value, size_t value_len, bool hv2)
+{
+	fly_hdr_c *__c;
+
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &ci->chain){
+		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (strcmp(__c->name, name) == 0)
+			return 0;
+	}
+
+	if (hv2)
+		return fly_header_add_v2(ci, name, name_len, value, value_len, false);
+	else
+		return fly_header_add(ci, name, name_len, value, value_len);
+}
+
+int fly_header_add_ver(fly_hdr_ci *ci, fly_hdr_name *name, size_t name_len, fly_hdr_value *value, size_t value_len, bool hv2)
+{
+	if (hv2)
+		return fly_header_add_v2(ci, name, name_len, value, value_len, false);
+	else
+		return fly_header_add(ci, name, name_len, value, value_len);
 }
 
 fly_hdr_c *fly_header_addc(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning)
@@ -383,9 +427,9 @@ int fly_add_date(fly_hdr_ci *ci, bool v2)
 		return -1;
 
 	if (v2)
-		return fly_header_add_v2(ci, fly_header_name_length("date"), fly_header_value_length(value_field), false);
+		return fly_header_add_ver_ifno(ci, fly_header_name_length("date"), fly_header_value_length(value_field), v2);
 	else
-		return fly_header_add(ci, fly_header_name_length("Date"), fly_header_value_length(value_field));
+		return fly_header_add_ifno(ci, fly_header_name_length("Date"), fly_header_value_length(value_field));
 }
 
 int fly_add_content_type(fly_hdr_ci *ci, fly_mime_type_t *type, bool v2)
@@ -395,9 +439,9 @@ int fly_add_content_type(fly_hdr_ci *ci, fly_mime_type_t *type, bool v2)
 		type = &noext_mime;
 
 	if (v2)
-		return fly_header_add_v2(ci, fly_header_name_length("content-type"), fly_header_value_length(type->name), false);
+		return fly_header_add_ver_ifno(ci, fly_header_name_length("content-type"), fly_header_value_length(type->name), false);
 	else
-		return fly_header_add(ci, fly_header_name_length("Content-Type"), fly_header_value_length(type->name));
+		return fly_header_add_ifno(ci, fly_header_name_length("Content-Type"), fly_header_value_length(type->name));
 }
 
 int fly_add_content_length_from_stat(fly_hdr_ci *ci, struct stat *sb, bool v2)
@@ -538,9 +582,9 @@ int fly_add_allow(fly_hdr_ci *ci, fly_request_t *req)
 int fly_add_server(fly_hdr_ci *ci, bool hv2)
 {
 	if (hv2)
-		return fly_header_add(ci, fly_header_name_length("server"), fly_header_value_length(FLY_SERVER_NAME));
+		return fly_header_add_ver_ifno(ci, fly_header_name_length("server"), fly_header_value_length(FLY_SERVER_NAME), hv2);
 	else
-		return fly_header_add(ci, fly_header_name_length("Server"), fly_header_value_length(FLY_SERVER_NAME));
+		return fly_header_add_ifno(ci, fly_header_name_length("Server"), fly_header_value_length(FLY_SERVER_NAME));
 }
 
 fly_hdr_c *fly_header_chain_debug(struct fly_bllist *__b)
@@ -549,3 +593,18 @@ fly_hdr_c *fly_header_chain_debug(struct fly_bllist *__b)
 	__c = fly_bllist_data(__b, fly_hdr_c, blelem);
 	return __c;
 }
+
+void fly_header_state(fly_hdr_ci *__ci, struct fly_request *__req)
+{
+	if (is_fly_request_http_v2(__req))
+		__ci->state = __req->stream->state;
+}
+
+void fly_response_header_init(struct fly_response *__res, struct fly_request *__req)
+{
+	if (!__res->header){
+		__res->header = fly_header_init(__req->ctx);
+		fly_header_state(__res->header, __req);
+	}
+}
+

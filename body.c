@@ -25,13 +25,13 @@ void fly_body_release(fly_body_t *body)
 	fly_delete_pool(body->pool);
 }
 
-int fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer, size_t content_length)
+void fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer, size_t content_length)
 {
-	if (body == NULL)
-		return -1;
+#ifdef DEBUG
+	assert(body && buffer);
+#endif
 	body->body = buffer;
 	body->body_len = content_length;
-	return 0;
 }
 
 fly_bodyc_t *fly_get_body_ptr(char *buffer)

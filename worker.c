@@ -608,7 +608,7 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 					int res;
 
 					__de = fly_de_init(__p->pool);
-					__de->type = FLY_DE_ESEND_FROM_PATH;
+					__de->type = FLY_DE_FROM_PATH;
 					__de->fd = __pf->fd;
 					__de->offset = 0;
 					__de->count = __pf->fs.st_size;
@@ -689,7 +689,7 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 				struct fly_de *__de;
 
 				__de = fly_de_init(ctx->pool);
-				__de->type = FLY_DE_ESEND_FROM_PATH;
+				__de->type = FLY_DE_FROM_PATH;
 				__de->fd = __frc->fd;
 				__de->offset = 0;
 				__de->count = __frc->fs.st_size;
@@ -709,3 +709,4 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 	}
 	return 0;
 }
+

@@ -1,6 +1,10 @@
 import sys
 import os
 import gc
+import enum
+
+class FlyContentType(enum.Enum):
+    TEXT_HTML = 0
 
 sys.path.append(
     os.path.join(
@@ -9,7 +13,7 @@ sys.path.append(
     )
 )
 
-from fly import Fly
+from fly import Fly, HTMLResponse
 
 fly = Fly(config_path="test/test.conf")
 
@@ -17,11 +21,7 @@ print("Hello fly")
 
 @fly.get("/")
 def a(request):
-    response = dict()
-    print(request)
-    response["header"] = list()
-    response["body"] = bytes()
-    return response
+    return HTMLResponse(200, [], "Hello World, fly!!!")
 
 print(fly.routes)
 

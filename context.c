@@ -30,6 +30,7 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 	ctx->misc_pool->self_delete = true;
 	ctx->listen_count = 0;
 	ctx->listen_sock = __fly_listen_sock(ctx, pool);
+	ctx->max_response_content_length = fly_response_content_max_length();
 	if (ctx->listen_sock == NULL)
 		return NULL;
 	ctx->log = fly_log_init(ctx);
