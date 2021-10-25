@@ -18,6 +18,7 @@ server = Extension(
 	library_dirs=["./lib"],
 	libraries=["fly"],
 	runtime_library_dirs=["./lib"],
+    extra_compile_args = ["-g", "-O0"],
 )
 signal = Extension(
 	name="_fly_signal",
@@ -25,6 +26,7 @@ signal = Extension(
 	library_dirs=["./lib"],
 	libraries=["fly"],
 	runtime_library_dirs=["./lib"],
+    extra_compile_args = ["-g", "-O0"],
 )
 
 setup(
