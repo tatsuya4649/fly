@@ -190,7 +190,7 @@ int fly_hv2_stream_create_reserved(fly_hv2_state_t *state, fly_sid_t id, bool fr
 	return 0;
 }
 
-int fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length, uint8_t flags, void *payload)
+int fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length, uint8_t flags)
 {
 	fly_hv2_frame_t *frame;
 
@@ -201,11 +201,23 @@ int fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length
 	frame->type = type;
 	frame->length = length;
 	frame->flags = flags;
-	frame->payload = payload;
 
 	fly_queue_init(&frame->felem);
 	stream->frame_count++;
+	fly_queue_push(&stream->frames, &frame->felem);
 	return 0;
+}
+
+void fly_hv2_pop_frame(struct fly_hv2_stream *stream)
+{
+	struct fly_hv2_frame *frame;
+	struct fly_queue	 *last;
+
+	last = fly_queue_last(&stream->frames);
+	frame = (struct fly_hv2_frame *) fly_queue_data(last, struct fly_hv2_frame, felem);
+	fly_queue_pop(&stream->frames);
+	stream->frame_count--;
+	fly_pbfree(stream->state->pool, frame);
 }
 
 void fly_hv2_release_frame(struct fly_hv2_frame *frame)
@@ -265,8 +277,9 @@ void __fly_hv2_add_stream(fly_hv2_state_t *state, fly_hv2_stream_t *__s)
 
 void __fly_hv2_remove_stream(fly_hv2_state_t *state, fly_hv2_stream_t *__s)
 {
-	if (state->stream_count == 0)
-		return;
+#ifdef DEBUG
+	assert(state->stream_count > 0);
+#endif
 
 	fly_bllist_remove(&__s->blelem);
 	state->stream_count--;
@@ -312,6 +325,8 @@ fly_hv2_stream_t *fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid_t id, bo
 }
 
 void fly_hv2_send_frame_release(struct fly_hv2_send_frame *__f);
+void fly_hv2_send_frame_release_noqueue_remove(struct fly_hv2_send_frame *__f);;
+
 int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 {
 	fly_hv2_state_t *state;
@@ -319,7 +334,6 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 	state = stream->state;
 
 	__fly_hv2_remove_stream(state, stream);
-
 	/* all frames remove */
 	if (stream->frame_count > 0){
 		struct fly_queue *__n;
@@ -328,6 +342,10 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 		for (struct fly_queue *__q=stream->frames.next; __q!=&stream->frames; __q=__n){
 			__n = __q->next;
 			__f = fly_queue_data(__q, struct fly_hv2_frame, felem);
+#ifdef DEBUG
+			assert(__f->type == FLY_HV2_FRAME_TYPE_HEADERS || \
+					__f->type == FLY_HV2_FRAME_TYPE_CONTINUATION);
+#endif
 			fly_hv2_release_frame(__f);
 		}
 	}
@@ -340,7 +358,8 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 			__n = __q->next;
 
 			__f = fly_queue_data(__q, struct fly_hv2_send_frame, qelem);
-			fly_hv2_send_frame_release(__f);
+			fly_queue_remove(&__f->sqelem);
+			fly_hv2_send_frame_release_noqueue_remove(__f);
 		}
 	}
 	/* all yet ack frames remove */
@@ -351,11 +370,12 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 			__n = __b->next;
 
 			__f = fly_bllist_data(__b, struct fly_hv2_send_frame, aqelem);
-			fly_hv2_send_frame_release(__f);
+			fly_hv2_send_frame_release_noqueue_remove(__f);
 		}
 	}
 	/* request release */
-	if (!stream->end_request_response && fly_request_release(stream->request) == -1)
+	if (!stream->end_request_response && stream->request &&\
+			fly_request_release(stream->request) == -1)
 		return -1;
 
 	fly_pbfree(state->pool, stream);
@@ -559,21 +579,25 @@ struct fly_hv2_send_frame *fly_hv2_send_frame_init(fly_hv2_stream_t *stream)
 	return frame;
 }
 
+void fly_hv2_send_frame_release_noqueue_remove(struct fly_hv2_send_frame *__f)
+{
+	if (__f->need_ack)
+		__f->stream->yetack_count--;
+	__f->stream->yetsend_count--;
+	__f->stream->state->send_count--;
+	if (__f->payload)
+		fly_pbfree(__f->pool, __f->payload);
+	fly_pbfree(__f->pool, __f);
+}
+
 void fly_hv2_send_frame_release(struct fly_hv2_send_frame *__f)
 {
 	fly_queue_remove(&__f->qelem);
 	fly_queue_remove(&__f->sqelem);
-	if (__f->need_ack){
+	if (__f->need_ack)
 		fly_bllist_remove(&__f->aqelem);
-		__f->stream->yetack_count--;
-	}
-	__f->stream->yetsend_count--;
-	__f->stream->state->send_count--;
 
-	if (__f->payload)
-		fly_pbfree(__f->pool, __f->payload);
-	fly_pbfree(__f->pool, __f);
-
+	fly_hv2_send_frame_release_noqueue_remove(__f);
 }
 
 static inline uint8_t fly_hv2_pad_length(uint8_t **pl, fly_buffer_c **__c)
@@ -1207,7 +1231,7 @@ frame_header_parse:
 				continue;
 		}
 
-		if (sid!=FLY_HV2_STREAM_ROOT_ID && fly_hv2_create_frame(__stream, type, length, flags, pl) == -1)
+		if (sid!=FLY_HV2_STREAM_ROOT_ID && fly_hv2_create_frame(__stream, type, length, flags) == -1)
 			goto emergency;
 
 		switch(state->connection_state){
@@ -2482,7 +2506,10 @@ void fly_send_settings_frame(fly_hv2_stream_t *stream, uint16_t *id, uint32_t *v
 	frame->type = FLY_HV2_FRAME_TYPE_SETTINGS;
 	fly_queue_init(&frame->qelem);
 	frame->payload = (!ack && count) ? fly_pballoc(stream->request->pool, frame->payload_len) : NULL;
-	frame->need_ack = true;
+	if (ack)
+		frame->need_ack = false;
+	else
+		frame->need_ack = true;
 	if ((!ack && count) && fly_unlikely_null(frame->payload))
 		return;
 
@@ -3146,7 +3173,7 @@ int fly_hv2_parse_headers(fly_hv2_stream_t *stream, uint32_t length, uint8_t *pa
 				/* go forward a byte of index */
 				payload = fly_update_chain_one(&__c, payload);
 				total++;
-			/* header field name by literal */
+				/* header field name by literal */
 				huffman_name = fly_hv2_is_huffman_encoding(payload);
 				name_len = fly_hv2_integer(&payload, &__c, &total, FLY_HV2_NAME_PREFIX_BIT);
 				name = payload;

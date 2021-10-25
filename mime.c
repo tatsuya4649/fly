@@ -908,8 +908,9 @@ __fly_static int __fly_accept_type_from_str(fly_mime_t *mime, struct __fly_mime_
 }
 
 
-__fly_static int __fly_accept_subtype_from_str(__unused struct __fly_mime_subtype *subtype, __unused fly_hdr_value *subtype_str, size_t subtype_len)
+__fly_static int __fly_accept_subtype_from_str(struct __fly_mime_subtype *subtype, fly_hdr_value *subtype_str, size_t subtype_len)
 {
+	memset((char *) subtype->subtype, '\0', FLY_MIME_SUBTYPE_MAXLEN);
 	memcpy((char *) subtype->subtype, subtype_str, subtype_len);
 
 	if (strcmp(subtype->subtype, "*") == 0)

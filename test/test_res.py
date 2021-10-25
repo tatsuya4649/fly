@@ -1,5 +1,6 @@
 import sys
 import os
+import gc
 
 sys.path.append(
     os.path.join(
@@ -11,5 +12,6 @@ sys.path.append(
 from fly import HTMLResponse
 
 a = HTMLResponse()
-print(a.header)
 print("Hello")
+gc.collect()
+print(gc.garbage)

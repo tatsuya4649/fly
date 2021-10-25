@@ -37,13 +37,12 @@ typedef fly_bit_t fly_settings_bit_t;
 typedef char fly_hv2_frame_header_t[FLY_HV2_FRAME_HEADER_LENGTH];
 
 struct fly_hv2_frame{
-	uint8_t		type;
-	uint32_t	length;
-	uint8_t		flags;
-	struct fly_hv2_stream *stream;
-	uint8_t *payload;
+	uint8_t							type;
+	uint32_t						length;
+	uint8_t							flags;
+	struct fly_hv2_stream			*stream;
 	/* frames queue element */
-	struct fly_queue			felem;
+	struct fly_queue				felem;
 };
 
 struct fly_hv2_stream;
@@ -63,9 +62,9 @@ struct fly_hv2_send_frame{
 		FLY_HV2_SEND_FRAME_FASE_END
 	}								send_fase;
 
-	/* send frame queue element */
+	/* send frame stream queue element */
 	struct fly_queue				qelem;
-	/* required ack send frame queue element */
+	/* required ack send frame straem queue element */
 	struct fly_bllist				aqelem;
 	/* send frame queue of state element */
 	struct fly_queue				sqelem;
@@ -169,7 +168,9 @@ struct fly_hv2_stream{
 	fly_sid_t						dependency_id;
 	struct fly_hv2_state			*state;
 	enum fly_hv2_stream_state		stream_state;
+	/* stream bllist for state */
 	struct fly_bllist				blelem;
+	/* reserved stream queue for state */
 	struct fly_queue				rqelem;
 	fly_request_t					*request;
 	int								dep_count;
@@ -196,9 +197,15 @@ struct fly_hv2_stream{
 	fly_bit_t 						end_request_response: 1;
 };
 typedef struct fly_hv2_stream fly_hv2_stream_t;
-#define FLY_HV2_ROOT_STREAM(state)			\
-		fly_queue_data((state)->streams.next, struct fly_hv2_stream, blelem)
+#define FLY_HV2_ROOT_STREAM(__state)			\
+		((struct fly_hv2_stream *) fly_bllist_data((__state)->streams.next, struct fly_hv2_stream, blelem))
 
+#ifdef DEBUG
+__unused static struct fly_hv2_stream *fly_stream_debug(struct fly_bllist *__b)
+{
+	return fly_bllist_data(__b, struct fly_hv2_stream, blelem);
+}
+#endif
 /* 1~256 */
 #define FLY_HV2_STREAM_DEFAULT_WEIGHT		(16)
 
