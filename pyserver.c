@@ -248,13 +248,10 @@ extern PyTypeObject FlyResponseType;
 #define PYFLY_HEADER_KEY						"header"
 #define PYFLY_STATUS_CODE_KEY					"status_code"
 #define PYFLY_CONTENT_TYPE_KEY					"content_type"
-static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void *data)
+static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 {
 #define PYFLY_RESHANDLER_ARGS_COUNT			1
-	PyObject *__func;
-	PyObject *__args;
-	PyObject *__reqdict;
-	PyObject *pyres=NULL;
+	PyObject *__func, *__args, *__reqdict, *pyres=NULL, *__margs;
 	fly_response_t *res;
 	fly_reqline_t *reqline;
 	fly_uri_t *uri;
@@ -264,39 +261,41 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void
 	fly_body_t *body;
 	fly_scheme_t *scheme;
 	struct fly_bllist *__b;
-	PyObject *__verargs;
 
 	__func = (PyObject *) data;
-	__args = PyTuple_New(PYFLY_RESHANDLER_ARGS_COUNT);
+	Py_INCREF(__func);
 	__reqdict = PyDict_New();
-	/* TODO: C request --> Python request */
+	/* C request --> Python request */
 	reqline = request->request_line;
 	uri = &reqline->uri;
 	PyObject *__pyuri = PyUnicode_FromStringAndSize((const char *) uri->ptr, (Py_ssize_t) uri->len);
 	if (PyDict_SetItemString(__reqdict, "uri", __pyuri) == -1)
 		return NULL;
 
+	Py_DECREF(__pyuri);
+
 	query = &reqline->query;
 	PyObject *__pyquery = PyUnicode_FromStringAndSize((const char *) query->ptr, (Py_ssize_t) query->len);
 	if (PyDict_SetItemString(__reqdict, "query", __pyquery) == -1)
 		return NULL;
+	Py_DECREF(__pyquery);
 
 	/* HTTP version */
 	ver = reqline->version;
-	__verargs = Py_BuildValue("fss", atof(ver->number), ver->full, ver->alpn);
-	VersionObject *__pyver = (VersionObject *) PyObject_CallObject((PyObject *) &VersionObjectType, __verargs);
+	__margs = Py_BuildValue("fss", atof(ver->number), ver->full, ver->alpn);
+	VersionObject *__pyver = (VersionObject *) PyObject_CallObject((PyObject *) &VersionObjectType, __margs);
 	if (PyDict_SetItemString(__reqdict, "version", (PyObject *) __pyver) == -1)
 		return NULL;
 
-	Py_DECREF(__verargs);
+	Py_DECREF(__margs);
 	/* HTTP Scheme */
 	scheme = reqline->scheme;
-	__verargs = Py_BuildValue("(s)", scheme);
-	SchemeObject *__pyscheme = (SchemeObject *) PyObject_CallObject((PyObject *) &SchemeObjectType, __verargs);
+	__margs = Py_BuildValue("(s)", scheme);
+	SchemeObject *__pyscheme = (SchemeObject *) PyObject_CallObject((PyObject *) &SchemeObjectType, __margs);
 	if (PyDict_SetItemString(__reqdict, "scheme", (PyObject *) __pyscheme) == -1)
 		return NULL;
 
-	Py_DECREF(__verargs);
+	Py_DECREF(__margs);
 	/* peer connection info */
 	PyObject *__pyhost = PyUnicode_FromString((const char *) request->connect->hostname);
 	if (PyDict_SetItemString(__reqdict, "host", (PyObject *) __pyhost) == -1)
@@ -306,6 +305,8 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void
 	if (PyDict_SetItemString(__reqdict, "port", (PyObject *) __pyport) == -1)
 		return NULL;
 
+	Py_DECREF(__pyhost);
+	Py_DECREF(__pyport);
 	/* header */
 	if (request->header){
 		header = request->header;
@@ -326,10 +327,15 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void
 
 			if (PyList_SetItem((PyObject *) __pylist, i, (PyObject *) __hd) == -1)
 				return NULL;
+
 			i++;
+			Py_DECREF(__n);
+			Py_DECREF(__v);
 		}
 		if (PyDict_SetItemString((PyObject *) __reqdict, "header", (PyObject *) __pylist) == -1)
 			return NULL;
+
+		Py_DECREF(__pylist);
 	}
 
 	/* accept encoding */
@@ -474,8 +480,11 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void
 		PyObject *__pybody = PyBytes_FromStringAndSize(body->body, body->body_len);
 		if (PyDict_SetItemString(__reqdict, "body", __pybody) == -1)
 			return NULL;
+
+		Py_DECREF(__pybody);
 	}
 
+	__args = PyTuple_New(PYFLY_RESHANDLER_ARGS_COUNT);
 	if (PyTuple_SetItem(__args, 0, __reqdict) == -1)
 		return NULL;
 	/* call python function, and return response. */
@@ -484,11 +493,12 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void
 		/* failure */
 		goto response_500;
 
+	Py_DECREF(__func);
+	Py_DECREF(__args);
+
 	if (!PyObject_IsSubclass((PyObject *) Py_TYPE(pyres), (PyObject *) &FlyResponseType))
 		goto response_500;
 
-	Py_DECREF(__pyuri);
-	Py_DECREF(__reqdict);
 
 	/* Python response --> C response */
 	fly_context_t *ctx;
@@ -522,6 +532,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void
 			memcpy(res->body->body, body_ptr, body_len);
 		}
 	}
+	Py_DECREF(pyres_body);
 
 	/* set response header */
 	Py_ssize_t pyres_hdr_len;
@@ -563,8 +574,11 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void
 			hdr_value = PyUnicode_AsUTF8AndSize(pyhdr_value, &hdr_value_len);
 			if (fly_header_add_ver(res->header, (char *) hdr_name, hdr_name_len, (char *) hdr_value, hdr_value_len, is_fly_request_http_v2(request)) == -1)
 				return NULL;
+
 		}
 	}
+
+	Py_DECREF(pyres_header);
 
 	/* set content type */
 	pyres_content_type = PyObject_GetAttrString(pyres, PYFLY_CONTENT_TYPE_KEY);
@@ -585,6 +599,8 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void
 	if (fly_add_content_type(res->header, __mtype, is_fly_request_http_v2(request)) == -1)
 		goto response_500;
 
+	Py_DECREF(pyres_content_type);
+
 	pyres_status_code = PyObject_GetAttrString(pyres, PYFLY_STATUS_CODE_KEY);
 	if (fly_unlikely_null(pyres_status_code))
 		goto response_500;
@@ -593,6 +609,8 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request __unused, void
 
 	long __status_code = PyLong_AsLong(pyres_status_code);
 	res->status_code = fly_status_code_from_long(__status_code);
+	Py_DECREF(pyres_status_code);
+
 	/* Check Python dictionary */
 	Py_DECREF(pyres);
 	return res;
@@ -625,7 +643,6 @@ static PyObject *__pyfly_register_route(__pyfly_server_t *self, PyObject *args, 
 		return NULL;
 	}
 
-	/* TODO: INCREF func */
 	if (fly_register_route(ctx->route_reg, pyfly_route_handler, uri, *__m, FLY_ROUTE_FLAG_PYTHON, (void *) func) == -1){
 		PyErr_SetString(PyExc_Exception, "error fly register route.");
 		return NULL;
@@ -673,7 +690,7 @@ static PyObject *__pyfly_mount(__pyfly_server_t *self, PyObject *args)
 
 static PyObject *__pyfly_run(__pyfly_server_t *self, PyObject *args)
 {
-	bool daemon;
+	int daemon;
 
 	if (!PyArg_ParseTuple(args, "p", &daemon))
 		return NULL;
