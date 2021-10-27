@@ -63,4 +63,9 @@ static inline bool fly_slash(char c)
 	return c == 0x2F ? true : false;
 }
 
+static inline bool fly_dot(char c)
+{
+	return c == 0x2E ? true : false;
+}
+
 #endif

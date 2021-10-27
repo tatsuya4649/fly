@@ -146,6 +146,7 @@ struct fly_itm_response{
 typedef struct fly_itm_response fly_itm_response_t;
 struct fly_response_content;
 int fly_304_event(fly_event_t *e);
+int fly_400_event_norequest(fly_event_t *e, fly_connect_t *conn);
 int fly_400_event(fly_event_t *e, fly_request_t *req);
 int fly_404_event(fly_event_t *e, fly_request_t *req);
 int fly_405_event(fly_event_t *e, fly_request_t *req);
@@ -171,7 +172,8 @@ struct fly_response_content{
 };
 
 #define FLY_RESPONSE_SUCCESS			1
-#define FLY_RESPONSE_BLOCKING			0
+#define FLY_RESPONSE_READ_BLOCKING		2
+#define FLY_RESPONSE_WRITE_BLOCKING		3
 #define FLY_RESPONSE_ERROR				-1
 
 /* default response content(static content) */

@@ -75,6 +75,7 @@ class Fly(FlySignal, FlyMount, FlyRoute, _fly_server):
         print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m")
         print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m")
         print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m")
+        print(f"    \033[1m*\033[0m Log directory path: \033[1m{os.path.abspath(self._log)}\033[0m")
 
         print(f"    \033[1m*\033[0m Mount paths (\033[1m{','.join(self.mounts)}\033[0m)", file=sys.stderr)
         max_len = 0
@@ -87,3 +88,8 @@ class Fly(FlySignal, FlyMount, FlyRoute, _fly_server):
             print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, __mfc, width=max_len, mn=__mn), file=sys.stderr)
         print("\n", file=sys.stderr)
         super().run(daemon)
+
+    def _debug_run(self):
+        if self.mounts_count == 0:
+            raise RuntimeError("fly must have one or more mount points.")
+        super()._debug_run()

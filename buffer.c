@@ -283,6 +283,11 @@ void fly_buffer_memcpy_all(char *dist, fly_buffer_t *__t)
 	fly_buffer_memcpy(dist, fly_buffer_first_useptr(__t), fly_buffer_first_chain(__t), __t->use_len);
 }
 
+void fly_buffer_memncpy_all(char *dist, fly_buffer_t *__t, size_t n)
+{
+	fly_buffer_memcpy(dist, fly_buffer_first_useptr(__t), fly_buffer_first_chain(__t), n);
+}
+
 void fly_buffer_memcpy(char *dist, char *src, fly_buffer_c *__c, size_t len)
 {
 	char *sptr;
