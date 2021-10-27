@@ -48,10 +48,11 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 	return req;
 }
 
-int fly_request_release(fly_request_t *req)
+void fly_request_release(fly_request_t *req)
 {
-	if (req == NULL)
-		return -1;
+#ifdef DEBUG
+	assert(req != NULL);
+#endif
 
 	if (req->header)
 		fly_header_release(req->header);
@@ -63,7 +64,6 @@ int fly_request_release(fly_request_t *req)
 		fly_request_line_release(req);
 
 	fly_delete_pool(req->pool);
-	return 0;
 }
 
 int fly_request_line_init(fly_request_t *req)
@@ -988,8 +988,7 @@ int fly_request_timeout_handler(fly_event_t *event)
 
 	/* release some resources */
 	/* close socket and release resources. */
-	if (fly_request_release(req) == -1)
-		return -1;
+	fly_request_release(req);
 	if (fly_event_unregister(event) == -1)
 		return -1;
 	if (fly_connect_release(conn) == -1)
