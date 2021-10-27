@@ -8,18 +8,15 @@
 #include "connect.h"
 #include "version.h"
 
-__fly_static fly_connect_t *__fly_ssl_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen, SSL *ssl, SSL_CTX *ctx);
 __fly_static int __fly_ssl_alpn(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg);
 __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e __unused);
 
 struct fly_ssl_accept{
-	fly_pool_t *pool;
-	fly_event_manager_t *manager;
-	SSL *ssl;
-	SSL_CTX *ctx;
-	struct sockaddr_storage addr;
-	socklen_t addrlen;
-	int listen_sock;
+	fly_pool_t				*pool;
+	fly_connect_t			*connect;
+	fly_event_manager_t 	*manager;
+	SSL						*ssl;
+	SSL_CTX					*ctx;
 };
 
 __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_accept *__ac);
@@ -46,75 +43,41 @@ void fly_listen_socket_ssl_setting(fly_context_t *ctx, fly_sockinfo_t *sockinfo)
 	return;
 }
 
-int fly_accept_listen_socket_ssl_handler(fly_event_t *e)
+int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 {
-	fly_sock_t conn_sock;
-	fly_sock_t listen_sock= e->fd;
-	struct sockaddr_storage addr;
-	socklen_t addrlen;
-	int flag;
 	struct fly_ssl_accept *__ac;
-	fly_event_t *ne;
 	SSL		*ssl;
 	fly_context_t *context;
-
-	context = e->manager->ctx;
-	addrlen = sizeof(struct sockaddr_storage);
-	/* non blocking accept */
-	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
-	conn_sock = accept4(listen_sock, (struct sockaddr *) &addr, &addrlen, flag);
-	if (conn_sock == -1)
-		return -1;
-
-	ssl = SSL_new(context->ssl_ctx);
-	SSL_set_fd(ssl, conn_sock);
-
-	__ac = fly_pballoc(e->manager->ctx->misc_pool, sizeof(struct fly_ssl_accept));
-	if (fly_unlikely_null(__ac))
-		return -1;
-	__ac->manager = e->manager;
-	__ac->pool = e->manager->ctx->misc_pool;
-	__ac->ssl = ssl;
-	__ac->ctx = context->ssl_ctx;
-	__ac->listen_sock = listen_sock;
-	memcpy(&__ac->addr, &addr, addrlen);
-	__ac->addrlen = addrlen;
-	ne = fly_event_init(__ac->manager);
-	if (fly_unlikely_null(ne))
-		return -1;
-	/* start of request timeout */
-	fly_sec(&ne->timeout, FLY_REQUEST_TIMEOUT);
-	ne->tflag = 0;
-	ne->eflag = 0;
-	ne->expired = false;
-	ne->available = false;
-	return __fly_ssl_accept_event_handler(ne, __ac);
-}
-
-void fly_ssl_accept_free(SSL *ssl)
-{
-	SSL_free(ssl);
-}
-
-__fly_static fly_connect_t *__fly_ssl_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen, SSL *ssl, SSL_CTX *ctx)
-{
-	fly_connect_t *conn;
 	const unsigned char *data;
 	unsigned int len;
 
-	conn = fly_connect_init(fd, cfd, e, addr, addrlen);
-	if (conn == NULL)
-		return NULL;
+	context = e->manager->ctx;
+	/* non blocking accept */
+	ssl = SSL_new(context->ssl_ctx);
+	SSL_set_fd(ssl, conn->c_sockfd);
 
 	conn->ssl = ssl;
-	conn->ssl_ctx = ctx;
 	conn->flag = FLY_SSL_CONNECT;
 
 	SSL_get0_alpn_selected(ssl, &data, &len);
 	conn->http_v = fly_match_version_from_alpn(data, len);
 	if (fly_unlikely_null(conn->http_v))
-		return NULL;
-	return conn;
+		return -1;
+
+	__ac = fly_pballoc(e->manager->ctx->misc_pool, sizeof(struct fly_ssl_accept));
+	if (fly_unlikely_null(__ac))
+		return -1;
+	__ac->manager = e->manager;
+	__ac->connect = conn;
+	__ac->pool = e->manager->ctx->misc_pool;
+	__ac->ssl = ssl;
+	__ac->ctx = context->ssl_ctx;
+	return __fly_ssl_accept_event_handler(e, __ac);
+}
+
+void fly_ssl_accept_free(SSL *ssl)
+{
+	SSL_free(ssl);
 }
 
 void fly_ssl_connected_release(fly_connect_t *conn)
@@ -168,18 +131,13 @@ __fly_static int __fly_ssl_alpn(SSL *ssl __unused, const unsigned char **out __u
 	return SSL_TLSEXT_ERR_NOACK;
 }
 
-void fly_listen_socket_end_handler(fly_event_t *__e)
-{
-	fly_connect_t *conn;
-
-	conn = (fly_connect_t *) __e->end_event_data;
-	fly_connect_release(conn);
-}
-
-
 __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_accept *__ac)
 {
 	int res, conn_sock;
+
+	/* expired handler */
+	if (e->expired)
+		e->end_handler(e);
 
 	/* create new connected socket event. */
 	conn_sock = SSL_get_fd(__ac->ssl);
@@ -222,27 +180,10 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 		}
 	}
 
-	e->fd = conn_sock;
-	e->read_or_write = FLY_READ;
-	FLY_EVENT_HANDLER(e, fly_listen_connected);
-	e->flag = FLY_NODELETE;
-	if (fly_event_already_added(e))
-		e->flag |= FLY_MODIFY;;
-	e->tflag = FLY_INHERIT;
-	e->eflag = 0;
-	e->expired = false;
-	e->available = false;
-	e->event_data = __fly_ssl_connected(__ac->listen_sock, conn_sock, e,(struct sockaddr *) &__ac->addr, __ac->addrlen, __ac->ssl, __ac->ctx);
-	if (fly_unlikely_null(e->event_data))
-		return -1;
-	/* for end of connection */
-	e->end_event_data = (void *) e->event_data;
-	e->end_handler = fly_listen_socket_end_handler;
-	fly_event_socket(e);
-
+	e->event_data = __ac->connect;
 	/* release accept resource */
 	fly_pbfree(__ac->pool, __ac);
-	return fly_event_register(e);
+	return fly_listen_connected(e);
 
 read_blocking:
 	e->read_or_write = FLY_READ;
@@ -255,7 +196,7 @@ write_blocking:
 blocking:
 	e->fd = conn_sock;
 	FLY_EVENT_HANDLER(e, __fly_ssl_accept_blocking_handler);
-	e->flag = FLY_NODELETE;
+	e->flag = FLY_MODIFY;
 	if (fly_event_already_added(e))
 		e->flag |= FLY_MODIFY;;
 	e->tflag = FLY_INHERIT;

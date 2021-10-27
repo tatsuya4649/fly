@@ -27,7 +27,7 @@ TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_route.cpp test_re
 ifdef DEBUG
 MACROS := $(MACROS) -D DEBUG
 endif
-PYTHON := python
+PYTHON := python3.8
 
 all: build
 	./$(BUILDDIR)/$(TARGET)

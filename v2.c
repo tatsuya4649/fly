@@ -374,9 +374,8 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 		}
 	}
 	/* request release */
-	if (!stream->end_request_response && stream->request &&\
-			fly_request_release(stream->request) == -1)
-		return -1;
+	if (!stream->end_request_response && stream->request)
+		fly_request_release(stream->request);
 
 	fly_pbfree(state->pool, stream);
 	return 0;
@@ -4212,7 +4211,7 @@ send_body:
 	return fly_send_data_frame(e, res);
 
 log:
-	if (__fly_response_log(res, e) == -1)
+	if (fly_response_log(res, e) == -1)
 		return -1;
 
 	/* release response resources */
