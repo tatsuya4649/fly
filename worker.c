@@ -9,9 +9,7 @@
 #include "context.h"
 #include "config.h"
 
-__fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
-__fly_static int __fly_listen_socket_handler(struct fly_event *);
-__fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen);
+__fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
 __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
 __fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler);
@@ -31,10 +29,7 @@ static struct fly_signal *fly_worker_sigptr = NULL;
 static fly_signal_t fly_worker_signals[] = {
 	{SIGINT,			NULL, NULL},
 	{SIGTERM,			NULL, NULL},
-	{SIGPIPE,			FLY_SIG_IGN, NULL},
-};
-
-/*
+	{SIGPIPE,			FLY_SIG_IGN, NULL}, }; /*
  *	 alloc resource:
  *	 pool_manager, struct fly_worker, struct fly_context
  */
@@ -472,7 +467,7 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 		);
 
 	/* make socket for each socket info */
-	if (__fly_listen_socket_event(manager, ctx->listen_sock) == -1)
+	if (fly_wainting_for_connection_event(manager, ctx->listen_sock) == -1)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_PROCS,
 			"fail to register listen socket event."
@@ -489,7 +484,7 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 	FLY_NOT_COME_HERE
 }
 
-__fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo)
+__fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo)
 {
 	fly_event_t *e;
 
@@ -497,17 +492,13 @@ __fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_soc
 	if (fly_unlikely_null(e))
 		return -1;
 
-	e->fd = sockinfo->fd;
-	e->read_or_write = FLY_READ;
-	if (sockinfo->flag & FLY_SOCKINFO_SSL){
+	if (sockinfo->flag & FLY_SOCKINFO_SSL)
 		/* SSL setting */
 		fly_listen_socket_ssl_setting(manager->ctx, sockinfo);
-		/* tcp+ssl/tls connection */
-		FLY_EVENT_HANDLER(e, fly_listen_socket_ssl_handler);
-	}else{
-		/* tcp connection */
-		FLY_EVENT_HANDLER(e, __fly_listen_socket_handler);
-	}
+
+	e->fd = sockinfo->fd;
+	e->read_or_write = FLY_READ;
+	FLY_EVENT_HANDLER(e, fly_accept_listen_socket_handler);
 	e->flag = FLY_PERSISTENT;
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
@@ -518,56 +509,6 @@ __fly_static int __fly_listen_socket_event(fly_event_manager_t *manager, fly_soc
 	fly_event_socket(e);
 
 	return fly_event_register(e);
-}
-
-__fly_static int __fly_listen_socket_handler(struct fly_event *event)
-{
-	fly_sock_t conn_sock;
-	fly_sock_t listen_sock = event->fd;
-	struct sockaddr_storage addr;
-	socklen_t addrlen;
-	int flag;
-	fly_event_t *ne;
-
-	addrlen = sizeof(struct sockaddr_storage);
-	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
-	conn_sock = accept4(listen_sock, (struct sockaddr *) &addr, &addrlen, flag);
-	if (conn_sock == -1)
-		return -1;
-
-	/* create new connected socket event. */
-	ne = fly_event_init(event->manager);
-	if (ne == NULL)
-		return -1;
-	ne->fd = conn_sock;
-	ne->read_or_write = FLY_READ;
-	FLY_EVENT_HANDLER(ne, fly_listen_connected);
-	ne->flag = FLY_NODELETE;
-	fly_sec(&ne->timeout, FLY_REQUEST_TIMEOUT);
-	ne->tflag = 0;
-	ne->eflag = 0;
-	ne->expired = false;
-	ne->available = false;
-	ne->event_data = __fly_connected(listen_sock, conn_sock, ne,(struct sockaddr *) &addr, addrlen);
-	if (ne->event_data == NULL)
-		return -1;
-	fly_event_socket(ne);
-
-	if (fly_event_register(ne) == -1)
-		return -1;
-
-	return 0;
-}
-
-__fly_static fly_connect_t *__fly_connected(fly_sock_t fd, fly_sock_t cfd, fly_event_t *e, struct sockaddr *addr, socklen_t addrlen)
-{
-	fly_connect_t *conn;
-
-	conn = fly_connect_init(fd, cfd, e, addr, addrlen);
-	if (conn == NULL)
-		return NULL;
-
-	return conn;
 }
 
 __fly_static int __fly_worker_open_file(fly_context_t *ctx)

@@ -9,6 +9,7 @@ struct __pyfly_server{
 	long 				worker;
 	long 				reqworker;
 	bool 				ssl;
+	const char			*log;
 	const char			*ssl_crt_path;
 	const char 			*ssl_key_path;
 };
@@ -17,6 +18,7 @@ struct PyMemberDef __pyfly_server_members[] = {
 	{"_host", T_STRING, offsetof(struct __pyfly_server, host), READONLY, ""},
 	{"_port", T_LONG, offsetof(struct __pyfly_server, port), READONLY, ""},
 	{"_worker", T_LONG, offsetof(struct __pyfly_server, worker), READONLY, ""},
+	{"_log", T_STRING, offsetof(struct __pyfly_server, log), READONLY, ""},
 	{"_reqworker", T_LONG, offsetof(struct __pyfly_server, reqworker), READONLY, ""},
 	{"_ssl", T_BOOL, offsetof(struct __pyfly_server, ssl), READONLY, ""},
 	{"_ssl_crt_path", T_STRING, offsetof(struct __pyfly_server, ssl_crt_path), READONLY, ""},
@@ -231,6 +233,7 @@ static int __pyfly_server_init(__pyfly_server_t *self, PyObject *args, PyObject 
 	self->ssl = (char) fly_ssl();
 	self->ssl_crt_path = (const char *) fly_ssl_crt_path();
 	self->ssl_key_path = (const char *) fly_ssl_key_path();
+	self->log = (const char *) fly_log_path();
 	return 0;
 }
 
@@ -287,6 +290,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	if (PyDict_SetItemString(__reqdict, "version", (PyObject *) __pyver) == -1)
 		return NULL;
 
+	Py_DECREF(__pyver);
 	Py_DECREF(__margs);
 	/* HTTP Scheme */
 	scheme = reqline->scheme;
@@ -296,6 +300,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 		return NULL;
 
 	Py_DECREF(__margs);
+	Py_DECREF(__pyscheme);
 	/* peer connection info */
 	PyObject *__pyhost = PyUnicode_FromString((const char *) request->connect->hostname);
 	if (PyDict_SetItemString(__reqdict, "host", (PyObject *) __pyhost) == -1)
@@ -709,6 +714,14 @@ static PyObject *__pyfly_run(__pyfly_server_t *self, PyObject *args)
 	Py_RETURN_NONE;
 }
 
+static PyObject *_pyfly__debug_run(__pyfly_server_t *self, PyObject *args)
+{
+	fly_master_worker_spawn(self->master, fly_worker_process);
+	fly_master_process(self->master);
+
+	Py_RETURN_NONE;
+}
+
 static PyObject *__pyfly_mount_files(__pyfly_server_t *self, PyObject *args)
 {
 	int __mn, mount_files_count;
@@ -731,6 +744,7 @@ static PyMethodDef __pyfly_server_methods[] = {
 	{"_mount_number", (PyCFunction) __pyfly_mount_number, METH_VARARGS, ""},
 	{"_mount", (PyCFunction) __pyfly_mount, METH_VARARGS, ""},
 	{"run", (PyCFunction) __pyfly_run, METH_VARARGS, ""},
+	{"_debug_run", (PyCFunction) _pyfly__debug_run, METH_NOARGS, ""},
 	{"_mount_files", (PyCFunction) __pyfly_mount_files, METH_VARARGS, ""},
 	{NULL}
 };

@@ -46,7 +46,7 @@ void fly_listen_socket_ssl_setting(fly_context_t *ctx, fly_sockinfo_t *sockinfo)
 	return;
 }
 
-int fly_listen_socket_ssl_handler(fly_event_t *e)
+int fly_accept_listen_socket_ssl_handler(fly_event_t *e)
 {
 	fly_sock_t conn_sock;
 	fly_sock_t listen_sock= e->fd;
@@ -122,11 +122,19 @@ void fly_ssl_connected_release(fly_connect_t *conn)
 	fly_ssl_accept_free(conn->ssl);
 }
 
-__fly_static int __fly_ssl_strcmp(char *d1, char *d2, unsigned char max)
+__fly_static int __fly_ssl_strcmp(char *d1, char *d2, size_t d1_len, size_t d2_len)
 {
-	while(max-- && *d1++ == *d2++)
-		if (max == 0)
+	if (d1_len != d2_len)
+		return -1;
+
+	while(*d1 == *d2){
+		d1_len--;
+		if (d1_len == 0)
 			return 0;
+
+		d1++;
+		d2++;
+	}
 	return -1;
 }
 
@@ -134,12 +142,12 @@ __fly_static int __fly_ssl_alpn_cmp(fly_http_version_t *__v, const unsigned char
 {
 	char *ptr=(char *) in;
 	while(true){
-		char len=*ptr;
+		char len=*ptr++;
 
-		if (__fly_ssl_strcmp((char *) __v->alpn, ptr, len) == 0)
+		if (__fly_ssl_strcmp((char *) __v->alpn, ptr, strlen(__v->alpn), len) == 0)
 			return 0;
 
-		if (ptr+(int)len > (char *) in+inlen)
+		if (ptr+(int)len-1 >= (char *) in+inlen-1)
 			return -1;
 		else
 			ptr+=(int)len;
@@ -151,7 +159,7 @@ __fly_static int __fly_ssl_alpn(SSL *ssl __unused, const unsigned char **out __u
 	for (fly_http_version_t *__v=versions; __v->full; __v++){
 		if (!__v->alpn)
 			continue;
-		if (__fly_ssl_alpn_cmp(__v, in, inlen)){
+		if (__fly_ssl_alpn_cmp(__v, in, inlen) == 0){
 			*out = (unsigned char *) __v->alpn;
 			*outlen = strlen(__v->alpn);
 			return SSL_TLSEXT_ERR_OK;
@@ -227,6 +235,7 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 	e->event_data = __fly_ssl_connected(__ac->listen_sock, conn_sock, e,(struct sockaddr *) &__ac->addr, __ac->addrlen, __ac->ssl, __ac->ctx);
 	if (fly_unlikely_null(e->event_data))
 		return -1;
+	/* for end of connection */
 	e->end_event_data = (void *) e->event_data;
 	e->end_handler = fly_listen_socket_end_handler;
 	fly_event_socket(e);
@@ -279,7 +288,7 @@ __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e)
 #define FLY_SSL_ERROR_LOG_MAXLENGTH			(200)
 int fly_ssl_error_log(fly_event_manager_t *manager)
 {
-	int err_code;
+	unsigned long err_code;
 	fly_log_t *log;
 
 	log = fly_log_from_manager(manager);
@@ -296,6 +305,9 @@ int fly_ssl_error_log(fly_event_manager_t *manager)
 		/* event register */
 		if (fly_log_event_register(manager, logcont) == -1)
 			return -1;
+
+		/* remove error entry from queue */
+		ERR_get_error();
 	}
 
 	return 0;

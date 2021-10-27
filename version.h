@@ -27,4 +27,7 @@ fly_http_version_t *fly_match_version_with_end(char *version, char end_of_versio
 fly_http_version_t *fly_match_version_from_alpn(const unsigned char *version, unsigned int len);
 fly_http_version_t *fly_match_version_from_type(enum fly_version_type type);
 
+#define FLY_HTTP_DEFAULT_VERSION			V1_1
+fly_http_version_t *fly_default_http_version(void);
+
 #endif

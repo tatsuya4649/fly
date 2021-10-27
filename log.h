@@ -53,7 +53,9 @@ typedef enum fly_log_type fly_log_e;
 struct __fly_log{
 	fly_logfile_t	file;
 	fly_path_t		log_path[FLY_PATH_MAX];
-	int flag;
+#define __FLY_LOGFILE_INIT_STDOUT			1 << 0
+#define __FLY_LOGFILE_INIT_STDERR			1 << 1
+	int				flag;
 	fly_bit_t		tty: 1;
 };
 
@@ -116,5 +118,10 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...);
 int fly_log_event_register(fly_event_manager_t *manager, struct fly_logcont *lc);
 
 const char *fly_log_path(void);
+
+#define FLY_LOG_STDOUT						"FLY_LOG_STDOUT"
+#define FLY_LOG_STDERR						"FLY_LOG_STDERR"
+bool fly_log_stdout(void);
+bool fly_log_stderr(void);
 
 #endif
