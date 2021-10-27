@@ -110,7 +110,7 @@ int fly_request_event_handler(fly_event_t *event);
 
 #define FLY_REQUEST_POOL_SIZE		1
 fly_request_t *fly_request_init(fly_connect_t *conn);
-int fly_request_release(fly_request_t *req);
+void fly_request_release(fly_request_t *req);
 
 int fly_request_line_init(fly_request_t *req);
 void fly_request_line_release(fly_request_t *req);
