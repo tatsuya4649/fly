@@ -193,7 +193,7 @@ struct fly_response_content_by_stcode{
 struct fly_response_content_by_stcode *fly_rcbs_init(fly_context_t *ctx);
 typedef struct fly_response_content_by_stcode fly_rcbs_t;
 fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);
-int __fly_response_log(fly_response_t *res, fly_event_t *e);
+int fly_response_log(fly_response_t *res, fly_event_t *e);
 const char *fly_status_code_str_from_type(fly_stcode_t type);
 fly_stcode_t fly_status_code_from_long(long __l);
 fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf);

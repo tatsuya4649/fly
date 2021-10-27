@@ -14,17 +14,17 @@
 
 typedef int fly_sock_t;
 struct fly_sockinfo{
-	fly_sock_t fd;
+	fly_sock_t				fd;
 	struct sockaddr_storage addr;
-	socklen_t addrlen;
-	char hostname[NI_MAXHOST];
-	char servname[NI_MAXSERV];
+	socklen_t				addrlen;
+	char					hostname[NI_MAXHOST];
+	char 					servname[NI_MAXSERV];
 	/* for ssl */
-	char *crt_path;
-	char *key_path;
+	char					*crt_path;
+	char 					*key_path;
 
 #define FLY_SOCKINFO_SSL		(1<<0)
-	int flag;
+	int						flag;
 };
 typedef struct fly_sockinfo fly_sockinfo_t;
 #define FLY_SOCKET_OPTION		1

@@ -6,6 +6,7 @@
 #include "context.h"
 #include "event.h"
 #include "config.h"
+#include "connect.h"
 
 /*
  *	whether to use ssl/tls.
@@ -23,7 +24,7 @@
  */
 #define FLY_SSL_KEY_PATH		"FLY_SSL_KEY_PATH"
 
-int fly_accept_listen_socket_ssl_handler(fly_event_t *e);
+int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn);
 struct fly_connect;
 void fly_ssl_connected_release(struct fly_connect *conn);
 int fly_ssl_error_log(fly_event_manager_t *manager);
