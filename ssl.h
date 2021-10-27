@@ -23,7 +23,7 @@
  */
 #define FLY_SSL_KEY_PATH		"FLY_SSL_KEY_PATH"
 
-int fly_listen_socket_ssl_handler(fly_event_t *e);
+int fly_accept_listen_socket_ssl_handler(fly_event_t *e);
 struct fly_connect;
 void fly_ssl_connected_release(struct fly_connect *conn);
 int fly_ssl_error_log(fly_event_manager_t *manager);
@@ -32,5 +32,12 @@ void fly_listen_socket_ssl_setting(fly_context_t *ctx, fly_sockinfo_t *sockinfo)
 bool fly_ssl(void);
 char *fly_ssl_crt_path(void);
 char *fly_ssl_key_path(void);
+
+#define FLY_TLS_HANDSHAKE_MAGIC				(0x16)
+
+static inline bool fly_tls_handshake_magic(char *b)
+{
+	return *b == FLY_TLS_HANDSHAKE_MAGIC ? true : false;
+}
 
 #endif

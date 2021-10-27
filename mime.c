@@ -173,6 +173,7 @@ int fly_accept_mime(__unused fly_request_t *request)
 		return -1;
 	}
 	FLY_NOT_COME_HERE
+	return -1;
 }
 
 static inline bool __fly_zero(char c)

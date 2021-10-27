@@ -148,14 +148,14 @@ __fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize)
 	return FLY_EBUFLEN;
 }
 
-static inline int __fly_log_stdout(const char *env)
+static inline int __fly_log_stdout()
 {
-	return getenv(env) != NULL ? __FLY_LOGFILE_INIT_STDOUT: 0;
+	return fly_log_stdout() ? __FLY_LOGFILE_INIT_STDOUT: 0;
 }
 
-static inline int __fly_log_stderr(const char *env)
+static inline int __fly_log_stderr()
 {
-	return getenv(env) != NULL ? __FLY_LOGFILE_INIT_STDERR: 0;
+	return fly_log_stderr() ? __FLY_LOGFILE_INIT_STDERR: 0;
 }
 
 fly_log_t *fly_log_init(fly_context_t *ctx)
@@ -173,8 +173,8 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 	alp = __fly_logfile_init(
 		ctx->pool,
 		log_path_buf,
-		__fly_log_stdout(FLY_STDOUT_ENV(ACCESS)) | \
-		__fly_log_stderr(FLY_STDERR_ENV(ACCESS))
+		__fly_log_stdout() | \
+		__fly_log_stderr()
 	);
 
 	if (__fly_log_path(error, log_path_buf, FLY_PATH_MAX) == -1)
@@ -182,8 +182,8 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 	elp = __fly_logfile_init(
 		ctx->pool,
 		log_path_buf,
-		__fly_log_stdout(FLY_STDOUT_ENV(ERROR)) | \
-		__fly_log_stderr(FLY_STDERR_ENV(ERROR))
+		__fly_log_stdout() | \
+		__fly_log_stderr()
 	);
 
 	if (__fly_log_path(notice, log_path_buf, FLY_PATH_MAX) == -1)
@@ -191,8 +191,8 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 	nlp = __fly_logfile_init(
 		ctx->pool,
 		log_path_buf,
-		__fly_log_stdout(FLY_STDOUT_ENV(NOTICE)) | \
-		__fly_log_stderr(FLY_STDERR_ENV(NOTICE))
+		__fly_log_stdout() | \
+		__fly_log_stderr()
 	);
 	if (!alp || !elp || !nlp)
 		goto error;
@@ -307,13 +307,16 @@ __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc)
 #define FLY_LOG_WRITE_SUCCESS			1
 #define FLY_LOG_WRITE_WAIT				0
 #define FLY_LOG_WRITE_ERROR				-1
-	switch (__fly_log_lock(file, &lc->lock)){
-	case FLY_LOG_LOCK_SUCCESS:
-		break;
-	case FLY_LOG_LOCK_WAIT:
-		return FLY_LOG_WRITE_WAIT;
-	case FLY_LOG_LOCK_ERROR:
-		return FLY_LOG_WRITE_ERROR;
+	if (!(lc->__log->flag&__FLY_LOGFILE_INIT_STDOUT) && \
+			!(lc->__log->flag&__FLY_LOGFILE_INIT_STDERR)){
+		switch (__fly_log_lock(file, &lc->lock)){
+		case FLY_LOG_LOCK_SUCCESS:
+			break;
+		case FLY_LOG_LOCK_WAIT:
+			return FLY_LOG_WRITE_WAIT;
+		case FLY_LOG_LOCK_ERROR:
+			return FLY_LOG_WRITE_ERROR;
+		}
 	}
 
 	/* getting file lock */
@@ -327,10 +330,14 @@ __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc)
 	/* release file lock */
 	goto success;
 error:
-	__fly_log_unlock(file, &lc->lock);
+	if (!(lc->__log->flag&__FLY_LOGFILE_INIT_STDOUT) && \
+			!(lc->__log->flag&__FLY_LOGFILE_INIT_STDERR))
+		__fly_log_unlock(file, &lc->lock);
 	return -1;
 success:
-	__fly_log_unlock(file, &lc->lock);
+	if (!(lc->__log->flag&__FLY_LOGFILE_INIT_STDOUT) && \
+			!(lc->__log->flag&__FLY_LOGFILE_INIT_STDERR))
+		__fly_log_unlock(file, &lc->lock);
 	return 0;
 }
 
@@ -485,4 +492,14 @@ int fly_log_event_register(fly_event_manager_t *manager, struct fly_logcont *lc)
 const char *fly_log_path(void)
 {
 	return fly_config_value_str(FLY_LOG_PATH);
+}
+
+bool fly_log_stdout(void)
+{
+	return fly_config_value_bool(FLY_LOG_STDOUT);
+}
+
+bool fly_log_stderr(void)
+{
+	return fly_config_value_bool(FLY_LOG_STDERR);
 }
