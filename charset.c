@@ -397,6 +397,7 @@ int fly_accept_charset(fly_request_t *req)
 		FLY_NOT_COME_HERE
 	}
 	FLY_NOT_COME_HERE
+	return -1;
 }
 
 static float __fly_qvalue_from_str(char *qvalue)

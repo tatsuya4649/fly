@@ -73,3 +73,15 @@ fly_http_version_t *fly_match_version_from_alpn(const unsigned char *version, un
     }
     return NULL;
 }
+
+fly_http_version_t *fly_default_http_version(void)
+{
+	for (fly_http_version_t *__v=versions; __v->full; __v++){
+		if (__v->type == FLY_HTTP_DEFAULT_VERSION)
+			return __v;
+		else
+			continue;
+	}
+	FLY_NOT_COME_HERE
+	return NULL;
+}

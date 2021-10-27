@@ -148,6 +148,7 @@ char *fly_buffer_strstr_after(fly_buffer_c *__c, const char *str);
 ssize_t fly_buffer_ptr_len(fly_buffer_t *__b, fly_buf_p p1, fly_buf_p p2);
 void fly_buffer_memcpy(char *dist, char *src, fly_buffer_c *__c, size_t len);
 void fly_buffer_memcpy_all(char *dist, fly_buffer_t *__t);
+void fly_buffer_memncpy_all(char *dist, fly_buffer_t *__t, size_t n);
 fly_buffer_c *fly_buffer_chain_from_ptr(fly_buffer_t *buffer, fly_buf_p ptr);
 
 fly_buf_p fly_update_chain(fly_buffer_c **c, fly_buf_p p, size_t len);

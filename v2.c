@@ -3943,10 +3943,12 @@ __response:
 	route = fly_found_route(route_reg, request->request_line->uri.ptr, __mtype);
 	mount = e->manager->ctx->mount;
 	if (route == NULL){
-		if (fly_is_uri_index(&request->request_line->uri) && \
-				fly_have_mount_index(mount)){
-			pf = mount->index;
-			goto response_path;
+		if (fly_is_uri_index(&request->request_line->uri)){
+			if (fly_have_mount_index(mount)){
+				pf = mount->index;
+				goto response_path;
+			}else
+				goto response_404;
 		}
 
 		int found_res;

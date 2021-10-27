@@ -41,7 +41,7 @@ int is_fly_default_content_by_stcode(fly_context_t *ctx, enum status_code_type s
 int fly_send_default_content_by_stcode(fly_event_t *e, enum status_code_type status_code);
 struct fly_response_content_by_stcode *fly_default_content_by_stcode(fly_context_t *ctx, enum status_code_type status_code);
 struct fly_response_content_by_stcode *fly_default_content_by_stcode_from_event(fly_event_t *e, enum status_code_type status_code);
-int fly_send_default_content(fly_event_t *e, struct fly_response_content_by_stcode *__r);
+//int fly_send_default_content(fly_event_t *e, struct fly_response_content_by_stcode *__r);
 #define FLY_SEND_BUF_LENGTH			(4096)
 
 #endif
