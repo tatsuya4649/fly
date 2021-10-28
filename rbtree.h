@@ -6,7 +6,7 @@
 #include "util.h"
 
 struct fly_rb_node;
-typedef int (*fly_rb_cmp_t)(void *d1, void *d2);
+typedef int (*fly_rb_cmp_t)(void *k1, void *k2, void *data);
 struct fly_rb_tree{
 	struct fly_rb_root *root;
 	size_t node_count;
@@ -44,10 +44,10 @@ typedef int fly_rb_color_t;
 
 struct fly_rb_tree *fly_rb_tree_init(fly_rb_cmp_t cmp);
 void fly_rb_tree_release(struct fly_rb_tree *tree);
-fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key, struct fly_rb_node **node_data);
-void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node);
+fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key, struct fly_rb_node **node_data, void *__cmpdata);
+void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node, void *data);
 void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node);
-fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key);
-void *fly_rb_node_data_from_key(struct fly_rb_tree *tree, void *key);
+fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key, void *data);
+void *fly_rb_node_data_from_key(struct fly_rb_tree *tree, void *key, void *data);
 
 #endif

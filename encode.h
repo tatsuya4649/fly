@@ -18,7 +18,7 @@
 	{ fly_ ## x, #x, p, fly_ ## x ## _encode, fly_ ## x ## _decode }
 #define FLY_ENCODE_NULL			{ -1, NULL, -1, NULL, NULL }
 #define FLY_ENCODE_END(e)		((e)->name == NULL)
-#define FLY_ENCODE_ASTERISK		{ fly_asterisk, "*", 0, NULL, NULL }
+#define FLY_ENCODE_ASTERISK		{ fly_asterisk_encode, "*", 0, NULL, NULL }
 #define FLY_ACCEPT_ENCODING_HEADER				"Accept-Encoding"
 #define FLY_ACCEPT_ENCODING_HEADER_SMALL		"accept-encoding"
 enum __fly_encoding_type{
@@ -27,7 +27,7 @@ enum __fly_encoding_type{
 	fly_deflate,
 	fly_identity,
 	fly_br,
-	fly_asterisk,
+	fly_asterisk_encode,
 	fly_noencode,
 };
 typedef enum __fly_encoding_type fly_encoding_e;

@@ -183,6 +183,7 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		if (__pf->fd == -1)
 			goto error;
 		__fly_path_cpy(__pf->filename, __path, mount_point);
+		__pf->filename_len = strlen(__pf->filename);
 		__pf->parts = parts;
 		__pf->infd = parts->infd;
 		__pf->mime_type = fly_mime_type_from_path_name(__path);
@@ -191,7 +192,7 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 
 		fly_parts_file_add(parts, __pf);
 		parts->mount->file_count++;
-		__pf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __pf, (void *) __pf->filename, &__pf->rbnode);
+		__pf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __pf, (void *) __pf->filename, &__pf->rbnode, (void *) __pf->filename_len);
 	}
 	return closedir(__pathd);
 error:

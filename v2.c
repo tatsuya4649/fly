@@ -1814,7 +1814,7 @@ send:
 			case SSL_ERROR_WANT_WRITE:
 				goto write_blocking;
 			case SSL_ERROR_SYSCALL:
-				if (errno == EPIPE)
+				if (errno == EPIPE || errno == 0)
 					goto disconnect;
 				return FLY_SEND_DATA_FH_ERROR;
 			case SSL_ERROR_SSL:
@@ -1965,7 +1965,7 @@ send:
 					case SSL_ERROR_WANT_WRITE:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
-						if (errno == EPIPE)
+						if (errno == EPIPE || errno == 0)
 							goto disconnect;
 						else if (errno == 0)
 							goto disconnect;
@@ -2015,7 +2015,7 @@ send:
 					case SSL_ERROR_WANT_WRITE:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
-						if (errno == EPIPE)
+						if (errno == EPIPE || errno == 0)
 							goto disconnect;
 						else if (errno == 0)
 							goto disconnect;
@@ -2072,7 +2072,7 @@ send:
 					case SSL_ERROR_WANT_WRITE:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
-						if (errno == EPIPE)
+						if (errno == EPIPE || errno == 0)
 							goto disconnect;
 						else if (errno == 0)
 							goto disconnect;
@@ -2129,7 +2129,7 @@ send:
 					case SSL_ERROR_WANT_WRITE:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
-						if (errno == EPIPE)
+						if (errno == EPIPE || errno == 0)
 							goto disconnect;
 						else if (errno == 0)
 							goto disconnect;
@@ -2551,7 +2551,7 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame)
 			case SSL_ERROR_WANT_WRITE:
 				goto write_blocking;
 			case SSL_ERROR_SYSCALL:
-				if (errno == EPIPE)
+				if (errno == EPIPE || errno == 0)
 					goto disconnect;
 				return __FLY_SEND_FRAME_ERROR;
 			case SSL_ERROR_SSL:

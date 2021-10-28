@@ -400,12 +400,13 @@ fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type)
 	return cont;
 }
 
-int __fly_logcont_release(fly_logcont_t *logcont)
+void __fly_logcont_release(fly_logcont_t *logcont)
 {
 	if (logcont == NULL)
-		return -1;
+		return;
 
-	return 0;
+	fly_pbfree(logcont->log->pool, logcont->content);
+	fly_pbfree(logcont->log->pool, logcont);
 }
 
 int fly_log_event_handler(fly_event_t *e)
@@ -415,7 +416,7 @@ int fly_log_event_handler(fly_event_t *e)
 	content = (fly_logcont_t *) e->event_data;
 	__fly_log_write_logcont(content);
 	__fly_logcont_release(content);
-	return fly_event_unregister(e);
+	return 0;
 }
 
 int fly_log_now(fly_time_t *t)
@@ -457,12 +458,7 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 			FLY_EMERGENCY_STATUS_ELOG,
 			"log write error."
 		);
-
-	if (__fly_logcont_release(lc) == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_ELOG,
-			"log resource release error."
-		);
+	__fly_logcont_release(lc);
 }
 
 int fly_log_event_register(fly_event_manager_t *manager, struct fly_logcont *lc)

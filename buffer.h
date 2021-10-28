@@ -12,17 +12,17 @@
 typedef void *fly_buf_p;
 struct fly_buffer;
 struct fly_buffer_chain{
-	struct fly_buffer *buffer;
-	fly_buf_p ptr;
-	fly_buf_p lptr;
-	fly_buf_p use_ptr;
-	fly_buf_p unuse_ptr;
-	size_t len;
-	size_t use_len;
-	size_t unuse_len;
+	struct fly_buffer	*buffer;
+	fly_buf_p			ptr;
+	fly_buf_p 			lptr;
+	fly_buf_p 			use_ptr;
+	fly_buf_p 			unuse_ptr;
+	size_t				len;
+	size_t 				use_len;
+	size_t 				unuse_len;
 
-	struct fly_bllist		blelem;
-	fly_bit_t status: 4;
+	struct fly_bllist	blelem;
+	fly_bit_t			status: 4;
 };
 
 struct fly_buffer{
@@ -40,6 +40,12 @@ struct fly_buffer{
 #ifdef DEBUG
 	#define FLY_BUFFER_DEBUG_CHAIN_COUNT(__b)		\
 			assert((__b)->chain_count > 0)
+
+__unused static struct fly_buffer_chain *fly_buffer_chain_debug(struct fly_bllist *__b)
+{
+	return (struct fly_buffer_chain *) fly_bllist_data(__b, struct fly_buffer_chain, blelem);
+}
+
 #else
 	#define FLY_BUFFER_DEBUG_CHAIN_COUNT(__b)
 #endif
@@ -118,13 +124,7 @@ static inline fly_buf_p fly_buffer_luse_ptr(fly_buffer_t *__b)
 }
 
 
-//#define first_chain				chain->next
-//#define first_ptr				chain->next->ptr
-//#define first_useptr			chain->next->use_ptr
-//#define lunuse_ptr				lchain->unuse_ptr
-//#define lunuse_len				lchain->unuse_len
 #define fly_buf_act_len(c)		(((c)->lptr-(c)->use_ptr)+1)
-//#define fly_buffer_next_chain(__c)			fly_buffer_chain(__c->blelem.next)
 
 #define FLY_BUF_CHAIN_INFINITY		(-1)
 
