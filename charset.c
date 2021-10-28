@@ -40,7 +40,7 @@ __fly_static int __fly_accept_charset(fly_hdr_ci *header, fly_hdr_value **value)
 	struct fly_bllist *__b;
 
 	if (header->chain_count == 0)
-		return __FLY_ACCEPT_CHARSET_FOUND;
+		return __FLY_ACCEPT_CHARSET_NOTFOUND;
 
 	fly_for_each_bllist(__b, &header->chain){
 		__h = fly_bllist_data(__b, fly_hdr_c, blelem);
@@ -382,6 +382,7 @@ int fly_accept_charset(fly_request_t *req)
 	if (header == NULL)
 		return -1;
 
+	accept_charset = NULL;
 	if (__fly_accept_charset_init(req) == -1)
 		return -1;
 	switch(__fly_accept_charset(header, &accept_charset)){

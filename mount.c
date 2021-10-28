@@ -15,7 +15,7 @@
 __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point);
 static int fly_mount_max_limit(void);
 static int fly_file_max_limit(void);
-static int __fly_mount_search_cmp(void *k1, void *k2);
+static int __fly_mount_search_cmp(void *k1, void *k2, void *data);
 
 int fly_mount_init(fly_context_t *ctx)
 {
@@ -144,9 +144,10 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 		return NULL;
 	pfile->fd = -1;
 	pfile->wd = -1;
-	memset(pfile->filename, 0, FLY_PATHNAME_MAX);
+	memset(pfile->filename, '\0', FLY_PATHNAME_MAX);
 	memcpy(&pfile->fs, sb, sizeof(struct stat));
 	pfile->parts = parts;
+	pfile->filename_len = 0;
 	pfile->mime_type = NULL;
 	pfile->infd = parts->infd;
 	pfile->de = NULL;
@@ -200,6 +201,7 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 		if (fly_unlikely_null(pfile))
 			goto error;
 		__fly_path_cpy_with_mp(pfile->filename, __path, mount_point);
+		pfile->filename_len = strlen(pfile->filename);
 		pfile->mime_type = fly_mime_type_from_path_name(__path);
 		if (infd >= 0){
 			if (strcmp(path, mount_point) == 0)
@@ -215,7 +217,7 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 			goto error;
 
 		/* add rbnode to rbtree */
-		pfile->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) pfile, (void *) pfile->filename, &pfile->rbnode);
+		pfile->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) pfile, (void *) pfile->filename, &pfile->rbnode, &pfile->filename_len);
 		fly_parts_file_add(parts, pfile);
 		parts->mount->file_count++;
 	}
@@ -340,99 +342,6 @@ int fly_join_path(char *buffer, char *join1, char *join2)
 	return 0;
 }
 
-//__fly_static int __fly_send_from_pf_blocking_handler(fly_event_t *e)
-//{
-//	fly_response_t *res;
-//
-//	res = (fly_response_t *) e->event_data;
-//	return fly_send_from_pf(e, e->fd, res->pf, &res->offset, res->count);
-//}
-//
-//__fly_static int __fly_send_from_pf_blocking(fly_event_t *e, fly_response_t *response, int read_or_write)
-//{
-//	e->event_data = (void *) response;
-//	e->read_or_write = read_or_write;
-//	e->eflag = 0;
-//	e->tflag = FLY_INHERIT;
-//	e->flag = FLY_NODELETE;
-//	e->available = false;
-//	FLY_EVENT_HANDLER(e, __fly_send_from_pf_blocking_handler);
-//	return fly_event_register(e);
-//}
-
-//int fly_send_from_pf(fly_event_t *e, int c_sockfd, struct fly_mount_parts_file *pf, off_t *offset, size_t count)
-//{
-//	fly_response_t *response;
-//	size_t total;
-//	int *bfs;
-//	ssize_t numsend;
-//
-//	response = (fly_response_t *) e->event_data;
-//	bfs = &response->byte_from_start;
-//	response->fase = FLY_RESPONSE_BODY;
-//	response->pf = pf;
-//	response->offset = *offset;
-//	response->count = count;
-//
-//	if (*bfs)
-//		total = (size_t) *bfs;
-//	else
-//		total = 0;
-//
-//	*offset += total;
-//	while(total < count){
-//		if (FLY_CONNECT_ON_SSL(response->request->connect)){
-//			SSL *ssl=response->request->connect->ssl;
-//			char send_buf[FLY_SEND_BUF_LENGTH];
-//			ssize_t numread;
-//
-//			if (lseek(pf->fd, *offset+(off_t) total, SEEK_SET) == -1)
-//				return FLY_RESPONSE_ERROR;
-//			numread = read(pf->fd, send_buf, count-total<FLY_SEND_BUF_LENGTH ? FLY_SEND_BUF_LENGTH : count-total);
-//			if (numread == -1)
-//				return FLY_RESPONSE_ERROR;
-//			numsend = SSL_write(ssl, send_buf, numread);
-//			switch(SSL_get_error(ssl, numsend)){
-//			case SSL_ERROR_NONE:
-//				break;
-//			case SSL_ERROR_ZERO_RETURN:
-//				return FLY_RESPONSE_ERROR;
-//			case SSL_ERROR_WANT_READ:
-//				if (__fly_send_from_pf_blocking(e, response, FLY_READ) == -1)
-//					return FLY_RESPONSE_ERROR;
-//				return FLY_RESPONSE_BLOCKING;
-//			case SSL_ERROR_WANT_WRITE:
-//				if (__fly_send_from_pf_blocking(e, response, FLY_WRITE) == -1)
-//					return FLY_RESPONSE_ERROR;
-//				return FLY_RESPONSE_BLOCKING;
-//			case SSL_ERROR_SYSCALL:
-//				return FLY_RESPONSE_ERROR;
-//			case SSL_ERROR_SSL:
-//				return FLY_RESPONSE_ERROR;
-//			default:
-//				/* unknown error */
-//				return FLY_RESPONSE_ERROR;
-//			}
-//		}else{
-//			numsend = sendfile(c_sockfd, pf->fd, offset, count-total);
-//			if (FLY_BLOCKING(numsend)){
-//				/* event register */
-//				if (__fly_send_from_pf_blocking(e, response, FLY_WRITE) == -1)
-//					return FLY_RESPONSE_ERROR;
-//				return FLY_RESPONSE_BLOCKING;
-//			}else if (numsend == -1)
-//				return FLY_RESPONSE_ERROR;
-//		}
-//
-//		total += numsend;
-//		*bfs = total;
-//	}
-//
-//	*bfs = 0;
-//	response->fase = FLY_RESPONSE_RELEASE;
-//	return FLY_RESPONSE_SUCCESS;
-//}
-
 #define FLY_FOUND_CONTENT_FROM_PATH_FOUND		1
 #define FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND	0
 #define FLY_FOUND_CONTENT_FROM_PATH_ERROR		-1
@@ -467,13 +376,22 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mou
 {
 	struct fly_mount_parts_file *__pf;
 	char *filename;
+	size_t len;
 
 	filename = uri->ptr;
-	while(fly_slash(*filename))
+	len = uri->len;
+	while(fly_slash(*filename)){
 		filename++;
+		len--;
+	}
+
+	if (len <= 0){
+		filename = (char *) fly_index_path();
+		len = strlen(filename);
+	}
 
 	__pf = (struct fly_mount_parts_file *) \
-				fly_rb_node_data_from_key(mnt->rbtree, filename);
+				fly_rb_node_data_from_key(mnt->rbtree, filename, (void *) len);
 
 	if (__pf != NULL){
 		*res = __pf;
@@ -522,14 +440,14 @@ int fly_mount_inotify(fly_mount_t *mount, int ifd)
 	return 0;
 }
 
-struct fly_mount_parts_file *fly_pf_from_parts(char *path, fly_mount_parts_t *parts)
+struct fly_mount_parts_file *fly_pf_from_parts(char *path, size_t path_len, fly_mount_parts_t *parts)
 {
 	struct fly_mount_parts_file *__pf;
 
 	if (parts->file_count == 0)
 		return NULL;
 
-	__pf = fly_rb_node_data_from_key(parts->mount->rbtree, path);
+	__pf = fly_rb_node_data_from_key(parts->mount->rbtree, path, &path_len);
 	return __pf;
 }
 
@@ -555,7 +473,7 @@ struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount
 	memset(__path, '\0', FLY_PATH_MAX);
 	strncpy(__path, path, strlen(path));
 
-	return fly_pf_from_parts(__path, parts);
+	return fly_pf_from_parts(__path, strlen(path), parts);
 }
 
 struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts)
@@ -608,7 +526,7 @@ fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt)
 	return NULL;
 }
 
-int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path)
+int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
 {
 	struct fly_mount_parts_file *__npf;
 	char rpath[FLY_PATH_MAX];
@@ -632,11 +550,12 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path)
 		__npf->infd = parts->infd;
 		__npf->wd = inotify_add_watch(__npf->infd, rpath, FLY_INOTIFY_WATCH_FLAG_PF);
 		__npf->parts = parts;
-		strcpy(__npf->filename, path);
+		strncpy(__npf->filename, path, len);
+		__npf->filename_len = strlen(__npf->filename);
 		if (fly_hash_from_parts_file_path(rpath, __npf) == -1)
 			return -1;
 
-		__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __npf, (void *) __npf->filename, &__npf->rbnode);
+		__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __npf, (void *) __npf->filename, &__npf->rbnode, (void *) len);
 		fly_parts_file_add(parts, __npf);
 		parts->mount->file_count++;
 	}
@@ -683,7 +602,7 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 	return 0;
 }
 
-int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, int mask)
+int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, int mask)
 {
 	/* remove mount point elements */
 	if (parts->file_count == 0)
@@ -691,7 +610,7 @@ int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, int mask)
 
 	struct fly_mount_parts_file *__pf;
 
-	__pf = fly_pf_from_parts(path, parts);
+	__pf = fly_pf_from_parts(path, path_len, parts);
 	if (!__pf)
 		return 0;
 
@@ -729,16 +648,21 @@ static int fly_file_max_limit(void)
 	return fly_config_value_int(FLY_FILE_MAX);
 }
 
-static int __fly_mount_search_cmp(void *k1, void *k2)
+/*
+ *	data is length of k2 path.
+ */
+static int __fly_mount_search_cmp(void *k1, void *k2, void *data)
 {
 	char *c1, *c2;
 	int res;
 	size_t minlen;
+	size_t len;
 
 	c1 = (char *) k1;
 	c2 = (char *) k2;
+	len = (size_t) data;
 
-	minlen = (strlen(c1) < strlen(c2)) ? strlen(c1) : strlen(c2);
+	minlen = (strlen(c1) < len) ? strlen(c1) : len;
 	res = strncmp(c1, c2, minlen);
 
 	if (res == 0)

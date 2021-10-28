@@ -39,7 +39,7 @@ __fly_static int __fly_accept_lang(fly_hdr_ci *header, fly_hdr_value **value)
 	fly_hdr_c *__h;
 
 	if (header->chain_count == 0)
-		return __FLY_ACCEPT_LANG_FOUND;
+		return __FLY_ACCEPT_LANG_NOTFOUND;
 
 	struct fly_bllist *__b;
 	fly_for_each_bllist(__b, &header->chain){

@@ -34,12 +34,13 @@ typedef struct fly_query fly_query_t;
 
 typedef char fly_reqlinec_t;
 struct fly_request_line{
-	fly_reqlinec_t *request_line;
-	fly_http_method_t *method;
-	fly_uri_t uri;
-	fly_query_t query;
-	fly_http_version_t *version;
-	fly_scheme_t *scheme;
+	fly_reqlinec_t			*request_line;
+	size_t					request_line_len;
+	fly_http_method_t		*method;
+	fly_uri_t				uri;
+	fly_query_t				query;
+	fly_http_version_t		*version;
+	fly_scheme_t			*scheme;
 };
 #define is_fly_request_http_v2(req)		((req)->request_line->version->type == V2)
 typedef struct fly_request_line fly_reqline_t;

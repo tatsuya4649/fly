@@ -55,7 +55,7 @@ void fly_free(void *ptr)
 }
 
 /* for red black tree */
-__fly_static int __fly_rb_search_block(void *k1, void *k2)
+__fly_static int __fly_rb_search_block(void *k1, void *k2, void *)
 {
 	if (k1 > k2)
 		return FLY_RB_CMP_BIG;
@@ -80,7 +80,7 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	}
 	new_block->last = new_block->entry+size-1;
 	new_block->size = size;
-	if (fly_unlikely_null(fly_rb_tree_insert(pool->rbtree, new_block, new_block->entry, NULL))){
+	if (fly_unlikely_null(fly_rb_tree_insert(pool->rbtree, new_block, new_block->entry, NULL, NULL))){
 		__fly_free(new_block->entry);
 		__fly_free(new_block);
 		return NULL;
@@ -161,7 +161,7 @@ void fly_pbfree(fly_pool_t *pool, void *ptr)
 	if (pool->block_size == 0 || pool->rbtree->node_count == 0)
 		return;
 
-	__dn = (fly_rb_node_t *) fly_rb_node_from_key(pool->rbtree, ptr);
+	__dn = (fly_rb_node_t *) fly_rb_node_from_key(pool->rbtree, ptr, NULL);
 	if (fly_unlikely_null(__dn))
 		return;
 

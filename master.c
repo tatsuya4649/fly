@@ -642,6 +642,7 @@ error:
 
 __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, struct inotify_event *ie)
 {
+	/* ie->len includes null terminate */
 	int mask;
 	int signum = 0;
 	fly_worker_t *__w;
@@ -650,12 +651,12 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	mask = ie->mask;
 	if (mask & IN_CREATE){
 		signum |= FLY_SIGNAL_ADDF;
-		if (fly_inotify_add_watch(parts, ie->name) == -1)
+		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
 	}
 	if (mask & IN_DELETE){
 		signum |= FLY_SIGNAL_DELF;
-		if (fly_inotify_rm_watch(parts, ie->name, mask) == -1)
+		if (fly_inotify_rm_watch(parts, ie->name, ie->len-1, mask) == -1)
 			return -1;
 	}
 	if (mask & IN_DELETE_SELF){
@@ -665,12 +666,12 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	}
 	if (mask & IN_MOVED_FROM){
 		signum |= FLY_SIGNAL_DELF;
-		if (fly_inotify_rm_watch(parts, ie->name, mask) == -1)
+		if (fly_inotify_rm_watch(parts, ie->name, ie->len-1, mask) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVED_TO){
 		signum |= FLY_SIGNAL_ADDF;
-		if (fly_inotify_add_watch(parts, ie->name) == -1)
+		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVE_SELF){
