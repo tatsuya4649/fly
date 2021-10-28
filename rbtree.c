@@ -273,23 +273,23 @@ fly_rb_node_t *__fly_node_init(void *data, void *key)
 	return node;
 }
 
-__fly_static int __fly_rb_node_from_key(struct fly_rb_tree *tree, struct fly_rb_node *node, void *key)
+__fly_static int __fly_rb_node_from_key(struct fly_rb_tree *tree, struct fly_rb_node *node, void *key, void *data)
 {
-	return tree->cmp(key, node->key);
+	return tree->cmp(key, node->key, data);
 }
 
-void *fly_rb_node_data_from_key(struct fly_rb_tree *tree, void *key)
+void *fly_rb_node_data_from_key(struct fly_rb_tree *tree, void *key, void *data)
 {
 	fly_rb_node_t *__n;
 
-	__n = fly_rb_node_from_key(tree, key);
+	__n = fly_rb_node_from_key(tree, key, data);
 	if (fly_unlikely_null(__n))
 		return NULL;
 	else
 		return __n->data;
 }
 
-fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key)
+fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key, void *data)
 {
 	struct fly_rb_node *__n;
 	if (!tree->cmp)
@@ -297,7 +297,7 @@ fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key)
 
 	__n = tree->root->node;
 	while(__n != nil_node_ptr){
-		switch(__fly_rb_node_from_key(tree, __n, key)){
+		switch(__fly_rb_node_from_key(tree, __n, key, data)){
 		case FLY_RB_CMP_BIG:
 			__n = __n->c_right;
 			break;
@@ -311,7 +311,7 @@ fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key)
 	return NULL;
 }
 
-fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key, struct fly_rb_node **node_data)
+fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key, struct fly_rb_node **node_data, void *__cmpdata)
 {
 	fly_rb_node_t *node;
 
@@ -323,14 +323,14 @@ fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *ke
 	assert(tree!=NULL);
 #endif
 	node->node_data = node_data;
-	fly_rb_tree_insert_node(tree, node);
+	fly_rb_tree_insert_node(tree, node, __cmpdata);
 #ifdef DEBUG
 	__fly_rbtree_debug(tree, __FLY_RBTREE_DEBUG_INSERT);
 #endif
 	return node;
 }
 
-void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node)
+void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node, void *data)
 {
     struct fly_rb_node *__n, *__p, *__g, *__u;
 
@@ -341,7 +341,7 @@ void fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node)
 
     __n = tree->root->node;
     while(true){
-		switch(tree->cmp(node->key, __n->key)){
+		switch(tree->cmp(node->key, __n->key, data)){
 		case FLY_RB_CMP_EQUAL:
 			fly_free(node);
             return;

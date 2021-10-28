@@ -77,7 +77,7 @@ int fly_header_delete(fly_hdr_ci *chain_info, char *name);
 char *fly_header_from_chain(fly_hdr_ci *chain_info);
 size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info);
 
-char *fly_get_header_lines_ptr(fly_buffer_c *__c);
+char *fly_get_header_lines_ptr(fly_buffer_t *__buf);
 long long fly_content_length(fly_hdr_ci *ci);
 int fly_connection(fly_hdr_ci *ci);
 #define FLY_CONNECTION_CLOSE			0

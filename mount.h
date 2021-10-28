@@ -11,6 +11,7 @@
 #include "bllist.h"
 #include "encode.h"
 #include "rbtree.h"
+#include "str.h"
 
 #define FLY_PATHNAME_MAX	_POSIX_NAME_MAX
 #define FLY_PATH_MAX	_POSIX_PATH_MAX
@@ -26,7 +27,9 @@ struct fly_mount_parts_file{
 	int 					wd;
 	int 					infd;
 	struct stat				fs;
+//	struct fly_string		filename;
 	char					filename[FLY_PATHNAME_MAX];
+	size_t					filename_len;
 	char 					last_modified[FLY_DATE_LENGTH];
 	struct fly_mount_parts	*parts;
 	struct fly_file_hash	*hash;
@@ -91,13 +94,13 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts);
 fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt);
 struct fly_mount_parts_file *fly_wd_from_mount(int wd, fly_mount_t *mnt);
-int fly_inotify_add_watch(__unused fly_mount_parts_t *parts, __unused char *path);
+int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len);
 #define FLY_INOTIFY_RM_WATCH_PF				(1<<0)
 #define FLY_INOTIFY_RM_WATCH_MP				(1<<1)
 #define FLY_INOTIFY_RM_WATCH_IGNORED		(1<<2)
 #define FLY_INOTIFY_RM_WATCH_DELETED		(1<<3)
 
-int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, int mask);
+int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, int mask);
 int fly_inotify_rmmp(fly_mount_parts_t *parts);
 
 #define FLY_INOTIFY_WATCH_FLAG_PF	(IN_MODIFY|IN_ATTRIB)
@@ -107,7 +110,7 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts);
 
 int fly_parts_file_remove_from_path(fly_mount_parts_t *parts, char *filename);
 
-struct fly_mount_parts_file *fly_pf_from_parts(char *path, fly_mount_parts_t *parts);
+struct fly_mount_parts_file *fly_pf_from_parts(char *path, size_t path_len, fly_mount_parts_t *parts);
 struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount_parts_t *parts);
 void fly_parts_file_add(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 const char *fly_index_path(void);

@@ -32,11 +32,36 @@ fly_http_version_t *fly_match_version_from_type(enum fly_version_type type)
 
 fly_http_version_t *fly_match_version_with_end(char *version, char end_of_version)
 {
+	char *v_ptr;
     for (fly_http_version_t *ver=versions; ver->full!=NULL; ver++){
 		char *ptr = ver->number;
-		while(*version++ == *ptr++){
-			if (*version == end_of_version)
+
+		v_ptr = version;
+		while(*v_ptr++ == *ptr++){
+			if (*v_ptr== end_of_version)
 				return ver;
+		}
+    }
+    return NULL;
+}
+
+fly_http_version_t *fly_match_version_len(char *version, size_t len)
+{
+	char *v_ptr;
+    for (fly_http_version_t *ver=versions; ver->full!=NULL; ver++){
+		if (strlen(ver->number) != len)
+			continue;
+
+		char *ptr = ver->number;
+		size_t i=0;
+
+		v_ptr = version;
+		while(*v_ptr == *ptr){
+			if (++i == len)
+				return ver;
+
+			v_ptr++;
+			ptr++;
 		}
     }
     return NULL;
@@ -67,6 +92,9 @@ __fly_static int __fly_version_alpn_cmp(const unsigned char *dist, const unsigne
 
 fly_http_version_t *fly_match_version_from_alpn(const unsigned char *version, unsigned int len)
 {
+	if (version == NULL || len == 0)
+		return fly_default_http_version();
+
     for (fly_http_version_t *ver=versions; ver->full!=NULL; ver++){
 		if (__fly_version_alpn_cmp((unsigned char *) ver->alpn, version, len) == 0)
 			return ver;
