@@ -7,6 +7,6 @@ sys.path.append(
 )
 from fly import Fly
 
-app = Fly(config_path="benchmark/bench.conf")
-app.mount("benchmark/html")
+app = Fly(config_path="bench/bench.conf")
+app.mount("bench/html")
 app._debug_run()

@@ -1,4 +1,5 @@
 #include "method.h"
+#include <assert.h>
 
 fly_http_method_t methods[] = {
 	{.name="GET", 			.type=GET},
@@ -29,8 +30,9 @@ fly_http_method_t *fly_match_method_name(char *method_name)
 
 fly_http_method_t *fly_match_method_name_with_end(char *method_name, char end_of_char)
 {
-	if (method_name == NULL)
-		return NULL;
+#ifdef DEBUG
+	assert(method_name != NULL);
+#endif
 
 	fly_http_method_t *m;
 	const char *__ptr;
@@ -45,6 +47,34 @@ fly_http_method_t *fly_match_method_name_with_end(char *method_name, char end_of
 		}
     }
     return NULL;
+}
+
+fly_http_method_t *fly_match_method_name_len(char *method_name, size_t len)
+{
+#ifdef DEBUG
+	assert(method_name != NULL);
+#endif
+	fly_http_method_t *m;
+	const char *__ptr;
+
+    for (m=methods; m->name!=NULL; m++){
+		if (strlen(m->name) != len)
+			continue;
+
+		char *ptr;
+		size_t i=0;
+
+		ptr = (char *) m->name;
+		__ptr = method_name;
+		while(*__ptr == *ptr){
+			if (++i == len)
+				return m;
+
+			__ptr++;
+			ptr++;
+		}
+    }
+	return NULL;
 }
 
 fly_http_method_t *fly_match_method_type(fly_method_e method)

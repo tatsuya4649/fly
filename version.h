@@ -23,6 +23,7 @@ extern fly_http_version_t versions[];
 #define FLY_VERSION_MAXLEN			10
 int fly_version_str(char *buffer, fly_version_e version);
 fly_http_version_t *fly_match_version(char *version);
+fly_http_version_t *fly_match_version_len(char *version, size_t len);
 fly_http_version_t *fly_match_version_with_end(char *version, char end_of_version);
 fly_http_version_t *fly_match_version_from_alpn(const unsigned char *version, unsigned int len);
 fly_http_version_t *fly_match_version_from_type(enum fly_version_type type);

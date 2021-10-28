@@ -20,8 +20,6 @@ fly_response_t *hello(fly_request_t *request)
 		return NULL;
 	if (fly_header_add(res->header, fly_header_name_length("Connection"), fly_header_value_length("keep-alive")) == -1)
 		return NULL;
-	if (fly_body_setting(res->body, "Hello Body", strlen("Hello Body")) == -1)
-		return NULL;
 	res->status_code = _200;
 	res->version = V1_1;
 	return res;
@@ -48,16 +46,17 @@ int main()
 	/* load config file */
 	fly_parse_config_file();
 
+	fly_bllist_init(&pm.pools);
 	ctx = fly_context_init(&pm);
 
 	if (fly_mount_init(ctx) == -1)
 		return -1;
 //	if (fly_mount(ctx, "./test") == -1)
 //		return -1;
-	if (fly_mount(ctx, "./lib") == -1)
-		return -1;
-//	if (fly_mount(ctx, "./mnt") == -1)
+//	if (fly_mount(ctx, "./lib") == -1)
 //		return -1;
+	if (fly_mount(ctx, "./mnt") == -1)
+		return -1;
 
 	worker = fly_worker_init(ctx);
 	reg = ctx->route_reg;

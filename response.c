@@ -262,10 +262,7 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->event_state = EFLY_REQUEST_STATE_INIT;
 	fly_event_socket(e);
 
-	if (fly_event_register(e) == -1)
-		return -1;
-
-	return 0;
+	return fly_event_register(e);
 }
 
 __fly_static char *fly_log_request_line_modify(fly_reqlinec_t *__r)
@@ -384,7 +381,6 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 
 	return fly_event_register(le);
 }
-
 
 //__fly_static int __fly_send_until_header_blocking_handler(fly_event_t *e)
 //{
@@ -721,9 +717,7 @@ __fly_static int fly_after_response(fly_event_t *e, fly_response_t *response)
 		e->available = false;
 		fly_event_socket(e);
 
-		if (fly_event_register(e) == -1)
-			goto error;
-		return 0;
+		return fly_event_register(e);
 
 	case FLY_CONNECTION_KEEP_ALIVE:
 		e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
@@ -739,23 +733,11 @@ __fly_static int fly_after_response(fly_event_t *e, fly_response_t *response)
 		e->expired = false;
 		fly_event_socket(e);
 
-		if (fly_event_register(e) == -1)
-			goto error;
-		return 0;
+		return fly_event_register(e);
 
 	default:
-		e->event_state = (void *) EFLY_REQUEST_STATE_END;
-		e->event_data = response;
-		e->read_or_write = FLY_WRITE|FLY_READ;
-		e->flag = FLY_CLOSE_EV | FLY_MODIFY;
-		FLY_EVENT_HANDLER(e, __fly_response_release_handler);
-		e->available = false;
-		if (fly_event_register(e) == -1)
-			goto error;
-		return -1;
+		FLY_NOT_COME_HERE
 	}
-error:
-	return -1;
 }
 
 int fly_response_set_send_ptr(fly_response_t *res);
@@ -837,7 +819,7 @@ int fly_response_event(fly_event_t *e)
 	if (res->encoded || fly_over_encoding_threshold(res->response_len)){
 		if (!res->encoded)
 			res->encoding_type = fly_decided_encoding_type(res->request->encoding);
-		fly_add_content_encoding(res->header, res->encoding_type, true);
+		fly_add_content_encoding(res->header, res->encoding_type, false);
 	}
 
 
@@ -1444,7 +1426,7 @@ int fly_response_set_send_ptr(fly_response_t *response)
 			{
 				total += FLY_CRLF_LENGTH;
 				state = BODY;
-				break;
+				continue;
 			}
 		case BODY:
 			{

@@ -8,6 +8,7 @@
 #include "encode.h"
 #include "mount.h"
 #include "scheme.h"
+#include "char.h"
 
 int fly_request_disconnect_handler(fly_event_t *event);
 int fly_request_timeout_handler(fly_event_t *event);
@@ -89,63 +90,9 @@ void fly_request_line_release(fly_request_t *req)
 
 struct fly_buffer_chain *fly_get_request_line_buf(fly_buffer_t *__buf)
 {
-	return fly_buffer_first_ptr(__buf);
+	return fly_buffer_first_chain(__buf);
 }
 
-static inline bool __fly_ualpha(char c)
-{
-	return (c>=0x41 && c<=0x5A) ? true : false;
-}
-
-static inline bool __fly_lalpha(char c)
-{
-	return (c>=0x61 && c<=0x7A) ? true : false;
-}
-
-static inline bool __fly_alpha(char c)
-{
-	return (__fly_ualpha(c) || __fly_lalpha(c)) ? true : false;
-}
-static inline bool __fly_digit(char c)
-{
-	return (c>=0x30 && c<=0x39) ? true : false;
-}
-static inline bool __fly_alpha_digit(char c)
-{
-	return (__fly_alpha(c) || __fly_digit(c)) ? true : false;
-}
-static inline bool __fly_space(char c)
-{
-	return (c == 0x20) ? true : false;
-}
-static inline bool __fly_ht(char c)
-{
-	return (c == '\t' ? true : false);
-}
-static inline bool __fly_slash(char c)
-{
-	return (c == '/') ? true : false;
-}
-static inline bool __fly_dot(char c)
-{
-	return (c == '.') ? true : false;
-}
-static inline bool __fly_point(char c)
-{
-	return __fly_dot(c);
-}
-static inline bool __fly_cr(char c)
-{
-	return (c == 0xD) ? true : false;
-}
-static inline bool __fly_lf(char c)
-{
-	return (c == 0xA) ? true : false;
-}
-static inline bool __fly_colon(char c)
-{
-	return (c == ':') ? true : false;
-}
 static inline bool __fly_vchar(char c)
 {
 	return (c >= 0x21 && c <= 0x7E) ? true : false;
@@ -153,15 +100,6 @@ static inline bool __fly_vchar(char c)
 static inline bool __fly_zero(char c)
 {
 	return (c == '\0') ? true : false;
-}
-static inline bool __fly_atsign(char c)
-{
-	return (c == 0x40) ? true : false;
-}
-
-static inline bool __fly_question(char c)
-{
-	return (c == 0x3F) ? true : false;
 }
 
 static inline bool __fly_sub_delims(char c)
@@ -184,7 +122,7 @@ static inline bool __fly_tchar(char c)
 		c=='!' || c=='#' || c=='$' || c=='%' || c=='&' || \
 		c==0x27 || c=='*' || c=='+' || c=='-' || c=='.' || \
 		c=='^' || c=='_' || c=='`' || c=='|' || c=='~' || \
-		__fly_digit(c) || __fly_alpha(c) || (c!=';' && __fly_vchar(c)) \
+		fly_numeral(c) || fly_alpha(c) || (c!=';' && __fly_vchar(c)) \
 	) ? true : false;
 }
 static inline bool __fly_token(char c)
@@ -208,12 +146,12 @@ static inline bool __fly_sharp(char c)
 
 static inline bool __fly_unreserved(char c)
 {
-	return (__fly_alpha(c) || __fly_digit(c) || \
+	return (fly_alpha(c) || fly_numeral(c) || \
 		c=='=' || c=='.' || c=='_' || c==0x7E
 	) ? true : false;
 }
 
-static inline bool __fly_pct_encoded(char **c)
+static inline bool __fly_pct_encoded(char **c, ssize_t *len)
 {
 	if (**c != '%')
 		return false;
@@ -223,74 +161,70 @@ static inline bool __fly_pct_encoded(char **c)
 		return false;
 
 	*c += 2;
+	if (len != NULL)
+		len -= 2;
 	return true;
 }
 
-static inline bool __fly_pchar(char **c)
+static inline bool __fly_pchar(char **c, ssize_t *len)
 {
-	return (__fly_unreserved(**c) || __fly_colon(**c) ||	\
-		__fly_sub_delims(**c) || __fly_atsign(**c) ||		\
-		__fly_pct_encoded(c)								\
+	return (__fly_unreserved(**c) || fly_colon(**c) ||	\
+		__fly_sub_delims(**c) || fly_atsign(**c) ||		\
+		__fly_pct_encoded(c, len)								\
 	) ? true : false;
 }
 
-static inline bool __fly_segment(char **c)
+static inline bool __fly_segment(char **c, ssize_t *len)
 {
-	return __fly_pchar(c);
+	return __fly_pchar(c, len);
 }
 
-static inline bool __fly_query(char **c)
+static inline bool __fly_query(char **c, ssize_t *len)
 {
 	return (								\
-		__fly_pchar(c) || __fly_slash(**c) || __fly_question(**c) \
+		__fly_pchar(c, len) || fly_slash(**c) || fly_question(**c) \
 	) ? true : false;
 }
 
 static bool __fly_hier_part(char **c)
 {
-	if (!(__fly_slash(**c) && __fly_slash(*(*c+1))))
+	if (!(fly_slash(**c) && fly_slash(*(*c+1))))
 		return false;
 	return true;
 }
 
-static inline bool __fly_userinfo(char **c)
+static inline bool __fly_userinfo(char **c, ssize_t *len)
 {
 	return (__fly_unreserved(**c) || __fly_sub_delims(**c) || \
-		__fly_colon(**c) || __fly_pct_encoded(c)			  \
+		fly_colon(**c) || __fly_pct_encoded(c, len)			  \
 	) ? true : false;
 }
 
 static inline bool __fly_port(char c)
 {
-	return __fly_digit(c);
+	return fly_numeral(c);
 }
 
 static inline bool __fly_host(char **c)
 {
-	return __fly_alpha_digit(**c);
+	return fly_alpha_numeral(**c);
 }
 
-static bool __fly_http(char **c __unused)
+static bool __fly_http(char **c, ssize_t *len)
 {
 	/* HTTP */
 	if (!(**c == 0x48 && *(*c+1) == 0x54 && *(*c+2) == 0x54 && *(*c+3) == 0x50))
 		return false;
-	*c += 4;
+	*c += 3;
+	if (len != NULL)
+		*len -= 3;
 	return true;
 }
 
-static inline void __fly_query_set(fly_request_t *req, fly_reqlinec_t *c)
+static inline void __fly_query_set(fly_request_t *req, fly_reqlinec_t *c, size_t len)
 {
-	fly_reqlinec_t *ptr;
-
-	ptr = c;
 	req->request_line->query.ptr = c;
-
-	req->request_line->query.len = 0;
-	while(!__fly_space(*ptr) && !__fly_sharp(*ptr)){
-		req->request_line->query.len++;
-		ptr++;
-	}
+	req->request_line->query.len = len;
 	return;
 }
 
@@ -312,9 +246,10 @@ parse_method:
 	return __m->type;
 }
 
-__fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request_line)
+__fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request_line, ssize_t len)
 {
 	fly_reqlinec_t *ptr=NULL, *method=NULL, *http_version=NULL, *request_target=NULL, *query=NULL;
+	__unused size_t method_len, version_len, target_len, query_len;
 	enum method_type method_type;
 	enum {
 		INIT,
@@ -348,6 +283,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 	} status;
 	ptr = request_line;
 
+	method_len = 0;
+	version_len = 0;
+	target_len = 0;
+	query_len = 0;
 	status = INIT;
 	while(true){
 		switch(status){
@@ -361,9 +300,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				goto error;
 			case METHOD:
 				if (__fly_method(*ptr))	break;
-				else if (__fly_space(*ptr)){
+				else if (fly_space(*ptr)){
 					/* request method */
-					req->request_line->method = fly_match_method_name_with_end(method, FLY_SPACE);
+					method_len = ptr-method;
+					req->request_line->method = fly_match_method_name_len(method, method_len);
 					if (req->request_line->method == NULL)
 						goto error;
 					status = METHOD_SPACE;
@@ -372,7 +312,7 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 
 				goto error;
 			case METHOD_SPACE:
-				if (__fly_space(*ptr)) break;
+				if (fly_space(*ptr)) break;
 
 				request_target = ptr;
 				method_type = __fly_request_method(method);
@@ -383,10 +323,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				default: break;;
 				}
 
-				if (__fly_asterisk(*ptr) && method_type==OPTIONS){
+				if (fly_asterisk(*ptr) && method_type==OPTIONS){
 					status = ASTERISK_FORM;
 					continue;
-				}else if (__fly_slash(*ptr)){
+				}else if (fly_slash(*ptr)){
 					status = ORIGIN_FORM;
 					continue;
 				}else{
@@ -396,33 +336,37 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 
 				goto error;
 			case ORIGIN_FORM:
-				if (__fly_slash(*ptr))	break;
-				else if (__fly_segment(&ptr))	break;
-				if (__fly_space(*ptr)){
+				if (fly_slash(*ptr))	break;
+				else if (__fly_segment(&ptr, &len))	break;
+				if (fly_space(*ptr)){
+					target_len = ptr-request_target;
 					status = END_REQUEST_TARGET;
 					continue;
 				}
-				if (__fly_question(*ptr)){
+				if (fly_question(*ptr)){
 					status = ORIGIN_FORM_QUESTION;
 					break;
 				}
 				goto error;
 			case ORIGIN_FORM_QUESTION:
-				if (__fly_space(*ptr)){
+				if (fly_space(*ptr)){
+					target_len = ptr-request_target;
 					status = END_REQUEST_TARGET;
 					continue;
 				}
 
-				query = ptr;
-				if (__fly_query(&ptr)){
+				if (__fly_query(&ptr, &len)){
+					query = ptr;
 					status = ORIGIN_FORM_QUERY;
 					break;
 				}
 
 				goto error;
 			case ORIGIN_FORM_QUERY:
-				if (__fly_query(&ptr))	break;
-				if (__fly_space(*ptr)){
+				if (__fly_query(&ptr, &len))	break;
+				if (fly_space(*ptr)){
+					query_len = ptr-query;
+					target_len = ptr-request_target;
 					status = END_REQUEST_TARGET;
 					continue;
 				}
@@ -431,7 +375,7 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 			case ABSOLUTE_FORM:
 				if (!is_fly_scheme(&ptr, ':'))
 					goto error;
-				if (__fly_colon(*ptr)){
+				if (fly_colon(*ptr)){
 					status = ABSOLUTE_FORM_COLON;
 					break;
 				}
@@ -440,34 +384,36 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 			case ABSOLUTE_FORM_COLON:
 				if (!__fly_hier_part(&ptr))
 					goto error;
-				if (__fly_question(*ptr)){
+				if (fly_question(*ptr)){
 					status = ABSOLUTE_FORM_QUESTION;
 					break;
 				}
 
 				goto error;
 			case ABSOLUTE_FORM_QUESTION:
-				if (__fly_space(*ptr)){
+				if (fly_space(*ptr)){
 					status = END_REQUEST_TARGET;
 					continue;
 				}
 
-				query = ptr;
-				if (__fly_query(&ptr)){
+				if (__fly_query(&ptr, &len)){
+					query = ptr;
 					status = ABSOLUTE_FORM_QUERY;
 					break;
 				}
 
 				goto error;
 			case ABSOLUTE_FORM_QUERY:
-				if (__fly_query(&ptr))	break;
-				if (__fly_space(*ptr)){
+				if (__fly_query(&ptr, &len))	break;
+				if (fly_space(*ptr)){
+					query_len = ptr-query;
+					target_len = ptr-request_target;
 					status = END_REQUEST_TARGET;
 					continue;
 				}
 				goto error;
 			case AUTHORITY_FORM:
-				if (__fly_userinfo(&ptr)){
+				if (__fly_userinfo(&ptr, &len)){
 					status = AUTHORITY_FORM_USERINFO;
 					break;
 				}
@@ -477,9 +423,9 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				}
 				goto error;
 			case AUTHORITY_FORM_USERINFO:
-				if (__fly_userinfo(&ptr))	break;
+				if (__fly_userinfo(&ptr, &len))	break;
 
-				if (__fly_atsign(*ptr)){
+				if (fly_atsign(*ptr)){
 					status = AUTHORITY_FORM_ATSIGN;
 					break;
 				}
@@ -494,7 +440,7 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				goto error;
 			case AUTHORITY_FORM_HOST:
 				if (__fly_host(&ptr))		break;
-				if (__fly_colon(*ptr)){
+				if (fly_colon(*ptr)){
 					status = AUTHORITY_FORM_COLON;
 					break;
 				}
@@ -508,7 +454,7 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				goto error;
 			case AUTHORITY_FORM_PORT:
 				if (__fly_port(*ptr))	break;
-				if (__fly_space(*ptr)){
+				if (fly_space(*ptr)){
 					status = END_REQUEST_TARGET;
 					continue;
 				}
@@ -516,68 +462,70 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				goto error;
 			case END_REQUEST_TARGET:
 				/* add request/request_line/uri */
-				fly_uri_set(req, request_target, ptr-request_target);
+				fly_uri_set(req, request_target, target_len);
 				if (query)
-					__fly_query_set(req, query);
+					__fly_query_set(req, query, query_len);
 				status = REQUEST_TARGET_SPACE;
 				continue;
 			case REQUEST_TARGET_SPACE:
-				if (__fly_space(*ptr))	break;
+				if (fly_space(*ptr))	break;
 				status = HTTP_NAME;
 				continue;
 			case HTTP_NAME:
-				if (!__fly_http(&ptr))
-					goto error;
-				if (__fly_slash(*ptr)){
+				if (__fly_http(&ptr, &len))
+					break;
+				if (fly_slash(*ptr)){
 					status = HTTP_SLASH;
 					break;
 				}
 				goto error;
 			case HTTP_SLASH:
-				if (__fly_digit(*ptr)){
+				if (fly_numeral(*ptr)){
 					http_version = ptr;
 					status = HTTP_VERSION_MAJOR;
 					break;
 				}
 				goto error;
 			case HTTP_VERSION_MAJOR:
-				if (__fly_point(*ptr)){
+				if (fly_dot(*ptr)){
 					status = HTTP_VERSION_POINT;
 					break;
 				}
-				if (__fly_cr(*ptr)){
+				if (fly_cr(*ptr)){
+					version_len = ptr-http_version;
 					status = END_HTTP_VERSION;
 					break;
 				}
 				goto error;
 			case HTTP_VERSION_POINT:
-				if (__fly_digit(*ptr)){
+				if (fly_numeral(*ptr)){
 					status = HTTP_VERSION_MINOR;
 					break;
 				}
 				goto error;
 			case HTTP_VERSION_MINOR:
-				if (__fly_cr(*ptr)){
+				if (fly_cr(*ptr)){
+					version_len = ptr-http_version;
 					status = END_HTTP_VERSION;
 					break;
 				}
 				goto error;
 			case END_HTTP_VERSION:
 				/* add http version */
-				req->request_line->version = fly_match_version_with_end(http_version, FLY_CR);
+				req->request_line->version = fly_match_version_len(http_version, version_len);
 				if (!req->request_line->version)
 					goto error;
 				status = CR;
 				continue;
 			case CR:
-				if (__fly_lf(*ptr)){
+				if (fly_lf(*ptr)){
 					status = LF;
 					break;
 				}
 				goto error;
 			case LF:
 				status = SUCCESS;
-				break;
+				continue;
 			case SUCCESS:
 				return 1;
 			default:
@@ -585,6 +533,8 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				break;
 		}
 		ptr++;
+		if (--len <= 0 && status != LF)
+			goto error;
 	}
 error:
 	return -1;
@@ -601,12 +551,12 @@ __fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reque
 		goto not_ready;
 
 	request_line_length = fly_buffer_ptr_len(request_line->buffer, rptr, request_line->ptr);
-//	request_line_length = strstr(request_line, "\r\n") - request_line;
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
 		goto error_414;
 
 	req->request_line = fly_pballoc(req->pool, sizeof(fly_reqline_t));
 	req->request_line->request_line = fly_pballoc(req->pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
+	req->request_line->request_line_len = request_line_length;
 
 	if (fly_unlikely_null(req->request_line))
 		goto error_500;
@@ -619,7 +569,7 @@ __fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reque
 	req->request_line->request_line[request_line_length] = '\0';
 
 	/* request line parse check */
-	if (__fly_parse_reqline(req, req->request_line->request_line) == -1)
+	if (__fly_parse_reqline(req, req->request_line->request_line, request_line_length) == -1)
 		goto error_400;
 	return 0;
 error_400:
@@ -647,12 +597,12 @@ static inline bool __fly_header_field_name(char c)
 }
 static inline bool __fly_ows(int c)
 {
-	return (__fly_space(c) || __fly_ht(c)) ? true : false;
+	return (fly_space(c) || fly_ht(c)) ? true : false;
 }
 
 static inline bool __fly_field_content(char c)
 {
-	return (__fly_vchar(c) || __fly_space(c) || __fly_ht(c)) \
+	return (__fly_vchar(c) || fly_space(c) || fly_ht(c)) \
 		? true : false;
 }
 
@@ -662,9 +612,9 @@ static inline bool __fly_header_field_value(char c)
 }
 __fly_static bool __fly_end_of_header(char *ptr)
 {
-	if (__fly_lf(*ptr))
+	if (fly_lf(*ptr))
 		return true;
-	else if (__fly_cr(*ptr)){
+	else if (fly_cr(*ptr)){
 		return true;
 	}else
 		return false;
@@ -715,7 +665,7 @@ __fly_static int __fly_parse_header_line(fly_buffer_c **chain, fly_buf_p header,
 				goto in_the_middle;
 			goto error;
 		case FIELD_NAME:
-			if (__fly_colon(*ptr)){
+			if (fly_colon(*ptr)){
 				status = COLON;
 				break;
 			}
@@ -735,11 +685,11 @@ __fly_static int __fly_parse_header_line(fly_buffer_c **chain, fly_buf_p header,
 			goto error;
 		case OWS1:
 			if (__fly_ows(*ptr))	break;
-			if (__fly_cr(*ptr)){
+			if (fly_cr(*ptr)){
 				status = CR;
 				break;
 			}
-			if (__fly_lf(*ptr)){
+			if (fly_lf(*ptr)){
 				status = LF;
 			}
 			if (__fly_zero(*ptr))
@@ -754,11 +704,11 @@ __fly_static int __fly_parse_header_line(fly_buffer_c **chain, fly_buf_p header,
 			goto error;
 
 		case FIELD_VALUE:
-			if (__fly_cr(*ptr)){
+			if (fly_cr(*ptr)){
 				status = CR;
 				break;
 			}
-			if (__fly_lf(*ptr)){
+			if (fly_lf(*ptr)){
 				status = LF;
 				break;
 			}
@@ -773,7 +723,7 @@ __fly_static int __fly_parse_header_line(fly_buffer_c **chain, fly_buf_p header,
 			goto error;
 
 		case CR:
-			if (__fly_lf(*ptr)){
+			if (fly_lf(*ptr)){
 				status = LF;
 				break;
 			}
@@ -807,7 +757,7 @@ error:
 		res->type = _FLY_PARSE_FATAL;
 		return -1;
 	}else{
-		while( !__fly_lf(*ptr++) )
+		while( !fly_lf(*ptr++) )
 			;
 		res->ptr = ptr;
 		res->type = _FLY_PARSE_ERROR;
@@ -919,6 +869,8 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 			case SSL_ERROR_WANT_WRITE:
 				goto write_blocking;
 			case SSL_ERROR_SYSCALL:
+				if (errno == EPIPE || errno == 0)
+					goto end_of_connection;
 				goto error;
 			case SSL_ERROR_SSL:
 				goto error;
@@ -948,8 +900,7 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 	}
 end_of_connection:
 	connect->peer_closed = true;
-	if (total > 0)
-		goto continuation;
+	return FLY_REQUEST_RECEIVE_END;
 continuation:
 	return FLY_REQUEST_RECEIVE_SUCCESS;
 error:
@@ -957,6 +908,7 @@ error:
 read_blocking:
 	if (total > 0)
 		goto continuation;
+	return FLY_REQUEST_RECEIVE_READ_BLOCKING;
 write_blocking:
 	return FLY_REQUEST_RECEIVE_WRITE_BLOCKING;
 }
@@ -964,16 +916,14 @@ write_blocking:
 int fly_request_disconnect_handler(fly_event_t *event)
 {
 	__unused fly_request_t *req;
-	fly_sock_t discon_sock;
 
 	req = (fly_request_t *) event->event_data;
-	discon_sock = event->fd;
 
-	/* TODO: release some resources */
+	/* release some resources */
 	if (fly_event_unregister(event) == -1)
 		return -1;
-	if (fly_socket_close(discon_sock, FLY_SOCK_CLOSE) == -1)
-		return -1;
+	fly_connect_release(req->connect);
+	fly_request_release(req);
 
 	return 0;
 }
@@ -999,28 +949,30 @@ int fly_request_timeout_handler(fly_event_t *event)
 #include "cache.h"
 int fly_request_event_handler(fly_event_t *event)
 {
-	fly_request_t *request;
-	fly_response_t *response;
-	fly_buffer_c *request_line_buf;
-	fly_body_t *body;
-	fly_bodyc_t *body_ptr;
-	fly_route_reg_t *route_reg;
-	fly_route_t *route;
-	fly_mount_t *mount;
-	struct fly_mount_parts_file *pf;
-	__unused fly_request_state_t state;
-	fly_request_fase_t fase;
+	fly_request_t					*request;
+	fly_response_t					*response;
+	fly_buffer_c					*reline_buf_chain;
+	fly_body_t						*body;
+	fly_bodyc_t						*body_ptr;
+	fly_route_reg_t					*route_reg;
+	fly_route_t						*route;
+	fly_mount_t						*mount;
+	struct fly_mount_parts_file		*pf;
+	__unused fly_request_state_t	state;
+	fly_request_fase_t				fase;
+	fly_connect_t					*conn;
 
 	state = (fly_request_state_t) event->event_state;
 	fase = (fly_request_fase_t) event->event_fase;
 	request = (fly_request_t *) event->event_data;
+	conn = request->connect;
 
 	if (is_fly_event_timeout(event))
 		goto timeout;
 
 	fly_event_fase(event, REQUEST_LINE);
 	fly_event_state(event, RECEIVE);
-	switch (fly_request_receive(event->fd, request->connect)){
+	switch (fly_request_receive(event->fd, conn)){
 	case FLY_REQUEST_RECEIVE_ERROR:
 		goto error;
 	case FLY_REQUEST_RECEIVE_END:
@@ -1050,10 +1002,10 @@ int fly_request_event_handler(fly_event_t *event)
 	}
 	/* parse request_line */
 __fase_request_line:
-	request_line_buf = fly_get_request_line_buf(request->buffer);
-	if (fly_unlikely_null(request_line_buf))
+	reline_buf_chain = fly_get_request_line_buf(conn->buffer);
+	if (fly_unlikely_null(reline_buf_chain))
 		goto response_400;
-	switch(__fly_request_operation(request, request_line_buf)){
+	switch(__fly_request_operation(request, reline_buf_chain)){
 	case FLY_REQUEST_ERROR(400):
 		goto response_400;
 	case FLY_REQUEST_ERROR(414):
@@ -1074,7 +1026,7 @@ __fase_header:
 	char *header_ptr;
 
 	fly_event_fase(event, HEADER);
-	header_ptr = fly_get_header_lines_ptr(fly_buffer_first_chain(request->buffer));
+	header_ptr = fly_get_header_lines_ptr(conn->buffer);
 	if (header_ptr == NULL)
 		goto read_continuation;
 
@@ -1284,7 +1236,8 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 {
 	struct fly_request_line *reqline = req->request_line;
 	char *ptr=NULL, *query=NULL;
-	size_t len;
+	size_t query_len;
+	ssize_t len;
 	enum{
 		INIT,
 		ORIGIN_FORM,
@@ -1312,10 +1265,11 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 	if (!ptr)
 		goto error;
 
+	query_len = 0;
 	while(true){
 		switch(status){
 		case INIT:
-			if (__fly_space(*ptr)) break;
+			if (fly_space(*ptr)) break;
 
 			switch (method_type){
 			case CONNECT:
@@ -1324,10 +1278,10 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			default: break;
 			}
 
-			if (__fly_asterisk(*ptr) && method_type==OPTIONS){
+			if (fly_asterisk(*ptr) && method_type==OPTIONS){
 				status = ASTERISK_FORM;
 				continue;
-			}else if (__fly_slash(*ptr)){
+			}else if (fly_slash(*ptr)){
 				status = ORIGIN_FORM;
 				continue;
 			}else{
@@ -1336,29 +1290,29 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			}
 			goto error;
 		case ORIGIN_FORM:
-			if (__fly_slash(*ptr))	break;
-			else if (__fly_segment(&ptr))	break;
-			if (__fly_question(*ptr)){
+			if (fly_slash(*ptr))	break;
+			else if (__fly_segment(&ptr, &len))	break;
+			if (fly_question(*ptr)){
+				query = ptr;
 				status = ORIGIN_FORM_QUESTION;
 				break;
 			}
 			goto error;
 		case ORIGIN_FORM_QUESTION:
-			query = ptr;
-			if (__fly_query(&ptr)){
+			if (__fly_query(&ptr, &len)){
 				status = ORIGIN_FORM_QUERY;
 				break;
 			}
 
 			goto error;
 		case ORIGIN_FORM_QUERY:
-			if (__fly_query(&ptr))	break;
+			if (__fly_query(&ptr, &len))	break;
 			goto error;
 
 		case ABSOLUTE_FORM:
 			if (!is_fly_scheme(&ptr, ':'))
 				goto error;
-			if (__fly_colon(*ptr)){
+			if (fly_colon(*ptr)){
 				status = ABSOLUTE_FORM_COLON;
 				break;
 			}
@@ -1367,25 +1321,25 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 		case ABSOLUTE_FORM_COLON:
 			if (!__fly_hier_part(&ptr))
 				goto error;
-			if (__fly_question(*ptr)){
+			if (fly_question(*ptr)){
+				query = ptr;
 				status = ABSOLUTE_FORM_QUESTION;
 				break;
 			}
 
 			goto error;
 		case ABSOLUTE_FORM_QUESTION:
-			query = ptr;
-			if (__fly_query(&ptr)){
+			if (__fly_query(&ptr, &len)){
 				status = ABSOLUTE_FORM_QUERY;
 				break;
 			}
 
 			goto error;
 		case ABSOLUTE_FORM_QUERY:
-			if (__fly_query(&ptr))	break;
+			if (__fly_query(&ptr, &len))	break;
 			goto error;
 		case AUTHORITY_FORM:
-			if (__fly_userinfo(&ptr)){
+			if (__fly_userinfo(&ptr, &len)){
 				status = AUTHORITY_FORM_USERINFO;
 				break;
 			}
@@ -1395,9 +1349,9 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			}
 			goto error;
 		case AUTHORITY_FORM_USERINFO:
-			if (__fly_userinfo(&ptr))	break;
+			if (__fly_userinfo(&ptr, &len))	break;
 
-			if (__fly_atsign(*ptr)){
+			if (fly_atsign(*ptr)){
 				status = AUTHORITY_FORM_ATSIGN;
 				break;
 			}
@@ -1412,7 +1366,7 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			goto error;
 		case AUTHORITY_FORM_HOST:
 			if (__fly_host(&ptr))		break;
-			if (__fly_colon(*ptr)){
+			if (fly_colon(*ptr)){
 				status = AUTHORITY_FORM_COLON;
 				break;
 			}
@@ -1431,7 +1385,7 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			break;
 		case END:
 			if (query)
-				__fly_query_set(req, query);
+				__fly_query_set(req, query, query_len);
 			return 0;
 		}
 
@@ -1440,6 +1394,11 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			continue;
 		}
 		ptr++;
+		if (--len == 0){
+			if (query)
+				query_len = ptr-query;
+			status = END;
+		}
 	}
 error:
 	return -1;

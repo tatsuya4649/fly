@@ -13,7 +13,7 @@ __fly_static int __fly_expired_event(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e);
-__fly_static int __fly_event_cmp(void *k1, void *k2);
+__fly_static int __fly_event_cmp(void *k1, void *k2, void *);
 static void fly_event_handle(fly_event_t *e);
 
 __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx)
@@ -78,7 +78,7 @@ error:
 	return NULL;
 }
 
-__fly_static int __fly_event_cmp(void *k1, void *k2)
+__fly_static int __fly_event_cmp(void *k1, void *k2, void *)
 {
 	fly_time_t *t1 = (fly_time_t *) k1;
 	fly_time_t *t2 = (fly_time_t *) k2;
@@ -155,6 +155,7 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	event->available_row = 0;
 	event->rbnode = NULL;
 	event->yetadd = true;
+	event->end_event_data = NULL;
 	return event;
 }
 
@@ -185,7 +186,7 @@ int fly_event_register(fly_event_t *event)
 		/* add to red black tree */
 		if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event)){
 			__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
-			event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout, &event->rbnode);
+			event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout, &event->rbnode, NULL);
 		}
 
 		if (fly_event_monitorable(event))
@@ -202,7 +203,7 @@ int fly_event_register(fly_event_t *event)
 			if (!(event->tflag & FLY_INFINITY) && !(event->tflag & FLY_INHERIT))
 					__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
 			if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event))
-				event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout, &event->rbnode);
+				event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->abs_timeout, &event->rbnode, NULL);
 		}
 	}
 	data.ptr = event;
@@ -357,7 +358,7 @@ __fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_
 		return 0;
 
 	while(node!=nil_node_ptr){
-		switch(tree->cmp(node->key, __t)){
+		switch(tree->cmp(node->key, __t, NULL)){
 		case FLY_RB_CMP_BIG:
 			node = node->c_left;
 			break;
@@ -424,14 +425,27 @@ int fly_milli_time(fly_time_t t)
 	return msec;
 }
 
-__fly_static int __fly_event_handle_nomonitorable(__unused fly_event_manager_t *manager)
+__fly_static int __fly_event_handle_nomonitorable(fly_event_manager_t *manager)
 {
 	if (manager->unmonitorable.count == 0)
 		return 0;
 
 	struct fly_queue *__q;
-	for (__q=manager->unmonitorable.next; manager->unmonitorable.count>0; __q=fly_queue_pop(&manager->unmonitorable))
-		fly_event_handle(fly_queue_data(__q, struct fly_event, uqelem));
+	fly_event_t *__e;
+
+	while(manager->unmonitorable.count>0){
+		__q = manager->unmonitorable.next;
+		__e = fly_queue_data(__q, struct fly_event, uqelem);
+		fly_event_handle(__e);
+
+		if (!fly_nodelete(__e)){
+#ifdef DEBUG
+			assert(fly_event_unregister(__e) != -1);
+#else
+			fly_event_unregister(__e);
+#endif
+		}
+	}
 
 	return 0;
 }
@@ -545,6 +559,7 @@ __fly_static int __fly_event_handler_failure_logcontent(fly_logcont_t *lc, fly_e
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e)
 {
 	fly_logcont_t *lc;
+	fly_event_t *le;
 
 	lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_NOTICE);
 	if (lc == NULL)
@@ -563,19 +578,29 @@ __fly_static int __fly_event_handle_failure_log(fly_event_t *e)
 	if ((e->fail_close != NULL ? e->fail_close(e->fd) : close(e->fd)) == -1)
 		return -1;
 
-	FLY_EVENT_HANDLER(e, fly_log_event_handler);
-	e->fd = fly_log_from_event(e)->notice->file;
-	e->read_or_write = FLY_WRITE;
-	e->flag = FLY_MODIFY;
-	e->tflag = 0;
-	e->eflag = 0;
-	e->available = false;
-	e->expired = false;
-	e->event_data = (void *) lc;
-	fly_time_zero(e->timeout);
-	fly_event_regular(e);
+	le = fly_event_init(e->manager);
+	if (fly_unlikely_null(le))
+		return -1;
+	FLY_EVENT_HANDLER(le, fly_log_event_handler);
+	le->fd = fly_log_from_event(e)->notice->file;
+	le->read_or_write = FLY_WRITE;
+	le->flag = FLY_MODIFY;
+	le->tflag = 0;
+	le->eflag = 0;
+	le->available = false;
+	le->expired = false;
+	le->event_data = (void *) lc;
+	le->end_handler = NULL;
+	le->end_event_data = NULL;
+	fly_time_zero(le->timeout);
+	fly_event_regular(le);
 
-	return fly_event_register(e);
+	if (fly_event_register(le) == -1)
+		return -1;
+	if (fly_event_unregister(e) == -1)
+		return -1;
+
+	return 0;
 }
 
 int fly_event_inherit_register(fly_event_t *e)
