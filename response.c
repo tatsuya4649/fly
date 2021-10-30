@@ -212,6 +212,33 @@ char *fly_stcode_explain(fly_stcode_t type)
 	return NULL;
 }
 
+static int fly_reponse_timeout_release_handler(fly_event_t *e);
+void fly_response_timeout_end_setting(fly_event_t *e, fly_response_t *res)
+{
+	FLY_EVENT_END_HANDLER(e, fly_reponse_timeout_release_handler, res);
+	FLY_EVENT_EXPIRED_HANDLER(e, fly_reponse_timeout_release_handler, res);
+}
+
+static int fly_reponse_timeout_release_handler(struct fly_event *e)
+{
+	fly_request_t *req;
+	fly_connect_t *con;
+	fly_response_t *res;
+
+	res = (fly_response_t *) e->event_data;
+	req = res->request;
+	con = req->connect;
+
+	e->flag = FLY_CLOSE_EV;
+	if (req != NULL)
+		fly_request_release(req);
+	fly_response_release(res);
+	if (fly_connect_release(con) == -1)
+		return -1;
+
+	return 0;
+}
+
 __fly_static int __fly_response_release_handler(fly_event_t *e)
 {
 	fly_request_t *req;
@@ -253,13 +280,16 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 
 	e->read_or_write = FLY_READ;
 	e->flag = FLY_MODIFY;
-	e->tflag = FLY_INHERIT;
+	e->tflag = 0;
 	e->eflag = 0;
+	fly_sec(&e->timeout, FLY_REQUEST_TIMEOUT);
 	FLY_EVENT_HANDLER(e, fly_request_event_handler);
 	e->event_data = (void *) req;
 	e->available = false;
+	e->expired = false;
 	e->event_fase = EFLY_REQUEST_FASE_INIT;
 	e->event_state = EFLY_REQUEST_STATE_INIT;
+	FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
 	fly_event_socket(e);
 
 	return fly_event_register(e);
@@ -707,33 +737,13 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 
 __fly_static int fly_after_response(fly_event_t *e, fly_response_t *response)
 {
+	e->event_data = (void *) response;
 	switch (fly_connection(response->header)){
 	case FLY_CONNECTION_CLOSE:
-		e->event_state = (void *) EFLY_REQUEST_STATE_END;
-		e->event_data = response;
-		e->read_or_write = FLY_WRITE|FLY_READ;
-		e->flag = FLY_CLOSE_EV | FLY_MODIFY;
-		FLY_EVENT_HANDLER(e, __fly_response_release_handler);
-		e->available = false;
-		fly_event_socket(e);
-
-		return fly_event_register(e);
+		return __fly_response_release_handler(e);
 
 	case FLY_CONNECTION_KEEP_ALIVE:
-		e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
-		e->event_fase = (void  *) EFLY_REQUEST_FASE_INIT;
-		e->event_data = (void *) response;
-		e->read_or_write = FLY_WRITE|FLY_READ;
-		e->flag = FLY_MODIFY;
-		fly_sec(&e->timeout, FLY_REQUEST_TIMEOUT);
-		e->tflag = 0;
-		e->eflag = 0;
-		FLY_EVENT_HANDLER(e, __fly_response_reuse_handler);
-		e->available = false;
-		e->expired = false;
-		fly_event_socket(e);
-
-		return fly_event_register(e);
+		return __fly_response_reuse_handler(e);
 
 	default:
 		FLY_NOT_COME_HERE
@@ -978,6 +988,7 @@ int fly_304_event(fly_event_t *e)
 	e->available = false;
 	e->event_data = (void *) res;
 	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
 	return fly_event_register(e);
 }
 
@@ -1064,6 +1075,7 @@ int fly_400_event(fly_event_t *e, fly_request_t *req)
 	e->available = false;
 	e->event_data = (void *) res;
 	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
 	return fly_event_register(e);
 }
 
@@ -1109,6 +1121,7 @@ int fly_404_event(fly_event_t *e, fly_request_t *req)
 	e->available = false;
 	e->event_data = (void *) res;
 	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
 	return fly_event_register(e);
 }
 
@@ -1155,6 +1168,7 @@ int fly_405_event(fly_event_t *e, fly_request_t *req)
 	e->available = false;
 	e->event_data = (void *) res;
 	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
 	return fly_event_register(e);
 }
 
@@ -1202,6 +1216,7 @@ int fly_414_event(fly_event_t *e, fly_request_t *req)
 	e->available = false;
 	e->event_data = (void *) res;
 	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
 	return fly_event_register(e);
 }
 
@@ -1274,6 +1289,7 @@ int fly_415_event(fly_event_t *e, fly_request_t *req)
 	e->available = false;
 	e->event_data = (void *) res;
 	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
 	return fly_event_register(e);
 }
 
@@ -1354,17 +1370,13 @@ int __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_
 	e->available = false;
 	e->event_data = (void *) response;
 	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, response);
 
 	return 0;
 }
 
 int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf)
 {
-	if (e->expired){
-		e->event_data = req;
-		return fly_request_timeout(e);
-	}
-
 	if (__fly_response_from_pf(e, req, pf, fly_response_event) == -1)
 		return -1;
 
