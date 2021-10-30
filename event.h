@@ -20,63 +20,82 @@ extern fly_pool_t *fly_event_pool;
 
 typedef struct fly_context fly_context_t;
 struct fly_event_manager{
-	fly_pool_t			*pool;
-	fly_context_t		*ctx;
-	int					efd;
-	struct epoll_event	*evlist;
-	int					maxevents;
-	int					evlen;
+	fly_pool_t					*pool;
+	fly_context_t				*ctx;
+	int							efd;
+	struct epoll_event			*evlist;
+	int							maxevents;
 
-	struct fly_rb_tree	*rbtree;
-	struct fly_queue	monitorable;
-	struct fly_queue	unmonitorable;
+	struct fly_rb_tree			*rbtree;
+	struct fly_queue			monitorable;
+	struct fly_queue			unmonitorable;
 };
 typedef struct fly_event_manager fly_event_manager_t;
 
 typedef struct timeval fly_time_t;
+struct __fly_event_for_rbtree{
+	fly_time_t				*abs_timeout;
+	struct fly_event		*ptr;
+};
+#define FLY_EVENT_FOR_RBTREE_INIT(__e)		\
+	do{	\
+		(__e)->rbtree_elem.abs_timeout = &(__e)->abs_timeout;		\
+		(__e)->rbtree_elem.ptr = (__e);		\
+	} while(0)
+
 struct fly_event{
-	fly_event_manager_t			*manager;
-	int							fd;
-	int							read_or_write;
-	int 						available_row;
-	int 						eflag;
+	fly_event_manager_t				*manager;
+	int								fd;
+	int								read_or_write;
+	int 							available_row;
+	int 							eflag;
 
-	fly_time_t					timeout;
-	fly_time_t 					spawn_time;
-	fly_time_t 					start;
-	fly_time_t 					abs_timeout;
-	int							tflag;
+	fly_time_t						timeout;
+	fly_time_t 						spawn_time;
+	fly_time_t 						start;
+	fly_time_t 						abs_timeout;
+	int								tflag;
 
-	int							flag;
+	int								flag;
 
+	struct __fly_event_for_rbtree	rbtree_elem;
 	/* for manager events list */
-	struct fly_queue			qelem;
+	struct fly_queue				qelem;
 	/* for manager unmonitorable list */
-	struct fly_queue			uqelem;
+	struct fly_queue				uqelem;
 
-	struct fly_rb_node			*rbnode;
+	struct fly_rb_node				*rbnode;
 
-	int (*handler)(struct fly_event *);
-	void (*end_handler)(struct fly_event *);
-	char						*handler_name;
+	int								(*handler)(struct fly_event *);
+	int								(*end_handler)(struct fly_event *);
+	int								(*expired_handler)(struct fly_event *);
+	char							*handler_name;
 
-	void						*event_data;
-	void						*end_event_data;
-	void 						*event_fase;
-	void 						*event_state;
+	void							*event_data;
+	void							*end_event_data;
+	void							*expired_event_data;
+	void 							*event_fase;
+	void 							*event_state;
 
 	/*
 	 * if event handler fail, this function is called.
 	 * this function must close fd(event file).
 	 */
-	int (*fail_close)(int fd);
+	int								(*fail_close)(int fd);
 
 	/* event bit fields */
-	fly_bit_t					file_type: 4;
-	fly_bit_t 					expired: 1;
-	fly_bit_t 					available: 1;
-	fly_bit_t					yetadd: 1;
+	fly_bit_t						file_type: 4;
+	fly_bit_t 						expired: 1;
+	fly_bit_t 						available: 1;
+	fly_bit_t						yetadd: 1;
 };
+
+#ifdef DEBUG
+__unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
+{
+	return (struct fly_event *) fly_queue_data(__q, struct fly_event, qelem);
+}
+#endif
 
 #define FLY_POOL_MANAGER_FROM_EVENT(__e)			\
 			((__e)->manager->ctx->pool_manager)
@@ -84,7 +103,24 @@ struct fly_event{
 	do{									\
 		(e)->handler = (__handler);		\
 		(e)->handler_name = #__handler;	\
-	} while(0);
+	} while(0)
+
+#define FLY_EVENT_EXPIRED_END_HANDLER(e, __handler, data)		\
+		do{			\
+			FLY_EVENT_END_HANDLER(e, __handler, data);		\
+			FLY_EVENT_EXPIRED_HANDLER(e, __handler, data);	\
+		} while(0)
+
+#define FLY_EVENT_END_HANDLER(e, __handler, __data)	\
+	do{									\
+		(e)->end_handler = (__handler);		\
+		(e)->end_event_data = (void *) (__data);	\
+	} while(0)
+#define FLY_EVENT_EXPIRED_HANDLER(e, __handler, __data)	\
+	do{									\
+		(e)->expired_handler = (__handler);		\
+		(e)->expired_event_data = (void *) (__data);	\
+	} while(0)
 
 typedef struct fly_event fly_event_t;
 #define fly_time(tptr)		gettimeofday((struct timeval *) tptr, NULL)
@@ -168,7 +204,7 @@ int fly_event_inherit_register(fly_event_t *e);
 
 #define fly_event_monitorable(e)	\
 	(!fly_event_is_regular((e)) && !fly_event_is_dir((e)))
-#define fly_event_nomonitorable(e)	(!(fly_event_monitorable((e))))
+#define fly_event_unmonitorable(e)	(!(fly_event_monitorable((e))))
 
 #define fly_event_op(__e)			\
 	((__e)->flag&FLY_MODIFY) ? EPOLL_CTL_MOD: EPOLL_CTL_ADD
