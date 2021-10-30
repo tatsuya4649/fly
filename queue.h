@@ -12,6 +12,11 @@ struct fly_queue{
 	struct fly_queue *prev;
 };
 
+static inline int fly_queue_count(struct  fly_queue *__h)
+{
+	return __h->count;
+}
+
 static inline void fly_queue_push(struct fly_queue *__h, struct fly_queue *n) {
 	n->prev = __h->prev;
 	n->next = __h;

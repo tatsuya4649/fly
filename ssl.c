@@ -43,13 +43,21 @@ void fly_listen_socket_ssl_setting(fly_context_t *ctx, fly_sockinfo_t *sockinfo)
 	return;
 }
 
+int fly_accept_end_timeout_handler(fly_event_t *e)
+{
+	fly_connect_t *conn;
+
+	conn = (fly_connect_t *) e->expired_event_data;
+	fly_ssl_connected_release(conn);
+
+	return fly_listen_socket_end_handler(e);
+}
+
 int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 {
 	struct fly_ssl_accept *__ac;
 	SSL		*ssl;
 	fly_context_t *context;
-	const unsigned char *data;
-	unsigned int len;
 
 	context = e->manager->ctx;
 	/* non blocking accept */
@@ -59,11 +67,7 @@ int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 	conn->ssl = ssl;
 	conn->flag = FLY_SSL_CONNECT;
 
-	SSL_get0_alpn_selected(ssl, &data, &len);
-	conn->http_v = fly_match_version_from_alpn(data, len);
-	if (fly_unlikely_null(conn->http_v))
-		return -1;
-
+	FLY_EVENT_EXPIRED_END_HANDLER(e, fly_accept_end_timeout_handler, conn);
 	__ac = fly_pballoc(e->manager->ctx->misc_pool, sizeof(struct fly_ssl_accept));
 	if (fly_unlikely_null(__ac))
 		return -1;
@@ -134,10 +138,8 @@ __fly_static int __fly_ssl_alpn(SSL *ssl __unused, const unsigned char **out __u
 __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_accept *__ac)
 {
 	int res, conn_sock;
-
-	/* expired handler */
-	if (e->expired)
-		e->end_handler(e);
+	const unsigned char *data;
+	unsigned int len;
 
 	/* create new connected socket event. */
 	conn_sock = SSL_get_fd(__ac->ssl);
@@ -180,6 +182,11 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 		}
 	}
 
+	SSL_get0_alpn_selected(__ac->ssl, &data, &len);
+	__ac->connect->http_v = fly_match_version_from_alpn(data, len);
+	if (fly_unlikely_null(__ac->connect->http_v))
+		return -1;
+
 	e->event_data = __ac->connect;
 	/* release accept resource */
 	fly_pbfree(__ac->pool, __ac);
@@ -197,8 +204,6 @@ blocking:
 	e->fd = conn_sock;
 	FLY_EVENT_HANDLER(e, __fly_ssl_accept_blocking_handler);
 	e->flag = FLY_MODIFY;
-	if (fly_event_already_added(e))
-		e->flag |= FLY_MODIFY;;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
 	e->expired = false;

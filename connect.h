@@ -44,7 +44,7 @@ int fly_info_of_connect(fly_connect_t *conn);
 int fly_connect_recv(fly_connect_t *conn);
 int fly_listen_connected(fly_event_t *e);
 int fly_accept_listen_socket_handler(struct fly_event *event);
-void fly_listen_socket_end_handler(fly_event_t *__e);
+int fly_listen_socket_end_handler(fly_event_t *__e);
 
 #define FLY_CONNECT_HTTP_VERSION(conn)		\
 			(conn->http_v->type)

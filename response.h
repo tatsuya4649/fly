@@ -204,5 +204,6 @@ static inline int fly_encode_do(fly_response_t *res)
 }
 
 int fly_response_content_max_length(void);
+void fly_response_timeout_end_setting(fly_event_t *e, fly_response_t *res);
 
 #endif
