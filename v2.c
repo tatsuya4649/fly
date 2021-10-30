@@ -6,8 +6,8 @@
 #include <openssl/err.h>
 #include "mime.h"
 
-fly_hv2_stream_t *fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid_t id, bool from_client);
 int fly_hv2_request_event_handler(fly_event_t *e);
+fly_hv2_stream_t *fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid_t id, bool from_client);
 fly_hv2_stream_t *fly_hv2_stream_search_from_sid(fly_hv2_state_t *state, fly_sid_t sid); void fly_send_settings_frame(fly_hv2_stream_t *stream, uint16_t *id, uint32_t *value, size_t count, bool ack);
 
 #define FLY_HV2_SEND_FRAME_SUCCESS			(1)
@@ -475,8 +475,10 @@ state_error:
  *	release handler of HTTP2 connection state.
  */
 void fly_hv2_dynamic_table_release(struct fly_hv2_state *state);
+void fly_hv2_remove_all_response(fly_hv2_state_t *state);
 void fly_hv2_state_release(fly_hv2_state_t *state)
 {
+	fly_hv2_remove_all_response(state);
 	fly_hv2_dynamic_table_release(state);
 	fly_pbfree(state->pool, state->emergency_ptr);
 	fly_pbfree(state->pool, state);
@@ -1011,6 +1013,18 @@ int fly_send_rst_stream_frame(fly_hv2_stream_t *stream, uint32_t error_code)
 int fly_send_goaway_frame(fly_hv2_state_t *state, bool r, uint32_t error_code);
 int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream);
 
+/*
+ * if expired or end of process, this function is called
+ */
+int fly_hv2_close_handle(fly_event_t *e, fly_hv2_state_t *state);
+int fly_hv2_end_timeout_handle(fly_event_t *e)
+{
+	fly_connect_t *conn;
+
+	conn = (fly_connect_t *) e->expired_event_data;
+	return fly_hv2_close_handle(e, conn->v2_state);
+}
+
 int fly_hv2_close_handle(fly_event_t *e, fly_hv2_state_t *state)
 {
 	/* all frame/stream/request release */
@@ -1036,7 +1050,7 @@ int fly_hv2_close_handle(fly_event_t *e, fly_hv2_state_t *state)
 
 	e->tflag = 0;
 	e->flag = FLY_CLOSE_EV;
-	return fly_event_unregister(e);
+	return 0;
 }
 
 int fly_send_frame(fly_event_t *e, fly_hv2_stream_t *stream);
@@ -1170,13 +1184,6 @@ int fly_state_send_frame(fly_event_t *e, fly_hv2_state_t *state);
 
 int fly_hv2_request_event_handler(fly_event_t *event)
 {
-	/* event expired(idle timeout) */
-	if (event->expired){
-		fly_connect_t *conn;
-		conn = (fly_connect_t *) event->event_data;
-		return fly_hv2_close_handle(event, conn->v2_state);
-	}
-
 	do{
 		fly_connect_t *conn;
 		fly_buf_p *bufp;
@@ -3862,6 +3869,19 @@ void fly_hv2_remove_hv2_response(fly_hv2_state_t *state, struct fly_hv2_response
 	return;
 }
 
+void fly_hv2_remove_all_response(fly_hv2_state_t *state)
+{
+	struct fly_queue *__q;
+	struct fly_hv2_response *__r;
+
+	while(state->response_count > 0){
+		__q = fly_queue_pop(&state->responses);
+		__r = (struct fly_hv2_response *) fly_queue_data(__q, struct fly_hv2_response, qelem);
+		fly_hv2_remove_hv2_response(state, __r);
+	}
+	return;
+}
+
 void fly_hv2_remove_response(fly_hv2_state_t *state, fly_response_t *res)
 {
 	struct fly_queue *__q;
@@ -4061,6 +4081,7 @@ int fly_hv2_response_event(fly_event_t *e)
 	stream = res->request->stream;
 	res->header->state = stream->state;
 
+	FLY_EVENT_EXPIRED_END_HANDLER(e, fly_hv2_end_timeout_handle, stream->state);
 	/* already send headers */
 	if (stream->end_send_data)
 		goto log;

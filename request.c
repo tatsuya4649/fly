@@ -19,10 +19,10 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 	fly_pool_t *pool;
 	fly_request_t *req;
 	pool = fly_create_pool(FLY_POOL_MANAGER_FROM_EVENT(conn->event), FLY_REQUEST_POOL_SIZE);
-	if (pool == NULL)
+	if (fly_unlikely_null(pool))
 		return NULL;
 	req = fly_pballoc(pool, sizeof(fly_request_t));
-	if (req == NULL)
+	if (fly_unlikely_null(req))
 		return NULL;
 
 	req->pool = pool;
@@ -917,14 +917,16 @@ int fly_request_disconnect_handler(fly_event_t *event)
 {
 	__unused fly_request_t *req;
 
+	event->flag |= FLY_CLOSE_EV;
+
 	req = (fly_request_t *) event->event_data;
+
+	fly_connect_release(req->connect);
+	fly_request_release(req);
 
 	/* release some resources */
 	if (fly_event_unregister(event) == -1)
 		return -1;
-	fly_connect_release(req->connect);
-	fly_request_release(req);
-
 	return 0;
 }
 
@@ -932,15 +934,15 @@ int fly_request_timeout_handler(fly_event_t *event)
 {
 	fly_request_t *req;
 	fly_connect_t *conn;
-	req = (fly_request_t *) event->event_data;
+	req = (fly_request_t *) event->expired_event_data;
 
 	conn = req->connect;
 
 	/* release some resources */
 	/* close socket and release resources. */
 	fly_request_release(req);
-	if (fly_event_unregister(event) == -1)
-		return -1;
+
+	event->flag = FLY_CLOSE_EV;
 	if (fly_connect_release(conn) == -1)
 		return -1;
 	return 0;
@@ -966,9 +968,6 @@ int fly_request_event_handler(fly_event_t *event)
 	fase = (fly_request_fase_t) event->event_fase;
 	request = (fly_request_t *) event->event_data;
 	conn = request->connect;
-
-	if (is_fly_event_timeout(event))
-		goto timeout;
 
 	fly_event_fase(event, REQUEST_LINE);
 	fly_event_state(event, RECEIVE);
@@ -1157,22 +1156,7 @@ continuation:
 	return 0;
 
 disconnection:
-	event->event_state = (void *) EFLY_REQUEST_STATE_END;
-	event->read_or_write = FLY_READ;
-	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
-	FLY_EVENT_HANDLER(event, fly_request_disconnect_handler);
-	event->available = false;
-	fly_event_socket(event);
-	if (fly_event_register(event) == -1)
-		goto error;
-
-	return 0;
-
-/* expired */
-timeout:
-	if (fly_request_timeout(event) == -1)
-		goto error;
-	return 0;
+	return fly_request_disconnect_handler(event);
 
 response_path:
 
@@ -1205,6 +1189,8 @@ response:
 	event->available = false;
 	event->event_data = (void *) response;
 	fly_event_socket(event);
+	fly_response_timeout_end_setting(event, response);
+
 	if (fly_event_register(event) == -1)
 		goto error;
 
@@ -1214,18 +1200,6 @@ error:
 	return -1;
 }
 
-
-int fly_request_timeout(fly_event_t *event)
-{
-	event->event_state = (void *) EFLY_REQUEST_STATE_TIMEOUT;
-	event->read_or_write = FLY_WRITE;
-	event->flag = FLY_CLOSE_EV | FLY_MODIFY;
-	event->tflag = FLY_INHERIT;
-	FLY_EVENT_HANDLER(event, fly_request_timeout_handler);
-	event->available = false;
-	fly_event_socket(event);
-	return fly_event_register(event);
-}
 
 int fly_create_response_from_request(fly_request_t *req __unused, fly_response_t **res __unused)
 {

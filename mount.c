@@ -217,7 +217,7 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 			goto error;
 
 		/* add rbnode to rbtree */
-		pfile->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) pfile, (void *) pfile->filename, &pfile->rbnode, &pfile->filename_len);
+		pfile->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) pfile, (void *) pfile->filename, &pfile->rbnode, (void *) pfile->filename_len);
 		fly_parts_file_add(parts, pfile);
 		parts->mount->file_count++;
 	}
@@ -649,7 +649,7 @@ static int fly_file_max_limit(void)
 }
 
 /*
- *	data is length of k2 path.
+ *	data is length of k1 path.
  */
 static int __fly_mount_search_cmp(void *k1, void *k2, void *data)
 {
@@ -662,12 +662,19 @@ static int __fly_mount_search_cmp(void *k1, void *k2, void *data)
 	c2 = (char *) k2;
 	len = (size_t) data;
 
-	minlen = (strlen(c1) < len) ? strlen(c1) : len;
+	minlen = (strlen(c2) < len) ? strlen(c2) : len;
 	res = strncmp(c1, c2, minlen);
 
-	if (res == 0)
-		return FLY_RB_CMP_EQUAL;
-	else if (res > 0)
+	if (res == 0){
+		if (strlen(c2) == len)
+			return FLY_RB_CMP_EQUAL;
+		else{
+			if (strlen(c2) < len)
+				return FLY_RB_CMP_BIG;
+			else
+				return FLY_RB_CMP_SMALL;
+		}
+	}else if (res > 0)
 		return FLY_RB_CMP_BIG;
 	else
 		return FLY_RB_CMP_SMALL;

@@ -28,6 +28,8 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	memcpy(&conn->peer_addr, addr, addrlen);
 	conn->addrlen = addrlen;
 	conn->flag = 0;
+	memset(conn->hostname, '\0', NI_MAXHOST);
+	memset(conn->servname, '\0', NI_MAXSERV);
 
 	/* for HTTP2 */
 	conn->ssl_ctx = NULL;
@@ -91,36 +93,32 @@ int fly_listen_connected(fly_event_t *e)
 	fly_request_t *req;
 
 	conn = (fly_connect_t *) e->event_data;
-	e->fd = e->fd;
 	e->read_or_write = FLY_READ;
 	/* event only modify (no add, no delete) */
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
+	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
+	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
+	fly_event_socket(e);
 
 	switch(FLY_CONNECT_HTTP_VERSION(conn)){
 	case V1_1:
 		req = fly_request_init(conn);
-		if (req == NULL)
+		if (fly_unlikely_null(req))
 			return -1;
 		e->event_data = (void *) req;
-		/* ready for request */
-		FLY_EVENT_HANDLER(e, fly_request_event_handler);
-		break;
+
+		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
+		return fly_request_event_handler(e);
 	case V2:
 		e->event_data = (void *) conn;
-		FLY_EVENT_HANDLER(e, fly_hv2_init_handler);
-		break;
+		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_hv2_end_timeout_handle, conn);
+		return fly_request_event_handler(e);
+		return fly_hv2_init_handler(e);
 	default:
 		FLY_NOT_COME_HERE
 	}
-	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
-	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
-	e->expired = false;
-	e->available = false;
-	fly_event_socket(e);
-
-	return fly_event_register(e);
 }
 
 static int fly_recognize_protocol_of_connected(fly_event_t *e);
@@ -171,8 +169,8 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	ne->available = false;
 	conn = fly_http_connected(listen_sock, conn_sock, ne,(struct sockaddr *) &addr, addrlen);
 	/* for end of connection */
-	ne->end_event_data = (void *) ne->event_data;
-	ne->end_handler = fly_listen_socket_end_handler;
+	FLY_EVENT_EXPIRED_HANDLER(ne, fly_listen_socket_end_handler, conn);
+	FLY_EVENT_END_HANDLER(ne, fly_listen_socket_end_handler, conn);
 	ne->event_data = conn;
 	fly_event_socket(ne);
 
@@ -184,10 +182,6 @@ read_blocking:
 
 static int fly_recognize_protocol_of_connected(fly_event_t *e)
 {
-	/* expired handler */
-	if (e->expired)
-		e->end_handler(e);
-
 	fly_connect_t *conn;
 	fly_sock_t conn_sock;
 	fly_sockinfo_t *sockinfo;
@@ -201,9 +195,8 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 	char buf[FLY_TLS_HTTP_CHECK_BUFLEN];
 	ssize_t n;
 
-	n = recv(conn_sock, buf, FLY_TLS_HTTP_CHECK_BUFLEN, MSG_DONTWAIT|MSG_PEEK);
+	n = recv(conn_sock, buf, FLY_TLS_HTTP_CHECK_BUFLEN, MSG_PEEK);
 	if (n != FLY_TLS_HTTP_CHECK_BUFLEN){
-		printf("Here error ?\n");
 		if (FLY_BLOCKING(n))
 			goto read_blocking;
 		else if (n == 0)
@@ -230,18 +223,22 @@ read_blocking:
 	return fly_event_register(e);
 
 disconnect:
-	return 0;
+	if (fly_connect_release(conn) == -1)
+		return -1;
+
+	e->flag = FLY_CLOSE_EV;
+	return fly_event_unregister(e);
 
 response_400:
 	return fly_400_event_norequest(e, conn);
 }
 
-void fly_listen_socket_end_handler(fly_event_t *__e)
+int fly_listen_socket_end_handler(fly_event_t *__e)
 {
 	fly_connect_t *conn;
 
 	conn = (fly_connect_t *) __e->end_event_data;
-	fly_connect_release(conn);
+	return fly_connect_release(conn);
 }
 
 
