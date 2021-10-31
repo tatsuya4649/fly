@@ -25,25 +25,25 @@ void fly_body_release(fly_body_t *body)
 	fly_delete_pool(body->pool);
 }
 
-void fly_body_setting(fly_body_t *body, fly_bodyc_t *buffer, size_t content_length)
+void fly_body_setting(fly_body_t *body, char *ptr, size_t content_length)
 {
 #ifdef DEBUG
-	assert(body && buffer);
+	assert(body && ptr);
 #endif
-	body->body = buffer;
+	body->body = ptr;
 	body->body_len = content_length;
 }
 
-fly_bodyc_t *fly_get_body_ptr(char *buffer)
+fly_buffer_c *fly_get_body_buf(fly_buffer_t *buffer)
 {
-    char *newline_point;
-
 	if (buffer == NULL)
 		return NULL;
-    newline_point = strstr(buffer, "\r\n\r\n");
-    if (newline_point != NULL)
-        return newline_point + 2*FLY_CRLF_LENGTH;
-    return NULL;
+
+	return fly_buffer_first_chain(buffer);
+//    newline_point = strstr(buffer, "\r\n\r\n");
+//    if (newline_point != NULL)
+//        return newline_point + 2*FLY_CRLF_LENGTH;
+//    return NULL;
 }
 
 fly_bodyc_t *fly_decode_nowbody(fly_request_t *request, fly_encoding_type_t *t)
@@ -83,7 +83,7 @@ fly_bodyc_t *fly_decode_nowbody(fly_request_t *request, fly_encoding_type_t *t)
 	return request->body->body;
 }
 
-fly_bodyc_t *fly_decode_body(fly_bodyc_t *bptr, fly_encoding_type_t *t, fly_body_t *body, size_t content_length)
+fly_bodyc_t *fly_decode_body(fly_buffer_c *body_c, fly_encoding_type_t *t, fly_body_t *body, size_t content_length)
 {
 	struct fly_de *de;
 //	size_t decoded_bodylen;
@@ -97,7 +97,7 @@ fly_bodyc_t *fly_decode_body(fly_bodyc_t *bptr, fly_encoding_type_t *t, fly_body
 	if (!fly_d_buf_add(de))
 		return NULL;
 
-	de->already_ptr = bptr;
+	de->already_ptr = body_c->use_ptr;
 	de->already_len = content_length;
 	de->target_already_alloc = true;
 

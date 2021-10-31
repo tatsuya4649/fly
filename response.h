@@ -118,6 +118,11 @@ struct fly_response{
 typedef struct fly_response fly_response_t;
 #define fly_disconnect_from_response(res)		((res)->request->connect->peer_closed = true)
 
+#define fly_response_http_version_from_request(__res, __req)		\
+	do{															\
+		(__res)->version = (__req)->request_line->version->type;	\
+	} while(0)
+
 fly_response_t *fly_response_init(struct fly_context *ctx);
 void fly_response_release(fly_response_t *response);
 

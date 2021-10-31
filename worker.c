@@ -514,7 +514,8 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 
 __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 {
-	if (!ctx->mount || !ctx->mount->mount_count)
+	if ((!ctx->mount || ctx->mount->mount_count == 0) && \
+			(!ctx->route_reg || ctx->route_reg->regcount == 0))
 		return -1;
 
 	char rpath[FLY_PATH_MAX];

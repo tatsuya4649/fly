@@ -18,4 +18,5 @@ typedef struct fly_scheme fly_scheme_t;
 extern struct fly_scheme schems[];
 int is_fly_scheme(char **c, char end_of_char);
 fly_scheme_t *fly_match_scheme_name(char *name);
+fly_scheme_t *fly_match_scheme_type(enum fly_scheme_e type);
 #endif

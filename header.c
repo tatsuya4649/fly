@@ -324,16 +324,17 @@ char *fly_chain_string(char *buffer, fly_hdr_c *chain, char *ebuffer)
 //	return strlen(chain_str);
 //}
 
-char *fly_get_header_lines_ptr(fly_buffer_t *__buf)
+fly_buffer_c *fly_get_header_lines_buf(fly_buffer_t *__buf)
 {
 	fly_buffer_c *__c;
-	char *header;
+//	char *header;
 
 	__c = fly_buffer_first_chain(__buf);
-	header = fly_buffer_strstr_after(__c, FLY_CRLF);
-	if (header == NULL)
-		return NULL;
-	return *header != '\0' ? header : NULL;
+	return __c;
+//	header = fly_buffer_strstr_after(__c, FLY_CRLF);
+//	if (header == NULL)
+//		return NULL;
+//	return *header != '\0' ? header : NULL;
 }
 
 long long fly_content_length(fly_hdr_ci *ci)
