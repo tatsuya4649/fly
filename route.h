@@ -5,6 +5,7 @@
 //#include "response.h"
 #include "method.h"
 #include "alloc.h"
+#include "uri.h"
 
 /*
  @params:
@@ -50,7 +51,7 @@ struct fly_context;
 fly_route_reg_t *fly_route_reg_init(struct fly_context *ctx);
 
 int fly_register_route(fly_route_reg_t *reg, fly_route_handler *func, fly_path *uri, fly_method_e method, fly_flag_t flag, void *data);
-fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *path, fly_method_e method);
+fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_uri_t *uri, fly_method_e method);
 struct fly_http_method_chain *fly_valid_method(fly_pool_t *pool, fly_route_reg_t *reg, fly_path *uri);
 
 

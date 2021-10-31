@@ -66,7 +66,7 @@ class Fly(FlySignal, FlyMount, FlyRoute, _fly_server):
         return self.route(path, FlyMethod.POST)
 
     def run(self, daemon=False):
-        if self.mounts_count == 0:
+        if self.mounts_count == 0 and len(self.routes) == 0:
             raise RuntimeError("fly must have one or more mount points.")
 
         print("\n", file=sys.stderr)

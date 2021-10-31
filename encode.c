@@ -263,9 +263,6 @@ int fly_gzip_encode(fly_de_t *de)
 		}
 
 		if (__zstream.avail_out == 0){
-#ifdef DEBUG
-			assert(!de->target_already_alloc);
-#endif
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->encbuf, fly_buf_act_len(fly_buffer_last_chain(de->encbuf))) == -1)
 				goto buffer_error;
@@ -472,9 +469,6 @@ int fly_br_encode(fly_de_t *de)
 
 		/* lack of output buffer */
 		if (available_out == 0){
-#ifdef DEBUG
-			assert(!de->target_already_alloc);
-#endif
 			next_out = fly_buffer_lunuse_ptr(de->encbuf);
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->encbuf, fly_buf_act_len(fly_buffer_last_chain(de->encbuf))) == -1)
@@ -758,9 +752,6 @@ int fly_deflate_encode(fly_de_t *de)
 		}
 
 		if (__zstream.avail_out == 0){
-#ifdef DEBUG
-			assert(!de->target_already_alloc);
-#endif
 			contlen += fly_buf_act_len(fly_buffer_last_chain(de->encbuf));
 			if (fly_update_buffer(de->decbuf, fly_buf_act_len(fly_buffer_last_chain(de->decbuf))) == -1)
 				goto error;

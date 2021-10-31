@@ -378,6 +378,11 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mou
 	char *filename;
 	size_t len;
 
+	if (fly_unlikely_null(mnt) || mnt->file_count == 0){
+		*res = NULL;
+		return FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND;
+	}
+
 	filename = uri->ptr;
 	len = uri->len;
 	while(fly_slash(*filename)){

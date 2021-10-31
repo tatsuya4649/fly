@@ -131,7 +131,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 		goto decrement;
 	case CLD_EXITED:
 		printf("exited\n");
-		/* end of worker process code */
+		/* end status of worker */
 		switch(info->ssi_status){
 		case FLY_WORKER_SUCCESS_EXIT:
 			goto decrement;
