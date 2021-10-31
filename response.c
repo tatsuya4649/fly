@@ -952,7 +952,7 @@ fly_response_t *fly_304_response(fly_request_t *req, struct fly_mount_parts_file
 	if (is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
 
-	res->version = req->request_line->version->type;
+	fly_response_http_version_from_request(res, req);
 	res->status_code = _304;
 	res->request = req;
 	res->encoded = false;
@@ -1002,7 +1002,7 @@ fly_response_t *fly_400_response(fly_request_t *req)
 	res->header = fly_header_init(req->ctx);
 	if (is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
-	res->version = req->request_line->version->type;
+	fly_response_http_version_from_request(res, req);
 	res->status_code = _400;
 	res->request = req;
 	res->encoded = false;
@@ -1090,7 +1090,7 @@ fly_response_t *fly_404_response(fly_request_t *req)
 	res->header = fly_header_init(req->ctx);
 	if (is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
-	res->version = req->request_line->version->type;
+	fly_response_http_version_from_request(res, req);
 	res->status_code = _404;
 	res->request = req;
 	res->encoded = false;
@@ -1136,7 +1136,7 @@ fly_response_t *fly_405_response(fly_request_t *req)
 	res->header = fly_header_init(req->ctx);
 	if (is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
-	res->version = req->request_line->version->type;
+	fly_response_http_version_from_request(res, req);
 	res->status_code = _405;
 	res->request = req;
 	res->encoded = false;
@@ -1184,7 +1184,7 @@ fly_response_t *fly_414_response(fly_request_t *req)
 	res->header = fly_header_init(req->ctx);
 	if (is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
-	res->version = req->request_line->version->type;
+	fly_response_http_version_from_request(res, req);
 	res->status_code = _414;
 	res->request = req;
 	res->encoded = false;
@@ -1231,7 +1231,7 @@ fly_response_t *fly_413_response(fly_request_t *req)
 	res->header = fly_header_init(req->ctx);
 	if (is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
-	res->version = req->request_line->version->type;
+	fly_response_http_version_from_request(res, req);
 	res->status_code = _413;
 	res->request = req;
 	res->encoded = false;
@@ -1257,7 +1257,7 @@ fly_response_t *fly_415_response(fly_request_t *req)
 	res->header = fly_header_init(req->ctx);
 	if (is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
-	res->version = req->request_line->version->type;
+	fly_response_http_version_from_request(res, req);
 	res->status_code = _415;
 	res->request = req;
 	res->encoded = false;
@@ -1304,7 +1304,7 @@ fly_response_t *fly_500_response(fly_request_t *req)
 	res->header = fly_header_init(req->ctx);
 	if (is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
-	res->version = req->request_line->version->type;
+	fly_response_http_version_from_request(res, req);
 	res->status_code = _500;
 	res->request = req;
 	res->encoded = false;

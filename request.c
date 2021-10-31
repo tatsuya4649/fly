@@ -76,10 +76,15 @@ int fly_request_line_init(fly_request_t *req)
 	req->request_line->method = NULL;
 	req->request_line->uri.ptr = NULL;
 	req->request_line->uri.len = 0;
-	req->request_line->query.ptr = NULL;
-	req->request_line->query.len = 0;
-	req->request_line->version = NULL;
-	req->request_line->scheme = NULL;
+	fly_request_query_init(&req->request_line->query);
+
+	if (req->connect->flag & FLY_SSL_CONNECT)
+		req->request_line->scheme = fly_match_scheme_type(fly_https);
+	else
+		req->request_line->scheme = fly_match_scheme_type(fly_http);
+
+	if (fly_unlikely_null(req->request_line->version))
+		return -1;
 	return 0;
 }
 
@@ -540,21 +545,22 @@ error:
 	return -1;
 }
 
-__fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *request_line)
+__fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reqline_bufc)
 {
 	/* get request */
 	size_t request_line_length;
 	fly_buf_p rptr;
 
 	/* not ready for request line */
-	if ((rptr=fly_buffer_strstr_after(request_line, "\r\n")) == NULL)
+	if ((rptr=fly_buffer_strstr_after(reqline_bufc, "\r\n")) == NULL)
 		goto not_ready;
 
-	request_line_length = fly_buffer_ptr_len(request_line->buffer, rptr, request_line->ptr);
+	request_line_length = fly_buffer_ptr_len(reqline_bufc->buffer, rptr, reqline_bufc->use_ptr);
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
 		goto error_414;
 
-	req->request_line = fly_pballoc(req->pool, sizeof(fly_reqline_t));
+	if (fly_request_line_init(req) == -1)
+		return -1;
 	req->request_line->request_line = fly_pballoc(req->pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
 	req->request_line->request_line_len = request_line_length;
 
@@ -563,7 +569,7 @@ __fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reque
 	if (fly_unlikely_null(req->request_line->request_line))
 		goto error_500;
 
-	fly_buffer_memcpy(req->request_line->request_line, request_line->ptr, request_line, request_line_length);
+	fly_buffer_memcpy(req->request_line->request_line, reqline_bufc->use_ptr, reqline_bufc, request_line_length);
 
 	/* get total line */
 	req->request_line->request_line[request_line_length] = '\0';
@@ -571,6 +577,8 @@ __fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reque
 	/* request line parse check */
 	if (__fly_parse_reqline(req, req->request_line->request_line, request_line_length) == -1)
 		goto error_400;
+
+	fly_buffer_chain_release_from_length(reqline_bufc, request_line_length);
 	return 0;
 error_400:
 	/* Bad Request(result of Parse) */
@@ -769,16 +777,17 @@ in_the_middle:
 	return 0;
 }
 
-__fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_c *header, fly_buf_p hptr)
+__fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_c *header_chain)
 {
 	enum {
 		HEADER_LINE,
 		END
 	} status;
 
-	fly_buffer_c *chain = header;
-	fly_buf_p ptr = hptr;
-	if (header == NULL)
+	fly_buffer_t *__buf = header_chain->buffer;
+	fly_buffer_c *chain = header_chain;
+	fly_buf_p ptr = header_chain->use_ptr;
+	if (fly_unlikely_null(header_chain))
 		goto end;
 
 	status = HEADER_LINE;
@@ -809,10 +818,16 @@ __fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_c *header, fly_bu
 				default:
 					continue;
 				}
+				ssize_t len;
+
+				len = fly_buffer_ptr_len(__c->buffer, result.ptr, ptr);
+				fly_buffer_chain_release_from_length(__c, len);
 				ptr = result.ptr;
+				chain = fly_buffer_first_chain(__buf);
 			}
 			break;
 		case END:
+			fly_buffer_chain_release_from_length(chain, FLY_CRLF_LENGTH);
 			goto end;
 		default:
 			goto error;
@@ -832,7 +847,7 @@ in_the_middle:
 	return __REQUEST_HEADER_IN_THE_MIDDLE;
 }
 
-int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain, char *header_ptr)
+int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain)
 {
 	fly_hdr_ci *rchain_info;
 	rchain_info = fly_header_init(req->ctx);
@@ -840,7 +855,7 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain, char
 		return -1;
 
 	req->header = rchain_info;
-	return __fly_parse_header(rchain_info, header_chain, header_ptr);
+	return __fly_parse_header(rchain_info, header_chain);
 }
 
 int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
@@ -955,7 +970,6 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_response_t					*response;
 	fly_buffer_c					*reline_buf_chain;
 	fly_body_t						*body;
-	fly_bodyc_t						*body_ptr;
 	fly_route_reg_t					*route_reg;
 	fly_route_t						*route;
 	fly_mount_t						*mount;
@@ -1022,14 +1036,14 @@ __fase_request_line:
 
 	/* parse header */
 __fase_header:
-	char *header_ptr;
+	fly_buffer_c *hdr_buf;
 
 	fly_event_fase(event, HEADER);
-	header_ptr = fly_get_header_lines_ptr(conn->buffer);
-	if (header_ptr == NULL)
+	hdr_buf = fly_get_header_lines_buf(conn->buffer);
+	if (fly_unlikely_null(hdr_buf))
 		goto read_continuation;
 
-	switch (fly_reqheader_operation(request, fly_buffer_chain_from_ptr(request->buffer, header_ptr), header_ptr)){
+	switch (fly_reqheader_operation(request, hdr_buf)){
 	case __REQUEST_HEADER_ERROR:
 		goto response_400;
 	case __REQUEST_HEADER_IN_THE_MIDDLE:
@@ -1062,12 +1076,13 @@ __fase_header:
 
 	/* parse body */
 __fase_body:
+	fly_buffer_c *body_buf;
 	fly_event_fase(event, BODY);
 	body = fly_body_init(request->ctx);
 	if (body == NULL)
 		goto error;
 	request->body = body;
-	body_ptr = fly_get_body_ptr(fly_buffer_first_ptr(request->buffer));
+	body_buf = fly_get_body_buf(fly_buffer_first_ptr(request->buffer));
 	/* content-encoding */
 	fly_hdr_value *ev;
 	fly_encoding_type_t *et;
@@ -1077,11 +1092,18 @@ __fase_body:
 		et = fly_supported_content_encoding(ev);
 		if (!et)
 			goto response_415;
-		if (fly_decode_body(body_ptr, et, body, content_length) == NULL)
+		if (fly_decode_body(body_buf, et, body, content_length) == NULL)
 			goto error;
-	}else
-		fly_body_setting(body, body_ptr, content_length);
+	}else{
+		char *body_ptr = fly_pballoc(body->pool, sizeof(uint8_t)*content_length);
+		if (fly_unlikely_null(body_ptr))
+			goto error;
 
+		fly_buffer_memcpy(body_ptr, body_buf->use_ptr, body_buf, content_length);
+		fly_body_setting(body, body_ptr, content_length);
+	}
+
+	fly_buffer_chain_release_from_length(body_buf, content_length);
 
 __fase_end_of_parse:
 	fly_event_fase(event, RESPONSE);
@@ -1090,7 +1112,7 @@ __fase_end_of_parse:
 	__mtype = request->request_line->method->type;
 	route_reg = event->manager->ctx->route_reg;
 	/* search from registerd route uri */
-	route = fly_found_route(route_reg, request->request_line->uri.ptr, __mtype);
+	route = fly_found_route(route_reg, &request->request_line->uri, __mtype);
 	mount = event->manager->ctx->mount;
 	if (route == NULL){
 		int found_res;
@@ -1109,6 +1131,7 @@ __fase_end_of_parse:
 		goto response_500;
 
 	response->request = request;
+	fly_response_http_version_from_request(response, request);
 	goto response;
 /* TODO: error response event memory release */
 response_400:

@@ -3959,7 +3959,7 @@ __response:
 	__mtype = request->request_line->method->type;
 	route_reg = e->manager->ctx->route_reg;
 	/* search from registerd route uri */
-	route = fly_found_route(route_reg, request->request_line->uri.ptr, __mtype);
+	route = fly_found_route(route_reg, &request->request_line->uri, __mtype);
 	mount = e->manager->ctx->mount;
 	if (route == NULL){
 		if (fly_is_uri_index(&request->request_line->uri)){

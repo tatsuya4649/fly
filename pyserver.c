@@ -28,7 +28,7 @@ struct PyMemberDef __pyfly_server_members[] = {
 
 typedef struct __pyfly_version{
 	PyObject_HEAD
-	float			*version_float;
+	float			version_float;
 	const char		*full;
 	const char		*alpn;
 } VersionObject;
@@ -278,7 +278,14 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	Py_DECREF(__pyuri);
 
 	query = &reqline->query;
-	PyObject *__pyquery = PyUnicode_FromStringAndSize((const char *) query->ptr, (Py_ssize_t) query->len);
+
+	PyObject *__pyquery;
+
+	if (query->ptr != NULL)
+		__pyquery = PyUnicode_FromStringAndSize((const char *) query->ptr, (Py_ssize_t) query->len);
+	else
+		__pyquery = Py_None;
+
 	if (PyDict_SetItemString(__reqdict, "query", __pyquery) == -1)
 		return NULL;
 	Py_DECREF(__pyquery);
@@ -294,7 +301,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	Py_DECREF(__margs);
 	/* HTTP Scheme */
 	scheme = reqline->scheme;
-	__margs = Py_BuildValue("(s)", scheme);
+	__margs = Py_BuildValue("(s)", scheme->name);
 	SchemeObject *__pyscheme = (SchemeObject *) PyObject_CallObject((PyObject *) &SchemeObjectType, __margs);
 	if (PyDict_SetItemString(__reqdict, "scheme", (PyObject *) __pyscheme) == -1)
 		return NULL;
@@ -344,11 +351,13 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	}
 
 	/* accept encoding */
-	PyListObject *__acenlist = (PyListObject *) PyList_New((Py_ssize_t) request->encoding->accept_count);
+	PyListObject *__acenlist;
 	if (request->encoding){
 		int i=0;
 		struct fly_bllist *__b;
 		struct __fly_encoding *__e;
+
+		__acenlist = (PyListObject *) PyList_New((Py_ssize_t) request->encoding->accept_count);
 		fly_for_each_bllist(__b, &request->encoding->accepts){
 			PyDictObject *__accepts = (PyDictObject *) PyDict_New();
 			PyObject *__qv, *__name;
@@ -369,25 +378,29 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 				return NULL;
 			i++;
 		}
-	}
+	}else
+		__acenlist = (PyListObject *) PyList_New((Py_ssize_t) 0);
+
 	if (PyDict_SetItemString((PyObject *) __reqdict, "accept_encoding", (PyObject *) __acenlist) == -1)
 		return NULL;
 
 	Py_DECREF(__acenlist);
 
 	/* accept language */
-	PyListObject *__aclalist = (PyListObject *) PyList_New((Py_ssize_t) request->language->lang_count);
+	PyListObject *__aclalist;
 	if (request->language){
 		int i=0;
 		struct fly_bllist *__b;
 		struct __fly_lang *__l;
+
+		__aclalist = (PyListObject *) PyList_New((Py_ssize_t) request->language->lang_count);
 		fly_for_each_bllist(__b, &request->language->langs){
 			PyDictObject *__accepts = (PyDictObject *) PyDict_New();
 			PyObject *__qv, *__name;
 			__l = fly_bllist_data(__b, struct __fly_lang, blelem);
 
 			__qv = PyFloat_FromDouble((double) __l->quality_value);
-			__name = PyUnicode_FromString(__l->lname);
+			__name = PyUnicode_FromString(fly_lang_name(__l));
 
 			if (PyDict_SetItemString((PyObject *) __accepts, "quality_value", (PyObject *) __qv) == -1)
 				return NULL;
@@ -401,27 +414,32 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 				return NULL;
 			i++;
 		}
-	}
+	}else
+		__aclalist = (PyListObject *) PyList_New((Py_ssize_t) 0);
+
 	if (PyDict_SetItemString((PyObject *) __reqdict, "accept_language", (PyObject *) __aclalist) == -1)
 		return NULL;
 
 	Py_DECREF(__aclalist);
 	/* accept mime */
-	PyListObject *__acmmlist = (PyListObject *) PyList_New((Py_ssize_t) request->mime->accept_count);
+	PyListObject *__acmmlist;
 	if (request->mime){
 		int i=0;
 		struct fly_bllist *__b;
 		struct __fly_mime *__m;
+
+		__acmmlist = (PyListObject *) PyList_New((Py_ssize_t) request->mime->accept_count);
 		fly_for_each_bllist(__b, &request->mime->accepts){
 			PyDictObject *__accepts = (PyDictObject *) PyDict_New();
 			PyObject *__qv, *__tname, *__stname;
 			__m = fly_bllist_data(__b, struct __fly_mime, blelem);
 
 			__qv = PyFloat_FromDouble((double) __m->quality_value/(double) 100.0);
-			__tname = PyUnicode_FromString(__m->type.type_name);
+			__tname = PyUnicode_FromString(fly_mime_type(__m));
 			if (fly_unlikely_null(__tname))
 				goto response_500;
-			__stname = PyUnicode_FromString(__m->subtype.subtype);
+
+			__stname = PyUnicode_FromString(fly_mime_subtype(__m));
 			if (fly_unlikely_null(__stname))
 				goto response_500;
 
@@ -440,25 +458,28 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 				return NULL;
 			i++;
 		}
-	}
+	}else
+		__acmmlist = (PyListObject *) PyList_New((Py_ssize_t) 0);
 	if (PyDict_SetItemString((PyObject *) __reqdict, "accept_mime", (PyObject *) __acmmlist) == -1)
 		return NULL;
 
 	Py_DECREF(__acmmlist);
 
 	/* accept charset */
-	PyListObject *__accslist = (PyListObject *) PyList_New((Py_ssize_t) request->charset->charset_count);
+	PyListObject *__accslist;
 	if (request->mime){
 		int i=0;
 		struct fly_bllist *__b;
 		struct __fly_charset *__c;
+
+		__accslist = (PyListObject *) PyList_New((Py_ssize_t) request->charset->charset_count);
 		fly_for_each_bllist(__b, &request->charset->charsets){
 			PyDictObject *__accepts = (PyDictObject *) PyDict_New();
 			PyObject *__qv, *__name;
 			__c = fly_bllist_data(__b, struct __fly_charset, blelem);
 
 			__qv = PyFloat_FromDouble((double) __c->quality_value);
-			__name = PyUnicode_FromString(__c->cname);
+			__name = PyUnicode_FromString(fly_charset_name(__c));
 
 			if (PyDict_SetItemString((PyObject *) __accepts, "quality_value", (PyObject *) __qv) == -1)
 				return NULL;
@@ -473,7 +494,9 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 			}
 			i++;
 		}
-	}
+	}else
+		__accslist = (PyListObject *) PyList_New((Py_ssize_t) 0);
+
 	if (PyDict_SetItemString((PyObject *) __reqdict, "accept_charset", (PyObject *) __accslist) == -1)
 		return NULL;
 
@@ -530,7 +553,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 			if (body_len > ctx->max_response_content_length)
 				goto response_413;
 			res->body = fly_body_init(ctx);
-			fly_body_setting(res->body, NULL, body_len);
+			fly_body_setting(res->body, body_ptr, body_len);
 			res->body->body = fly_pballoc(res->body->pool, sizeof(fly_bodyc_t)*body_len);
 			if (fly_unlikely_null(res->body->body))
 				goto response_500;
