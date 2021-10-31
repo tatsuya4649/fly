@@ -29,3 +29,13 @@ fly_scheme_t *fly_match_scheme_name(char *name)
     }
     return NULL;
 }
+
+fly_scheme_t *fly_match_scheme_type(enum fly_scheme_e type)
+{
+	fly_scheme_t *s;
+    for (s=schemes; s->name; s++){
+        if (s->type == type)
+            return s;
+    }
+    return NULL;
+}

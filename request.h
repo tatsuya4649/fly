@@ -30,6 +30,11 @@ struct fly_query{
 	char *ptr;
 	size_t len;
 };
+#define fly_request_query_init(__q)			\
+	do{	\
+		(__q)->ptr = NULL;					\
+		(__q)->len = 0;						\
+	} while(0)
 typedef struct fly_query fly_query_t;
 
 typedef char fly_reqlinec_t;

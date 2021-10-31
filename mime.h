@@ -142,13 +142,21 @@ struct __fly_mime_type{
 #define __FLY_MIME_NULL					{ -1, NULL }
 #define FLY_MIME_TYPE_MAXLEN				30
 #define FLY_MIME_SUBTYPE_MAXLEN				30
+#define FLY_MIME_SUBTYPE_ASTERISK			("*")
 struct __fly_mime_subtype{
 	const char subtype[FLY_MIME_SUBTYPE_MAXLEN];
 	fly_bit_t asterisk: 1;
 };
-#define FLY_MIME_ASTERISK(am)			\
+#define FLY_MIME_ASTERISK(am, __mime)			\
 	do{													\
+		(am)->mime = __mime;							\
 		(am)->type.type = FLY_MIME_TYPE(asterisk);		\
+		(am)->type.type_name = "*";						\
+		(am)->quality_value = 100;						\
+		(am)->params = NULL;							\
+		(am)->parqty = 0;								\
+		(am)->extension = NULL;							\
+		(am)->extqty = 0;								\
 		(am)->subtype.asterisk = true;					\
 	} while(0)
 
@@ -177,6 +185,25 @@ __unused static struct __fly_mime *fly_mime_debug(struct fly_bllist *__b)
 	return (struct __fly_mime *) fly_bllist_data(__b, struct __fly_mime, blelem);
 }
 #endif
+
+__unused static inline bool is_fly_mime_asterisk(struct __fly_mime *__m)
+{
+	return __m->type.type == FLY_MIME_TYPE(asterisk) ? true : false;
+}
+
+__unused static inline const char *fly_mime_type(struct __fly_mime *__m)
+{
+	return __m->type.type_name;
+}
+
+__unused static inline const char *fly_mime_subtype(struct __fly_mime *__m)
+{
+	if (__m->subtype.asterisk)
+		return FLY_MIME_SUBTYPE_ASTERISK;
+	else
+		return __m->subtype.subtype;
+}
+
 #define fly_same_type(m1, m2)		\
 		(((m1)->type.type == (m2)->type.type) && (strcmp((m1)->subtype.subtype, (m2)->subtype.subtype)))
 

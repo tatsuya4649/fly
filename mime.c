@@ -81,11 +81,15 @@ fly_mime_type_t *fly_mime_from_type(fly_mime_e type)
 	for (fly_mime_type_t *m=mimes; m->extensions!=NULL; m++){
 		if (m->type == type)
 			return m;
-	} return NULL; } __fly_static int __fly_mime_init(fly_request_t *req) {
+	}
+	return NULL;
+}
+
+__fly_static int __fly_mime_init(fly_request_t *req) {
 	fly_mime_t *mime;
 
 	mime = fly_pballoc(req->pool, sizeof(fly_mime_t));
-	if (mime == NULL)
+	if (fly_unlikely_null(mime))
 		return -1;
 	mime->pool = req->pool;
 	mime->accept_count = 0;
@@ -144,7 +148,7 @@ __fly_static int __fly_add_accept_asterisk(fly_request_t *req)
 	if (am == NULL)
 		return -1;
 
-	FLY_MIME_ASTERISK(am);
+	FLY_MIME_ASTERISK(am, req->mime);
 	return __fly_add_accept_mime(req->mime, am);
 }
 

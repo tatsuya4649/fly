@@ -50,7 +50,7 @@ int fly_register_route(fly_route_reg_t *reg, fly_route_handler *func, fly_path *
 	return 0;
 }
 
-fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *uri, fly_method_e method)
+fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_uri_t *uri, fly_method_e method)
 {
 	struct fly_bllist *__b;
 	fly_route_t *__r;
@@ -59,8 +59,8 @@ fly_route_t *fly_found_route(fly_route_reg_t *reg, fly_path *uri, fly_method_e m
 #endif
 	fly_for_each_bllist(__b, &reg->regs){
 		__r = fly_bllist_data(__b, fly_route_t, blelem);
-		if ((strlen(__r->uri) == strlen(uri)) && \
-				(strncmp(__r->uri, uri, strlen(__r->uri)) == 0) && \
+		if ((strlen(__r->uri) == uri->len) && \
+				(strncmp(__r->uri, uri->ptr, uri->len) == 0) && \
 				(__r->method->type==method))
 			return __r;
 	}

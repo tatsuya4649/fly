@@ -423,10 +423,11 @@ __fly_static int __fly_expired_event(fly_event_manager_t *manager)
 		e = fly_queue_data(__q, fly_event_t, qelem);
 		if (e->expired && e->expired_handler){
 			if (e->expired_handler(e) == -1)
-				FLY_EMERGENCY_ERROR(
-					FLY_EMERGENCY_STATUS_ELOG,
-					"failure to log expired event handler failure."
-				);
+				if (__fly_event_handle_failure_log(e) == -1)
+					FLY_EMERGENCY_ERROR(
+						FLY_EMERGENCY_STATUS_ELOG,
+						"failure to log event handler failure."
+					);
 
 			/* remove event if not persistent */
 			if ((fly_event_unregister(e) == -1))
