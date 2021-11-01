@@ -24,6 +24,10 @@ struct fly_context{
 
 	void						*data;
 	long long					max_response_content_length;
+	size_t						max_request_length;
+	size_t						response_encode_threshold;
+	bool						log_stdout;
+	bool						log_stderr;
 	/* for SSL/TLS */
 	SSL_CTX						*ssl_ctx;
 };

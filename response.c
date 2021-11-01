@@ -826,7 +826,7 @@ int fly_response_event(fly_event_t *e)
 		res->response_len = res->original_response_len;
 	}
 
-	if (res->encoded || fly_over_encoding_threshold(res->response_len)){
+	if (res->encoded || fly_over_encoding_threshold_from_response(res)){
 		if (!res->encoded)
 			res->encoding_type = fly_decided_encoding_type(res->request->encoding);
 		fly_add_content_encoding(res->header, res->encoding_type, false);
@@ -842,11 +842,13 @@ int fly_response_event(fly_event_t *e)
 
 		__de = fly_de_init(res->pool);
 		if (res->pf){
+			__de->decbuf = fly_buffer_init(__de->pool, FLY_RESPONSE_DECBUF_INIT_LEN, FLY_RESPONSE_DECBUF_CHAIN_MAX, FLY_RESPONSE_DECBUF_PER_LEN);
 			__de->type = FLY_DE_FROM_PATH;
 			__de->fd = res->pf->fd;
 			__de->offset = res->offset;
 			__de->count = res->pf->fs.st_size;
 		}else if (res->rcbs){
+			__de->decbuf = fly_buffer_init(__de->pool, FLY_RESPONSE_DECBUF_INIT_LEN, FLY_RESPONSE_DECBUF_CHAIN_MAX, FLY_RESPONSE_DECBUF_PER_LEN);
 			__de->type = FLY_DE_FROM_PATH;
 			__de->fd = res->rcbs->fd;
 			__de->offset = 0;
@@ -859,6 +861,12 @@ int fly_response_event(fly_event_t *e)
 		}else
 			FLY_NOT_COME_HERE
 
+		size_t __max;
+		__max = fly_response_content_max_length();
+		__de->encbuf = fly_buffer_init(__de->pool, FLY_RESPONSE_ENCBUF_INIT_LEN, FLY_RESPONSE_ENCBUF_CHAIN_MAX(__max), FLY_RESPONSE_ENCBUF_PER_LEN);
+#ifdef DEBUG
+		assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
+#endif
 		__de->event = e;
 		__de->response = res;
 		__de->c_sockfd = e->fd;
@@ -1502,7 +1510,7 @@ int fly_response_set_send_ptr(fly_response_t *response)
 					fly_buffer_memncpy_all((char *) ptr, response->de->encbuf, response->send_ptr+total-(void *) ptr);
 					break;
 				case FLY_RESPONSE_TYPE_BODY:
-					memcpy(ptr, response->body, response->body->body_len);
+					memcpy(ptr, response->body->body, response->body->body_len);
 					ptr += response->body->body_len;
 					break;
 				case FLY_RESPONSE_TYPE_PATH_FILE:

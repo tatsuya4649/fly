@@ -3,7 +3,7 @@ CPP = g++
 ifdef DEBUG
 CFLAG := -gdwarf-2 -g3 -O0 -W -Wall -Werror -Wcast-align
 else
-CFLAG := -g3 -O0 -W -Wall -Werror -Wcast-align
+CFLAG := -O3 -W -Wall -Werror -Wcast-align
 endif
 TARGET = fly
 BUILD_FILES := server.o response.o header.o alloc.o mount.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o lang.o cache.o scheme.o buffer.o rbtree.o ssl.o v2.o queue.o bllist.o config.o uri.o
@@ -27,7 +27,11 @@ TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_route.cpp test_re
 ifdef DEBUG
 MACROS := $(MACROS) -D DEBUG
 endif
-PYTHON := python3.8
+ifdef DEBUG
+PYTHON := python3.10
+else
+PYTHON := python3.10
+endif
 
 all: build
 	./$(BUILDDIR)/$(TARGET)
