@@ -97,6 +97,8 @@ __unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
 }
 #endif
 
+#define fly_context_from_event(__e)					\
+				((__e)->manager->ctx)
 #define FLY_POOL_MANAGER_FROM_EVENT(__e)			\
 			((__e)->manager->ctx->pool_manager)
 #define FLY_EVENT_HANDLER(e, __handler)	\

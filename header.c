@@ -367,11 +367,11 @@ int fly_connection(fly_hdr_ci *ci)
 		if (strcmp(c->name, "Connection") == 0)
 			goto parse_connection;
 	}
-	return FLY_CONNECTION_CLOSE;
+	return FLY_CONNECTION_KEEP_ALIVE;
 
 parse_connection:
 	if (c->value == NULL)
-		return FLY_CONNECTION_CLOSE;
+		return FLY_CONNECTION_KEEP_ALIVE;
 
 	if (strcmp(c->value, "close") == 0){
 		return FLY_CONNECTION_CLOSE;

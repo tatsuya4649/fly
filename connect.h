@@ -48,6 +48,8 @@ int fly_listen_socket_end_handler(fly_event_t *__e);
 
 #define FLY_CONNECT_HTTP_VERSION(conn)		\
 			(conn->http_v->type)
-#define FLY_CONNECT_HTTP_DEFAULT_VERSION	\
+
+#define FLY_MAX_REQUEST_LENGTH		"FLY_MAX_REQUEST_LENGTH"
+size_t fly_max_request_length(void);
 
 #endif

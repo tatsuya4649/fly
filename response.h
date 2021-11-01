@@ -14,7 +14,6 @@
 #define FLY_RESPONSE_POOL_PAGE		100
 #define DEFAULT_RESPONSE_VERSION			"1.1"
 #define FLY_DEFAULT_CONTENT_PATH_LEN		(30)
-#define FLY_MAX_RESPONSE_CONTENT_LENGTH	"FLY_MAX_RESPONSE_CONTENT_LENGTH"
 
 typedef unsigned long long fly_flag_t;
 
@@ -203,12 +202,21 @@ const char *fly_status_code_str_from_type(fly_stcode_t type);
 fly_stcode_t fly_status_code_from_long(long __l);
 fly_response_t *fly_respf(fly_request_t *req, struct fly_mount_parts_file *pf);
 
-static inline int fly_encode_do(fly_response_t *res)
+static inline bool fly_encode_do(fly_response_t *res)
 {
-	return (res->encoding_type != NULL);
+	return (res->encoding_type != NULL) ? true : false;
 }
 
+#define FLY_MAX_RESPONSE_CONTENT_LENGTH	"FLY_MAX_RESPONSE_CONTENT_LENGTH"
 int fly_response_content_max_length(void);
 void fly_response_timeout_end_setting(fly_event_t *e, fly_response_t *res);
+
+#define FLY_RESPONSE_DECBUF_INIT_LEN		(1)
+#define FLY_RESPONSE_DECBUF_CHAIN_MAX		(1)
+#define FLY_RESPONSE_DECBUF_PER_LEN		(1024*4)
+
+#define FLY_RESPONSE_ENCBUF_INIT_LEN		(1)
+#define FLY_RESPONSE_ENCBUF_PER_LEN		(1024*4)
+#define FLY_RESPONSE_ENCBUF_CHAIN_MAX(__size)		((size_t) (((size_t) __size/FLY_RESPONSE_ENCBUF_PER_LEN) + 1))
 
 #endif

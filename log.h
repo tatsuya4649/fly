@@ -19,8 +19,8 @@
 #define FLY_DEFAULT_LOGDIR				(fly_path_t *) 	"./log/"
 
 #define FLY_ERRORLOG_FILENAME					"fly_error.log"
-#define FLY_ACCESLOG_FILENAME					"fly_error.log"
-#define FLY_NOTICLOG_FILENAME					"fly_error.log"
+#define FLY_ACCESLOG_FILENAME					"fly_access.log"
+#define FLY_NOTICLOG_FILENAME					"fly_notice.log"
 #define FLY_ACCESLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_access.log")
 #define FLY_ERRORLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_error.log")
 #define FLY_NOTICLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_notice.log")
