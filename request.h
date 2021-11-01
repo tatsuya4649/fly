@@ -20,7 +20,6 @@
 #include "buffer.h"
 #include "scheme.h"
 
-#define FLY_BUFSIZE			(8*FLY_PAGESIZE)
 #define FLY_REQUEST_LINE_MAX			8000
 #define FLY_REQUEST_URI_MAX				6000
 #define FLY_REQUEST_TIMEOUT				(2)

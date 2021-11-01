@@ -40,10 +40,6 @@ fly_buffer_c *fly_get_body_buf(fly_buffer_t *buffer)
 		return NULL;
 
 	return fly_buffer_first_chain(buffer);
-//    newline_point = strstr(buffer, "\r\n\r\n");
-//    if (newline_point != NULL)
-//        return newline_point + 2*FLY_CRLF_LENGTH;
-//    return NULL;
 }
 
 fly_bodyc_t *fly_decode_nowbody(fly_request_t *request, fly_encoding_type_t *t)
@@ -56,12 +52,12 @@ fly_bodyc_t *fly_decode_nowbody(fly_request_t *request, fly_encoding_type_t *t)
 	if (fly_unlikely_null(de))
 		return NULL;
 
-	if (!fly_e_buf_add(de))
-		return NULL;
-	if (!fly_d_buf_add(de))
-		return NULL;
+	size_t __max;
+	__max = fly_max_request_length();
+	de->encbuf = fly_buffer_init(de->pool, FLY_BODY_ENCBUF_INIT_LEN, FLY_BODY_ENCBUF_CHAIN_MAX(__max), FLY_BODY_ENCBUF_PER_LEN);
 
 	nowbody = request->body->body;
+	de->type = FLY_DE_DECODE;
 	de->already_ptr = request->body->body;
 	de->already_len = request->body->body_len;
 	de->target_already_alloc = true;
@@ -86,7 +82,6 @@ fly_bodyc_t *fly_decode_nowbody(fly_request_t *request, fly_encoding_type_t *t)
 fly_bodyc_t *fly_decode_body(fly_buffer_c *body_c, fly_encoding_type_t *t, fly_body_t *body, size_t content_length)
 {
 	struct fly_de *de;
-//	size_t decoded_bodylen;
 
 	de = fly_de_init(body->pool);
 	if (fly_unlikely_null(de))
@@ -104,27 +99,10 @@ fly_bodyc_t *fly_decode_body(fly_buffer_c *body_c, fly_encoding_type_t *t, fly_b
 	if(t->decode(de) == -1)
 		return NULL;
 
-	/* decode->body */
-//	decoded_bodylen = 0;
-//	for (int i=0; i<de->decbuflen; i++)
-//		decoded_bodylen += de->decbuf[i].uselen;
-//	decoded_bodylen += de->decbuf[i].uselen;
-
 	body->body = fly_pballoc(body->pool,de->decbuf->use_len);
 	if (fly_unlikely_null(body->body))
 		return NULL;
 	body->body_len = de->decbuf->use_len;
-
-	/* copy decoded content */
-//	decoded_bodylen = 0;
-//	for (int i=0; i<de->decbuflen; i++){
-//		memcpy(
-//			body->body+decoded_bodylen,
-//			de->decbuf[i].buf,
-//			de->decbuf[i].uselen
-//		);
-//		decoded_bodylen += de->decbuf[i].uselen;
-//	}
 
 	fly_buffer_memcpy_all(body->body, de->decbuf);
 	/* release resource */

@@ -1,5 +1,6 @@
 from setuptools import setup, Extension
 import subprocess
+import os
 
 """
 make fly library
@@ -12,13 +13,21 @@ subprocess.run("make lib", shell=True);
 #	libraries=["fly"],
 #	runtime_library_dirs=["./lib"],
 #)
+macros = []
+extra_compile_args = []
+if os.getenv("DEBUG") is not None:
+    macros.append(("DEBUG", "fly"))
+    extra_compile_args.append("-g3")
+    extra_compile_args.append("-O0")
+
 server = Extension(
 	name="_fly_server",
 	sources=["pyserver.c"],
 	library_dirs=["./lib"],
 	libraries=["fly"],
 	runtime_library_dirs=["./lib"],
-    extra_compile_args = ["-g", "-O0"],
+    extra_compile_args = extra_compile_args,
+    define_macros = macros,
 )
 signal = Extension(
 	name="_fly_signal",

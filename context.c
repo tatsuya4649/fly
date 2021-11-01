@@ -1,6 +1,6 @@
 #include "context.h"
 #include "response.h"
-#include <sys/sendfile.h>
+#include "connect.h"
 
 __fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool);
 int fly_errsys_init(fly_context_t *ctx);
@@ -29,6 +29,8 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 	ctx->listen_count = 0;
 	ctx->listen_sock = __fly_listen_sock(ctx, pool);
 	ctx->max_response_content_length = fly_response_content_max_length();
+	ctx->max_request_length = fly_max_request_length();
+	ctx->response_encode_threshold = fly_encode_threshold();
 	if (ctx->listen_sock == NULL)
 		return NULL;
 	ctx->log = fly_log_init(ctx);
@@ -38,6 +40,9 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 	if (ctx->route_reg == NULL)
 		return NULL;
 	ctx->mount = NULL;
+	ctx->log_stdout = fly_log_stdout();
+	ctx->log_stderr = fly_log_stderr();
+
 	fly_bllist_init(&ctx->rcbs);
 
 	/* for SSL/TLS */
