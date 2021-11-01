@@ -83,7 +83,7 @@ int fly_request_line_init(fly_request_t *req)
 	else
 		req->request_line->scheme = fly_match_scheme_type(fly_http);
 
-	if (fly_unlikely_null(req->request_line->version))
+	if (fly_unlikely_null(req->request_line->scheme))
 		return -1;
 	return 0;
 }
@@ -851,7 +851,7 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain)
 {
 	fly_hdr_ci *rchain_info;
 	rchain_info = fly_header_init(req->ctx);
-	if (rchain_info == NULL)
+	if (fly_unlikely_null(rchain_info))
 		return -1;
 
 	req->header = rchain_info;
@@ -860,9 +860,12 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain)
 
 int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 {
+#ifdef DEBUG
+	assert(connect != NULL);
+	assert(connect->buffer != NULL);
+#endif
+
 	fly_buffer_t *__buf;
-	if (connect == NULL || connect->buffer == NULL)
-		return -1;
 
 	__buf = connect->buffer;
 	if (fly_unlikely(__buf->chain_count == 0))
@@ -911,7 +914,7 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 		}
 		total += recvlen;
 		if (fly_update_buffer(__buf, recvlen) == -1)
-			return -1;
+			goto buffer_error;
 	}
 end_of_connection:
 	connect->peer_closed = true;
@@ -926,6 +929,8 @@ read_blocking:
 	return FLY_REQUEST_RECEIVE_READ_BLOCKING;
 write_blocking:
 	return FLY_REQUEST_RECEIVE_WRITE_BLOCKING;
+buffer_error:
+	return -1;
 }
 
 int fly_request_disconnect_handler(fly_event_t *event)

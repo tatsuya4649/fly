@@ -546,7 +546,7 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 				if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
 					return -1;
 				/* pre encode */
-				if (fly_over_encoding_threshold(__pf->fs.st_size)){
+				if (fly_over_encoding_threshold(ctx, (size_t) __pf->fs.st_size)){
 					struct fly_de *__de;
 					int res;
 
@@ -560,7 +560,15 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 							fly_unlikely_null(__de->encbuf))
 						return -1;
 
-					if ((size_t) __pf->fs.st_size <= FLY_MAX_DE_BUF_SIZE){
+					if (fly_response_content_max_length() <= __pf->fs.st_size){
+						size_t __max;
+
+						__max = fly_response_content_max_length();
+						__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
+						__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
+#ifdef DEBUG
+						assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
+#endif
 						res = __de->etype->encode(__de);
 						switch(res){
 						case FLY_ENCODE_SUCCESS:
@@ -628,7 +636,7 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 			if (fstat(__frc->fd, &__frc->fs) == -1)
 				return -1;
 
-			if (fly_over_encoding_threshold(__frc->fs.st_size)){
+			if (fly_over_encoding_threshold(ctx, (size_t) __frc->fs.st_size)){
 				struct fly_de *__de;
 
 				__de = fly_de_init(ctx->pool);
@@ -642,6 +650,39 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 					return -1;
 				if (__de->etype->encode(__de) == -1)
 					return -1;
+
+				if (fly_response_content_max_length() <= __frc->fs.st_size){
+					size_t __max;
+
+					__max = fly_response_content_max_length();
+					__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
+					__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
+#ifdef DEBUG
+					assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
+#endif
+					res = __de->etype->encode(__de);
+					switch(res){
+					case FLY_ENCODE_SUCCESS:
+						break;
+					case FLY_ENCODE_OVERFLOW:
+						FLY_NOT_COME_HERE
+					case FLY_ENCODE_ERROR:
+						return -1;
+					case FLY_ENCODE_SEEK_ERROR:
+						return -1;
+					case FLY_ENCODE_TYPE_ERROR:
+						return -1;
+					case FLY_ENCODE_READ_ERROR:
+						return -1;
+					case FLY_ENCODE_BUFFER_ERROR:
+						__de->overflow = true;
+						break;
+					default:
+						return -1;
+					}
+				}else{
+					__de->overflow = true;
+				}
 
 				__frc->de = __de;
 				__frc->encoded = true;

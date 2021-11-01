@@ -1,5 +1,6 @@
 #include "encode.h"
 #include "response.h"
+#include "config.h"
 
 __fly_static fly_encoding_type_t __fly_encodes[] = {
 	FLY_ENCODE_TYPE(gzip, 100),
@@ -1456,8 +1457,10 @@ struct fly_de *fly_de_init(fly_pool_t *pool)
 		return NULL;
 
 	de->pool = pool;
-	de->encbuf = fly_de_buffer_init(pool);
-	de->decbuf = fly_de_buffer_init(pool);
+	de->encbuf = NULL;
+	de->decbuf = NULL;
+//	de->encbuf = fly_de_buffer_init(pool);
+//	de->decbuf = fly_de_buffer_init(pool);
 	de->encbuflen = 0;
 	de->decbuflen = 0;
 	de->offset = 0;
@@ -1500,4 +1503,9 @@ bool fly_encoding_matching(struct fly_encoding *enc, struct fly_encoding_type *t
 	}
 	/* not found */
 	return false;
+}
+
+size_t fly_encode_threshold(void)
+{
+	return (size_t) fly_config_value_int(FLY_ENCODE_THRESHOLD);
 }

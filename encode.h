@@ -42,16 +42,6 @@ typedef ssize_t (*fly_send_t)(int c_sockfd, const void *buf, size_t buflen, int 
 struct fly_response;
 struct fly_encoding_type;
 
-#define FLY_DE_BUF_INITLEN			0
-#define FLY_DE_BUF_MAXLEN			100
-#define FLY_DE_BUF_PERLEN			10
-#define FLY_MAX_DE_BUF_SIZE			((size_t) (FLY_DE_BUF_MAXLEN*FLY_DE_BUF_PERLEN))
-#define fly_de_buffer_init(pool)		\
-		fly_buffer_init((pool), \
-				FLY_DE_BUF_INITLEN, \
-				FLY_DE_BUF_MAXLEN, \
-				FLY_DE_BUF_PERLEN)
-
 #define fly_etype_from_de(__de)			((__de)->etype)
 struct fly_de{
 	fly_pool_t						*pool;
@@ -179,11 +169,16 @@ struct fly_response;
 fly_encoding_type_t *fly_supported_content_encoding(char *value);
 void fly_de_release(fly_de_t *de);
 
-#define FLY_ENCODE_THRESHOLD_SIZE			(0)
-#define fly_over_encoding_threshold(st_size)		\
-		(st_size > FLY_ENCODE_THRESHOLD_SIZE)
-#define fly_over_encoding_threshold_from_response(res)		\
-			fly_over_encoding_threshold((res)->response_len)
 
+#define fly_over_encoding_threshold(__ctx, __size)		\
+			((__ctx)->response_encode_threshold <= (__size))
+#define fly_over_encoding_threshold_from_response(__res)	\
+			({		\
+				struct fly_context *__ctx = (__res)->request->ctx;	\
+				fly_over_encoding_threshold(__ctx, res->response_len); \
+			 })
+
+#define FLY_ENCODE_THRESHOLD			"FLY_ENCODE_THRESHOLD"
+size_t fly_encode_threshold(void);
 
 #endif

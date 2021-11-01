@@ -283,8 +283,10 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 
 	if (query->ptr != NULL)
 		__pyquery = PyUnicode_FromStringAndSize((const char *) query->ptr, (Py_ssize_t) query->len);
-	else
+	else{
+		Py_INCREF(Py_None);
 		__pyquery = Py_None;
+	}
 
 	if (PyDict_SetItemString(__reqdict, "query", __pyquery) == -1)
 		return NULL;
@@ -460,6 +462,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 		}
 	}else
 		__acmmlist = (PyListObject *) PyList_New((Py_ssize_t) 0);
+
 	if (PyDict_SetItemString((PyObject *) __reqdict, "accept_mime", (PyObject *) __acmmlist) == -1)
 		return NULL;
 
@@ -521,8 +524,17 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 		/* failure */
 		goto response_500;
 
+#ifdef DEBUG
+	printf("%ld\n", Py_REFCNT(__func));
+	printf("%ld\n", Py_REFCNT(__args));
+	printf("%ld\n", Py_REFCNT(__reqdict));
+	printf("%ld\n", Py_REFCNT(Py_None));
+#endif
 	Py_DECREF(__func);
 	Py_DECREF(__args);
+#ifdef DEBUG
+	printf("hello\n");
+#endif
 
 	if (!PyObject_IsSubclass((PyObject *) Py_TYPE(pyres), (PyObject *) &FlyResponseType))
 		goto response_500;

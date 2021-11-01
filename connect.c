@@ -15,12 +15,13 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 {
 	fly_pool_t *pool;
 	fly_connect_t *conn;
+	fly_context_t *ctx;
 
+	ctx = fly_context_from_event(event);
 	pool = fly_create_pool(FLY_POOL_MANAGER_FROM_EVENT(event), FLY_CONNECTION_POOL_SIZE);
 	conn = fly_pballoc(pool, sizeof(fly_connect_t));
-	if (conn == NULL)
+	if (fly_unlikely_null(conn))
 		return NULL;
-
 	conn->event = event;
 	conn->sockfd = sockfd;
 	conn->c_sockfd = c_sockfd;
@@ -37,12 +38,22 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	conn->http_v = fly_default_http_version();
 	conn->v2_state = NULL;
 	conn->peer_closed = false;
+#ifndef DEBUG
 #define FLY_CONNECT_BUFFER_INIT_LEN			1
-#define FLY_CONNECT_BUFFER_CHAIN_MAX		100
+#define FLY_CONNECT_BUFFER_PER_LEN			(1024*4)
+#else
+#define FLY_CONNECT_BUFFER_INIT_LEN			1
 #define FLY_CONNECT_BUFFER_PER_LEN			10
-	conn->buffer = fly_buffer_init(pool, FLY_CONNECT_BUFFER_INIT_LEN, FLY_CONNECT_BUFFER_CHAIN_MAX, FLY_CONNECT_BUFFER_PER_LEN);
+#endif
+
+#define FLY_CONNECT_BUFFER_CHAIN_MAX(__ctx)			\
+			((size_t) (((int) ((__ctx)->max_request_length/FLY_CONNECT_BUFFER_PER_LEN))+1))
+	conn->buffer = fly_buffer_init(pool, FLY_CONNECT_BUFFER_INIT_LEN, FLY_CONNECT_BUFFER_CHAIN_MAX(ctx), FLY_CONNECT_BUFFER_PER_LEN);
 	if (fly_unlikely_null(conn->buffer))
 		return NULL;
+#ifdef DEBUG
+	assert((FLY_CONNECT_BUFFER_PER_LEN*FLY_CONNECT_BUFFER_CHAIN_MAX(ctx)) > ctx->max_request_length);
+#endif
 
 	if (__fly_info_of_connect(conn) == -1)
 		return NULL;
@@ -114,7 +125,6 @@ int fly_listen_connected(fly_event_t *e)
 	case V2:
 		e->event_data = (void *) conn;
 		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_hv2_end_timeout_handle, conn);
-		return fly_request_event_handler(e);
 		return fly_hv2_init_handler(e);
 	default:
 		FLY_NOT_COME_HERE
@@ -206,6 +216,9 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 	}
 
 	if (fly_tls_handshake_magic(buf)){
+		if (!(sockinfo->flag & FLY_SOCKINFO_SSL))
+			goto disconnect;
+
 		/* HTTP request over TLS */
 		return fly_accept_listen_socket_ssl_handler(e, conn);
 	}else{
@@ -241,4 +254,7 @@ int fly_listen_socket_end_handler(fly_event_t *__e)
 	return fly_connect_release(conn);
 }
 
-
+size_t fly_max_request_length(void)
+{
+	return (size_t) fly_config_value_int(FLY_MAX_REQUEST_LENGTH);
+}

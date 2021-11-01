@@ -14,5 +14,4 @@ app = Fly(config_path="bench/bench.conf")
 def a(request):
     return HTMLResponse(200, [], "Hello World, fly!!!")
 
-print(app.routes)
 app.run()
