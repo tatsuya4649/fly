@@ -84,6 +84,7 @@ async def root():
 
 ### 1Thread, 10Connection, 100Req/Sec (1minute)
 
+![req100](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req100.png)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
@@ -94,6 +95,8 @@ async def root():
 
 ### 1Thread, 100Connection, 1000Req/Sec (1minute)
 
+![req1000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req1000.png)
+
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
 | **fly** | 996.66 | 80.78KB | 59801 | 1.18ms |
@@ -102,6 +105,8 @@ async def root():
 | gunicorn+Django | 995.07 | 242.94KB | 59706 | 79.88ms |
 
 ### 1Thread, 500Connection, 5000Req/Sec (1minute)
+
+![req5000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req5000.png)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
@@ -112,6 +117,8 @@ async def root():
 
 ### 1Thread, 1000Connection, 10000Req/Sec (1minute)
 
+![req10000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req10000.png)
+
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
 | **fly** | 9572.90 | 775.93KB | 574382 | 4.80ms |
@@ -120,6 +127,9 @@ async def root():
 | gunicorn+Django | 1643.89 | 401.34KB | 98635 | 28.87s |
 
 ### 1Thread, 1000Connection, 20000Req/Sec (1minute)
+
+![req20000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req20000.png)
+
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
 | **fly** | 18902.98 | 1.50MB | 1134190 | 603.78ms |
