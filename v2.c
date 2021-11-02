@@ -941,14 +941,14 @@ void __fly_goaway_payload(struct fly_hv2_send_frame *frame, fly_hv2_state_t *sta
 	uint32_t *ecode = &error_code;
 
 	*ptr = r ? (1<<7) : 0;
-	*ptr++ |= *(lsid+3);
-	*ptr++ = *(lsid+2);
-	*ptr++ = *(lsid+1);
-	*ptr++ = *(lsid+0);
-	*ptr++ = *(ecode+3);
-	*ptr++ = *(ecode+2);
-	*ptr++ = *(ecode+1);
-	*ptr   = *(ecode+0);
+	*ptr++ |= *(((uint8_t *) lsid)+3);
+	*ptr++ = *(((uint8_t *) lsid)+2);
+	*ptr++ = *(((uint8_t *) lsid)+1);
+	*ptr++ = *(((uint8_t *) lsid)+0);
+	*ptr++ = *(((uint8_t *) ecode)+3);
+	*ptr++ = *(((uint8_t *) ecode)+2);
+	*ptr++ = *(((uint8_t *) ecode)+1);
+	*ptr   = *(((uint8_t *) ecode)+0);
 	state->goaway = true;
 }
 
@@ -999,10 +999,10 @@ int fly_send_rst_stream_frame(fly_hv2_stream_t *stream, uint32_t error_code)
 	uint8_t *ptr = frame->payload;
 	uint32_t *ecode = &error_code;
 
-	*ptr++ = *(ecode+3);
-	*ptr++ = *(ecode+2);
-	*ptr++ = *(ecode+1);
-	*ptr++ = *(ecode+0);
+	*ptr++ = *(((uint8_t *) ecode)+3);
+	*ptr++ = *(((uint8_t *) ecode)+2);
+	*ptr++ = *(((uint8_t *) ecode)+1);
+	*ptr++ = *(((uint8_t *) ecode)+0);
 	__fly_hv2_add_yet_send_frame(frame);
 
 	stream->stream_state = FLY_HV2_STREAM_STATE_CLOSED;
@@ -1225,7 +1225,7 @@ frame_header_parse:
 		plbufc = bufc;
 		uint8_t *pl = fly_hv2_frame_payload_from_frame_header(__fh, &plbufc);
 		if (length > state->max_frame_size){
-			fly_hv2_send_frame_size_error(__stream, FLY_HV2_CONNECTION_ERROR);
+			fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 		} else if ((FLY_HV2_FRAME_HEADER_LENGTH+length) > conn->buffer->use_len)
 			goto blocking;
 
@@ -3209,7 +3209,7 @@ int fly_hv2_huffman_decode(fly_pool_t *pool, fly_buffer_t **res, uint32_t *decod
 int fly_hv2_add_header_by_index(struct fly_hv2_stream *stream, uint32_t index)
 {
 	fly_hv2_state_t *state;
-	const char *name, *value;
+	const char *name=NULL, *value=NULL;
 	size_t name_len=0, value_len=0;
 
 	state = stream->state;
@@ -3246,8 +3246,8 @@ int fly_hv2_add_header_by_indexname(struct fly_hv2_stream *stream, uint32_t inde
 	fly_buffer_t *buf;
 	uint32_t len;
 	fly_hv2_state_t *state;
-	const char *name;
-	size_t name_len;
+	const char *name=NULL;
+	size_t name_len=0;
 
 	state = stream->state;
 	/* static table */

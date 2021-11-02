@@ -906,6 +906,8 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 					continue;
 				else if FLY_BLOCKING(recvlen)
 					goto continuation;
+				else if (errno == ECONNREFUSED)
+					goto end_of_connection;
 				else
 					goto error;
 			default:
@@ -1074,13 +1076,16 @@ __fase_header:
 		goto error;
 
 	/* check of having body */
+	if (fly_content_length(request->header) == 0)
+		goto __fase_end_of_parse;
+
+	/* parse body */
+__fase_body:
 	size_t content_length;
 	content_length = fly_content_length(request->header);
 	if (!content_length)
 		goto __fase_end_of_parse;
 
-	/* parse body */
-__fase_body:
 	fly_buffer_c *body_buf;
 	fly_event_fase(event, BODY);
 	body = fly_body_init(request->ctx);

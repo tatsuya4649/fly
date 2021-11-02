@@ -460,6 +460,7 @@ struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount
 {
 	char __path[FLY_PATH_MAX];
 	char *mnt_path;
+	size_t path_len;
 	__unused fly_mount_t *mnt;
 
 	if (parts->file_count == 0)
@@ -475,8 +476,9 @@ struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount
 	while(fly_slash(*path))
 		path++;
 
+	path_len = strlen(path);
 	memset(__path, '\0', FLY_PATH_MAX);
-	strncpy(__path, path, strlen(path));
+	memcpy(__path, path, path_len);
 
 	return fly_pf_from_parts(__path, strlen(path), parts);
 }

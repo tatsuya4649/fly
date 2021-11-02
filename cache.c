@@ -49,7 +49,7 @@ __fly_static int __fly_md5_from_hash(struct fly_file_hash *hash)
 		if (snprintf((char *) &hash->md5[2*i], 3, "%02x", __preload[i]) == -1)
 			return -1;
 	}
-	hash->md5[2*FLY_MD5_LENGTH+1] = '\0';
+	hash->md5[2*FLY_MD5_LENGTH] = '\0';
 
 	fly_pbfree(__pool, md5_src);
 	return 0;
