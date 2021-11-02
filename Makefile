@@ -82,4 +82,3 @@ clean: clean_lib
 	rm -f $(BUILDDIR)/$(TARGET)  *.o
 	rm -f .*.swp
 	rm -f $(TESTDIR)/__fly_*
-	rm -f fly/*fly*.so

@@ -270,7 +270,7 @@ __fly_static int __fly_write(fly_logfile_t file, size_t length, fly_logc_t *cont
 #ifndef FLY_LOG_WRITE_SIZE
 #define FLY_LOG_WRITE_SIZE		sizeof(fly_logc_t)
 #endif
-		int now_pos, n, write_length;
+		int now_pos=0, n, write_length;
 		write_length = length - total;
 		if (!isatty(file) && ((now_pos = lseek(file, 0, SEEK_CUR)) == -1))
 				goto error;

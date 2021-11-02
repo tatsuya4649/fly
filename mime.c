@@ -320,7 +320,7 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 	fly_hdr_value *ptr;
 	char *param_tokenl = NULL, *param_tokenr=NULL, *qvalue_ptr=NULL, *ext_tokenl=NULL, *ext_tokenr=NULL, *type=NULL, *subtype=NULL;
 	size_t type_len=0, subtype_len=0;
-	int decimal_places;
+	int decimal_places = 0;
 	struct __fly_mime *__nm;
 
 	__unused enum{
@@ -372,6 +372,7 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 	ptr = value;
 	pfase = MEDIA_RANGE;
 	pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_INIT;
+	__nm = NULL;
 	while(true){
 		switch(pstatus){
 		case __FLY_ACCEPT_MIME_MEDIA_RANGE_INIT:
