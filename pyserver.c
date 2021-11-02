@@ -524,17 +524,8 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 		/* failure */
 		goto response_500;
 
-#ifdef DEBUG
-	printf("%ld\n", Py_REFCNT(__func));
-	printf("%ld\n", Py_REFCNT(__args));
-	printf("%ld\n", Py_REFCNT(__reqdict));
-	printf("%ld\n", Py_REFCNT(Py_None));
-#endif
 	Py_DECREF(__func);
 	Py_DECREF(__args);
-#ifdef DEBUG
-	printf("hello\n");
-#endif
 
 	if (!PyObject_IsSubclass((PyObject *) Py_TYPE(pyres), (PyObject *) &FlyResponseType))
 		goto response_500;

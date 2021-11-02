@@ -720,6 +720,7 @@ __fly_static int __fly_event_handle_failure_log(fly_event_t *e)
 	if ((e->fail_close != NULL ? e->fail_close(e->fd) : close(e->fd)) == -1)
 		return -1;
 
+	e->flag = FLY_CLOSE_EV;
 	le = fly_event_init(e->manager);
 	if (fly_unlikely_null(le))
 		return -1;
@@ -755,8 +756,12 @@ int fly_event_inherit_register(fly_event_t *e)
 static void fly_event_handle(fly_event_t *e)
 {
 	int handle_result;
+
 	if (e->handler != NULL)
 		handle_result = e->handler(e);
+	else
+		return;
+
 	if (handle_result == FLY_EVENT_HANDLE_FAILURE)
 		/* log error handle in notice log. */
 		if (__fly_event_handle_failure_log(e) == -1)
