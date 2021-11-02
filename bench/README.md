@@ -84,7 +84,7 @@ async def root():
 
 ### 1Thread, 10Connection, 100Req/Sec (1minute)
 
-![req100](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req100.png)
+![req100](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/asset/req100.png)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
@@ -95,7 +95,7 @@ async def root():
 
 ### 1Thread, 100Connection, 1000Req/Sec (1minute)
 
-![req1000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req1000.png)
+![req1000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/asset/req1000.png)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
@@ -106,7 +106,7 @@ async def root():
 
 ### 1Thread, 500Connection, 5000Req/Sec (1minute)
 
-![req5000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req5000.png)
+![req5000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/asset/req5000.png)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
@@ -117,7 +117,7 @@ async def root():
 
 ### 1Thread, 1000Connection, 10000Req/Sec (1minute)
 
-![req10000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req10000.png)
+![req10000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/asset/req10000.png)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
@@ -128,7 +128,7 @@ async def root():
 
 ### 1Thread, 1000Connection, 20000Req/Sec (1minute)
 
-![req20000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/assert/req20000.png)
+![req20000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/asset/req20000.png)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
