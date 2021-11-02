@@ -84,33 +84,45 @@ async def root():
 
 ### 1Thread, 10Connection, 100Req/Sec (1minute)
 
+
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
-| **fly** | k | MB | 0 | MB | us |
+| **fly** | 100.01 | 8.11KB | 6001 | 1.05ms |
+| uvicorn+FastAPI | 100.01 | 14.06KB | 6001 | 1.95ms |
 | gunicorn+flask | 99.86 | 15.99KB | 5992 | 71.62ms |
 | gunicorn+Django | 99.86 | 24.38KB | 5992 | 74.07ms |
-| uvicorn+FastAPI | 100.01 | 14.06KB | 6001 | 1.95ms |
 
 ### 1Thread, 100Connection, 1000Req/Sec (1minute)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
+| **fly** | 996.66 | 80.78KB | 59801 | 1.18ms |
+| uvicorn+FastAPI | 983.35 | 138.28| 59004 | 18.11ms |
 | gunicorn+flask | 995.07 | 159.37KB | 59706 | 69.60ms |
 | gunicorn+Django | 995.07 | 242.94KB | 59706 | 79.88ms |
-| uvicorn+FastAPI | 983.35 | 138.28| 59004 | 18.11ms |
 
 ### 1Thread, 500Connection, 5000Req/Sec (1minute)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
+| **fly** | 4881.48 | 395.67KB | 292901 | 3.31ms |
+| uvicorn+FastAPI | 4869.90 | 684.83KB | 292379 | 333.22ms |
 | gunicorn+flask | 2543.33 | 407.33KB | 152601 | 16.64s |
 | gunicorn+Django | 1635.38 | 399.26KB | 98124 | 23.11s |
-| uvicorn+FastAPI | 4869.90 | 684.83KB | 292379 | 333.22ms |
 
 ### 1Thread, 1000Connection, 10000Req/Sec (1minute)
 
 | server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|
+| **fly** | 9572.90 | 775.93KB | 574382 | 4.80ms |
+| uvicorn+FastAPI | 4873.64 | 685.35KB | 292780 | 15.19s |
 | gunicorn+flask | 2542.29 | 407.16KB | 152540 | 25.40s  |
 | gunicorn+Django | 1643.89 | 401.34KB | 98635 | 28.87s |
-| uvicorn+FastAPI | 4873.64 | 685.35KB | 292780 | 15.19s |
+
+### 1Thread, 1000Connection, 20000Req/Sec (1minute)
+| server | Req/Sec | Transfer/Sec(avg) | Request in 1m | Latency(avg) |
+|:--------:|:---------:|:---------:|:---------:|:---------:|
+| **fly** | 18902.98 | 1.50MB | 1134190 | 603.78ms |
+| uvicorn+FastAPI | 4828.42 | 679.00KB | 289835 | 25.00s |
+| gunicorn+flask | 2569.28 | 411.49KB | 154159 | 30.12s  |
+| gunicorn+Django | 1626.83 | 397.18KB | | 31.88s |
