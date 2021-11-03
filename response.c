@@ -830,7 +830,8 @@ int fly_response_event(fly_event_t *e)
 		if (!res->encoded)
 			res->encoding_type = fly_decided_encoding_type(res->request->encoding);
 		fly_add_content_encoding(res->header, res->encoding_type, false);
-	}
+	}else
+		res->encoding_type = NULL;
 
 
 	if (!res->encoded && fly_encode_do(res)){
@@ -1529,7 +1530,7 @@ copy_file:
 						while((numread = read(read_fd, ptr, response->count)) > 0){
 							ptr += numread;
 							/* overflow */
-							if ((char *) ptr >= (char *) (((char *) response->send_ptr)+total))
+							if ((char *) ptr > (char *) (((char *) response->send_ptr)+total))
 								return -1;
 						}
 

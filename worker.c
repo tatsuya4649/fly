@@ -556,16 +556,14 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 					__de->offset = 0;
 					__de->count = __pf->fs.st_size;
 					__de->etype = fly_encoding_from_type(__pf->encode_type);
-					if (fly_unlikely_null(__de->decbuf) || \
-							fly_unlikely_null(__de->encbuf))
-						return -1;
-
-					if (fly_response_content_max_length() <= __pf->fs.st_size){
+					if (fly_response_content_max_length() >= __pf->fs.st_size){
 						size_t __max;
 
 						__max = fly_response_content_max_length();
 						__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
 						__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
+						__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
+						__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
 #ifdef DEBUG
 						assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
 #endif
@@ -645,18 +643,14 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 				__de->offset = 0;
 				__de->count = __frc->fs.st_size;
 				__de->etype = fly_encoding_from_type(__frc->encode_type);
-				if (fly_unlikely_null(__de->decbuf) || \
-						fly_unlikely_null(__de->encbuf))
-					return -1;
-				if (__de->etype->encode(__de) == -1)
-					return -1;
-
-				if (fly_response_content_max_length() <= __frc->fs.st_size){
+				if (fly_response_content_max_length() >= __frc->fs.st_size){
 					size_t __max;
 
 					__max = fly_response_content_max_length();
 					__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
 					__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
+					__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
+					__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
 #ifdef DEBUG
 					assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
 #endif

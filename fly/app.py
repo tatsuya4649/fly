@@ -70,8 +70,8 @@ class Fly(FlySignal, FlyMount, FlyRoute, _fly_server):
             raise RuntimeError("fly must have one or more mount points.")
 
         print("\n", file=sys.stderr)
-        print(f"    \033[1m*\033[0m Fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
-        print(f"    \033[1m*\033[0m Fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
+        print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
+        print(f"    \033[1m*\033[0m fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
         print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m")
         print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m")
         print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m")
