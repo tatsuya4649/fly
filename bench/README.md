@@ -1,7 +1,7 @@
 
 # Benchmarks
 
-List of benchmarks compared "fly" and popular Web/App server.
+List of benchmarks compared "fly" and popular HTTP/App server.
 
 ## Condition
 
