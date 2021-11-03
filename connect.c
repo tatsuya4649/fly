@@ -160,6 +160,8 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	if (conn_sock == -1){
 		if (FLY_BLOCKING(conn_sock))
 			goto read_blocking;
+		else if (conn_sock == EMFILE || conn_sock == ENFILE)
+			goto read_blocking;
 		else
 			return -1;
 	}
@@ -251,6 +253,8 @@ int fly_listen_socket_end_handler(fly_event_t *__e)
 	fly_connect_t *conn;
 
 	conn = (fly_connect_t *) __e->end_event_data;
+
+	__e->flag = FLY_CLOSE_EV;
 	return fly_connect_release(conn);
 }
 
