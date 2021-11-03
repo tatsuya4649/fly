@@ -28,4 +28,7 @@ fly_bodyc_t *fly_decode_nowbody(fly_request_t *request, fly_encoding_type_t *t);
 #define FLY_BODY_ENCBUF_INIT_LEN		(1)
 #define FLY_BODY_ENCBUF_CHAIN_MAX(__size)		((size_t) (((size_t) __size/FLY_BODY_ENCBUF_PER_LEN) + 1))
 
+#define FLY_BODY_DECBUF_PER_LEN			(1024*4)
+#define FLY_BODY_DECBUF_INIT_LEN		(1)
+#define FLY_BODY_DECBUF_CHAIN_MAX(__size)		((size_t) (((size_t) __size/FLY_BODY_DECBUF_PER_LEN) + 1))
 #endif

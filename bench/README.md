@@ -18,21 +18,31 @@ List of benchmarks compared "fly" and popular Web/App server.
 
 ### HTTP/1.1
 
-| server | Req/Sec(avg) | Transfer/Sec(avg) | Request in 1.0ms | Read in 1.0ms | Latency(avg) |
+### 1Thread, 100Connection, 1000Req/Sec (1minute)
+
+![sev1000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/asset/serv1000.png)
+| server | Req/Sec(avg) | Transfer/Sec(avg) | Request in 1m | Timeout error | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|:---------:|
-| **fly** | k | MB | 0 | MB | us |
-| nginx | 36.01k | 13.63MB | 2153443 | 819.41MB | 277.44us |
-| Apache | 42.85k | 15.17MB | 2557572 | 696.66MB | 405.36us |
+| **fly** | 996.66 | 359.15KB | 59801 | 0 | 1.10ms |
+| nginx | 1.04k | 373.75KB | 59801 | 0 | 0.93ms |
+| Apache(prefork) | 996.66 | 363.20KB | 59801 | 201 | 1.07ms |
 
-### HTTP/1.1 over SSL/TLS
-
-| server | Req/Sec(avg) | Transfer/Sec(avg) | Request in 1.0ms | Read in 1.0ms | Latency(avg) |
+### 1Thread, 500Connection, 5000Req/Sec (1minute)
+![sev5000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/asset/serv5000.png)
+| server | Req/Sec(avg) | Transfer/Sec(avg) | Request in 1m | Timeout error | Latency(avg) |
 |:--------:|:---------:|:---------:|:---------:|:---------:|:---------:|
-| **fly** | 30.35k | 11.49MB | 1812167 | 689.55MB | 329.63us |
-| nginx | 30.35k | 11.49MB | 1812167 | 689.55MB | 329.63us |
-| Apache | 31.47k | 11.59MB | 1881810 | 696.66MB | 405.36us |
+| **fly** | 4881.61 | 1.72MB | 292901 | 0 | 3.78ms |
+| nginx | 4881.61 | 1.79MB | 292907 | 0 | 2.09ms |
+| Apache(prefork) | 4569.96 | 1.63MB | 274210 | 5636 | 1.98s |
 
-### HTTP/2 over SSL/TLS
+### 1Thread, 1000Connection, 10000Req/Sec (1minute)
+
+![sev10000](https://raw.githubusercontent.com/tatsuya4649/fly/develop/bench/asset/serv10000.png)
+| server | Req/Sec(avg) | Transfer/Sec(avg) | Request in 1m | Timeout error | Latency(avg) |
+|:--------:|:---------:|:---------:|:---------:|:---------:|:---------:|
+| **fly** | 9572.07 | 3.37MB | 574413 | 0 | 5.06ms |
+| nginx | 9048.77 | 3.31MB | 542972 | 1539 | 2.65ms |
+| Apache(prefork) | 6944.70 | 2.47MB | 416693 | 16304 | 3.25s |
 
 ## Result of Application Server
 
@@ -40,7 +50,9 @@ use simple app server that just returns "Hello World"(HTML Response).
 
 ## "Hello World" source code of some server
 
-```python: fly
+```python
+
+# fly
 from fly import Fly
 
 app = Fly(config_path="bench/bench.conf")
@@ -51,7 +63,9 @@ def hello():
 
 ```
 
-```python: flask
+```python
+
+# Flask
 from flask import Flask, render_template
 import os
 
@@ -62,15 +76,18 @@ def hello():
     return "Hello World"
 ```
 
-```python: Django
+```python
+
+# Django
 from django.http import HttpResponse
 
 def hello(request):
     return HttpResponse("Hello World")
 ```
 
-```python: Django
+```python
 
+# FastAPI
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
@@ -135,4 +152,4 @@ async def root():
 | **fly** | 18902.98 | 1.50MB | 1134190 | 603.78ms |
 | uvicorn+FastAPI | 4828.42 | 679.00KB | 289835 | 25.00s |
 | gunicorn+flask | 2569.28 | 411.49KB | 154159 | 30.12s  |
-| gunicorn+Django | 1626.83 | 397.18KB | | 31.88s |
+| gunicorn+Django | 1626.83 | 397.18KB | 97612 | 31.88s |
