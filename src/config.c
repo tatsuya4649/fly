@@ -4,7 +4,7 @@
 #include "config.h"
 
 struct fly_config configs[] = {
-#include "__fly.conf"
+#include "../__fly.conf"
 	FLY_CONFIG(NULL, NULL, NULL, -1)
 };
 
