@@ -8,7 +8,7 @@ sys.path.append(
 from fly import Fly, HTMLResponse
 
 app = Fly(config_path="bench/bench.conf")
-#app.mount("bench/html")
+app.mount("bench/html")
 
 @app.get("/")
 def a(request):

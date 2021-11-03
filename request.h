@@ -22,7 +22,11 @@
 
 #define FLY_REQUEST_LINE_MAX			8000
 #define FLY_REQUEST_URI_MAX				6000
+#ifdef DEBUG
 #define FLY_REQUEST_TIMEOUT				(2)
+#else
+#define FLY_REQUEST_TIMEOUT				(60)
+#endif
 #define FLY_REQUEST_NOREADY				100
 
 struct fly_query{

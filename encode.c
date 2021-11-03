@@ -1477,8 +1477,8 @@ struct fly_de *fly_de_init(fly_pool_t *pool)
 	de->target_already_alloc = false;
 	de->overflow = false;
 
-	fly_e_buf_add(de);
-	fly_d_buf_add(de);
+//	fly_e_buf_add(de);
+//	fly_d_buf_add(de);
 	return de;
 }
 
