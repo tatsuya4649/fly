@@ -22,7 +22,7 @@ if os.getenv("DEBUG") is not None:
 
 server = Extension(
 	name="_fly_server",
-	sources=["pyserver.c"],
+	sources=["src/pyserver.c"],
 	library_dirs=["./lib"],
 	libraries=["fly"],
 	runtime_library_dirs=["./lib"],
@@ -31,7 +31,7 @@ server = Extension(
 )
 signal = Extension(
 	name="_fly_signal",
-	sources=["pysignal.c"],
+	sources=["src/pysignal.c"],
 	library_dirs=["./lib"],
 	libraries=["fly"],
 	runtime_library_dirs=["./lib"],

@@ -6,9 +6,10 @@ else
 CFLAG := -O0 -W -Wall -Werror -Wcast-align
 endif
 TARGET = fly
-BUILD_FILES := server.o response.o header.o alloc.o mount.o method.o version.o math.o request.o util.o connect.o body.o route.o test_route.o fsignal.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o lang.o cache.o scheme.o buffer.o rbtree.o ssl.o v2.o queue.o bllist.o config.o uri.o
-PYBUILD_FILES :=
-SOURCE_FILES := $(BUILD_FILES:%.o=%.c)
+BUILD_FILES := server.o response.o header.o alloc.o mount.o method.o version.o math.o request.o util.o connect.o body.o route.o fsignal.o mime.o encode.o log.o worker.o master.o ftime.o event.o context.o err.o charset.o lang.o cache.o scheme.o buffer.o rbtree.o ssl.o v2.o queue.o bllist.o config.o uri.o
+SRC := src
+SRC_FILES := $(BUILD_FILES:%.o=%.c)
+SOURCE_FILES := $(addprefix $(SRC)/, $(SRC_FILES))
 PYSOURCE_FILES := $(PYBUILD_FILES:%.o=%.c)
 .PHONY: all clean lib build test
 
@@ -42,7 +43,7 @@ debug: build
 leak: build
 	valgrind --leak-check=full --show-leak-kinds=all ./$(BUILDDIR)/$(TARGET)
 
-build:	$(BUILD_FILES)
+build:	$(SOURCE_FILES)
 	@mkdir -p $(BUILDDIR)
 	gcc -o $(BUILDDIR)/$(TARGET) $^
 
