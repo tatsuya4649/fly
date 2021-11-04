@@ -1,6 +1,6 @@
 #include "encode.h"
 #include "response.h"
-#include "config.h"
+#include "conf.h"
 
 __fly_static fly_encoding_type_t __fly_encodes[] = {
 	FLY_ENCODE_TYPE(gzip, 100),
