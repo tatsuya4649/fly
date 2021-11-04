@@ -7,7 +7,7 @@
 #include "response.h"
 #include "ssl.h"
 #include "context.h"
-#include "config.h"
+#include "conf.h"
 
 __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
 __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx);

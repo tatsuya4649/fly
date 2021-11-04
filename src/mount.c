@@ -644,7 +644,7 @@ int fly_mount_files_count(fly_mount_t *mnt, int mount_number)
 	return -1;
 }
 
-#include "config.h"
+#include "conf.h"
 static int fly_mount_max_limit(void)
 {
 	return fly_config_value_int(FLY_MOUNT_MAX);

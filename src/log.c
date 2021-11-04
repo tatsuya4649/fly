@@ -2,7 +2,7 @@
 #include "log.h"
 #include <errno.h>
 #include "err.h"
-#include "config.h"
+#include "conf.h"
 
 __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type);
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc);

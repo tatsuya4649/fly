@@ -2,7 +2,7 @@
 #include "alloc.h"
 #include "util.h"
 #include "cache.h"
-#include "config.h"
+#include "conf.h"
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
 __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx);
