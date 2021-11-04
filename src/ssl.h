@@ -5,7 +5,7 @@
 #include <openssl/err.h>
 #include "context.h"
 #include "event.h"
-#include "config.h"
+#include "conf.h"
 #include "connect.h"
 
 /*

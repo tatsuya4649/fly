@@ -12,7 +12,7 @@
 #include <sys/inotify.h>
 #include "fly.h"
 #include "fsignal.h"
-#include "config.h"
+#include "conf.h"
 #include "alloc.h"
 #include "worker.h"
 #include "context.h"

@@ -1,7 +1,7 @@
 #include <assert.h>
 #include <errno.h>
 #include "char.h"
-#include "config.h"
+#include "conf.h"
 
 struct fly_config configs[] = {
 #include "../__fly.conf"

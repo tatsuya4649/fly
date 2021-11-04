@@ -7,7 +7,7 @@
 #include "server.h"
 #include "err.h"
 #include "ssl.h"
-#include "config.h"
+#include "conf.h"
 
 int fly_socket_nonblocking(fly_sock_t s)
 {

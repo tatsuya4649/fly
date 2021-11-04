@@ -1,0 +1,3 @@
+libfly_la-math.lo: math.c /usr/include/stdc-predef.h math.h
+/usr/include/stdc-predef.h:
+math.h:
