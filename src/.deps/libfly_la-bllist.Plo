@@ -1,0 +1,3 @@
+libfly_la-bllist.lo: bllist.c /usr/include/stdc-predef.h bllist.h
+/usr/include/stdc-predef.h:
+bllist.h:
