@@ -6,8 +6,8 @@
 /lib/
 /log/
 /conf/
-/static/
 /mnt/
+/autom4te.cache/
 /fly.egg-info/
 __pycache__/
 /server
@@ -16,4 +16,12 @@ GRTAGS
 GTAGS
 gdb.*
 vgcore.*
-valgrind.log
+*.log
+config.status
+gdb.*
+*~
+*.crt
+*.key
+*.lo
+.deps
+.libs
