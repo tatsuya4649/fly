@@ -1,0 +1,8 @@
+bench/*		linguist-documentation
+lib/*		linguist-documentation
+log/*		linguist-documentation
+m4/*		linguist-documentation
+static/*	linguist-documentation
+*.py		linguist-detectable=true
+*.c			linguist-detectable=true
+*.h			linguist-detectable=true
