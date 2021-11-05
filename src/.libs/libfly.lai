@@ -38,4 +38,4 @@ dlopen=''
 dlpreopen=''
 
 # Directory that this library needs to be installed in:
-libdir='/home/tatsuya/fly/lib'
+libdir='/home/tatsuya/fly/fly/lib'
