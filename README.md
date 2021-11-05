@@ -43,15 +43,6 @@ def index(request):
 # start server
 app.run()
 
-# Output
-#    * fly Running on 0.0.0.0:1234 (Press CTRL+C to quit)
-#    * fly 1 workers
-#    * SSL: False
-#    * SSL certificate path: conf/server.crt
-#    * SSL key path: conf/server.key
-#    * Log directory path: /home/user/fly/log
-#    * Mount paths ()
-
 ```
 
 <details>
