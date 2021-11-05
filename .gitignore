@@ -8,6 +8,7 @@
 /conf/
 /static/
 /mnt/
+/fly.egg-info/
 __pycache__/
 /server
 GPATH
