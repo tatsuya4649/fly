@@ -6,7 +6,6 @@
 /lib/
 /log/
 /conf/
-/static/
 /mnt/
 /autom4te.cache/
 /fly.egg-info/
@@ -20,3 +19,9 @@ vgcore.*
 *.log
 config.status
 gdb.*
+*~
+*.crt
+*.key
+*.lo
+.deps
+.libs
