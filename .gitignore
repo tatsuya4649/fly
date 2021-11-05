@@ -8,7 +8,7 @@
 /conf/
 /mnt/
 /autom4te.cache/
-/fly.egg-info/
+/fly_server.egg-info/
 __pycache__/
 /server
 GPATH

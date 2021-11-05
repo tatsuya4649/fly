@@ -1,7 +1,7 @@
 
 # fly
 
-C/Python lightweight and fast WEP(Web/App) framework.
+Python lightweight Web application framework.
 
 * Event driven architecture.
 
@@ -12,7 +12,7 @@ C/Python lightweight and fast WEP(Web/App) framework.
 ## Install
 
 ```
-$ pip install fly
+$ pip install fly-server
 ```
 
 ## Hello World

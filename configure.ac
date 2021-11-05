@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.71])
 
-VERSION="1.0.2"
+VERSION="1.0.0"
 AC_INIT([fly], [VERSION])
 AC_CONFIG_SRCDIR([src/master.c])
 AC_CONFIG_HEADERS([config.h])
@@ -65,6 +65,6 @@ AC_CONFIG_FILES([Makefile
                  src/Makefile
 				 fly/__init__.py])
 
-FLY_VERSION="1.0.2"
+FLY_VERSION="1.0.0"
 AC_SUBST([FLY_VERSION])
 AC_OUTPUT

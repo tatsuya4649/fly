@@ -52,7 +52,7 @@ server = Extension(
 )
 
 setup(
-	name="fly",
+	name="fly_server",
 	version=version_from_init(),
 	description="tiny web/app server with C/Python",
 	ext_modules = [
