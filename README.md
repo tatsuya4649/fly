@@ -69,8 +69,17 @@ app.run()
 
 look at [benchmark](https://github.com/tatsuya4649/fly/blob/develop/bench/README.md).
 
-## Why fast ?
-
 ## HTTP version
 
 HTTP1.1, HTTP1.1 over TLS/SSL, HTTP2 over TLS/SSL.
+
+## Contributing
+
+Let's coding.
+
+1. Fork fly.
+2. Create a feature branch. (git checkout -b `new-feature`)
+3. Commit your changes. (git commit -m `explain of commit`)
+4. Push to the bench. (git push origin my-new-feature)
+5. Create new pull request.
+
