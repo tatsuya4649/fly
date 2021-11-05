@@ -34,7 +34,11 @@ app = Fly()
 # register index route
 @app.get("/")
 def index(request):
-	return HTMLResponse(200, [], "Hello World, fly")
+	return HTMLResponse(
+		200,
+		[],
+		"Hello World, fly"
+	)
 
 # start server
 app.run()
