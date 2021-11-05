@@ -657,7 +657,7 @@ ac_includes_default="\
 
 ac_header_c_list=
 ac_func_c_list=
-ac_default_prefix=$PWD
+ac_default_prefix=$PWD/fly
 ac_subst_vars='am__EXEEXT_FALSE
 am__EXEEXT_TRUE
 LTLIBOBJS
@@ -14906,7 +14906,7 @@ fi
 ac_config_files="$ac_config_files Makefile src/Makefile fly/__init__.py"
 
 
-FLY_VERSION=$(VERSION)
+FLY_VERSION="1.0.1"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
