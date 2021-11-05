@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.71])
 
-VERSION="0.0.1"
+VERSION="1.0.2"
 AC_INIT([fly], [VERSION])
 AC_CONFIG_SRCDIR([src/master.c])
 AC_CONFIG_HEADERS([config.h])
@@ -60,11 +60,11 @@ AX_CHECK_COMPILE_FLAG([-Wall], [CFLAGS="$CFLAGS -Wall"])
 AX_CHECK_COMPILE_FLAG([-Werror], [CFLAGS="$CFLAGS -Werror"])
 AX_CHECK_COMPILE_FLAG([-Wcast-align], [CFLAGS="$CFLAGS -Wcast-align"])
 
-AC_PREFIX_DEFAULT($PWD)
+AC_PREFIX_DEFAULT($PWD/fly)
 AC_CONFIG_FILES([Makefile
                  src/Makefile
 				 fly/__init__.py])
 
-FLY_VERSION="0.0.1"
+FLY_VERSION="1.0.2"
 AC_SUBST([FLY_VERSION])
 AC_OUTPUT

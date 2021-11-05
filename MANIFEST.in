@@ -4,12 +4,23 @@ include configure.ac
 include __fly.conf
 include aclocal.m4
 include configure
+include configure~
 include config.sub
-include config.status
 include config.guess
 include compile
 include depcomp
 include depcomp
 include install-sh
 include ltmain.sh
-recursive-include m4
+include LICENSE
+include Makefile.am
+include Makefile.in
+include libtool
+include config.h
+include config.h.in
+include missing
+graft m4
+graft docs
+graft src
+graft fly
+recursive-exclude fly.egg-info *

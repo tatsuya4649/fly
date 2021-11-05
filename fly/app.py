@@ -1,5 +1,15 @@
 import sys
 import os
+import ctypes
+
+ctypes.cdll.LoadLibrary(
+    os.path.abspath(
+        os.path.join(
+            os.path.dirname(__file__),
+            "lib/libfly.so.0"
+        )
+    )
+)
 from enum import Enum
 from .mount import FlyMount
 from ._fly_server import _fly_server

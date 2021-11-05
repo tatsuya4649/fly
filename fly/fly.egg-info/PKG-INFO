@@ -1,3 +1,32 @@
+Metadata-Version: 2.1
+Name: fly
+Version: 0.1.2
+Summary: tiny web/app server with C/Python
+Home-page: https://github.com/tatsuya4649/fly
+Author: tatsuya.s
+Author-email: tatsuya4946developer@gmail.com
+License: UNKNOWN
+Keywords: HTTP Web-server app-server"
+Platform: UNKNOWN
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: C
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3.5
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Topic :: Internet :: WWW/HTTP
+Classifier: Topic :: Internet :: WWW/HTTP :: HTTP Servers
+Requires-Python: >=3.5
+Description-Content-Type: text/markdown
+Provides-Extra: dev
+License-File: LICENSE
+
 
 # fly
 
@@ -74,3 +103,5 @@ look at [benchmark](https://github.com/tatsuya4649/fly/blob/develop/bench/README
 ## HTTP version
 
 HTTP1.1, HTTP1.1 over TLS/SSL, HTTP2 over TLS/SSL.
+
+
