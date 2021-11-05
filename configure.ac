@@ -2,7 +2,9 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.71])
-AC_INIT([fly], [0.0.1], [])
+
+VERSION="0.0.1"
+AC_INIT([fly], [VERSION])
 AC_CONFIG_SRCDIR([src/master.c])
 AC_CONFIG_HEADERS([config.h])
 AC_CONFIG_MACRO_DIRS([m4])
@@ -51,7 +53,7 @@ AC_FUNC_MALLOC
 AC_FUNC_MKTIME
 AC_CHECK_FUNCS([atexit dup2 gettimeofday localtime_r memset realpath setenv socket strchr strerror])
 
-CFLAGS =
+CFLAGS = ""
 AX_CHECK_COMPILE_FLAG([-O0], [CFLAGS="$CFLAGS -O0"])
 AX_CHECK_COMPILE_FLAG([-W], [CFLAGS="$CFLAGS -W"])
 AX_CHECK_COMPILE_FLAG([-Wall], [CFLAGS="$CFLAGS -Wall"])
@@ -60,5 +62,9 @@ AX_CHECK_COMPILE_FLAG([-Wcast-align], [CFLAGS="$CFLAGS -Wcast-align"])
 
 AC_PREFIX_DEFAULT($PWD)
 AC_CONFIG_FILES([Makefile
-                 src/Makefile])
+                 src/Makefile
+				 fly/__init__.py])
+
+FLY_VERSION="0.0.1"
+AC_SUBST([FLY_VERSION])
 AC_OUTPUT

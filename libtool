@@ -1,5 +1,5 @@
 #! /bin/sh
-# Generated automatically by config.status (fly) 0.0.1
+# Generated automatically by config.status (fly) VERSION
 # NOTE: Changes made to this file will be lost: look at ltmain.sh.
 
 # Provide generalized library-building support services.

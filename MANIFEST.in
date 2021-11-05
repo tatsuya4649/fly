@@ -1,0 +1,15 @@
+include *.md
+include requirements.txt
+include configure.ac
+include __fly.conf
+include aclocal.m4
+include configure
+include config.sub
+include config.status
+include config.guess
+include compile
+include depcomp
+include depcomp
+include install-sh
+include ltmain.sh
+recursive-include m4

@@ -3,7 +3,6 @@ import os
 from enum import Enum
 from .mount import FlyMount
 from ._fly_server import _fly_server
-from .signal import FlySignal
 from .route import FlyRoute
 from .env import FlyEnv
 from .response import *
@@ -12,12 +11,11 @@ class FlyMethod(Enum):
     GET = "GET"
     POST = "POST"
 
-class Fly(FlySignal, FlyMount, FlyRoute, _fly_server):
+class Fly(FlyMount, FlyRoute, _fly_server):
     def __init__(
         self,
         config_path=None,
     ):
-        FlySignal.__init__(self)
         FlyMount.__init__(self)
         FlyRoute.__init__(self)
 
