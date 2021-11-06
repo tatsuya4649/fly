@@ -1,6 +1,12 @@
 
 # fly
 
+![issue](https://img.shields.io/github/issues/tatsuya4649/fly)
+![fork](https://img.shields.io/github/forks/tatsuya4649/fly)
+![star](https://img.shields.io/github/stars/tatsuya4649/fly)
+![license](https://img.shields.io/github/license/tatsuya4649/fly)
+![python](https://img.shields.io/badge/python-3.5%7C3.6%7C3.7%7C3.8%7C3.9%7C3.10-blue)
+
 Python lightweight Web application framework.
 
 * Event driven architecture.
@@ -26,21 +32,14 @@ It is so easy to use fly.
 3. run fly.
 
 ```python
-
 from fly import Fly
 
 app = Fly()
 
-# register index route
 @app.get("/")
 def index(request):
-	return HTMLResponse(
-		200,
-		[],
-		"Hello World, fly"
-	)
+	return "Hello, fly!"
 
-# start server
 app.run()
 
 ```

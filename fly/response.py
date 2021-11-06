@@ -1,22 +1,5 @@
 from ._fly_server import _fly_response
-
-class __metaresponse(type):
-    REQUIRED_ATTR = [
-        "status_code",
-        "header",
-        "body",
-        "content_type",
-    ]
-
-    def __new__(cls, name, bases, attributes):
-        for i in cls.REQUIRED_ATTR:
-            for __b in bases:
-                if not hasattr(__b, i):
-                    raise NotImplementedError(
-                        f"{cls} must be implemented \"{i}\""
-                    )
-        return type.__new__(cls, name, bases, attributes)
-
+import json
 
 class _Response(_fly_response):
 
@@ -51,7 +34,7 @@ class _Response(_fly_response):
         )
 
 
-class Response(_Response, metaclass=__metaresponse):
+class Response(_Response):
     """
     All Response subclass must have 5 attributes.
 
@@ -87,7 +70,6 @@ class Response(_Response, metaclass=__metaresponse):
             self._body = body
         else:
             self._body = bytes()
-
 
     @property
     def status_code(self):
@@ -154,11 +136,14 @@ class JSONResponse(Response):
         header=None,
         body=None,
     ):
-        if body is not None and not isinstance(body, str):
-            raise TypeError("body must be str type.")
+        if body is not None and not isinstance(body, dict) and \
+                not isinstance(body, list):
+            raise TypeError("body must be list/dict type.")
+
+        print(json.dumps(body))
         super().__init__(
             status_code,
             header,
-            body.encode("utf-8") if body is not None else None,
+            json.dumps(body).encode("utf-8") if body is not None and len(body) > 0 else None,
             content_type="application/json"
         )

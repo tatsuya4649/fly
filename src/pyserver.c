@@ -255,7 +255,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 {
 #define PYFLY_RESHANDLER_ARGS_COUNT			1
 	PyObject *__func, *__args, *__reqdict, *pyres=NULL, *__margs;
-	fly_response_t *res;
+	fly_response_t *res=NULL;
 	fly_reqline_t *reqline;
 	fly_uri_t *uri;
 	struct fly_http_version *ver;
@@ -518,18 +518,18 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	__args = PyTuple_New(PYFLY_RESHANDLER_ARGS_COUNT);
 	if (PyTuple_SetItem(__args, 0, __reqdict) == -1)
 		return NULL;
+
+	PyErr_Clear();
 	/* call python function, and return response. */
 	pyres = PyObject_CallObject(__func, __args);
-	if (pyres == NULL)
+	if (pyres == NULL || PyErr_Occurred()){
+		PyErr_Clear();
 		/* failure */
 		goto response_500;
+	}
 
 	Py_DECREF(__func);
 	Py_DECREF(__args);
-
-	if (!PyObject_IsSubclass((PyObject *) Py_TYPE(pyres), (PyObject *) &FlyResponseType))
-		goto response_500;
-
 
 	/* Python response --> C response */
 	fly_context_t *ctx;
@@ -538,121 +538,177 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	if (fly_unlikely_null(res))
 		goto response_500;
 
-	PyObject *pyres_body, *pyres_header, *pyres_status_code, *pyres_content_type;
-	pyres_body = PyObject_GetAttrString(pyres, PYFLY_BODY_KEY);
-	if (fly_unlikely_null(pyres_body))
-		goto response_500;
-	if (pyres_body != Py_None){
-		char *body_ptr;
-		ssize_t body_len;
-		if (!PyBytes_Check(pyres_body))
+	/*
+	 * Allow type:
+	 * str, subclass of _fly_response
+	 */
+	if (PyObject_IsSubclass((PyObject *) Py_TYPE(pyres), (PyObject *) &FlyResponseType)){
+
+		PyObject *pyres_body, *pyres_header, *pyres_status_code, *pyres_content_type;
+		pyres_body = PyObject_GetAttrString(pyres, PYFLY_BODY_KEY);
+		if (fly_unlikely_null(pyres_body))
+			goto response_500;
+		if (pyres_body != Py_None){
+			char *body_ptr;
+			ssize_t body_len;
+			if (!PyBytes_Check(pyres_body))
+				goto response_500;
+
+			if (PyBytes_AsStringAndSize(pyres_body, &body_ptr, (Py_ssize_t *) &body_len) == -1){
+				PyErr_Clear();
+				goto response_500;
+			}
+
+			if (body_len > 0){
+				/* over response body length */
+				if (body_len > ctx->max_response_content_length)
+					goto response_413;
+				res->body = fly_body_init(ctx);
+				res->body->body = fly_pballoc(res->body->pool, sizeof(fly_bodyc_t)*body_len);
+				fly_body_setting(res->body, res->body->body, body_len);
+				if (fly_unlikely_null(res->body->body))
+					goto response_500;
+				memcpy(res->body->body, body_ptr, body_len);
+			}
+		}
+		Py_DECREF(pyres_body);
+
+		/* set response header */
+		Py_ssize_t pyres_hdr_len;
+		pyres_header = PyObject_GetAttrString(pyres, PYFLY_HEADER_KEY);
+		if (fly_unlikely_null(pyres_header))
+			goto response_500;
+		if (!PyList_CheckExact(pyres_header))
 			goto response_500;
 
-		if (PyBytes_AsStringAndSize(pyres_body, &body_ptr, (Py_ssize_t *) &body_len) == -1)
+		fly_response_header_init(res, request);
+		pyres_hdr_len = PyList_Size(pyres_header);
+		if (pyres_hdr_len > 0){
+			if (is_fly_request_http_v2(request))
+				res->header->state = request->stream->state;
+			if (fly_unlikely_null(res->header))
+				goto response_500;
+
+			for (Py_ssize_t i=0; i<pyres_hdr_len; i++){
+				PyObject *pyhdr_c, *pyhdr_name, *pyhdr_value;
+				const char *hdr_name, *hdr_value;
+				ssize_t hdr_name_len, hdr_value_len;
+
+				pyhdr_c = PyList_GET_ITEM(pyres_header, i);
+				if (!PyDict_Check(pyhdr_c))
+					goto response_500;
+
+				pyhdr_name = PyDict_GetItemString(pyhdr_c, "name");
+				if (fly_unlikely_null(pyhdr_name))
+					goto response_500;
+				if (!PyUnicode_Check(pyhdr_name))
+					goto response_500;
+				hdr_name = PyUnicode_AsUTF8AndSize(pyhdr_name, &hdr_name_len);
+
+				pyhdr_value = PyDict_GetItemString(pyhdr_c, "value");
+				if (fly_unlikely_null(pyhdr_value))
+					goto response_500;
+				if (!PyUnicode_Check(pyhdr_value))
+					goto response_500;
+				hdr_value = PyUnicode_AsUTF8AndSize(pyhdr_value, &hdr_value_len);
+				if (fly_header_add_ver(res->header, (char *) hdr_name, hdr_name_len, (char *) hdr_value, hdr_value_len, is_fly_request_http_v2(request)) == -1)
+					return NULL;
+
+			}
+		}
+
+		Py_DECREF(pyres_header);
+
+		/* set content type */
+		pyres_content_type = PyObject_GetAttrString(pyres, PYFLY_CONTENT_TYPE_KEY);
+		if (fly_unlikely_null(pyres_content_type))
 			goto response_500;
+		if (!PyUnicode_Check(pyres_content_type))
+			goto response_500;
+		const char *res_content_type;
+		Py_ssize_t res_ctype_len;
+		fly_mime_type_t *__mtype;
+		res_content_type = PyUnicode_AsUTF8AndSize(pyres_content_type, &res_ctype_len);
+		if (fly_unlikely_null(res_content_type))
+			goto response_500;
+
+		__mtype = fly_mime_type_from_str(res_content_type, (size_t) res_ctype_len);
+		if (fly_unlikely_null(__mtype))
+			goto response_500;
+		if (fly_add_content_type(res->header, __mtype, is_fly_request_http_v2(request)) == -1)
+			goto response_500;
+
+		Py_DECREF(pyres_content_type);
+
+		pyres_status_code = PyObject_GetAttrString(pyres, PYFLY_STATUS_CODE_KEY);
+		if (fly_unlikely_null(pyres_status_code))
+			goto response_500;
+		if (!PyLong_Check(pyres_status_code))
+			goto response_500;
+
+		long __status_code = PyLong_AsLong(pyres_status_code);
+		res->status_code = fly_status_code_from_long(__status_code);
+		Py_DECREF(pyres_status_code);
+
+		/* Check Python dictionary */
+		Py_DECREF(pyres);
+		return res;
+	} else if (PyUnicode_Check(pyres)){
+		const char *body_ptr;
+		ssize_t body_len;
+
+		if ((body_ptr=PyUnicode_AsUTF8AndSize(pyres, &body_len)) == NULL)
+			goto response_500;
+
+		if (body_len > 0){
+			if (body_len > ctx->max_response_content_length)
+				goto response_413;
+			res->body = fly_body_init(ctx);
+			res->body->body = fly_pballoc(res->body->pool, sizeof(fly_bodyc_t)*body_len);
+			fly_body_setting(res->body, res->body->body, body_len);
+			memcpy(res->body->body, body_ptr, body_len);
+		}
+
+		res->status_code = _200;
+		Py_DECREF(pyres);
+		return res;
+	} else if (PyBytes_Check(pyres)){
+		char *body_ptr;
+		ssize_t body_len;
+
+		if (PyBytes_AsStringAndSize(pyres, &body_ptr, (Py_ssize_t *) &body_len) == -1){
+			PyErr_Clear();
+			goto response_500;
+		}
 
 		if (body_len > 0){
 			/* over response body length */
 			if (body_len > ctx->max_response_content_length)
 				goto response_413;
 			res->body = fly_body_init(ctx);
-			fly_body_setting(res->body, body_ptr, body_len);
 			res->body->body = fly_pballoc(res->body->pool, sizeof(fly_bodyc_t)*body_len);
+			fly_body_setting(res->body, res->body->body, body_len);
 			if (fly_unlikely_null(res->body->body))
 				goto response_500;
 			memcpy(res->body->body, body_ptr, body_len);
 		}
-	}
-	Py_DECREF(pyres_body);
-
-	/* set response header */
-	Py_ssize_t pyres_hdr_len;
-	pyres_header = PyObject_GetAttrString(pyres, PYFLY_HEADER_KEY);
-	if (fly_unlikely_null(pyres_header))
-		goto response_500;
-	if (!PyList_CheckExact(pyres_header))
+		res->status_code = _200;
+		Py_DECREF(pyres);
+		return res;
+	} else
 		goto response_500;
 
-	fly_response_header_init(res, request);
-	pyres_hdr_len = PyList_Size(pyres_header);
-	if (pyres_hdr_len > 0){
-		if (is_fly_request_http_v2(request))
-			res->header->state = request->stream->state;
-		if (fly_unlikely_null(res->header))
-			goto response_500;
-
-		for (Py_ssize_t i=0; i<pyres_hdr_len; i++){
-			PyObject *pyhdr_c, *pyhdr_name, *pyhdr_value;
-			const char *hdr_name, *hdr_value;
-			ssize_t hdr_name_len, hdr_value_len;
-
-			pyhdr_c = PyList_GET_ITEM(pyres_header, i);
-			if (!PyDict_Check(pyhdr_c))
-				goto response_500;
-
-			pyhdr_name = PyDict_GetItemString(pyhdr_c, "name");
-			if (fly_unlikely_null(pyhdr_name))
-				goto response_500;
-			if (!PyUnicode_Check(pyhdr_name))
-				goto response_500;
-			hdr_name = PyUnicode_AsUTF8AndSize(pyhdr_name, &hdr_name_len);
-
-			pyhdr_value = PyDict_GetItemString(pyhdr_c, "value");
-			if (fly_unlikely_null(pyhdr_value))
-				goto response_500;
-			if (!PyUnicode_Check(pyhdr_value))
-				goto response_500;
-			hdr_value = PyUnicode_AsUTF8AndSize(pyhdr_value, &hdr_value_len);
-			if (fly_header_add_ver(res->header, (char *) hdr_name, hdr_name_len, (char *) hdr_value, hdr_value_len, is_fly_request_http_v2(request)) == -1)
-				return NULL;
-
-		}
-	}
-
-	Py_DECREF(pyres_header);
-
-	/* set content type */
-	pyres_content_type = PyObject_GetAttrString(pyres, PYFLY_CONTENT_TYPE_KEY);
-	if (fly_unlikely_null(pyres_content_type))
-		goto response_500;
-	if (!PyUnicode_Check(pyres_content_type))
-		goto response_500;
-	const char *res_content_type;
-	Py_ssize_t res_ctype_len;
-	fly_mime_type_t *__mtype;
-	res_content_type = PyUnicode_AsUTF8AndSize(pyres_content_type, &res_ctype_len);
-	if (fly_unlikely_null(res_content_type))
-		goto response_500;
-
-	__mtype = fly_mime_type_from_str(res_content_type, (size_t) res_ctype_len);
-	if (fly_unlikely_null(__mtype))
-		goto response_500;
-	if (fly_add_content_type(res->header, __mtype, is_fly_request_http_v2(request)) == -1)
-		goto response_500;
-
-	Py_DECREF(pyres_content_type);
-
-	pyres_status_code = PyObject_GetAttrString(pyres, PYFLY_STATUS_CODE_KEY);
-	if (fly_unlikely_null(pyres_status_code))
-		goto response_500;
-	if (!PyLong_Check(pyres_status_code))
-		goto response_500;
-
-	long __status_code = PyLong_AsLong(pyres_status_code);
-	res->status_code = fly_status_code_from_long(__status_code);
-	Py_DECREF(pyres_status_code);
-
-	/* Check Python dictionary */
-	Py_DECREF(pyres);
-	return res;
+	FLY_NOT_COME_HERE
 
 response_413:
 	Py_DECREF(pyres);
+	fly_response_release(res);
 	res = fly_413_response(request);
 	return res;
 response_500:
 	if (pyres)
 		Py_DECREF(pyres);
+	fly_response_release(res);
 	res = fly_500_response(request);
 	return res;
 }
