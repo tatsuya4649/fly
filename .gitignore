@@ -4,9 +4,11 @@
 /dist/
 /build/
 /lib/
+lib/
 /log/
 /conf/
 /mnt/
+/debug/
 /autom4te.cache/
 /fly_server.egg-info/
 __pycache__/
@@ -26,3 +28,4 @@ gdb.*
 .deps
 .libs
 stamp-h1
+Makefile

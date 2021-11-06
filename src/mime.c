@@ -10,6 +10,7 @@ fly_mime_type_t mimes[] = {
 	{__FLY_MTYPE_SET(text, xml), __FLY_MTYPE_EXTS("xml", NULL)},
 	{__FLY_MTYPE_SET(text, javascript), __FLY_MTYPE_EXTS("js", NULL)},
 	{__FLY_MTYPE_SET(text, richtext), __FLY_MTYPE_EXTS("rtf", NULL)},
+	{__FLY_MTYPE_SET(application, json), __FLY_MTYPE_EXTS(NULL)},
 	{__FLY_MTYPE_SET(application, octet_stream), __FLY_MTYPE_EXTS(NULL)}
 };
 #define FLY_MIMES_LENGTH			\
@@ -100,6 +101,21 @@ __fly_static int __fly_mime_init(fly_request_t *req) {
 	return 0;
 }
 
+__fly_static struct __fly_mime *__fly_mime_parts_init(struct fly_mime *__m)
+{
+	struct __fly_mime *__nm;
+	__nm = fly_pballoc(__m->pool, sizeof(struct __fly_mime));
+	if (fly_unlikely_null(__nm))
+		return NULL;
+	__nm->mime = __m;
+	__nm->quality_value = 0;
+	__nm->param_count = 0;
+	__nm->ext_count = 0;
+	fly_bllist_init(&__nm->params);
+	fly_bllist_init(&__nm->extension);
+	return __nm;
+}
+
 fly_mime_type_t *fly_mime_type_from_str(const char *str, size_t len)
 {
 	for (fly_mime_type_t *m=mimes; m->extensions!=NULL; m++){
@@ -134,7 +150,6 @@ __fly_static int __fly_accept_mime(fly_hdr_ci *header, fly_hdr_c **c)
 
 __fly_static int __fly_add_accept_mime(fly_mime_t *m, struct __fly_mime *nm)
 {
-	nm->mime = m;
 	fly_bllist_add_tail(&m->accepts, &nm->blelem);
 	m->accept_count++;
 	return 0;
@@ -158,7 +173,7 @@ int fly_accept_mime(__unused fly_request_t *request)
 	fly_hdr_c  *accept;
 
 	header = request->header;
-	if (request == NULL || request->pool == NULL || request->header == NULL)
+	if (fly_unlikely_null(request) || fly_unlikely_null(request->pool) || fly_unlikely_null(request->header))
 		return -1;
 
 	if (__fly_mime_init(request) == -1)
@@ -319,7 +334,7 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 {
 	fly_hdr_value *ptr;
 	char *param_tokenl = NULL, *param_tokenr=NULL, *qvalue_ptr=NULL, *ext_tokenl=NULL, *ext_tokenr=NULL, *type=NULL, *subtype=NULL;
-	size_t type_len=0, subtype_len=0;
+	size_t type_len=0, subtype_len=0, param_tokenl_len=0, param_tokenr_len=0, ext_tokenl_len=0, ext_tokenr_len=0;
 	int decimal_places = 0;
 	struct __fly_mime *__nm;
 
@@ -386,11 +401,12 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			subtype = NULL;
 			type_len = 0;
 			subtype_len = 0;
+			param_tokenl_len = 0;
+			param_tokenr_len = 0;
 			__nm = NULL;
-			__nm = fly_pballoc(mime->pool, sizeof(struct __fly_mime));
-			if (__nm == NULL)
+			__nm = __fly_mime_parts_init(mime);
+			if (fly_unlikely_null(__nm))
 				return FLY_MIME_PARSE_ERROR;
-			__nm->mime = mime;
 
 			if (__fly_type(*ptr) || __fly_asterisk(*ptr)){
 				type = ptr;
@@ -499,6 +515,7 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			goto perror;
 		case __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_TOKENL:
 			if (__fly_equal(*ptr)){
+				param_tokenl_len = ptr-param_tokenl;
 				pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_EQUAL;
 				break;
 			}
@@ -522,6 +539,7 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 				break;
 
 			pstatus = __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_TOKENEND;
+			param_tokenr_len = ptr-param_tokenr;
 			continue;
 		case __FLY_ACCEPT_MIME_MEDIA_RANGE_PARAMETER_TOKENEND:
 			/* Add params */
@@ -529,12 +547,17 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 				struct __fly_accept_param *param;
 
 				param = fly_pballoc(mime->request->pool, sizeof(struct __fly_accept_param));
-				if (param == NULL)
+				if (fly_unlikely_null(param))
 					return FLY_MIME_PARSE_ERROR;
 
-				__fly_param_copyl(param->token_l, param_tokenl, FLY_ACCEPT_PARAM_MAXLEN);
-				__fly_param_copyr(param->token_r, param_tokenr, FLY_ACCEPT_PARAM_MAXLEN);
-				param->next = NULL;
+				memset(param, '\0', sizeof(struct __fly_accept_param));
+				if (param_tokenl_len > FLY_ACCEPT_PARAM_MAXLEN)
+					param_tokenl_len = FLY_ACCEPT_PARAM_MAXLEN;
+				if (param_tokenr_len > FLY_ACCEPT_PARAM_MAXLEN)
+					param_tokenr_len = FLY_ACCEPT_PARAM_MAXLEN;
+
+				memcpy(&param->token_l, param_tokenl, param_tokenl_len);
+				memcpy(&param->token_r, param_tokenr, param_tokenr_len);
 
 				__fly_mime_param_add(__nm, param);
 			}
@@ -579,13 +602,17 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 				struct __fly_accept_param *param;
 
 				param = fly_pballoc(mime->request->pool, sizeof(struct __fly_accept_param));
-				if (param == NULL)
+				if (fly_unlikely_null(param))
 					return FLY_MIME_PARSE_ERROR;
 
-				__fly_param_copyql(param->token_l, param_tokenl, FLY_ACCEPT_PARAM_MAXLEN);
-				__fly_param_copyqr(param->token_r, param_tokenr, FLY_ACCEPT_PARAM_MAXLEN);
-				param->next = NULL;
+				memset(param, '\0', sizeof(struct __fly_accept_param));
+				if (param_tokenl_len > FLY_ACCEPT_PARAM_MAXLEN)
+					param_tokenl_len = FLY_ACCEPT_PARAM_MAXLEN;
+				if (param_tokenr_len > FLY_ACCEPT_PARAM_MAXLEN)
+					param_tokenr_len = FLY_ACCEPT_PARAM_MAXLEN;
 
+				memcpy(&param->token_l, param_tokenl, param_tokenl_len);
+				memcpy(&param->token_r, param_tokenr, param_tokenr_len);
 				__fly_mime_param_add(__nm, param);
 			}
 
@@ -716,12 +743,14 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			goto perror;
 		case __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_TOKENL:
 			if (__fly_equal(*ptr)){
+				ext_tokenl_len = ptr-ext_tokenl;
 				pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_EQUAL;
 				break;
 			}
 			if (__fly_token(*ptr))	break;
 
 			if (__fly_space(*ptr)){
+				ext_tokenl_len = ptr-ext_tokenl;
 				pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_TOKENEND;
 				continue;
 			}
@@ -739,16 +768,19 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			goto perror;
 		case __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_TOKENR:
 			if (__fly_comma(*ptr)){
+				ext_tokenr_len = ptr-ext_tokenr;
 				pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_TOKENEND;
 				continue;
 			}
 			if (__fly_token(*ptr))	break;
 
+			ext_tokenr_len = ptr-ext_tokenr;
 			pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_TOKENEND;
 			continue;
+		/* left quoted */
 		case __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_QUOTED_STRINGL:
-			ext_tokenl=ptr;
 			if (__fly_quoted_string(ptr)){
+				ext_tokenr=ptr;
 				pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_QUOTED_STRING;
 				continue;
 			}
@@ -756,6 +788,7 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			goto perror;
 		case __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_QUOTED_STRING:
 			if (__fly_quoted(*ptr)){
+				ext_tokenr_len = ptr-ext_tokenr;
 				pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_QUOTED_STRINGR;
 				break;
 			}
@@ -763,6 +796,7 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			if (__fly_quoted_string(ptr))	break;
 
 			goto perror;
+		/* right quoted */
 		case __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_QUOTED_STRINGR:
 			pstatus = __FLY_ACCEPT_MIME_ACCEPT_PARAMS_EXT_TOKENEND;
 			continue;
@@ -772,11 +806,17 @@ __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value)
 			{
 				struct __fly_accept_ext *ext;
 				ext = fly_pballoc(mime->request->pool, sizeof(struct __fly_accept_ext));
-				__fly_ext_param_copyl(ext->token_l, ext_tokenl, FLY_ACCEPT_PARAM_MAXLEN);
-				__fly_ext_param_copyr(ext->token_r, ext_tokenr, FLY_ACCEPT_PARAM_MAXLEN);
-				if (ext == NULL)
+				memset(ext, '\0', sizeof(struct __fly_accept_ext));
+				if (ext_tokenl_len > FLY_ACCEPT_EXT_MAXLEN)
+					ext_tokenl_len = FLY_ACCEPT_EXT_MAXLEN;
+				if (ext_tokenr_len > FLY_ACCEPT_EXT_MAXLEN)
+					ext_tokenr_len = FLY_ACCEPT_EXT_MAXLEN;
+
+				memcpy(&ext->token_l, ext_tokenl, ext_tokenl_len);
+				memcpy(&ext->token_r, ext_tokenr, ext_tokenr_len);
+
+				if (fly_unlikely_null(ext))
 					return FLY_MIME_PARSE_ERROR;
-				ext->next = NULL;
 				__fly_mime_ext_add(__nm, ext);
 			}
 
@@ -839,7 +879,7 @@ static struct __fly_mime_type __fly_mime_type_list[] = {
 	__FLY_MIME_TYPE(text),
 	__FLY_MIME_TYPE(image),
 	__FLY_MIME_TYPE(application),
-	__FLY_MIME_TYPE(asterisk),
+	__FLY_MIME_TYPE_ASTERISK,
 	__FLY_MIME_TYPE(unknown),
 	__FLY_MIME_NULL
 };
@@ -897,7 +937,10 @@ __unused __fly_static int __fly_copy_subtype(char *dist, char *src)
 __fly_static int __fly_accept_type_from_str(fly_mime_t *mime, struct __fly_mime_type *type, fly_hdr_value *type_str, size_t type_len)
 {
 	for (struct __fly_mime_type *__t=__fly_mime_type_list; __t->type_name; __t++){
-		if (__fly_same_type_n(__t->type_name, type_str, type_len)){
+		if (strlen(__t->type_name) != type_len)
+			continue;
+
+		if (strncmp(__t->type_name, type_str, type_len) == 0){
 			type->type = __t->type;
 			type->type_name = __t->type_name;
 			return 0;
@@ -970,33 +1013,17 @@ __fly_static int __fly_accept_parse(fly_mime_t *mime, fly_hdr_c *c)
 	FLY_NOT_COME_HERE
 }
 
-__fly_static void __fly_mime_param_add(struct __fly_mime *mime, struct __fly_accept_param *param)
+__fly_static void __fly_mime_param_add(struct __fly_mime *__nm, struct __fly_accept_param *param)
 {
-	if (mime->params == NULL){
-		mime->params = param;
-	}else{
-		struct __fly_accept_param *__p;
-		for (__p=mime->params ; __p->next; __p=__p->next)
-			;
-		__p->next = param;
-	}
-	param->next = NULL;
-	mime->parqty++;
+	fly_bllist_add_tail(&__nm->params, &param->blelem);
+	__nm->param_count++;
 	return;
 }
 
-__fly_static void __fly_mime_ext_add(struct __fly_mime *mime, struct __fly_accept_ext *ext)
+__fly_static void __fly_mime_ext_add(struct __fly_mime *__ne, struct __fly_accept_ext *ext)
 {
-	if (mime->extension == NULL){
-		mime->extension = ext;
-	}else{
-		struct __fly_accept_ext *__e;
-		for (__e=mime->extension; __e->next; __e=__e->next)
-			;
-		__e->next = ext;
-	}
-	ext->next = NULL;
-	mime->extqty++;
+	fly_bllist_add_tail(&__ne->extension, &ext->blelem);
+	__ne->ext_count++;
 	return;
 }
 

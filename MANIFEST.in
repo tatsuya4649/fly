@@ -1,7 +1,7 @@
 include *.md
 include requirements.txt
 include configure.ac
-include __fly.conf
+include fly.conf
 include aclocal.m4
 include configure
 include config.sub
