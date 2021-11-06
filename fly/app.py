@@ -6,7 +6,7 @@ ctypes.cdll.LoadLibrary(
     os.path.abspath(
         os.path.join(
             os.path.dirname(__file__),
-            "lib/libfly.so.0"
+            "lib/libfly.so"
         )
     )
 )

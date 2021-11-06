@@ -19,7 +19,7 @@ RELEA_VERSION:=0
 
 DEPEND_LIBS := -lz -lbrotlienc -lcrypto -lbrotlidec -lssl
 
-LIBDIR := lib
+LIBDIR := fly/lib
 LIBNAME := lib$(TARGET).so.$(MAJOR_VERSION)
 BUILDDIR := build
 TESTDIR := test
@@ -29,7 +29,7 @@ ifdef DEBUG
 MACROS := $(MACROS) -D DEBUG
 endif
 ifdef DEBUG
-PYTHON := python3.10
+PYTHON := python3.8
 else
 PYTHON := python3.10
 endif
