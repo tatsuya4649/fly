@@ -28,18 +28,20 @@ def get_packages(package):
         for dirpath, dirnames, filenames in os.walk(package)
         if os.path.exists(os.path.join(dirpath, "__init__.py"))
     ]
-"""
-make fly library
-"""
-__run(["./configure"])
-__run(["make"])
-__run(["make", "install"])
+
 macros = []
 extra_compile_args = []
 if os.getenv("DEBUG") is not None:
     macros.append(("DEBUG", "fly"))
     extra_compile_args.append("-g3")
     extra_compile_args.append("-O0")
+else:
+    """
+    make fly library
+    """
+    __run(["./configure"])
+    __run(["make"])
+    __run(["make", "install"])
 
 server = Extension(
 	name="fly._fly_server",

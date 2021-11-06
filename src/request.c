@@ -1139,6 +1139,14 @@ __fase_end_of_parse:
 	response = route->function(request, route->data);
 	if (response == NULL)
 		goto response_500;
+	fly_response_header_init(response, request);
+
+	if (fly_add_date(response->header, false) == -1)
+		goto response_500;
+	if (fly_add_server(response->header, false) == -1)
+		goto response_500;
+	if (fly_add_content_type(response->header, &default_route_response_mime, false) == -1)
+		goto response_500;
 
 	response->request = request;
 	fly_response_http_version_from_request(response, request);

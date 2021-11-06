@@ -12,6 +12,7 @@ app.mount("bench/html")
 
 @app.get("/")
 def a(request):
+    b = 1/0
     return HTMLResponse(200, [], "Hello World, fly!!!")
 
 app.run()
