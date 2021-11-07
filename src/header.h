@@ -110,5 +110,6 @@ struct fly_response;
 struct fly_request;
 void fly_header_state(fly_hdr_ci *__ci, struct fly_request *__req);
 void fly_response_header_init(struct fly_response *__res, struct fly_request *__req);
+bool fly_is_multipart_form_data(fly_hdr_ci *ci);
 
 #endif

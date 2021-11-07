@@ -28,6 +28,11 @@ static inline bool fly_atsign(char c)
 	return c == 0x40 ? true : false;
 }
 
+static inline bool fly_minus(char c)
+{
+	return c == 0x2D ? true : false;
+}
+
 static inline bool fly_asterisk(char c)
 {
 	return c == 0x2A ? true : false;
@@ -86,6 +91,11 @@ static inline bool fly_dot(char c)
 static inline bool fly_colon(char c)
 {
 	return c == 0x3A ? true : false;
+}
+
+static inline bool fly_semicolon(char c)
+{
+	return c == 0x3B ? true : false;
 }
 
 static inline bool fly_question(char c)
