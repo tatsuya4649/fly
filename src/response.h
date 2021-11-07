@@ -154,6 +154,7 @@ int fly_400_event_norequest(fly_event_t *e, fly_connect_t *conn);
 int fly_400_event(fly_event_t *e, fly_request_t *req);
 int fly_404_event(fly_event_t *e, fly_request_t *req);
 int fly_405_event(fly_event_t *e, fly_request_t *req);
+int fly_413_event(fly_event_t *e, fly_request_t *req);
 int fly_414_event(fly_event_t *e, fly_request_t *req);
 int fly_415_event(fly_event_t *e, fly_request_t *req);
 
