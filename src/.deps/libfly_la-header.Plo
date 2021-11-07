@@ -42,9 +42,10 @@ libfly_la-header.lo: header.c /usr/include/stdc-predef.h \
  /usr/include/errno.h /usr/include/bits/errno.h \
  /usr/include/linux/errno.h /usr/include/asm/errno.h \
  /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
- bllist.h mount.h /usr/include/dirent.h /usr/include/bits/dirent.h \
- /usr/include/bits/posix1_lim.h /usr/include/bits/local_lim.h \
- /usr/include/linux/limits.h /usr/include/bits/dirent_ext.h \
+ ../config.h bllist.h mount.h /usr/include/dirent.h \
+ /usr/include/bits/dirent.h /usr/include/bits/posix1_lim.h \
+ /usr/include/bits/local_lim.h /usr/include/linux/limits.h \
+ /usr/include/bits/dirent_ext.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include-fixed/limits.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include-fixed/syslimits.h \
  /usr/include/limits.h /usr/include/bits/posix2_lim.h \
@@ -108,7 +109,7 @@ libfly_la-header.lo: header.c /usr/include/stdc-predef.h \
  /usr/include/openssl/ssl3.h /usr/include/openssl/tls1.h \
  /usr/include/openssl/dtls1.h /usr/include/openssl/srtp.h \
  /usr/include/openssl/err.h conf.h connect.h err.h scheme.h charset.h \
- lang.h v2.h response.h fly.h
+ lang.h v2.h /usr/include/arpa/inet.h response.h fly.h
 /usr/include/stdc-predef.h:
 /usr/include/stdio.h:
 /usr/include/bits/libc-header-start.h:
@@ -193,6 +194,7 @@ util.h:
 /usr/include/asm/errno.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
+../config.h:
 bllist.h:
 mount.h:
 /usr/include/dirent.h:
@@ -346,5 +348,6 @@ scheme.h:
 charset.h:
 lang.h:
 v2.h:
+/usr/include/arpa/inet.h:
 response.h:
 fly.h:

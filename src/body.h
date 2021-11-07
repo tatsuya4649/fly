@@ -40,6 +40,10 @@ struct fly_body{
 	struct fly_bllist	multipart_parts;
 	size_t				multipart_count;
 
+	/* for HTTP2 */
+	fly_bodyc_t			*next_ptr;
+
+
 	fly_bit_t			multipart:1;
 };
 

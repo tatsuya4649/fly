@@ -91,7 +91,7 @@ libfly_la-connect.lo: connect.c /usr/include/stdc-predef.h connect.h \
  /usr/include/bits/errno.h /usr/include/linux/errno.h \
  /usr/include/asm/errno.h /usr/include/asm-generic/errno.h \
  /usr/include/asm-generic/errno-base.h /usr/include/bits/types/error_t.h \
- bllist.h event.h \
+ ../config.h bllist.h event.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdbool.h \
  /usr/include/sys/epoll.h /usr/include/bits/epoll.h \
  /usr/include/sys/signalfd.h /usr/include/bits/signalfd.h \
@@ -118,7 +118,7 @@ libfly_la-connect.lo: connect.c /usr/include/stdc-predef.h connect.h \
  /usr/include/brotli/port.h /usr/include/brotli/types.h \
  /usr/include/brotli/decode.h str.h uri.h char.h ftime.h route.h ssl.h \
  /usr/include/openssl/err.h conf.h body.h err.h scheme.h charset.h lang.h \
- v2.h response.h fly.h
+ v2.h /usr/include/arpa/inet.h response.h fly.h
 /usr/include/stdc-predef.h:
 connect.h:
 /usr/include/sys/socket.h:
@@ -296,6 +296,7 @@ util.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
 /usr/include/bits/types/error_t.h:
+../config.h:
 bllist.h:
 event.h:
 /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdbool.h:
@@ -370,5 +371,6 @@ scheme.h:
 charset.h:
 lang.h:
 v2.h:
+/usr/include/arpa/inet.h:
 response.h:
 fly.h:
