@@ -16,6 +16,7 @@ fly_body_t *fly_body_init(fly_context_t *ctx)
 	body->pool = pool;
 	body->body = NULL;
 	body->body_len = 0;
+	body->next_ptr = NULL;
 
 	fly_bllist_init(&body->multipart_parts);
 	body->multipart_count = 0;
