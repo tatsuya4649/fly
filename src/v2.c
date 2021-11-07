@@ -69,16 +69,26 @@ static inline uint32_t fly_hv2_length_from_frame_header(fly_hv2_frame_header_t *
 {
 	uint32_t length=0;
 	if (((fly_buf_p) __fh) + (int) (FLY_HV2_FRAME_HEADER_LENGTH_LEN/FLY_HV2_OCTET_LEN) > __c->lptr){
+#ifdef FLY_BIG_ENDIAN
 		length |= (uint32_t) (*__fh)[0] << 16;
 		__fh = fly_update_chain(&__c, __fh, 1);
 		length |= (uint32_t) (*__fh)[0] << 8;
 		__fh = fly_update_chain(&__c, __fh, 1);
-		length |= (uint32_t) (*__fh)[0];
+		length |= (uint32_t) (*__fh)[0] << 0;
 		__fh = fly_update_chain(&__c, __fh, 1);
-	}else{
+#else
+		length |= (uint32_t) (*__fh)[0] << 0;
+		__fh = fly_update_chain(&__c, __fh, 1);
+		length |= (uint32_t) (*__fh)[0] << 8;
+		__fh = fly_update_chain(&__c, __fh, 1);
 		length |= (uint32_t) (*__fh)[0] << 16;
-		length |= (uint32_t) (*__fh)[1] << 8;
-		length |= (uint32_t) (*__fh)[2];
+		__fh = fly_update_chain(&__c, __fh, 1);
+#endif
+	}else{
+		length = ntohl(*(uint32_t *) __fh);
+//		length |= (uint32_t) (*__fh)[0] << 16;
+//		length |= (uint32_t) (*__fh)[1] << 8;
+//		length |= (uint32_t) (*__fh)[2];
 	}
 	return length;
 }
@@ -157,15 +167,16 @@ void fly_hv2_default_settings(fly_hv2_state_t *state)
 	state->p_header_table_size = FLY_HV2_HEADER_TABLE_SIZE_DEFAULT;
 	state->p_max_concurrent_streams = FLY_HV2_MAX_CONCURRENT_STREAMS_DEFAULT;
 	state->p_initial_window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
+	state->initial_window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
 	state->p_max_frame_size = FLY_HV2_MAX_FRAME_SIZE_DEFAULT;
 	state->p_max_header_list_size = FLY_HV2_MAX_HEADER_LIST_SIZE_DEFAULT;
 	state->p_enable_push = FLY_HV2_ENABLE_PUSH_DEFAULT;
 	state->header_table_size = FLY_HV2_HEADER_TABLE_SIZE_DEFAULT;
 	state->max_concurrent_streams = FLY_HV2_MAX_CONCURRENT_STREAMS_DEFAULT;
-	state->initial_window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
 	state->max_frame_size = FLY_HV2_MAX_FRAME_SIZE_DEFAULT;
 	state->max_header_list_size = FLY_HV2_MAX_HEADER_LIST_SIZE_DEFAULT;
 	state->enable_push = FLY_HV2_ENABLE_PUSH_DEFAULT;
+	state->p_window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
 	state->window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
 }
 
@@ -251,7 +262,8 @@ static fly_hv2_stream_t *__fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid
 	__s->weight = FLY_HV2_STREAM_DEFAULT_WEIGHT;
 	__s->frame_count = 0;
 	__s->yetsend_count = 0;
-	__s->window_size = state->p_initial_window_size;
+	__s->window_size = state->initial_window_size;
+	__s->p_window_size = state->p_initial_window_size;
 	__s->yetack_count = 0;
 	__s->end_send_headers = false;
 	__s->end_send_data = false;
@@ -342,10 +354,6 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 		for (struct fly_queue *__q=stream->frames.next; __q!=&stream->frames; __q=__n){
 			__n = __q->next;
 			__f = fly_queue_data(__q, struct fly_hv2_frame, felem);
-#ifdef DEBUG
-			assert(__f->type == FLY_HV2_FRAME_TYPE_HEADERS || \
-					__f->type == FLY_HV2_FRAME_TYPE_CONTINUATION);
-#endif
 			fly_hv2_release_frame(__f);
 		}
 	}
@@ -446,6 +454,8 @@ fly_hv2_state_t *fly_hv2_state_init(fly_connect_t *conn)
 
 	fly_queue_init(&state->responses);
 	state->reserved_count = 0;
+	state->p_window_size = 0;
+	state->window_size = 0;
 	state->connection_state = FLY_HV2_CONNECTION_STATE_INIT;
 	state->max_sid = FLY_HV2_STREAM_ROOT_ID;
 	state->max_handled_sid = 0;
@@ -977,6 +987,38 @@ int fly_send_goaway_frame(fly_hv2_state_t *state, bool r, uint32_t error_code)
 	return 0;
 }
 
+int fly_send_window_update_frame(fly_hv2_stream_t *stream, uint32_t update_size, bool r)
+{
+	struct fly_hv2_send_frame *frame;
+
+	frame = fly_hv2_send_frame_init(stream);
+	if (fly_unlikely_null(frame))
+		return -1;
+
+	frame->send_fase = FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER;
+	frame->send_len = 0;
+	frame->type = FLY_HV2_FRAME_TYPE_WINDOW_UPDATE;
+	frame->payload_len = \
+		(int) (FLY_HV2_FRAME_TYPE_WINDOW_UPDATE_LENGTH);
+	frame->payload = fly_pballoc(frame->pool, frame->payload_len);
+	if (fly_unlikely_null(frame->payload))
+		return -1;
+
+	fly_fh_setting(&frame->frame_header, frame->payload_len, frame->type, 0, false, frame->sid);
+	/* copy error_code/last-stream-id/r to payload */
+	uint8_t *ptr = frame->payload;
+	uint32_t *uptr = &update_size;
+
+	*ptr = r ? (1<<7) : 0;
+	*ptr++ = *(((uint8_t *) uptr)+3);
+	*ptr++ = *(((uint8_t *) uptr)+2);
+	*ptr++ = *(((uint8_t *) uptr)+1);
+	*ptr++ = *(((uint8_t *) uptr)+0);
+	__fly_hv2_add_yet_send_frame(frame);
+
+	return 0;
+}
+
 int fly_send_rst_stream_frame(fly_hv2_stream_t *stream, uint32_t error_code)
 {
 	struct fly_hv2_send_frame *frame;
@@ -1079,7 +1121,9 @@ int fly_hv2_goaway_handle(fly_event_t *e, fly_hv2_state_t *state)
 	}
 close_connection:
 	/* close connection */
-	return fly_hv2_close_handle(e, state);
+	if (fly_hv2_close_handle(e, state) == -1)
+		return -1;
+	return fly_event_unregister(e);
 }
 
 int fly_hv2_goaway(fly_hv2_state_t *state, bool r, uint32_t last_stream_id, uint32_t error_code)
@@ -1282,6 +1326,13 @@ frame_header_parse:
 				if (flags & FLY_HV2_FRAME_TYPE_DATA_END_STREAM)
 					__stream->stream_state = FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE;
 
+				/* end of post data */
+				if ((__stream->stream_state == FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE) && (__stream->peer_end_headers || __stream->can_response)){
+					__stream->can_response = true;
+					if (fly_hv2_response_event_handler(event, __stream) == -1)
+						goto emergency;
+				}
+
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_HEADERS:
@@ -1477,17 +1528,16 @@ frame_header_parse:
 				fly_hv2_send_frame_size_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			{
 				__unused bool r;
-				uint32_t window_size;
+				uint32_t p_window_size;
 
 				r = fly_hv2_flag(&pl);
-				window_size = fly_hv2_window_size_increment(&pl, &plbufc);
-				if (window_size == 0)
+				p_window_size = fly_hv2_window_size_increment(&pl, &plbufc);
+				if (p_window_size == 0)
 					fly_hv2_send_protocol_error(__stream, FLY_HV2_STREAM_ERROR);
 
-				if (sid == 0)
-					state->window_size += (ssize_t) window_size;
-				else
-					__stream->window_size += (ssize_t) window_size;
+				state->p_window_size += (ssize_t) p_window_size;
+				if (sid != 0)
+					__stream->p_window_size += (ssize_t) p_window_size;
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_CONTINUATION:
@@ -1542,7 +1592,10 @@ blocking:
 goaway:
 		return fly_hv2_goaway_handle(event, state);
 closed:
-		return fly_hv2_close_handle(event, state);
+		if (fly_hv2_close_handle(event, state) == -1)
+			return -1;
+
+		return fly_event_unregister(event);
 emergency:
 		fly_hv2_emergency(state);
 		continue;
@@ -1898,6 +1951,11 @@ int fly_send_data_frame_handler(fly_event_t *e)
 	return fly_send_data_frame(e, res);
 }
 
+static inline void fly_hv2_peer_window_size_update(fly_hv2_stream_t *stream, ssize_t send_size)
+{
+	stream->p_window_size -= send_size;
+	stream->state->p_window_size -= send_size;
+}
 static inline void fly_hv2_window_size_update(fly_hv2_stream_t *stream, ssize_t send_size)
 {
 	stream->window_size -= send_size;
@@ -1925,13 +1983,13 @@ int fly_send_data_frame(fly_event_t *e, fly_response_t *res)
 	}
 
 	/* frame size over */
-	if (stream->window_size <= 0 || state->window_size <= 0)
+	if (stream->p_window_size <= 0 || state->p_window_size <= 0)
 		goto cant_send;
 
 	if (res->response_len == 0)
 		goto success;
 
-	max_can_send = stream->window_size > state->window_size ? state->window_size : stream->window_size;
+	max_can_send = stream->p_window_size > state->p_window_size ? state->p_window_size : stream->p_window_size;
 	send_len = res->response_len;
 	if ((size_t) send_len < max_can_send)
 		flag |= FLY_HV2_FRAME_TYPE_DATA_END_STREAM;
@@ -1996,7 +2054,7 @@ send:
 				}
 				res->byte_from_start += numsend;
 				total += numsend;
-				fly_hv2_window_size_update(stream, numsend);
+				fly_hv2_peer_window_size_update(stream, numsend);
 
 				/* send all content */
 				if (total >= de->contlen)
@@ -2045,7 +2103,7 @@ send:
 				total += numsend;
 				res->byte_from_start += numsend;
 
-				fly_hv2_window_size_update(stream, numsend);
+				fly_hv2_peer_window_size_update(stream, numsend);
 			}
 		}
 		break;
@@ -2101,7 +2159,7 @@ send:
 				total += numsend;
 				res->byte_from_start += numsend;
 
-				fly_hv2_window_size_update(stream, numsend);
+				fly_hv2_peer_window_size_update(stream, numsend);
 			}
 		}
 		break;
@@ -2156,7 +2214,7 @@ send:
 						return FLY_SEND_DATA_FH_ERROR;
 				}
 
-				fly_hv2_window_size_update(stream, numsend);
+				fly_hv2_peer_window_size_update(stream, numsend);
 				total += numsend;
 			}
 		}
@@ -2220,7 +2278,10 @@ retry:
 			fly_pbfree(__s->pool, __s->payload);
 			fly_pbfree(__s->pool, __s);
 		}
-		goto retry;
+		if (state->send_count == 0)
+			break;
+		else
+			goto retry;
 	}
 	goto success;
 
@@ -3735,19 +3796,43 @@ int fly_hv2_parse_data(fly_hv2_stream_t *stream, uint32_t length, uint8_t *paylo
 	fly_request_t *req;
 
 	req = stream->request;
-	body = fly_body_init(req->ctx);
-	if (fly_unlikely_null(body))
+	if (req->body == NULL){
+		size_t content_length;
+		body = fly_body_init(req->ctx);
+		if (fly_unlikely_null(body))
+			return -1;
+
+		content_length = fly_content_length(req->header);
+		req->body = body;
+
+		bc = fly_pballoc(body->pool, sizeof(uint8_t)*content_length);
+		if (fly_unlikely_null(bc))
+			return -1;
+
+		fly_body_setting(body, bc, content_length);
+		body->next_ptr = bc;
+	}else{
+		body = req->body;
+		bc = body->next_ptr;
+	}
+
+	/* body overflow check */
+	if (body->next_ptr + length >= (body->body+body->body_len-1))
 		return -1;
 
-	req->body = body;
-	bc = fly_pballoc(body->pool, sizeof(uint8_t)*length);
-	if (fly_unlikely_null(bc))
-		return -1;
-
+	stream->window_size -= length;
+	stream->state->window_size -= length;
 	/* copy receive buffer to body content. */
 	fly_buffer_memcpy((char *) bc, (char *) payload, __c, length);
-	fly_body_setting(body, bc, length);
 
+	body->next_ptr += length;
+
+	/* send window udpate frame and recover window size */
+	if (fly_send_window_update_frame(stream, length, false) == -1)
+		return -1;
+
+	stream->window_size += length;
+	stream->state->window_size += length;
 	return 0;
 }
 
@@ -3941,6 +4026,8 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 			return -1;
 	}
 
+	if (fly_is_multipart_form_data(request->header))
+		fly_body_parse_multipart(request);
 __response:
 	fly_event_fase(e, RESPONSE);
 
