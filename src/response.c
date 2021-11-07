@@ -1238,7 +1238,7 @@ fly_response_t *fly_413_response(fly_request_t *req)
 		return NULL;
 
 	res->header = fly_header_init(req->ctx);
-	if (is_fly_request_http_v2(req))
+	if (req->request_line != NULL && is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
 	fly_response_http_version_from_request(res, req);
 	res->status_code = _413;
@@ -1250,9 +1250,29 @@ fly_response_t *fly_413_response(fly_request_t *req)
 	fly_add_server(res->header, is_fly_request_http_v2(req));
 	fly_add_date(res->header, is_fly_request_http_v2(req));
 	if (!is_fly_request_http_v2(req))
-		fly_add_connection(res->header, KEEP_ALIVE);
+		fly_add_connection(res->header, CLOSE);
 
 	return res;
+}
+
+int fly_413_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_413_response(req);
+	if (fly_unlikely_null(res))
+		return -1;
+
+	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
+	e->event_data = (void *) res;
+	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
+	return fly_event_register(e);
 }
 
 fly_response_t *fly_415_response(fly_request_t *req)

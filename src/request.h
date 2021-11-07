@@ -105,6 +105,7 @@ typedef struct fly_request fly_request_t;
 	((c)->flag & FLY_SSL_CONNECT)
 #define FLY_SSL_FROM_REQUEST(r)		\
 	((r)->connect->ssl)
+
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_LEN			(1)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_CHAIN_MAX		(100)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_PER_LEN		(10)
@@ -112,8 +113,9 @@ typedef struct fly_request fly_request_t;
 #define FLY_REQUEST_RECEIVE_ERROR				(-1)
 #define FLY_REQUEST_RECEIVE_SUCCESS				(1)
 #define FLY_REQUEST_RECEIVE_END					(0)
-#define FLY_REQUEST_RECEIVE_READ_BLOCKING			(2)
-#define FLY_REQUEST_RECEIVE_WRITE_BLOCKING			(3)
+#define FLY_REQUEST_RECEIVE_READ_BLOCKING		(2)
+#define FLY_REQUEST_RECEIVE_WRITE_BLOCKING		(3)
+#define FLY_REQUEST_RECEIVE_OVERFLOW			(4)
 int fly_request_receive(fly_sock_t fd, fly_connect_t *connect);
 int fly_request_event_handler(fly_event_t *event);
 
@@ -129,4 +131,5 @@ int fly_request_timeout_handler(fly_event_t *event);
 int fly_hv2_request_target_parse(fly_request_t *req);
 int fly_if_none_match(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_if_modified_since(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
+
 #endif

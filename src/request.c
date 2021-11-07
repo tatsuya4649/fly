@@ -76,6 +76,7 @@ int fly_request_line_init(fly_request_t *req)
 	req->request_line->method = NULL;
 	req->request_line->uri.ptr = NULL;
 	req->request_line->uri.len = 0;
+	req->request_line->version = NULL;
 	fly_request_query_init(&req->request_line->query);
 
 	if (req->connect->flag & FLY_SSL_CONNECT)
@@ -905,7 +906,7 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 				if (errno == EINTR)
 					continue;
 				else if FLY_BLOCKING(recvlen)
-					goto continuation;
+					goto read_blocking;
 				else if (errno == ECONNREFUSED)
 					goto end_of_connection;
 				else
@@ -915,8 +916,16 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 			}
 		}
 		total += recvlen;
-		if (fly_update_buffer(__buf, recvlen) == -1)
+		switch(fly_update_buffer(__buf, recvlen)){
+		case FLY_BUF_ADD_CHAIN_SUCCESS:
+			break;
+		case FLY_BUF_ADD_CHAIN_LIMIT:
+			goto overflow;
+		case FLY_BUF_ADD_CHAIN_ERROR:
 			goto buffer_error;
+		default:
+			FLY_NOT_COME_HERE
+		}
 	}
 end_of_connection:
 	connect->peer_closed = true;
@@ -932,7 +941,9 @@ read_blocking:
 write_blocking:
 	return FLY_REQUEST_RECEIVE_WRITE_BLOCKING;
 buffer_error:
-	return -1;
+	return FLY_REQUEST_RECEIVE_ERROR;
+overflow:
+	return FLY_REQUEST_RECEIVE_OVERFLOW;
 }
 
 int fly_request_disconnect_handler(fly_event_t *event)
@@ -1004,6 +1015,8 @@ int fly_request_event_handler(fly_event_t *event)
 		goto read_continuation;
 	case FLY_REQUEST_RECEIVE_WRITE_BLOCKING:
 		goto write_continuation;
+	case FLY_REQUEST_RECEIVE_OVERFLOW:
+		goto response_413;
 	default:
 		FLY_NOT_COME_HERE
 	}
@@ -1047,7 +1060,7 @@ __fase_header:
 
 	fly_event_fase(event, HEADER);
 	hdr_buf = fly_get_header_lines_buf(conn->buffer);
-	if (fly_unlikely_null(hdr_buf))
+	if (hdr_buf == NULL)
 		goto read_continuation;
 
 	switch (fly_reqheader_operation(request, hdr_buf)){
@@ -1092,7 +1105,10 @@ __fase_body:
 	if (body == NULL)
 		goto error;
 	request->body = body;
-	body_buf = fly_get_body_buf(fly_buffer_first_ptr(request->buffer));
+	body_buf = fly_get_body_buf(conn->buffer);
+	if (body_buf == NULL || conn->buffer->use_len < content_length)
+		goto read_continuation;
+
 	/* content-encoding */
 	fly_hdr_value *ev;
 	fly_encoding_type_t *et;
@@ -1114,6 +1130,9 @@ __fase_body:
 	}
 
 	fly_buffer_chain_release_from_length(body_buf, content_length);
+
+	if (fly_is_multipart_form_data(request->header))
+		fly_body_parse_multipart(request);
 
 __fase_end_of_parse:
 	fly_event_fase(event, RESPONSE);
@@ -1153,25 +1172,21 @@ __fase_end_of_parse:
 	goto response;
 /* TODO: error response event memory release */
 response_400:
-	if (fly_400_event(event, request) == -1)
-		goto error;
-	return 0;
+	return fly_400_event(event, request);
 response_404:
-	if (fly_404_event(event, request) == -1)
-		goto error;
-	return 0;
+	return fly_404_event(event, request);
 response_405:
-	if (fly_405_event(event, request) == -1)
-		goto error;
-	return 0;
+	return fly_405_event(event, request);
+response_413:
+	if (request->request_line == NULL && \
+			fly_request_line_init(request) == -1)
+		goto response_500;
+	request->request_line->version = fly_default_http_version();
+	return fly_413_event(event, request);
 response_414:
-	if (fly_414_event(event, request) == -1)
-		goto error;
-	return 0;
+	return fly_414_event(event, request);
 response_415:
-	if (fly_415_event(event, request) == -1)
-		goto error;
-	return 0;
+	return fly_415_event(event, request);
 response_500:
 	return 0;
 response_501:

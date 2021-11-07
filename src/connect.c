@@ -38,7 +38,7 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	conn->http_v = fly_default_http_version();
 	conn->v2_state = NULL;
 	conn->peer_closed = false;
-#ifndef DEBUG
+#if !defined(DEBUG) || defined(DEBUG_BODY)
 #define FLY_CONNECT_BUFFER_INIT_LEN			1
 #define FLY_CONNECT_BUFFER_PER_LEN			(1024*4)
 #else
