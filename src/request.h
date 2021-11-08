@@ -22,12 +22,8 @@
 
 #define FLY_REQUEST_LINE_MAX			8000
 #define FLY_REQUEST_URI_MAX				6000
-#ifdef DEBUG
-#define FLY_REQUEST_TIMEOUT				(2)
-#else
-#define FLY_REQUEST_TIMEOUT				(60)
-#endif
 #define FLY_REQUEST_NOREADY				100
+#define FLY_REQUEST_TIMEOUT				"FLY_REQUEST_TIMEOUT"
 
 struct fly_query{
 	char *ptr;
@@ -131,5 +127,6 @@ int fly_request_timeout_handler(fly_event_t *event);
 int fly_hv2_request_target_parse(fly_request_t *req);
 int fly_if_none_match(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_if_modified_since(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
+int fly_request_timeout(void);
 
 #endif

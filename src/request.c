@@ -1433,3 +1433,8 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 error:
 	return -1;
 }
+
+int fly_request_timeout(void)
+{
+	return fly_config_value_int(FLY_REQUEST_TIMEOUT);
+}

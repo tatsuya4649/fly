@@ -26,7 +26,8 @@ libfly_la-ftime.lo: ftime.c /usr/include/stdc-predef.h ftime.h \
  /usr/include/bits/unistd_ext.h /usr/include/string.h \
  /usr/include/assert.h /usr/include/errno.h /usr/include/bits/errno.h \
  /usr/include/linux/errno.h /usr/include/asm/errno.h \
- /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h
+ /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
+ ../config.h
 /usr/include/stdc-predef.h:
 ftime.h:
 /usr/include/sys/time.h:
@@ -82,3 +83,4 @@ util.h:
 /usr/include/asm/errno.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
+../config.h:

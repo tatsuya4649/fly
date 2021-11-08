@@ -30,6 +30,7 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 	ctx->listen_sock = __fly_listen_sock(ctx, pool);
 	ctx->max_response_content_length = fly_response_content_max_length();
 	ctx->max_request_length = fly_max_request_length();
+	ctx->request_timeout = fly_request_timeout();
 	ctx->response_encode_threshold = fly_encode_threshold();
 	if (ctx->listen_sock == NULL)
 		return NULL;
