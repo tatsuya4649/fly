@@ -594,7 +594,10 @@ int fly_add_allow(fly_hdr_ci *ci, fly_request_t *req)
 	value[vallen] = '\0';
 
 	/* add header */
-	return fly_header_add(ci, fly_header_name_length("Allow"), fly_header_value_length(value));
+	if (is_fly_request_http_v2(req))
+		return fly_header_add_v2(ci, fly_header_name_length("allow"), fly_header_value_length(value), false);
+	else
+		return fly_header_add(ci, fly_header_name_length("Allow"), fly_header_value_length(value));
 }
 
 int fly_add_server(fly_hdr_ci *ci, bool hv2)
