@@ -124,7 +124,8 @@ int fly_listen_connected(fly_event_t *e)
 		return fly_request_event_handler(e);
 	case V2:
 		e->event_data = (void *) conn;
-		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_hv2_end_timeout_handle, conn);
+		FLY_EVENT_END_HANDLER(e, fly_hv2_end_handle, conn);
+		FLY_EVENT_EXPIRED_HANDLER(e, fly_hv2_timeout_handle, conn);
 		return fly_hv2_init_handler(e);
 	default:
 		FLY_NOT_COME_HERE
@@ -146,6 +147,7 @@ static fly_connect_t *fly_http_connected(fly_sock_t fd, fly_sock_t cfd, fly_even
 int fly_accept_listen_socket_handler(struct fly_event *event)
 {
 	fly_connect_t *conn;
+	fly_context_t *ctx;
 	fly_sock_t conn_sock;
 	fly_sock_t listen_sock = event->fd;
 	struct sockaddr_storage addr;
@@ -153,6 +155,7 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	int flag;
 	fly_event_t *ne;
 
+	ctx = fly_context_from_event(event);
 	addrlen = sizeof(struct sockaddr_storage);
 	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
 	memset(&addr, '\0', sizeof(addr));
@@ -174,7 +177,7 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	ne->read_or_write = FLY_READ;
 	FLY_EVENT_HANDLER(ne, fly_recognize_protocol_of_connected);
 	ne->flag = 0;
-	fly_sec(&ne->timeout, FLY_REQUEST_TIMEOUT);
+	fly_sec(&ne->timeout, ctx->request_timeout);
 	ne->tflag = 0;
 	ne->eflag = 0;
 	ne->expired = false;

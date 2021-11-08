@@ -267,10 +267,12 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	fly_response_t *res;
 	fly_request_t *req;
 	fly_connect_t *con;
+	fly_context_t *ctx;
 
 	res = (fly_response_t *) e->event_data;
 	req = res->request;
 	con = req->connect;
+	ctx = fly_context_from_event(e);
 
 	fly_request_release(req);
 	fly_response_release(res);
@@ -282,7 +284,7 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->flag = FLY_MODIFY;
 	e->tflag = 0;
 	e->eflag = 0;
-	fly_sec(&e->timeout, FLY_REQUEST_TIMEOUT);
+	fly_sec(&e->timeout, ctx->request_timeout);
 	FLY_EVENT_HANDLER(e, fly_request_event_handler);
 	e->event_data = (void *) req;
 	e->available = false;

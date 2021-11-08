@@ -456,6 +456,7 @@ extern struct fly_hv2_static_table static_table[];
 #define FLY_HV2_STATIC_TABLE_LENGTH			\
 	((int) sizeof(static_table)/sizeof(struct fly_hv2_static_table))
 int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);
-int fly_hv2_end_timeout_handle(fly_event_t *e);
+int fly_hv2_end_handle(fly_event_t *e);
+int fly_hv2_timeout_handle(fly_event_t *e);
 
 #endif
