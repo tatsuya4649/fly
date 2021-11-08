@@ -39,9 +39,10 @@ libfly_la-cache.lo: cache.c /usr/include/stdc-predef.h cache.h \
  /usr/include/errno.h /usr/include/bits/errno.h \
  /usr/include/linux/errno.h /usr/include/asm/errno.h \
  /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
- bllist.h mount.h /usr/include/dirent.h /usr/include/bits/dirent.h \
- /usr/include/bits/posix1_lim.h /usr/include/bits/local_lim.h \
- /usr/include/linux/limits.h /usr/include/bits/dirent_ext.h \
+ ../config.h bllist.h mount.h /usr/include/dirent.h \
+ /usr/include/bits/dirent.h /usr/include/bits/posix1_lim.h \
+ /usr/include/bits/local_lim.h /usr/include/linux/limits.h \
+ /usr/include/bits/dirent_ext.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include-fixed/limits.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include-fixed/syslimits.h \
  /usr/include/limits.h /usr/include/bits/posix2_lim.h \
@@ -187,6 +188,7 @@ util.h:
 /usr/include/asm/errno.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
+../config.h:
 bllist.h:
 mount.h:
 /usr/include/dirent.h:
