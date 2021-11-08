@@ -911,7 +911,7 @@ __unused __fly_static int __fly_same_type(char *t1, char *t2)
 	return 0;
 }
 
-__fly_static int __fly_same_type_n(const char *t1, const char *t2, size_t n)
+__unused __fly_static int __fly_same_type_n(const char *t1, const char *t2, size_t n)
 {
 	size_t i=0;
 	while(__fly_lu_ignore(*t1++) == __fly_lu_ignore(*t2++))
@@ -1040,7 +1040,7 @@ __fly_static void __fly_mime_ext_add(struct __fly_mime *__ne, struct __fly_accep
 	return;
 }
 
-__fly_static void __fly_param_copyl(char *dist, char *src, size_t maxlen)
+__unused __fly_static void __fly_param_copyl(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src) && !__fly_equal(*src)){
@@ -1052,7 +1052,7 @@ __fly_static void __fly_param_copyl(char *dist, char *src, size_t maxlen)
 	*dist = '\0';
 }
 
-__fly_static void __fly_param_copyr(char *dist, char *src, size_t maxlen)
+__unused __fly_static void __fly_param_copyr(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src)){
@@ -1064,7 +1064,7 @@ __fly_static void __fly_param_copyr(char *dist, char *src, size_t maxlen)
 	*dist = '\0';
 }
 
-__fly_static void __fly_param_copyql(char *dist, char *src, size_t maxlen)
+__unused __fly_static void __fly_param_copyql(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src) && !__fly_equal(*src)){
@@ -1076,7 +1076,7 @@ __fly_static void __fly_param_copyql(char *dist, char *src, size_t maxlen)
 	*dist = '\0';
 }
 
-__fly_static void __fly_param_copyqr(char *dist, char *src, size_t maxlen)
+__unused __fly_static void __fly_param_copyqr(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src) && !__fly_quoted(*src)){
@@ -1088,7 +1088,7 @@ __fly_static void __fly_param_copyqr(char *dist, char *src, size_t maxlen)
 	}
 	*dist = '\0';
 }
-__fly_static void  __fly_ext_param_copyl(char *dist, char *src, size_t maxlen)
+__unused __fly_static void  __fly_ext_param_copyl(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src) && !__fly_equal(*src)){
@@ -1099,7 +1099,7 @@ __fly_static void  __fly_ext_param_copyl(char *dist, char *src, size_t maxlen)
 	}
 	*dist = '\0';
 }
-__fly_static void  __fly_ext_param_copyr(char *dist, char *src, size_t maxlen)
+__unused __fly_static void  __fly_ext_param_copyr(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src)){
