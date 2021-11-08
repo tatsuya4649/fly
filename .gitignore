@@ -8,7 +8,7 @@ lib/
 /log/
 /conf/
 /mnt/
-/debug/
+/debug/*
 /autom4te.cache/
 /fly_server.egg-info/
 __pycache__/

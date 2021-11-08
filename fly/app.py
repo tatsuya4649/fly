@@ -18,10 +18,23 @@ from .env import FlyEnv
 from .response import *
 
 class FlyMethod(Enum):
-    GET = "GET"
-    POST = "POST"
+    GET         = "GET"
+    POST        = "POST"
+    HEAD        = "HEAD"
+    OPTIONS     = "OPTIONS"
+    PUT         = "PUT"
+    DELETE      = "DELETE"
+    CONNECT     = "CONNECT"
+    TRACE       = "TRACE"
+    PATCH       = "PATCH"
 
-class Fly(FlyMount, FlyRoute, _fly_server):
+class _Fly:
+    def __new__(cls, *args, **kwargs):
+        if not hasattr(cls, "_instance"):
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
     def __init__(
         self,
         config_path=None,
@@ -29,11 +42,23 @@ class Fly(FlyMount, FlyRoute, _fly_server):
         FlyMount.__init__(self)
         FlyRoute.__init__(self)
 
-        # socket make, bind, listen
-        _fly_server.__init__(
-            self,
-            config_path = config_path,
-        )
+        if config_path is not None:
+            if not isinstance(config_path, str):
+                raise TypeError("config_path must be str type.")
+
+            if not os.path.isfile(config_path):
+                raise ValueError("config_path not exiswt.")
+            if not os.access(config_path, os.R_OK):
+                raise ValueError("config_path read permission denied.")
+
+        # for Singleton
+        if not hasattr(self, "_run_server"):
+            setattr(self, "_run_server", True)
+            # socket make, bind, listen
+            _fly_server.__init__(
+                self,
+                config_path = config_path,
+            )
 
     def mount(self, path):
         super().mount(path)
@@ -41,14 +66,11 @@ class Fly(FlyMount, FlyRoute, _fly_server):
         self._mount(path)
 
     def route(self, path, method):
-        if not isinstance(path, str):
+        if not isinstance(path, str) and not isinstance(method, FlyMethod):
             raise TypeError(
-                "path must be str type."
+                "path must be str type and FlyMethod."
             )
-        if not isinstance(method, FlyMethod):
-            raise TypeError(
-                "method must be FlyMethod."
-            )
+
         def __route(func):
             if not callable(func):
                 raise TypeError(
@@ -72,6 +94,27 @@ class Fly(FlyMount, FlyRoute, _fly_server):
 
     def post(self, path):
         return self.route(path, FlyMethod.POST)
+
+    def head(self, path):
+        return self.route(path, FlyMethod.HEAD)
+
+    def options(self, path):
+        return self.route(path, FlyMethod.OPTIONS)
+
+    def put(self, path):
+        return self.route(path, FlyMethod.PUT)
+
+    def delete(self, path):
+        return self.route(path, FlyMethod.DELETE)
+
+    def connect(self, path):
+        return self.route(path, FlyMethod.CONNECT)
+
+    def trace(self, path):
+        return self.route(path, FlyMethod.TRACE)
+
+    def patch(self, path):
+        return self.route(path, FlyMethod.PATCH)
 
     def run(self, daemon=False):
         if self.mounts_count == 0 and len(self.routes) == 0:

@@ -485,9 +485,7 @@ void fly_remove_pidfile(void)
 
 	pidfd = open(FLY_PID_FILE, O_RDONLY);
 	if (pidfd == -1)
-		FLY_STDERR_ERROR(
-			"open pid file error for removing in destructor."
-		);
+		return;
 
 	memset(pidbuf, 0, FLY_PID_MAXSTRLEN);
 	res = read(pidfd, pidbuf, FLY_PID_MAXSTRLEN);
