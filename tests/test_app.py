@@ -1,5 +1,6 @@
 import pytest
 import os
+import stat
 from fly import Fly
 from fly.app import FlyMethod
 
@@ -35,10 +36,14 @@ def test_fly_inti():
 
 TEST_READ_PATH="test_read.conf"
 def test_fly_inti():
+    open(TEST_READ_PATH, "w")
+    os.chmod(path=TEST_READ_PATH, mode=stat.S_IWRITE)
     with pytest.raises(
         ValueError
     ):
         Fly(config_path=TEST_READ_PATH)
+
+    os.remove(TEST_READ_PATH)
 
 def test_fly_singleton():
     a = Fly()
