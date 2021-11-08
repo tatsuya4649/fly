@@ -33,8 +33,8 @@ libfly_la-mime.lo: mime.c /usr/include/stdc-predef.h mime.h \
  /usr/include/strings.h /usr/include/assert.h /usr/include/errno.h \
  /usr/include/bits/errno.h /usr/include/linux/errno.h \
  /usr/include/asm/errno.h /usr/include/asm-generic/errno.h \
- /usr/include/asm-generic/errno-base.h bllist.h request.h context.h \
- server.h /usr/include/sys/ioctl.h /usr/include/bits/ioctls.h \
+ /usr/include/asm-generic/errno-base.h ../config.h bllist.h request.h \
+ context.h server.h /usr/include/sys/ioctl.h /usr/include/bits/ioctls.h \
  /usr/include/asm/ioctls.h /usr/include/asm-generic/ioctls.h \
  /usr/include/linux/ioctl.h /usr/include/asm/ioctl.h \
  /usr/include/asm-generic/ioctl.h /usr/include/bits/ioctl-types.h \
@@ -178,6 +178,7 @@ util.h:
 /usr/include/asm/errno.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
+../config.h:
 bllist.h:
 request.h:
 context.h:

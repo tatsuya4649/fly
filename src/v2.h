@@ -2,6 +2,7 @@
 #define _V2_H
 
 #include <stdint.h>
+#include <arpa/inet.h>
 #include "alloc.h"
 #include "util.h"
 #include "event.h"
@@ -115,6 +116,7 @@ struct fly_hv2_state{
 	void							*emergency_ptr;
 
 	ssize_t							 window_size;
+	ssize_t							 p_window_size;
 	/* connection setting value by SETTINGS frame */
 #define FLY_HV2_HEADER_TABLE_SIZE_DEFAULT		(4096)	/* unit: octet*/
 	fly_settings_t					p_header_table_size;
@@ -177,6 +179,7 @@ struct fly_hv2_stream{
 	struct fly_hv2_stream			*deps;
 	struct fly_hv2_stream			*dnext;
 	struct fly_hv2_stream			*dprev;
+	ssize_t							p_window_size;
 	ssize_t							window_size;
 	struct fly_queue				frames;
 	int 							frame_count;
@@ -204,6 +207,14 @@ typedef struct fly_hv2_stream fly_hv2_stream_t;
 __unused static struct fly_hv2_stream *fly_stream_debug(struct fly_bllist *__b)
 {
 	return fly_bllist_data(__b, struct fly_hv2_stream, blelem);
+}
+__unused static struct fly_hv2_send_frame *fly_send_frame_debug(struct fly_queue *__q)
+{
+	return fly_queue_data(__q, struct fly_hv2_send_frame, qelem);
+}
+__unused static struct fly_hv2_send_frame *fly_send_frame_state_debug(struct fly_queue *__q)
+{
+	return fly_queue_data(__q, struct fly_hv2_send_frame, sqelem);
 }
 #endif
 /* 1~256 */
@@ -445,6 +456,7 @@ extern struct fly_hv2_static_table static_table[];
 #define FLY_HV2_STATIC_TABLE_LENGTH			\
 	((int) sizeof(static_table)/sizeof(struct fly_hv2_static_table))
 int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);
-int fly_hv2_end_timeout_handle(fly_event_t *e);
+int fly_hv2_end_handle(fly_event_t *e);
+int fly_hv2_timeout_handle(fly_event_t *e);
 
 #endif

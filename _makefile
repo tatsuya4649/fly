@@ -28,6 +28,9 @@ TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_route.cpp test_re
 ifdef DEBUG
 MACROS := $(MACROS) -D DEBUG
 endif
+ifdef DEBUG_BODY
+MACROS := $(MACROS) -D DEBUG_BODY
+endif
 ifdef DEBUG
 PYTHON := python3.8
 else
@@ -78,8 +81,11 @@ $(TESTPRE)%.c:
 
 clean_lib:
 	@rm -f $(LIBDIR)/lib$(TARGET).so*
+	@rm -f $(LIBDIR)/_fly_server*
 
 clean: clean_lib
-	rm -f $(BUILDDIR)/$(TARGET)  *.o
+	rm -f src/*.o
+	rm -f src/*.lo
 	rm -f .*.swp
+	rm -f fly/_fly_server.*
 	rm -f $(TESTDIR)/__fly_*

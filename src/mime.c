@@ -11,7 +11,8 @@ fly_mime_type_t mimes[] = {
 	{__FLY_MTYPE_SET(text, javascript), __FLY_MTYPE_EXTS("js", NULL)},
 	{__FLY_MTYPE_SET(text, richtext), __FLY_MTYPE_EXTS("rtf", NULL)},
 	{__FLY_MTYPE_SET(application, json), __FLY_MTYPE_EXTS(NULL)},
-	{__FLY_MTYPE_SET(application, octet_stream), __FLY_MTYPE_EXTS(NULL)}
+	{__FLY_MTYPE_SET(application, octet_stream), __FLY_MTYPE_EXTS(NULL)},
+	{ fly_mime_multipart_form_data, "multipart/form-data", __FLY_MTYPE_EXTS(NULL)}
 };
 #define FLY_MIMES_LENGTH			\
 	((int) (sizeof(mimes)/sizeof(fly_mime_type_t)))
@@ -121,6 +122,17 @@ fly_mime_type_t *fly_mime_type_from_str(const char *str, size_t len)
 	for (fly_mime_type_t *m=mimes; m->extensions!=NULL; m++){
 		if (len == strlen(m->name) &&  \
 				(strncmp(str, m->name, len) == 0))
+			return m;
+	}
+	/* not found */
+	return NULL;
+}
+
+fly_mime_type_t *fly_mime_type_from_strn(const char *str, size_t len)
+{
+	for (fly_mime_type_t *m=mimes; m->extensions!=NULL; m++){
+		if (len >= strlen(m->name) &&  \
+				(strncmp(str, m->name, strlen(m->name)) == 0))
 			return m;
 	}
 	/* not found */
@@ -880,6 +892,7 @@ static struct __fly_mime_type __fly_mime_type_list[] = {
 	__FLY_MIME_TYPE(image),
 	__FLY_MIME_TYPE(application),
 	__FLY_MIME_TYPE_ASTERISK,
+	__FLY_MIME_TYPE(multipart),
 	__FLY_MIME_TYPE(unknown),
 	__FLY_MIME_NULL
 };
@@ -898,7 +911,7 @@ __unused __fly_static int __fly_same_type(char *t1, char *t2)
 	return 0;
 }
 
-__fly_static int __fly_same_type_n(const char *t1, const char *t2, size_t n)
+__unused __fly_static int __fly_same_type_n(const char *t1, const char *t2, size_t n)
 {
 	size_t i=0;
 	while(__fly_lu_ignore(*t1++) == __fly_lu_ignore(*t2++))
@@ -1027,7 +1040,7 @@ __fly_static void __fly_mime_ext_add(struct __fly_mime *__ne, struct __fly_accep
 	return;
 }
 
-__fly_static void __fly_param_copyl(char *dist, char *src, size_t maxlen)
+__unused __fly_static void __fly_param_copyl(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src) && !__fly_equal(*src)){
@@ -1039,7 +1052,7 @@ __fly_static void __fly_param_copyl(char *dist, char *src, size_t maxlen)
 	*dist = '\0';
 }
 
-__fly_static void __fly_param_copyr(char *dist, char *src, size_t maxlen)
+__unused __fly_static void __fly_param_copyr(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src)){
@@ -1051,7 +1064,7 @@ __fly_static void __fly_param_copyr(char *dist, char *src, size_t maxlen)
 	*dist = '\0';
 }
 
-__fly_static void __fly_param_copyql(char *dist, char *src, size_t maxlen)
+__unused __fly_static void __fly_param_copyql(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src) && !__fly_equal(*src)){
@@ -1063,7 +1076,7 @@ __fly_static void __fly_param_copyql(char *dist, char *src, size_t maxlen)
 	*dist = '\0';
 }
 
-__fly_static void __fly_param_copyqr(char *dist, char *src, size_t maxlen)
+__unused __fly_static void __fly_param_copyqr(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src) && !__fly_quoted(*src)){
@@ -1075,7 +1088,7 @@ __fly_static void __fly_param_copyqr(char *dist, char *src, size_t maxlen)
 	}
 	*dist = '\0';
 }
-__fly_static void  __fly_ext_param_copyl(char *dist, char *src, size_t maxlen)
+__unused __fly_static void  __fly_ext_param_copyl(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src) && !__fly_equal(*src)){
@@ -1086,7 +1099,7 @@ __fly_static void  __fly_ext_param_copyl(char *dist, char *src, size_t maxlen)
 	}
 	*dist = '\0';
 }
-__fly_static void  __fly_ext_param_copyr(char *dist, char *src, size_t maxlen)
+__unused __fly_static void  __fly_ext_param_copyr(char *dist, char *src, size_t maxlen)
 {
 	size_t i=0;
 	while(__fly_token(*src)){

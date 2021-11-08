@@ -326,15 +326,9 @@ char *fly_chain_string(char *buffer, fly_hdr_c *chain, char *ebuffer)
 
 fly_buffer_c *fly_get_header_lines_buf(fly_buffer_t *__buf)
 {
-	fly_buffer_c *__c;
-//	char *header;
-
-	__c = fly_buffer_first_chain(__buf);
-	return __c;
-//	header = fly_buffer_strstr_after(__c, FLY_CRLF);
-//	if (header == NULL)
-//		return NULL;
-//	return *header != '\0' ? header : NULL;
+	if (__buf->use_len == 0)
+		return NULL;
+	return fly_buffer_first_chain(__buf);
 }
 
 long long fly_content_length(fly_hdr_ci *ci)
@@ -352,6 +346,27 @@ long long fly_content_length(fly_hdr_ci *ci)
 		}
 	}
 	return 0;
+}
+
+bool fly_is_multipart_form_data(fly_hdr_ci *ci)
+{
+	if (ci->chain_count == 0)
+		return false;
+
+	struct fly_bllist *__b;
+	fly_hdr_c *c;
+	fly_mime_type_t *__m;
+
+	fly_for_each_bllist(__b, &ci->chain){
+		c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (c->name_len>0 && (strcmp(c->name, "Content-Type") == 0 || \
+				strcmp(c->name, "content-type") == 0) && c->value){
+			__m = fly_mime_type_from_strn(c->value, c->value_len);
+			if (__m != NULL && __m->type == fly_mime_multipart_form_data)
+				return true;
+		}
+	}
+	return false;
 }
 
 int fly_connection(fly_hdr_ci *ci)

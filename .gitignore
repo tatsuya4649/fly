@@ -25,7 +25,9 @@ gdb.*
 *.crt
 *.key
 *.lo
+*.la
 .deps
 .libs
 stamp-h1
 Makefile
+update

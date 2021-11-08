@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stddef.h>
+#include "../config.h"
 
 #ifndef __GNUC__
 #define __attribute__((x))		/* NOTHING */
@@ -49,5 +50,12 @@ int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr
 		(type *) ((char *) __p - offsetof(type, member));	\
 	})
 
+#ifdef WORDS_BIGENDIAN
+#define FLY_BIG_ENDIAN			1
+#undef FLY_LITTLE_ENDIAN
+#else
+#define FLY_LITTLE_ENDIAN			1
+#undef FLY_BIG_ENDIAN
+#endif
 
 #endif

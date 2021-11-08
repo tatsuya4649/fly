@@ -56,7 +56,7 @@ libfly_la-worker.lo: worker.c /usr/include/stdc-predef.h \
  /usr/include/bits/errno.h /usr/include/linux/errno.h \
  /usr/include/asm/errno.h /usr/include/asm-generic/errno.h \
  /usr/include/asm-generic/errno-base.h /usr/include/bits/types/error_t.h \
- server.h /usr/include/sys/ioctl.h /usr/include/bits/ioctls.h \
+ ../config.h server.h /usr/include/sys/ioctl.h /usr/include/bits/ioctls.h \
  /usr/include/asm/ioctls.h /usr/include/asm-generic/ioctls.h \
  /usr/include/linux/ioctl.h /usr/include/asm/ioctl.h \
  /usr/include/asm-generic/ioctl.h /usr/include/bits/ioctl-types.h \
@@ -243,6 +243,7 @@ util.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
 /usr/include/bits/types/error_t.h:
+../config.h:
 server.h:
 /usr/include/sys/ioctl.h:
 /usr/include/bits/ioctls.h:
