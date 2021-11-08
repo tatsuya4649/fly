@@ -69,16 +69,35 @@ static inline uint32_t fly_hv2_length_from_frame_header(fly_hv2_frame_header_t *
 {
 	uint32_t length=0;
 	if (((fly_buf_p) __fh) + (int) (FLY_HV2_FRAME_HEADER_LENGTH_LEN/FLY_HV2_OCTET_LEN) > __c->lptr){
-		length |= (uint32_t) (*__fh)[0] << 16;
-		__fh = fly_update_chain(&__c, __fh, 1);
-		length |= (uint32_t) (*__fh)[0] << 8;
-		__fh = fly_update_chain(&__c, __fh, 1);
-		length |= (uint32_t) (*__fh)[0];
-		__fh = fly_update_chain(&__c, __fh, 1);
+		uint8_t *__l=(uint8_t *) &length;
+		uint8_t *__ptr=(uint8_t *) *__fh;
+#ifdef FLY_BIG_ENDIAN
+		*(__l+0) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__l+1) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__l+2) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+#else
+		*(__l+2) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__l+1) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__l+0) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+#endif
 	}else{
-		length |= (uint32_t) (*__fh)[0] << 16;
-		length |= (uint32_t) (*__fh)[1] << 8;
-		length |= (uint32_t) (*__fh)[2];
+		uint8_t *__l=(uint8_t *) &length;
+#ifdef FLY_BIG_ENDIAN
+		*(__l+0) = (uint8_t) (*__fh)[0];
+		*(__l+1) = (uint8_t) (*__fh)[1];
+		*(__l+2) = (uint8_t) (*__fh)[2];
+#else
+		*(__l+0) = (uint8_t) (*__fh)[2];
+		*(__l+1) = (uint8_t) (*__fh)[1];
+		*(__l+2) = (uint8_t) (*__fh)[0];
+#endif
+//		length |= (uint32_t) (*__fh)[2] << 0;
 	}
 	return length;
 }
@@ -125,20 +144,41 @@ static inline uint32_t fly_hv2_sid_from_frame_header(fly_hv2_frame_header_t *__f
 	uint32_t __sid=0;
 	if ((fly_buf_p) __fh + 5 + (int) ((FLY_HV2_FRAME_HEADER_SID_LEN+FLY_HV2_FRAME_HEADER_R_LEN)/FLY_HV2_OCTET_LEN) > __c->lptr){
 
-		__fh = fly_update_chain(&__c, __fh, 5);
-		__sid |= (uint32_t) (*__fh)[0] & ((1<<7)-1) << 24;
-		__fh = fly_update_chain(&__c, __fh, 1);
-		__sid |= (uint32_t) (*__fh)[0] << 16;
-		__fh = fly_update_chain(&__c, __fh, 1);
-		__sid |= (uint32_t) (*__fh)[0] << 8;
-		__fh = fly_update_chain(&__c, __fh, 1);
-		__sid |= (uint32_t) (*__fh)[0];
+		uint8_t *__s = (uint8_t *) &__sid;
+		uint8_t *__ptr = (uint8_t *) *__fh;
+		__ptr = fly_update_chain(&__c, __ptr, 5);
+#ifdef FLY_BIG_ENDIAN
+		*(__s+0) = *__ptr & ((1<<7) - 1);
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__s+1) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__s+2) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__s+3) = *__ptr;
+#else
+		*(__s+3) = *__ptr & ((1<<7) - 1);
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__s+2) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__s+1) = *__ptr;
+		__ptr = fly_update_chain(&__c, __ptr, 1);
+		*(__s+0) = *__ptr;
+#endif
 	}else{
+		uint8_t *__s = (uint8_t *) &__sid;
+#ifdef FLY_BIG_ENDIAN
 		/* clear R bit */
-		__sid |= ((uint32_t) (*__fh)[5] & ((1<<7)-1)) << 24;
-		__sid |= (uint32_t) (*__fh)[6] << 16;
-		__sid |= (uint32_t) (*__fh)[7] << 8;
-		__sid |= (uint32_t) (*__fh)[8];
+		*(__s+0) = (uint8_t) (*__fh)[5] & ((1<<7)-1);
+		*(__s+1) = (uint8_t) (*__fh)[6];
+		*(__s+2) = (uint8_t) (*__fh)[7];
+		*(__s+3) = (uint8_t) (*__fh)[8];
+#else
+		*(__s+0) = (uint8_t) (*__fh)[8];
+		*(__s+1) = (uint8_t) (*__fh)[7];
+		*(__s+2) = (uint8_t) (*__fh)[6];
+		/* clear R bit */
+		*(__s+3) = (uint8_t) (*__fh)[5] & ((1<<7)-1);
+#endif
 	}
 	return __sid;
 }
@@ -157,15 +197,16 @@ void fly_hv2_default_settings(fly_hv2_state_t *state)
 	state->p_header_table_size = FLY_HV2_HEADER_TABLE_SIZE_DEFAULT;
 	state->p_max_concurrent_streams = FLY_HV2_MAX_CONCURRENT_STREAMS_DEFAULT;
 	state->p_initial_window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
+	state->initial_window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
 	state->p_max_frame_size = FLY_HV2_MAX_FRAME_SIZE_DEFAULT;
 	state->p_max_header_list_size = FLY_HV2_MAX_HEADER_LIST_SIZE_DEFAULT;
 	state->p_enable_push = FLY_HV2_ENABLE_PUSH_DEFAULT;
 	state->header_table_size = FLY_HV2_HEADER_TABLE_SIZE_DEFAULT;
 	state->max_concurrent_streams = FLY_HV2_MAX_CONCURRENT_STREAMS_DEFAULT;
-	state->initial_window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
 	state->max_frame_size = FLY_HV2_MAX_FRAME_SIZE_DEFAULT;
 	state->max_header_list_size = FLY_HV2_MAX_HEADER_LIST_SIZE_DEFAULT;
 	state->enable_push = FLY_HV2_ENABLE_PUSH_DEFAULT;
+	state->p_window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
 	state->window_size = FLY_HV2_INITIAL_WINDOW_SIZE_DEFAULT;
 }
 
@@ -251,7 +292,8 @@ static fly_hv2_stream_t *__fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid
 	__s->weight = FLY_HV2_STREAM_DEFAULT_WEIGHT;
 	__s->frame_count = 0;
 	__s->yetsend_count = 0;
-	__s->window_size = state->p_initial_window_size;
+	__s->window_size = state->initial_window_size;
+	__s->p_window_size = state->p_initial_window_size;
 	__s->yetack_count = 0;
 	__s->end_send_headers = false;
 	__s->end_send_data = false;
@@ -342,10 +384,6 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 		for (struct fly_queue *__q=stream->frames.next; __q!=&stream->frames; __q=__n){
 			__n = __q->next;
 			__f = fly_queue_data(__q, struct fly_hv2_frame, felem);
-#ifdef DEBUG
-			assert(__f->type == FLY_HV2_FRAME_TYPE_HEADERS || \
-					__f->type == FLY_HV2_FRAME_TYPE_CONTINUATION);
-#endif
 			fly_hv2_release_frame(__f);
 		}
 	}
@@ -486,6 +524,10 @@ void fly_hv2_state_release(fly_hv2_state_t *state)
 
 int fly_hv2_init_handler(fly_event_t *e)
 {
+#if !defined FLY_BIG_ENDIAN && !defined FLY_LITTLE_ENDIAN
+	/* can't recognize endian */
+	assert(0);
+#endif
 	fly_connect_t *conn;
 	fly_buffer_t *buf;
 
@@ -626,31 +668,63 @@ static inline uint64_t fly_opaque_data(uint8_t **pl, fly_buffer_c **__c)
 	uint64_t opaque_data=0;
 
 	if ((fly_buf_p) (*pl+8) > (*__c)->lptr){
-		opaque_data |= (uint64_t) (*pl)[0] << 56;
+		uint8_t *__o = (uint8_t *) &opaque_data;
+#ifdef FLY_BIG_ENDIAN
+		*(__o + 0) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		opaque_data |= (uint64_t) (*pl)[0] << 48;
+		*(__o + 1) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		opaque_data |= (uint64_t) (*pl)[0] << 40;
+		*(__o + 2) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		opaque_data |= (uint64_t) (*pl)[0] << 32;
+		*(__o + 3) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		opaque_data |= (uint64_t) (*pl)[0] << 24;
+		*(__o + 4) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		opaque_data |= (uint64_t) (*pl)[0] << 16;
+		*(__o + 5) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		opaque_data |= (uint64_t) (*pl)[0] << 8;
+		*(__o + 6) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		opaque_data |= (uint64_t) (*pl)[0] << 0;
+		*(__o + 7) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
+#else
+		*(__o + 7) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__o + 6) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__o + 5) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__o + 4) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__o + 3) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__o + 2) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__o + 1) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__o + 0) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+#endif
 	}else{
-		opaque_data |= (uint64_t) (*pl)[0] << 56;
-		opaque_data |= (uint64_t) (*pl)[1] << 48;
-		opaque_data |= (uint64_t) (*pl)[2] << 40;
-		opaque_data |= (uint64_t) (*pl)[3] << 32;
-		opaque_data |= (uint64_t) (*pl)[4] << 24;
-		opaque_data |= (uint64_t) (*pl)[5] << 16;
-		opaque_data |= (uint64_t) (*pl)[6] << 8;
-		opaque_data |= (uint64_t) (*pl)[7] << 0;
+		uint8_t *__o = (uint8_t *) &opaque_data;
+#ifdef FLY_BIG_ENDIAN
+		*(__o + 0) = (uint8_t) (*pl)[0];
+		*(__o + 1) = (uint8_t) (*pl)[1];
+		*(__o + 2) = (uint8_t) (*pl)[2];
+		*(__o + 3) = (uint8_t) (*pl)[3];
+		*(__o + 4) = (uint8_t) (*pl)[4];
+		*(__o + 5) = (uint8_t) (*pl)[5];
+		*(__o + 6) = (uint8_t) (*pl)[6];
+		*(__o + 7) = (uint8_t) (*pl)[7];
+#else
+		*(__o + 0) = (uint8_t) (*pl)[7];
+		*(__o + 1) = (uint8_t) (*pl)[6];
+		*(__o + 2) = (uint8_t) (*pl)[5];
+		*(__o + 3) = (uint8_t) (*pl)[4];
+		*(__o + 4) = (uint8_t) (*pl)[3];
+		*(__o + 5) = (uint8_t) (*pl)[2];
+		*(__o + 6) = (uint8_t) (*pl)[1];
+		*(__o + 7) = (uint8_t) (*pl)[0];
+#endif
 
 		*pl += (int) (FLY_HV2_FRAME_TYPE_PING_OPEQUE_DATA_LEN)/FLY_HV2_OCTET_LEN;
 	}
@@ -659,26 +733,46 @@ static inline uint64_t fly_opaque_data(uint8_t **pl, fly_buffer_c **__c)
 
 static inline uint32_t __fly_hv2_32bit(uint8_t **pl, fly_buffer_c **__c)
 {
-	uint32_t uint31 = 0;
+	uint32_t uint32 = 0;
 
 	if ((fly_buf_p) (*pl+4) > (*__c)->lptr){
-		uint31 |= (uint32_t) (*pl)[0] << 24;
+		uint8_t *__u = (uint8_t *) &uint32;
+#ifdef FLY_BIG_ENDIAN
+		*(__u+0) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		uint31 |= (uint32_t) (*pl)[0] << 16;
+		*(__u+1) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		uint31 |= (uint32_t) (*pl)[0] << 8;
+		*(__u+2) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		uint31 |= (uint32_t) (*pl)[0];
+		*(__u+3) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
+#else
+		*(__u+3) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__u+2) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__u+1) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__u+0) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+#endif
 	}else{
-		uint31 |= (uint32_t) (*pl)[0] << 24;
-		uint31 |= (uint32_t) (*pl)[1] << 16;
-		uint31 |= (uint32_t) (*pl)[2] << 8;
-		uint31 |= (uint32_t) (*pl)[3];
+		uint8_t *__u = (uint8_t *) &uint32;
+#ifdef FLY_BIG_ENDIAN
+		*(__u+0) = (uint8_t) (*pl)[0];
+		*(__u+1) = (uint8_t) (*pl)[1];
+		*(__u+2) = (uint8_t) (*pl)[2];
+		*(__u+3) = (uint8_t) (*pl)[3];
+#else
+		*(__u+0) = (uint8_t) (*pl)[3];
+		*(__u+1) = (uint8_t) (*pl)[2];
+		*(__u+2) = (uint8_t) (*pl)[1];
+		*(__u+3) = (uint8_t) (*pl)[0];
+#endif
 
 		*pl += (int) (FLY_HV2_FRAME_TYPE_PRIORITY_E_LEN+FLY_HV2_FRAME_TYPE_PRIORITY_STREAM_DEPENDENCY_LEN)/FLY_HV2_OCTET_LEN;
 	}
-	return uint31;
+	return uint32;
 }
 
 static inline uint32_t __fly_hv2_31bit(uint8_t **pl, fly_buffer_c **__c)
@@ -686,19 +780,39 @@ static inline uint32_t __fly_hv2_31bit(uint8_t **pl, fly_buffer_c **__c)
 	uint32_t uint31 = 0;
 
 	if ((fly_buf_p) (*pl+4) > (*__c)->lptr){
-		uint31 |= ((uint32_t) (*pl)[0] & ((1<<8)-1)) << 24;
+		uint8_t *__u = (uint8_t *) &uint31;
+#ifdef FLY_BIG_ENDIAN
+		*(__u+0) = **pl & ((1<<7)-1);
 		*pl = fly_update_chain(__c, *pl, 1);
-		uint31 |= (uint32_t) (*pl)[0] << 16;
+		*(__u+1) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		uint31 |= (uint32_t) (*pl)[0] << 8;
+		*(__u+2) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
-		uint31 |= (uint32_t) (*pl)[0];
+		*(__u+3) = **pl;
 		*pl = fly_update_chain(__c, *pl, 1);
+#else
+		*(__u+3) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__u+2) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__u+1) = **pl;
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__u+0) = **pl & ((1<<7)-1);
+		*pl = fly_update_chain(__c, *pl, 1);
+#endif
 	}else{
-		uint31 |= ((uint32_t) (*pl)[0] & ((1<<8)-1)) << 24;
-		uint31 |= (uint32_t) (*pl)[1] << 16;
-		uint31 |= (uint32_t) (*pl)[2] << 8;
-		uint31 |= (uint32_t) (*pl)[3];
+		uint8_t *__u = (uint8_t *) &uint31;
+#ifdef FLY_BIG_ENDIAN
+		*(__u+0) = (uint8_t) (*pl)[0] & ((1<<7)-1);
+		*(__u+1) = (uint8_t) (*pl)[1];
+		*(__u+2) = (uint8_t) (*pl)[2];
+		*(__u+3) = (uint8_t) (*pl)[3];
+#else
+		*(__u+0) = (uint8_t) (*pl)[3];
+		*(__u+1) = (uint8_t) (*pl)[2];
+		*(__u+2) = (uint8_t) (*pl)[1];
+		*(__u+3) = (uint8_t) (*pl)[0] & ((1<<7)-1);
+#endif
 
 		*pl += (int) (FLY_HV2_FRAME_TYPE_PRIORITY_E_LEN+FLY_HV2_FRAME_TYPE_PRIORITY_STREAM_DEPENDENCY_LEN)/FLY_HV2_OCTET_LEN;
 	}
@@ -793,13 +907,27 @@ static inline uint16_t fly_hv2_settings_id(uint8_t **pl, fly_buffer_c **__c)
 {
 	uint16_t id = 0;
 	if ((fly_buf_p) (*pl+2) > (*__c)->lptr){
-		id |= (*pl)[0] << 8;
+		uint8_t *__i=(uint8_t *) &id;
+#ifdef FLY_BIG_ENDIAN
+		*(__i+0) = (uint8_t) (*pl)[0];
 		*pl = fly_update_chain(__c, *pl, 1);
-		id |= (*pl)[0];
+		*(__i+1) = (uint8_t) (*pl)[0];
 		*pl = fly_update_chain(__c, *pl, 1);
+#else
+		*(__i+1) = (uint8_t) (*pl)[0];
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__i+0) = (uint8_t) (*pl)[0];
+		*pl = fly_update_chain(__c, *pl, 1);
+#endif
 	}else{
-		id |= (*pl)[0] << 8;
-		id |= (*pl)[1];
+		uint8_t *__i=(uint8_t *) &id;
+#ifdef FLY_BIG_ENDIAN
+		*(__i+0) = (uint8_t) (*pl)[0];
+		*(__i+1) = (uint8_t) (*pl)[1];
+#else
+		*(__i+0) = (uint8_t) (*pl)[1];
+		*(__i+1) = (uint8_t) (*pl)[0];
+#endif
 		*pl += (int) (FLY_HV2_FRAME_TYPE_SETTINGS_ID_LEN/FLY_HV2_OCTET_LEN);
 	}
 	return id;
@@ -808,8 +936,14 @@ static inline uint16_t fly_hv2_settings_id(uint8_t **pl, fly_buffer_c **__c)
 static inline uint16_t fly_hv2_settings_id_nb(uint8_t **pl)
 {
 	uint16_t id = 0;
-	id |= (*pl)[0] << 8;
-	id |= (*pl)[1];
+	uint8_t *__i=(uint8_t *) &id;
+#ifdef FLY_BIG_ENDIAN
+	*(__i+0) = (*pl)[0];
+	*(__i+1) = (*pl)[1];
+#else
+	*(__i+0) = (*pl)[1];
+	*(__i+1) = (*pl)[0];
+#endif
 	*pl += (int) (FLY_HV2_FRAME_TYPE_SETTINGS_ID_LEN/FLY_HV2_OCTET_LEN);
 	return id;
 }
@@ -819,19 +953,39 @@ static inline uint32_t fly_hv2_settings_value(__unused uint8_t **pl, fly_buffer_
 	uint32_t value = 0;
 
 	if ((fly_buf_p) (*pl+4) > (*__c)->lptr){
-		value |= (*pl)[0] << 24;
+		uint8_t *__v = (uint8_t *) &value;
+#ifdef FLY_BIG_ENDIAN
+		*(__v+0) = (*pl)[0];
 		*pl = fly_update_chain(__c, *pl, 1);
-		value |= (*pl)[0] << 16;
+		*(__v+1) = (*pl)[0];
 		*pl = fly_update_chain(__c, *pl, 1);
-		value |= (*pl)[0] << 8;
+		*(__v+2) = (*pl)[0];
 		*pl = fly_update_chain(__c, *pl, 1);
-		value |= (*pl)[0] << 0;
+		*(__v+3) = (*pl)[0];
 		*pl = fly_update_chain(__c, *pl, 1);
+#else
+		*(__v+3) = (*pl)[0];
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__v+2) = (*pl)[0];
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__v+1) = (*pl)[0];
+		*pl = fly_update_chain(__c, *pl, 1);
+		*(__v+0) = (*pl)[0];
+		*pl = fly_update_chain(__c, *pl, 1);
+#endif
 	}else{
-		value |= (*pl)[0] << 24;
-		value |= (*pl)[1] << 16;
-		value |= (*pl)[2] << 8;
-		value |= (*pl)[3] << 0;
+		uint8_t *__v = (uint8_t *) &value;
+#ifdef FLY_BIG_ENDIAN
+		*(__v + 0) = (*pl)[0];
+		*(__v + 1) = (*pl)[1];
+		*(__v + 2) = (*pl)[2];
+		*(__v + 3) = (*pl)[3];
+#else
+		*(__v + 0) = (*pl)[3];
+		*(__v + 1) = (*pl)[2];
+		*(__v + 2) = (*pl)[1];
+		*(__v + 3) = (*pl)[0];
+#endif
 		*pl += (int) (FLY_HV2_FRAME_TYPE_SETTINGS_VALUE_LEN/FLY_HV2_OCTET_LEN);
 	}
 	return value;
@@ -840,10 +994,18 @@ static inline uint32_t fly_hv2_settings_value(__unused uint8_t **pl, fly_buffer_
 static inline uint16_t fly_hv2_settings_value_nb(uint8_t **pl)
 {
 	uint32_t value = 0;
-	value |= (*pl)[0] << 24;
-	value |= (*pl)[1] << 16;
-	value |= (*pl)[2] << 8;
-	value |= (*pl)[3] << 0;
+	uint8_t *__v = (uint8_t *) &value;
+#ifdef FLY_BIG_ENDIAN
+	*(__v + 0) = (*pl)[0];
+	*(__v + 1) = (*pl)[1];
+	*(__v + 2) = (*pl)[2];
+	*(__v + 3) = (*pl)[3];
+#else
+	*(__v + 0) = (*pl)[3];
+	*(__v + 1) = (*pl)[2];
+	*(__v + 2) = (*pl)[1];
+	*(__v + 3) = (*pl)[0];
+#endif
 	*pl += (int) (FLY_HV2_FRAME_TYPE_SETTINGS_VALUE_LEN/FLY_HV2_OCTET_LEN);
 	return value;
 }
@@ -921,6 +1083,16 @@ int fly_send_ping_frame(fly_hv2_state_t *state, uint64_t opaque_data)
 
 	/* opeque data setting */
 	uint8_t *ptr = frame->payload;
+#ifdef FLY_BIG_ENDIAN
+	*ptr++ = *(((uint8_t *) &opaque_data)+0);
+	*ptr++ = *(((uint8_t *) &opaque_data)+1);
+	*ptr++ = *(((uint8_t *) &opaque_data)+2);
+	*ptr++ = *(((uint8_t *) &opaque_data)+3);
+	*ptr++ = *(((uint8_t *) &opaque_data)+4);
+	*ptr++ = *(((uint8_t *) &opaque_data)+5);
+	*ptr++ = *(((uint8_t *) &opaque_data)+6);
+	*ptr   = *(((uint8_t *) &opaque_data)+7);
+#else
 	*ptr++ = *(((uint8_t *) &opaque_data)+7);
 	*ptr++ = *(((uint8_t *) &opaque_data)+6);
 	*ptr++ = *(((uint8_t *) &opaque_data)+5);
@@ -929,6 +1101,7 @@ int fly_send_ping_frame(fly_hv2_state_t *state, uint64_t opaque_data)
 	*ptr++ = *(((uint8_t *) &opaque_data)+2);
 	*ptr++ = *(((uint8_t *) &opaque_data)+1);
 	*ptr   = *(((uint8_t *) &opaque_data)+0);
+#endif
 	__fly_hv2_add_yet_send_frame(frame);
 	return 0;
 }
@@ -941,14 +1114,25 @@ void __fly_goaway_payload(struct fly_hv2_send_frame *frame, fly_hv2_state_t *sta
 	uint32_t *ecode = &error_code;
 
 	*ptr = r ? (1<<7) : 0;
+#ifdef FLY_BIG_ENDIAN
+	*ptr++ |= *(((uint8_t *) lsid)+0);
+	*ptr++  = *(((uint8_t *) lsid)+1);
+	*ptr++  = *(((uint8_t *) lsid)+2);
+	*ptr++  = *(((uint8_t *) lsid)+3);
+	*ptr++  = *(((uint8_t *) ecode)+0);
+	*ptr++  = *(((uint8_t *) ecode)+1);
+	*ptr++  = *(((uint8_t *) ecode)+2);
+	*ptr    = *(((uint8_t *) ecode)+3);
+#else
 	*ptr++ |= *(((uint8_t *) lsid)+3);
-	*ptr++ = *(((uint8_t *) lsid)+2);
-	*ptr++ = *(((uint8_t *) lsid)+1);
-	*ptr++ = *(((uint8_t *) lsid)+0);
-	*ptr++ = *(((uint8_t *) ecode)+3);
-	*ptr++ = *(((uint8_t *) ecode)+2);
-	*ptr++ = *(((uint8_t *) ecode)+1);
-	*ptr   = *(((uint8_t *) ecode)+0);
+	*ptr++  = *(((uint8_t *) lsid)+2);
+	*ptr++  = *(((uint8_t *) lsid)+1);
+	*ptr++  = *(((uint8_t *) lsid)+0);
+	*ptr++  = *(((uint8_t *) ecode)+3);
+	*ptr++  = *(((uint8_t *) ecode)+2);
+	*ptr++  = *(((uint8_t *) ecode)+1);
+	*ptr    = *(((uint8_t *) ecode)+0);
+#endif
 	state->goaway = true;
 }
 
@@ -977,6 +1161,45 @@ int fly_send_goaway_frame(fly_hv2_state_t *state, bool r, uint32_t error_code)
 	return 0;
 }
 
+int fly_send_window_update_frame(fly_hv2_stream_t *stream, uint32_t update_size, bool r)
+{
+	struct fly_hv2_send_frame *frame;
+
+	frame = fly_hv2_send_frame_init(stream);
+	if (fly_unlikely_null(frame))
+		return -1;
+
+	frame->send_fase = FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER;
+	frame->send_len = 0;
+	frame->type = FLY_HV2_FRAME_TYPE_WINDOW_UPDATE;
+	frame->payload_len = \
+		(int) (FLY_HV2_FRAME_TYPE_WINDOW_UPDATE_LENGTH);
+	frame->payload = fly_pballoc(frame->pool, frame->payload_len);
+	if (fly_unlikely_null(frame->payload))
+		return -1;
+
+	fly_fh_setting(&frame->frame_header, frame->payload_len, frame->type, 0, false, frame->sid);
+	/* copy error_code/last-stream-id/r to payload */
+	uint8_t *ptr = frame->payload;
+	uint32_t *uptr = &update_size;
+
+	*ptr = r ? (1<<7) : 0;
+#ifdef FLY_BIG_ENDIAN
+	*ptr++ = *(((uint8_t *) uptr)+0);
+	*ptr++ = *(((uint8_t *) uptr)+1);
+	*ptr++ = *(((uint8_t *) uptr)+2);
+	*ptr++ = *(((uint8_t *) uptr)+3);
+#else
+	*ptr++ = *(((uint8_t *) uptr)+3);
+	*ptr++ = *(((uint8_t *) uptr)+2);
+	*ptr++ = *(((uint8_t *) uptr)+1);
+	*ptr++ = *(((uint8_t *) uptr)+0);
+#endif
+	__fly_hv2_add_yet_send_frame(frame);
+
+	return 0;
+}
+
 int fly_send_rst_stream_frame(fly_hv2_stream_t *stream, uint32_t error_code)
 {
 	struct fly_hv2_send_frame *frame;
@@ -999,10 +1222,17 @@ int fly_send_rst_stream_frame(fly_hv2_stream_t *stream, uint32_t error_code)
 	uint8_t *ptr = frame->payload;
 	uint32_t *ecode = &error_code;
 
+#ifdef FLY_BIG_ENDIAN
+	*ptr++ = *(((uint8_t *) ecode)+0);
+	*ptr++ = *(((uint8_t *) ecode)+1);
+	*ptr++ = *(((uint8_t *) ecode)+2);
+	*ptr++ = *(((uint8_t *) ecode)+3);
+#else
 	*ptr++ = *(((uint8_t *) ecode)+3);
 	*ptr++ = *(((uint8_t *) ecode)+2);
 	*ptr++ = *(((uint8_t *) ecode)+1);
 	*ptr++ = *(((uint8_t *) ecode)+0);
+#endif
 	__fly_hv2_add_yet_send_frame(frame);
 
 	stream->stream_state = FLY_HV2_STREAM_STATE_CLOSED;
@@ -1017,7 +1247,15 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream);
  * if expired or end of process, this function is called
  */
 int fly_hv2_close_handle(fly_event_t *e, fly_hv2_state_t *state);
-int fly_hv2_end_timeout_handle(fly_event_t *e)
+int fly_hv2_end_handle(fly_event_t *e)
+{
+	fly_connect_t *conn;
+
+	conn = (fly_connect_t *) e->expired_event_data;
+	return fly_hv2_close_handle(e, conn->v2_state);
+}
+
+int fly_hv2_timeout_handle(fly_event_t *e)
 {
 	fly_connect_t *conn;
 
@@ -1079,7 +1317,9 @@ int fly_hv2_goaway_handle(fly_event_t *e, fly_hv2_state_t *state)
 	}
 close_connection:
 	/* close connection */
-	return fly_hv2_close_handle(e, state);
+	if (fly_hv2_close_handle(e, state) == -1)
+		return -1;
+	return fly_event_unregister(e);
 }
 
 int fly_hv2_goaway(fly_hv2_state_t *state, bool r, uint32_t last_stream_id, uint32_t error_code)
@@ -1176,7 +1416,7 @@ static inline bool fly_hv2_settings_frame_ack_from_flags(uint8_t flags)
 	return flags&FLY_HV2_FRAME_TYPE_SETTINGS_FLAG_ACK ? true : false;
 }
 
-int fly_hv2_parse_data(fly_hv2_stream_t *stream, uint32_t length, uint8_t *payload, fly_buffer_c *__c);
+int fly_hv2_parse_data(fly_event_t *event, fly_hv2_stream_t *stream, uint32_t length, uint8_t *payload, fly_buffer_c *__c);
 int fly_send_frame(fly_event_t *e, fly_hv2_stream_t *stream);
 int fly_hv2_responses(fly_event_t *e, fly_hv2_state_t *state __unused);
 int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream);
@@ -1201,11 +1441,14 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			goto frame_header_parse;
 		else if (event->available_row & FLY_READ){
 			goto blocking;
-		}else if ((event->available_row&FLY_WRITE) && \
-				state->response_count){
+		}else if ((event->available_row & FLY_WRITE) && \
+				state->response_count > 0){
 			if (state->send_count>0)
 				return fly_state_send_frame(event, state);
 			return fly_hv2_responses(event, state);
+		}else if (event->available_row & FLY_WRITE){
+			if (state->send_count>0)
+				return fly_state_send_frame(event, state);
 		}else
 			goto blocking;
 
@@ -1262,6 +1505,9 @@ frame_header_parse:
 
 		switch(type){
 		case FLY_HV2_FRAME_TYPE_DATA:
+#ifdef DEBUG
+			printf("FLY_HV2_FRAME_TYPE_DATA\n");
+#endif
 			if (__stream->id == FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			if (!(__stream->stream_state == FLY_HV2_STREAM_STATE_OPEN || \
@@ -1277,14 +1523,24 @@ frame_header_parse:
 					length -= (int) (FLY_HV2_FRAME_TYPE_DATA_PAD_LENGTH_LEN/FLY_HV2_OCTET_LEN);
 				}
 
-				fly_hv2_parse_data(__stream, length, pl, plbufc);
+				fly_hv2_parse_data(event, __stream, length, pl, plbufc);
 
 				if (flags & FLY_HV2_FRAME_TYPE_DATA_END_STREAM)
 					__stream->stream_state = FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE;
 
+				/* end of post data */
+				if ((__stream->stream_state == FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE) && (__stream->peer_end_headers || __stream->can_response)){
+					__stream->can_response = true;
+					if (fly_hv2_response_event_handler(event, __stream) == -1)
+						goto emergency;
+				}
+
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_HEADERS:
+#ifdef DEBUG
+			printf("FLY_HV2_FRAME_TYPE_HEADERS\n");
+#endif
 			if (__stream->id == FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
@@ -1346,6 +1602,9 @@ frame_header_parse:
 
 			break;
 		case FLY_HV2_FRAME_TYPE_PRIORITY:
+#ifdef DEBUG
+			printf("FLY_HV2_FRAME_TYPE_PRIORITY\n");
+#endif
 			if (__stream->id == FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
@@ -1370,6 +1629,9 @@ frame_header_parse:
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_RST_STREAM:
+#ifdef DEBUG
+			printf("FLY_HV2_FRAME_TYPE_RST_STREAM\n");
+#endif
 			if (__stream->id == FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
@@ -1383,6 +1645,9 @@ frame_header_parse:
 			break;
 		case FLY_HV2_FRAME_TYPE_SETTINGS:
 			{
+#ifdef DEBUG
+				printf("FLY_HV2_FRAME_TYPE_SETTINGS\n");
+#endif
 				bool ack;
 				if (sid!=FLY_HV2_STREAM_ROOT_ID)
 					fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
@@ -1421,6 +1686,9 @@ frame_header_parse:
 
 			break;
 		case FLY_HV2_FRAME_TYPE_PUSH_PROMISE:
+#ifdef DEBUG
+			printf("FLY_HV2_FRAME_TYPE_PUSH_PROMISE\n");
+#endif
 			if (sid==FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			if (!(__stream->stream_state == FLY_HV2_STREAM_STATE_OPEN || \
@@ -1440,6 +1708,9 @@ frame_header_parse:
 
 			break;
 		case FLY_HV2_FRAME_TYPE_PING:
+#ifdef DEBUG
+			printf("FLY_HV2_FRAME_TYPE_PING\n");
+#endif
 			if (sid!=FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			if (length != FLY_HV2_FRAME_TYPE_PING_LENGTH)
@@ -1454,6 +1725,9 @@ frame_header_parse:
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_GOAWAY:
+#ifdef DEBUG
+			printf("FLY_HV2_FRAME_TYPE_GOAWAY\n");
+#endif
 			if (sid!=FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
@@ -1473,24 +1747,29 @@ frame_header_parse:
 
 			break;
 		case FLY_HV2_FRAME_TYPE_WINDOW_UPDATE:
+#ifdef DEBUG
+			printf("FLY_HV2_FRAME_TYPE_WINDOW_UPDATE\n");
+#endif
 			if (length != FLY_HV2_FRAME_TYPE_WINDOW_UPDATE_LENGTH)
 				fly_hv2_send_frame_size_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			{
 				__unused bool r;
-				uint32_t window_size;
+				uint32_t p_window_size;
 
 				r = fly_hv2_flag(&pl);
-				window_size = fly_hv2_window_size_increment(&pl, &plbufc);
-				if (window_size == 0)
+				p_window_size = fly_hv2_window_size_increment(&pl, &plbufc);
+				if (p_window_size == 0)
 					fly_hv2_send_protocol_error(__stream, FLY_HV2_STREAM_ERROR);
 
-				if (sid == 0)
-					state->window_size += (ssize_t) window_size;
-				else
-					__stream->window_size += (ssize_t) window_size;
+				state->p_window_size += (ssize_t) p_window_size;
+				if (sid != 0)
+					__stream->p_window_size += (ssize_t) p_window_size;
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_CONTINUATION:
+#ifdef DEBUG
+			printf("FLY_HV2_FRAME_TYPE_CONTINUATION\n");
+#endif
 			if (sid==FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			{
@@ -1542,7 +1821,10 @@ blocking:
 goaway:
 		return fly_hv2_goaway_handle(event, state);
 closed:
-		return fly_hv2_close_handle(event, state);
+		if (fly_hv2_close_handle(event, state) == -1)
+			return -1;
+
+		return fly_event_unregister(event);
 emergency:
 		fly_hv2_emergency(state);
 		continue;
@@ -1554,16 +1836,32 @@ emergency:
 
 void fly_fh_setting(fly_hv2_frame_header_t *__fh, uint32_t length, uint8_t type, uint8_t flags, bool r, uint32_t sid)
 {
-	*(((uint8_t *) (__fh))) = (uint8_t) (length >> 16);
-	*(((uint8_t *) (__fh))+1) = (uint8_t) (length >> 8);
-	*(((uint8_t *) (__fh))+2) = (uint8_t) (length >> 0);
+#ifdef FLY_BIG_ENDIAN
+	*(((uint8_t *) (__fh))+0) = (uint8_t) (((uint8_t *) &length)[0]);
+	*(((uint8_t *) (__fh))+1) = (uint8_t) (((uint8_t *) &length)[1]);
+	*(((uint8_t *) (__fh))+2) = (uint8_t) (((uint8_t *) &length)[2]);
+#else
+	*(((uint8_t *) (__fh))+0) = (uint8_t) (((uint8_t *) &length)[2]);
+	*(((uint8_t *) (__fh))+1) = (uint8_t) (((uint8_t *) &length)[1]);
+	*(((uint8_t *) (__fh))+2) = (uint8_t) (((uint8_t *) &length)[0]);
+#endif
 	*(((uint8_t *) (__fh))+3) = type;
 	*(((uint8_t *) (__fh))+4) = flags;
 	if (r)
-		*(((uint8_t *) (__fh))+5) |= 0x1; else *(((uint8_t *) (__fh))+5) |= 0x0; *(((uint8_t *) (__fh))+5) = (uint8_t) (sid >> 24);
-	*(((uint8_t *) (__fh))+6) = (uint8_t) (sid >> 16);
-	*(((uint8_t *) (__fh))+7) = (uint8_t) (sid >> 8);
-	*(((uint8_t *) (__fh))+8) = (uint8_t) (sid);
+		*(((uint8_t *) (__fh))+5) = (1<<7);
+	else
+		*(((uint8_t *) (__fh))+5) = 0x0;
+#ifdef FLY_BIG_ENDIAN
+	*(((uint8_t *) (__fh))+5) |= (uint8_t) (((uint8_t *) &sid)[0]);
+	*(((uint8_t *) (__fh))+6)  = (uint8_t) (((uint8_t *) &sid)[1]);
+	*(((uint8_t *) (__fh))+7)  = (uint8_t) (((uint8_t *) &sid)[2]);
+	*(((uint8_t *) (__fh))+8)  = (uint8_t) (((uint8_t *) &sid)[3]);
+#else
+	*(((uint8_t *) (__fh))+5) |= (uint8_t) (((uint8_t *) &sid)[3]);
+	*(((uint8_t *) (__fh))+6)  = (uint8_t) (((uint8_t *) &sid)[2]);
+	*(((uint8_t *) (__fh))+7)  = (uint8_t) (((uint8_t *) &sid)[1]);
+	*(((uint8_t *) (__fh))+8)  = (uint8_t) (((uint8_t *) &sid)[0]);
+#endif
 }
 
 void fly_settings_frame_payload_set(uint8_t *pl, uint16_t *ids, uint32_t *values, size_t count)
@@ -1575,13 +1873,25 @@ void fly_settings_frame_payload_set(uint8_t *pl, uint16_t *ids, uint32_t *values
 		uint32_t value = values[__n];
 
 		/* identifier */
-		*(((uint8_t *) (pl))+0)	= (uint8_t) (id >> 8);
-		*(((uint8_t *) (pl))+1)	= (uint8_t) (id >> 0);
+#ifdef FLY_BIG_ENDIAN
+		*(((uint8_t *) (pl))+0)	= ((uint8_t *) &id)[0];
+		*(((uint8_t *) (pl))+1)	= ((uint8_t *) &id)[1];
+#else
+		*(((uint8_t *) (pl))+0)	= ((uint8_t *) &id)[1];
+		*(((uint8_t *) (pl))+1)	= ((uint8_t *) &id)[0];
+#endif
 		/* value */
-		*(((uint8_t *) (pl))+2)	= (uint8_t) (value >> 24);
-		*(((uint8_t *) (pl))+3)	= (uint8_t) (value >> 16);
-		*(((uint8_t *) (pl))+4) = (uint8_t) (value >> 8);
-		*(((uint8_t *) (pl))+5) = (uint8_t) (value >> 0);
+#ifdef FLY_BIG_ENDIAN
+		*(((uint8_t *) (pl))+2)	= ((uint8_t *) &value)[0];
+		*(((uint8_t *) (pl))+3)	= ((uint8_t *) &value)[1];
+		*(((uint8_t *) (pl))+4)	= ((uint8_t *) &value)[2];
+		*(((uint8_t *) (pl))+5)	= ((uint8_t *) &value)[3];
+#else
+		*(((uint8_t *) (pl))+2)	= ((uint8_t *) &value)[3];
+		*(((uint8_t *) (pl))+3)	= ((uint8_t *) &value)[2];
+		*(((uint8_t *) (pl))+4)	= ((uint8_t *) &value)[1];
+		*(((uint8_t *) (pl))+5)	= ((uint8_t *) &value)[0];
+#endif
 
 		__n++;
 	}
@@ -1898,6 +2208,11 @@ int fly_send_data_frame_handler(fly_event_t *e)
 	return fly_send_data_frame(e, res);
 }
 
+static inline void fly_hv2_peer_window_size_update(fly_hv2_stream_t *stream, ssize_t send_size)
+{
+	stream->p_window_size -= send_size;
+	stream->state->p_window_size -= send_size;
+}
 static inline void fly_hv2_window_size_update(fly_hv2_stream_t *stream, ssize_t send_size)
 {
 	stream->window_size -= send_size;
@@ -1925,13 +2240,13 @@ int fly_send_data_frame(fly_event_t *e, fly_response_t *res)
 	}
 
 	/* frame size over */
-	if (stream->window_size <= 0 || state->window_size <= 0)
+	if (stream->p_window_size <= 0 || state->p_window_size <= 0)
 		goto cant_send;
 
 	if (res->response_len == 0)
 		goto success;
 
-	max_can_send = stream->window_size > state->window_size ? state->window_size : stream->window_size;
+	max_can_send = stream->p_window_size > state->p_window_size ? state->p_window_size : stream->p_window_size;
 	send_len = res->response_len;
 	if ((size_t) send_len < max_can_send)
 		flag |= FLY_HV2_FRAME_TYPE_DATA_END_STREAM;
@@ -1996,7 +2311,7 @@ send:
 				}
 				res->byte_from_start += numsend;
 				total += numsend;
-				fly_hv2_window_size_update(stream, numsend);
+				fly_hv2_peer_window_size_update(stream, numsend);
 
 				/* send all content */
 				if (total >= de->contlen)
@@ -2045,7 +2360,7 @@ send:
 				total += numsend;
 				res->byte_from_start += numsend;
 
-				fly_hv2_window_size_update(stream, numsend);
+				fly_hv2_peer_window_size_update(stream, numsend);
 			}
 		}
 		break;
@@ -2101,7 +2416,7 @@ send:
 				total += numsend;
 				res->byte_from_start += numsend;
 
-				fly_hv2_window_size_update(stream, numsend);
+				fly_hv2_peer_window_size_update(stream, numsend);
 			}
 		}
 		break;
@@ -2156,7 +2471,7 @@ send:
 						return FLY_SEND_DATA_FH_ERROR;
 				}
 
-				fly_hv2_window_size_update(stream, numsend);
+				fly_hv2_peer_window_size_update(stream, numsend);
 				total += numsend;
 			}
 		}
@@ -2220,11 +2535,16 @@ retry:
 			fly_pbfree(__s->pool, __s->payload);
 			fly_pbfree(__s->pool, __s);
 		}
-		goto retry;
+		if (state->send_count == 0)
+			break;
+		else
+			goto retry;
 	}
 	goto success;
 
 success:
+	if (state->response_count == 0)
+		e->read_or_write &= ~FLY_WRITE;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
@@ -3728,26 +4048,57 @@ next_code:
 	return 0;
 }
 
-int fly_hv2_parse_data(fly_hv2_stream_t *stream, uint32_t length, uint8_t *payload, fly_buffer_c *__c)
+int fly_hv2_parse_data(fly_event_t *event, fly_hv2_stream_t *stream, uint32_t length, uint8_t *payload, fly_buffer_c *__c)
 {
 	fly_body_t *body;
 	fly_bodyc_t *bc;
 	fly_request_t *req;
 
 	req = stream->request;
-	body = fly_body_init(req->ctx);
-	if (fly_unlikely_null(body))
+	if (req->body == NULL){
+		size_t content_length;
+		body = fly_body_init(req->ctx);
+		if (fly_unlikely_null(body))
+			return -1;
+
+		content_length = fly_content_length(req->header);
+		req->body = body;
+
+		bc = fly_pballoc(body->pool, sizeof(uint8_t)*content_length);
+		if (fly_unlikely_null(bc))
+			return -1;
+
+		fly_body_setting(body, bc, content_length);
+		body->next_ptr = bc;
+	}else{
+		body = req->body;
+		bc = body->next_ptr;
+	}
+
+	/* body overflow check */
+	if (body->next_ptr + length >= (body->body+body->body_len-1))
 		return -1;
 
-	req->body = body;
-	bc = fly_pballoc(body->pool, sizeof(uint8_t)*length);
-	if (fly_unlikely_null(bc))
-		return -1;
-
+	stream->window_size -= length;
+	stream->state->window_size -= length;
 	/* copy receive buffer to body content. */
 	fly_buffer_memcpy((char *) bc, (char *) payload, __c, length);
-	fly_body_setting(body, bc, length);
 
+	body->next_ptr += length;
+
+	/*
+	 * send window_udpate_frame and recover window size
+	 */
+	// window update for stream
+	if (fly_send_window_update_frame(stream, length, false) == -1)
+		return -1;
+	// widnwo update for connection
+	if (fly_send_window_update_frame(FLY_HV2_ROOT_STREAM(stream->state), length, false) == -1)
+		return -1;
+
+	stream->window_size += length;
+	stream->state->window_size += length;
+	event->read_or_write |= FLY_WRITE;
 	return 0;
 }
 
@@ -3941,6 +4292,8 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 			return -1;
 	}
 
+	if (fly_is_multipart_form_data(request->header))
+		fly_body_parse_multipart(request);
 __response:
 	fly_event_fase(e, RESPONSE);
 
@@ -3990,6 +4343,7 @@ __response:
 		goto response_500;
 
 	response->request = request;
+	response->version = V2;
 	goto response;
 	FLY_NOT_COME_HERE
 
@@ -4076,7 +4430,8 @@ int fly_hv2_response_event(fly_event_t *e)
 	stream = res->request->stream;
 	res->header->state = stream->state;
 
-	FLY_EVENT_EXPIRED_END_HANDLER(e, fly_hv2_end_timeout_handle, stream->state);
+	FLY_EVENT_END_HANDLER(e, fly_hv2_end_handle, stream->state->connect);
+	FLY_EVENT_EXPIRED_HANDLER(e, fly_hv2_timeout_handle, stream->state->connect);
 	/* already send headers */
 	if (stream->end_send_data)
 		goto log;

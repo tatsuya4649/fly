@@ -87,6 +87,8 @@ enum __fly_mime_list{
 	fly_mime_video_x_ms_wmv,
 	fly_mime_video_x_sgi_movie,
 
+	/* multipart */
+	fly_mime_multipart_form_data,
 	/* unknown */
 	fly_mime_unknown,
 	fly_mime_noextension,
@@ -132,6 +134,7 @@ struct __fly_mime_type{
 		fly_mime_type_text,
 		fly_mime_type_image,
 		fly_mime_type_application,
+		fly_mime_type_multipart,
 		fly_mime_type_asterisk,
 		fly_mime_type_unknown,
 	} type;
@@ -228,4 +231,6 @@ int fly_accept_mime(fly_request_t *request);
 fly_mime_type_t *fly_mime_type_from_path_name(char *path);
 bool fly_mime_invalid(fly_mime_type_t *type);
 fly_mime_type_t *fly_mime_type_from_str(const char *str, size_t len);
+fly_mime_type_t *fly_mime_type_from_strn(const char *str, size_t len);
+
 #endif

@@ -36,7 +36,7 @@ libfly_la-conf.lo: conf.c /usr/include/stdc-predef.h \
  /usr/include/bits/posix_opt.h /usr/include/bits/environments.h \
  /usr/include/bits/confname.h /usr/include/bits/getopt_posix.h \
  /usr/include/bits/getopt_core.h /usr/include/bits/unistd_ext.h \
- ../__fly.conf
+ ../config.h ../fly.conf
 /usr/include/stdc-predef.h:
 /usr/include/assert.h:
 /usr/include/features.h:
@@ -110,4 +110,5 @@ util.h:
 /usr/include/bits/getopt_posix.h:
 /usr/include/bits/getopt_core.h:
 /usr/include/bits/unistd_ext.h:
-../__fly.conf:
+../config.h:
+../fly.conf:
