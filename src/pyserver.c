@@ -508,11 +508,87 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	/* body */
 	if (request->body){
 		body = request->body;
-		PyObject *__pybody = PyBytes_FromStringAndSize(body->body, body->body_len);
-		if (PyDict_SetItemString(__reqdict, "body", __pybody) == -1)
-			return NULL;
+		if (!body->multipart){
+			PyObject *__pybody = PyBytes_FromStringAndSize(body->body, body->body_len);
+			if (PyDict_SetItemString(__reqdict, "body", __pybody) == -1){
+				Py_DECREF(__pybody);
+				goto response_500;
+			}
 
-		Py_DECREF(__pybody);
+			Py_DECREF(__pybody);
+		}else{
+			struct fly_bllist *__b;
+			Py_ssize_t i;
+			PyObject *__pybody = PyList_New(body->multipart_count);
+			if (__pybody == NULL)
+				goto response_500;
+
+			i=0;
+			fly_for_each_bllist(__b, &body->multipart_parts){
+				PyObject *__body_parts = PyDict_New();
+				PyObject *__body_parts_ptr;
+				PyObject *__body_headers;
+				if (__body_parts == NULL)
+					goto response_500;
+
+				struct fly_body_parts *__p;
+				__p = (struct fly_body_parts *) \
+					  fly_bllist_data(__b, struct fly_body_parts, blelem);
+				__body_headers = PyList_New(__p->header_count);
+				if (__body_headers == NULL)
+					goto response_500;
+
+				struct fly_bllist *__bh;
+				Py_ssize_t j=0;
+				fly_for_each_bllist(__bh, &__p->headers){
+					PyObject *__h = PyDict_New();
+					PyObject *__bhn, *__bhv;
+					struct fly_body_parts_header *__bph;
+
+					__bph = (struct fly_body_parts_header *) \
+						  fly_bllist_data(__bh, struct fly_body_parts_header, blelem);
+					__bhn = PyUnicode_DecodeUTF8(__bph->name, __bph->name_len, NULL);
+					if (__bhn == NULL)
+						goto response_500;
+					__bhv = PyUnicode_DecodeUTF8(__bph->value, __bph->value_len, NULL);
+					if (__bhv == NULL)
+						goto response_500;
+
+					if (PyDict_SetItemString(__h, "name", __bhn) == -1)
+						goto response_500;
+					if (PyDict_SetItemString(__h, "value", __bhv) == -1)
+						goto response_500;
+
+					Py_DECREF(__bhn);
+					Py_DECREF(__bhv);
+					if (PyList_SetItem(__body_headers, j, __h) == -1)
+						goto response_500;
+					j++;
+				}
+
+				__body_parts_ptr = PyByteArray_FromStringAndSize(__p->ptr, __p->parts_len);
+				if (__body_parts_ptr == NULL)
+					goto response_500;
+
+				if (PyDict_SetItemString(__body_parts, "content", __body_parts_ptr) == -1)
+					goto response_500;
+				if (PyDict_SetItemString(__body_parts, "header", __body_headers) == -1)
+					goto response_500;
+
+
+				Py_DECREF(__body_parts_ptr);
+				Py_DECREF(__body_headers);
+				if (PyList_SetItem(__pybody, i, __body_parts) == -1)
+					goto response_500;
+				i++;
+			}
+
+			if (PyDict_SetItemString(__reqdict, "body", __pybody) == -1){
+				Py_DECREF(__pybody);
+				goto response_500;
+			}
+			Py_DECREF(__pybody);
+		}
 	}
 
 	__args = PyTuple_New(PYFLY_RESHANDLER_ARGS_COUNT);

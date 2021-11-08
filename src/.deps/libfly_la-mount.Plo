@@ -48,7 +48,7 @@ libfly_la-mount.lo: mount.c /usr/include/stdc-predef.h \
  /usr/include/bits/environments.h /usr/include/bits/confname.h \
  /usr/include/bits/getopt_posix.h /usr/include/bits/getopt_core.h \
  /usr/include/bits/unistd_ext.h /usr/include/inttypes.h util.h \
- /usr/include/assert.h bllist.h header.h buffer.h \
+ /usr/include/assert.h ../config.h bllist.h header.h buffer.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdbool.h mime.h \
  encode.h /usr/include/ctype.h /usr/include/zlib.h /usr/include/zconf.h \
  /usr/include/brotli/encode.h /usr/include/brotli/port.h \
@@ -204,6 +204,7 @@ alloc.h:
 /usr/include/inttypes.h:
 util.h:
 /usr/include/assert.h:
+../config.h:
 bllist.h:
 header.h:
 buffer.h:

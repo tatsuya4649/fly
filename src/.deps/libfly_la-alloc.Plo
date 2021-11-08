@@ -32,7 +32,7 @@ libfly_la-alloc.lo: alloc.c /usr/include/stdc-predef.h alloc.h \
  /usr/include/strings.h /usr/include/assert.h /usr/include/errno.h \
  /usr/include/bits/errno.h /usr/include/linux/errno.h \
  /usr/include/asm/errno.h /usr/include/asm-generic/errno.h \
- /usr/include/asm-generic/errno-base.h bllist.h err.h \
+ /usr/include/asm-generic/errno-base.h ../config.h bllist.h err.h \
  /usr/include/stdio.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdarg.h \
  /usr/include/bits/types/__fpos_t.h /usr/include/bits/types/__mbstate_t.h \
@@ -175,6 +175,7 @@ util.h:
 /usr/include/asm/errno.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
+../config.h:
 bllist.h:
 err.h:
 /usr/include/stdio.h:
