@@ -42,8 +42,8 @@ libfly_la-uri.lo: uri.c /usr/include/stdc-predef.h uri.h \
  /usr/include/assert.h /usr/include/errno.h /usr/include/bits/errno.h \
  /usr/include/linux/errno.h /usr/include/asm/errno.h \
  /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
- bllist.h header.h buffer.h mime.h encode.h /usr/include/ctype.h \
- /usr/include/zlib.h /usr/include/zconf.h \
+ ../config.h bllist.h header.h buffer.h mime.h encode.h \
+ /usr/include/ctype.h /usr/include/zlib.h /usr/include/zconf.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdarg.h \
  /usr/include/brotli/encode.h /usr/include/brotli/port.h \
  /usr/include/brotli/types.h /usr/include/brotli/decode.h event.h \
@@ -144,6 +144,7 @@ util.h:
 /usr/include/asm/errno.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
+../config.h:
 bllist.h:
 header.h:
 buffer.h:

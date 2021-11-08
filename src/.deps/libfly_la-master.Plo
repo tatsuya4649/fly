@@ -54,20 +54,20 @@ libfly_la-master.lo: master.c /usr/include/stdc-predef.h master.h \
  /usr/include/sys/signalfd.h /usr/include/bits/signalfd.h util.h \
  /usr/include/string.h /usr/include/bits/types/locale_t.h \
  /usr/include/bits/types/__locale_t.h /usr/include/strings.h \
- /usr/include/assert.h context.h alloc.h /usr/include/inttypes.h bllist.h \
- server.h /usr/include/sys/ioctl.h /usr/include/bits/ioctls.h \
- /usr/include/asm/ioctls.h /usr/include/asm-generic/ioctls.h \
- /usr/include/linux/ioctl.h /usr/include/asm/ioctl.h \
- /usr/include/asm-generic/ioctl.h /usr/include/bits/ioctl-types.h \
- /usr/include/sys/ttydefaults.h /usr/include/sys/socket.h \
- /usr/include/bits/types/struct_iovec.h /usr/include/bits/socket.h \
- /usr/include/bits/socket_type.h /usr/include/bits/sockaddr.h \
- /usr/include/asm/socket.h /usr/include/asm-generic/socket.h \
- /usr/include/linux/posix_types.h /usr/include/linux/stddef.h \
- /usr/include/asm/posix_types.h /usr/include/asm/posix_types_64.h \
- /usr/include/asm-generic/posix_types.h /usr/include/asm/bitsperlong.h \
- /usr/include/asm-generic/bitsperlong.h /usr/include/asm/sockios.h \
- /usr/include/asm-generic/sockios.h \
+ /usr/include/assert.h ../config.h context.h alloc.h \
+ /usr/include/inttypes.h bllist.h server.h /usr/include/sys/ioctl.h \
+ /usr/include/bits/ioctls.h /usr/include/asm/ioctls.h \
+ /usr/include/asm-generic/ioctls.h /usr/include/linux/ioctl.h \
+ /usr/include/asm/ioctl.h /usr/include/asm-generic/ioctl.h \
+ /usr/include/bits/ioctl-types.h /usr/include/sys/ttydefaults.h \
+ /usr/include/sys/socket.h /usr/include/bits/types/struct_iovec.h \
+ /usr/include/bits/socket.h /usr/include/bits/socket_type.h \
+ /usr/include/bits/sockaddr.h /usr/include/asm/socket.h \
+ /usr/include/asm-generic/socket.h /usr/include/linux/posix_types.h \
+ /usr/include/linux/stddef.h /usr/include/asm/posix_types.h \
+ /usr/include/asm/posix_types_64.h /usr/include/asm-generic/posix_types.h \
+ /usr/include/asm/bitsperlong.h /usr/include/asm-generic/bitsperlong.h \
+ /usr/include/asm/sockios.h /usr/include/asm-generic/sockios.h \
  /usr/include/bits/types/struct_osockaddr.h /usr/include/netdb.h \
  /usr/include/netinet/in.h /usr/include/bits/in.h \
  /usr/include/rpc/netdb.h /usr/include/bits/netdb.h version.h \
@@ -231,6 +231,7 @@ util.h:
 /usr/include/bits/types/__locale_t.h:
 /usr/include/strings.h:
 /usr/include/assert.h:
+../config.h:
 context.h:
 alloc.h:
 /usr/include/inttypes.h:

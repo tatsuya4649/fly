@@ -37,7 +37,7 @@ libfly_la-encode.lo: encode.c /usr/include/stdc-predef.h encode.h \
  /usr/include/assert.h /usr/include/errno.h /usr/include/bits/errno.h \
  /usr/include/linux/errno.h /usr/include/asm/errno.h \
  /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
- alloc.h /usr/include/stdlib.h /usr/include/bits/waitflags.h \
+ ../config.h alloc.h /usr/include/stdlib.h /usr/include/bits/waitflags.h \
  /usr/include/bits/waitstatus.h /usr/include/bits/floatn.h \
  /usr/include/bits/floatn-common.h /usr/include/alloca.h \
  /usr/include/bits/stdlib-float.h /usr/include/inttypes.h bllist.h \
@@ -182,6 +182,7 @@ util.h:
 /usr/include/asm/errno.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
+../config.h:
 alloc.h:
 /usr/include/stdlib.h:
 /usr/include/bits/waitflags.h:

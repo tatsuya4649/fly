@@ -26,6 +26,7 @@ struct fly_context{
 	long long					max_response_content_length;
 	size_t						max_request_length;
 	size_t						response_encode_threshold;
+	int							request_timeout;
 	bool						log_stdout;
 	bool						log_stderr;
 	/* for SSL/TLS */
