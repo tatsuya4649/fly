@@ -4,7 +4,7 @@
 #include "server.h"
 #include "response.h"
 #include "ssl.h"
-#include "config.h"
+#include "conf.h"
 
 #define TEST_PORT			"1234"
 
@@ -32,14 +32,6 @@ int main()
 	fly_route_reg_t *reg;
 	struct fly_pool_manager pm;
 
-	if (setenv(FLY_PORT, TEST_PORT, 1) == -1)
-		return -1;
-	if (setenv(FLY_SSL_CRT_PATH, "conf/server.crt", 1) == -1)
-		return -1;
-	if (setenv(FLY_SSL_KEY_PATH, "conf/server.key", 1) == -1)
-		return -1;
-	if (setenv("FLY_SETTINGS_FRAME_ENABLE_PUSH", "0", 1) == -1)
-		return -1;
 	if (setenv(FLY_CONFIG_PATH, "test/test.conf", 1) == -1)
 		return -1;
 
