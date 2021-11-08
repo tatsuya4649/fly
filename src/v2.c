@@ -58,7 +58,7 @@ int fly_hv2_parse_headers(fly_hv2_stream_t *stream __unused, uint32_t length __u
 		__fly_hv2_send_error((__s), FLY_HV2_HTTP_1_1_REQUIRED, type)
 
 void __fly_hv2_send_error(fly_hv2_stream_t *stream, uint32_t code, enum fly_hv2_error_type etype);
-void fly_hv2_emergency(fly_hv2_state_t *state);
+void fly_hv2_emergency(fly_event_t *event, fly_hv2_state_t *state);
 void fly_hv2_dynamic_table_release(struct fly_hv2_state *state);
 
 int __fly_hv2_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream);
@@ -1531,6 +1531,9 @@ frame_header_parse:
 				/* end of post data */
 				if ((__stream->stream_state == FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE) && (__stream->peer_end_headers || __stream->can_response)){
 					__stream->can_response = true;
+#ifdef DEBUG_RESPONSE_ERROR
+					goto emergency;
+#endif
 					if (fly_hv2_response_event_handler(event, __stream) == -1)
 						goto emergency;
 				}
@@ -1826,8 +1829,8 @@ closed:
 
 		return fly_event_unregister(event);
 emergency:
-		fly_hv2_emergency(state);
-		continue;
+		fly_hv2_emergency(event, state);
+		return -1;
 
 	} while (true);
 
@@ -3085,12 +3088,11 @@ void __fly_hv2_send_error(fly_hv2_stream_t *stream, uint32_t code, enum fly_hv2_
 /*
  * when an emergency occurs, send goaway frame.
  */
-void fly_hv2_emergency(fly_hv2_state_t *state)
+void fly_hv2_emergency(fly_event_t *event, fly_hv2_state_t *state)
 {
 	struct fly_hv2_send_frame *frame;
 
 	frame = state->emergency_ptr;
-	//frame->stream = state->streams;
 	frame->stream = FLY_HV2_ROOT_STREAM(state);
 	frame->pool = state->pool;
 	frame->sid = FLY_HV2_STREAM_ROOT_ID;
@@ -3103,9 +3105,10 @@ void fly_hv2_emergency(fly_hv2_state_t *state)
 
 	fly_fh_setting(&frame->frame_header, frame->payload_len, frame->type, 0, false, frame->sid);
 	__fly_goaway_payload(frame, state, false, FLY_HV2_INTERNAL_ERROR);
+	__fly_send_frame(frame);
 
-	__fly_hv2_add_yet_send_frame(frame);
 	state->goaway = true;
+	fly_hv2_close_handle(event, state);
 }
 
 int fly_hv2_add_header_by_index(struct fly_hv2_stream *stream, uint32_t index);
@@ -4310,14 +4313,6 @@ __response:
 	route = fly_found_route(route_reg, &request->request_line->uri, __mtype);
 	mount = e->manager->ctx->mount;
 	if (route == NULL){
-		if (fly_is_uri_index(&request->request_line->uri)){
-			if (fly_have_mount_index(mount)){
-				pf = mount->index;
-				goto response_path;
-			}else
-				goto response_404;
-		}
-
 		int found_res;
 		/* search from uri */
 		found_res = fly_found_content_from_path(mount, &request->request_line->uri, &pf);
