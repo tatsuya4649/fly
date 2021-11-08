@@ -1,5 +1,5 @@
 import pytest
-from fly import FlyRoute
+from fly.route import FlyRoute
 from fly.method import FlyMethod
 
 @pytest.fixture(scope="function", autouse=False)
@@ -16,7 +16,7 @@ def test_routes(__pyroute_init):
 def hello(): ...
 
 def test_register(__pyroute_init):
-    __pyroute_init.register_route("/", hello, "get")
+    __pyroute_init.register_route("/", hello, "GET")
 
 def test_register_method(__pyroute_init):
     __pyroute_init.register_route("/", hello, FlyMethod.GET)

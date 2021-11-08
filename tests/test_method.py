@@ -2,8 +2,19 @@ import pytest
 from fly.method import *
 
 def test_method_from_name():
-    result = method_from_name("get")
+    result = method_from_name("GET")
     assert(isinstance(result, FlyMethod))
+
+@pytest.mark.parametrize(
+    "method", [
+    "get",
+    "gET"
+])
+def test_method_from_name_value_error(method):
+    with pytest.raises(
+        ValueError
+    ):
+        assert(method_from_name(method));
 
 def test_method_from_name_method():
     result = method_from_name(FlyMethod.GET)

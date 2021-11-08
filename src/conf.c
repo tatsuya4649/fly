@@ -19,10 +19,7 @@ static inline char *fly_config_path(void)
 	char *__p;
 
 	__p = getenv(FLY_CONFIG_PATH);
-	if (__p)
-		return __p;
-	else
-		return (char *) FLY_CONFIG_DEFAULT_PATH;
+	return __p;
 }
 
 FILE *fly_open_config_file(void)
@@ -31,6 +28,8 @@ FILE *fly_open_config_file(void)
 	char *__path;
 
 	__path = fly_config_path();
+	if (__path == NULL)
+		return NULL;
 	__cf = fopen(__path, "r");
 
 	return __cf;
@@ -86,7 +85,8 @@ int fly_parse_config_file(void)
 	fly_config_item_default_setting();
 
 	__cf = fly_open_config_file();
-	if (__cf == NULL && errno == ENOENT)
+	errno = 0;
+	if ((__cf == NULL && errno == ENOENT) || (__cf == NULL && errno == 0))
 		return FLY_PARSE_CONFIG_NOTFOUND;
 	if (__cf == NULL)
 		return FLY_PARSE_CONFIG_ERROR;
