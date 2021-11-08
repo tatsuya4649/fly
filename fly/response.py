@@ -51,6 +51,15 @@ class Response(_Response):
         body=None,
         content_type="text/plain",
     ):
+        if not isinstance(status_code, int):
+            raise TypeError("status_code must be int type.")
+        if header is not None and not isinstance(header, (list)):
+            raise TypeError("status_code must be list type.")
+        if not isinstance(content_type, str):
+            raise TypeError("content_type must be str type.")
+        if body is not None and not isinstance(body, (bytes)):
+            raise TypeError("body must be bytes type.")
+
         self._status_code = status_code
         self._content_type = content_type
         self._header = list()
@@ -65,8 +74,6 @@ class Response(_Response):
                     raise ValueError("header element must have \"name\" key and \"value\" key")
 
         if body is not None:
-            if not isinstance(body, bytes):
-                raise TypeError("body must be bytes type.")
             self._body = body
         else:
             self._body = bytes()
@@ -104,12 +111,13 @@ class PlainResponse(Response):
         header=None,
         body=None,
     ):
-        if not isinstance(body, str):
+        if body is not None and not isinstance(body, str):
             raise TypeError("body must be str type.")
+
         super().__init__(
             status_code,
             header,
-            body.encode("utf-8"),
+            body.encode("utf-8") if isinstance(body, str) else None,
             content_type="text/plain"
         )
 
@@ -122,6 +130,7 @@ class HTMLResponse(Response):
     ):
         if body is not None and not isinstance(body, str):
             raise TypeError("body must be str type.")
+
         super().__init__(
             status_code,
             header,
@@ -144,6 +153,8 @@ class JSONResponse(Response):
         super().__init__(
             status_code,
             header,
-            json.dumps(body).encode("utf-8") if body is not None and len(body) > 0 else None,
+            json.dumps(body).encode("utf-8") \
+                    if body is not None and len(body) > 0 \
+                    else None,
             content_type="application/json"
         )

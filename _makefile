@@ -35,7 +35,7 @@ ifdef DEBUG_RESPONSE_ERROR
 MACROS := $(MACROS) -D DEBUG_RESPONSE_ERROR
 endif
 ifdef DEBUG
-PYTHON := python3.8
+PYTHON := python3.10
 else
 PYTHON := python3.10
 endif

@@ -2,6 +2,7 @@ bench/*			linguist-documentation
 lib/*			linguist-documentation
 log/*			linguist-documentation
 m4/*			linguist-documentation
+test/*			linguist-documentation
 static/*		linguist-documentation
 install-sh  	linguist-documentation
 config.guess	linguist-documentation
