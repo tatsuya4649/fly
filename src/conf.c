@@ -60,10 +60,6 @@ void fly_config_item_default_setting(void)
 		fprintf(stderr, "end process by config parse error.\n");\
 		exit(-1*__e);							\
 	} while(0)
-#define FLY_PARSE_CONFIG_NOTFOUND			(-2)
-#define FLY_PARSE_CONFIG_ERROR				(-1)
-#define FLY_PARSE_CONFIG_SUCCESS			(1)
-#define FLY_PARSE_CONFIG_SYNTAX_ERROR		(0)
 int fly_parse_config_file(void)
 {
 #define FLY_CONFIG_BUF_LENGTH				1024
@@ -222,9 +218,9 @@ newline:
 	}else
 		goto error;
 syntax_error:
-	FLY_PARSE_CONFIG_END_PROCESS(FLY_PARSE_CONFIG_ERROR);
+	return FLY_PARSE_CONFIG_ERROR;
 error:
-	FLY_PARSE_CONFIG_END_PROCESS(FLY_PARSE_CONFIG_SYNTAX_ERROR);
+	return FLY_PARSE_CONFIG_SYNTAX_ERROR;
 }
 
 #define FLY_CONFIG_PARSE_ERROR_STRING(__l)				\
@@ -288,7 +284,9 @@ static void fly_set_config_value(int lines, struct fly_config *config, char *val
 		break;
 	case FLY_CONFIG_BOOL:
 		if (strncmp(value, FLY_CONFIG_BOOL_TRUE, strlen(FLY_CONFIG_BOOL_TRUE)) && \
-				strncmp(value, FLY_CONFIG_BOOL_FALSE, strlen(FLY_CONFIG_BOOL_FALSE))){
+				strncmp(value, FLY_CONFIG_BOOL_UPPER_TRUE, strlen(FLY_CONFIG_BOOL_UPPER_TRUE)) && \
+				strncmp(value, FLY_CONFIG_BOOL_FALSE, strlen(FLY_CONFIG_BOOL_FALSE)) && \
+				strncmp(value, FLY_CONFIG_BOOL_UPPER_FALSE, strlen(FLY_CONFIG_BOOL_UPPER_FALSE))){
 			fly_syntax_error_invalid_value(lines, value, value_len, config);
 			FLY_PARSE_CONFIG_END_PROCESS(FLY_PARSE_CONFIG_SYNTAX_ERROR);
 		}
@@ -335,7 +333,8 @@ bool fly_config_value_bool(char *name)
 		if (strlen(name) == strlen(__c->env_name) && strncmp(name, __c->env_name, strlen(name)) == 0){
 			env_value = getenv(name);
 			assert(env_value != NULL);
-			if (strncmp(env_value, FLY_CONFIG_BOOL_TRUE, strlen(FLY_CONFIG_BOOL_TRUE)) == 0)
+			if (strncmp(env_value, FLY_CONFIG_BOOL_TRUE, strlen(FLY_CONFIG_BOOL_TRUE)) == 0 || \
+					strncmp(env_value, FLY_CONFIG_BOOL_UPPER_TRUE, strlen(FLY_CONFIG_BOOL_TRUE)) == 0)
 				return true;
 			else
 				return false;

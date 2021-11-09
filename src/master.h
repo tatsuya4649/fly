@@ -48,7 +48,7 @@ fly_context_t *fly_master_release_except_context(fly_master_t *master);
 /*
  * waiting for signal foever. wait or end.
  */
-__direct_log __noreturn void fly_master_process(fly_master_t *master);
+__direct_log void fly_master_process(fly_master_t *master);
 void fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *, void *));
 
 #define __FLY_DEVNULL		("/dev/null")
