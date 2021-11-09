@@ -65,5 +65,13 @@ setup(
     package_data = {
         "fly": glob('fly/lib/*'),
     },
+    install_requires = {
+        "click>=7.1.0"
+    },
+    entry_points={
+        "console_scripts": {
+            "fly=fly.main:main",
+        }
+    },
     license_files = ('LICENSE'),
 )

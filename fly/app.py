@@ -38,6 +38,7 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
     def __init__(
         self,
         config_path=None,
+        **kwargs,
     ):
         FlyMount.__init__(self)
         FlyRoute.__init__(self)
@@ -51,14 +52,12 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
             if not os.access(config_path, os.R_OK):
                 raise ValueError("config_path read permission denied.")
 
+        self.config_path = config_path
         # for Singleton
         if not hasattr(self, "_run_server"):
             setattr(self, "_run_server", True)
             # socket make, bind, listen
-            _fly_server.__init__(
-                self,
-                config_path = config_path,
-            )
+            _fly_server.__init__(self)
 
     def mount(self, path):
         super().mount(path)
@@ -76,11 +75,6 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
                 raise TypeError(
                     "func must be function object."
                 )
-            self._register_route(
-                func,
-                path,
-                method.value
-            )
             self.register_route(
                 uri=path,
                 func=func,
@@ -119,6 +113,10 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
     def run(self, daemon=False):
         if self.mounts_count == 0 and len(self.routes) == 0:
             raise RuntimeError("fly must have one or more mount points.")
+        if self.config_path is not None and not isinstance(self.config_path, str):
+            raise TypeError("config_path must be str type.")
+
+        super()._configure(self.config_path, self.routes)
 
         print("\n", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
@@ -141,6 +139,6 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
         super().run(daemon)
 
     def _debug_run(self):
-        if self.mounts_count == 0:
+        if self.mounts_count == 0 and len(self.routes) == 0:
             raise RuntimeError("fly must have one or more mount points.")
         super()._debug_run()
