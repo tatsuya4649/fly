@@ -29,6 +29,6 @@ class FlyRoute():
         _rd = dict()
         _rd.setdefault("uri", uri)
         _rd.setdefault("func", func)
-        _rd.setdefault("method", method_from_name(method))
+        _rd.setdefault("method", method_str)
 
         self._routes.append(_rd)

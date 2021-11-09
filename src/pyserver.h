@@ -12,6 +12,7 @@
 #include "header.h"
 #include "body.h"
 #include "response.h"
+#include "conf.h"
 
 #define PYFLY_SERVER_MODULE_NAME			"_fly_server"
 #define PYFLY_SERVER_NAME					"_fly_server"
