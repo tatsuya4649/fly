@@ -56,6 +56,7 @@ build:	$(SOURCE_FILES)
 pybuild:
 	#@rm -rf fly/fly*.so
 	$(PYTHON) setup.py build
+	cp build/lib.linux*/fly/_fly_server.* fly/
 
 lib: $(SOURCE_FILES)
 	@mkdir -p $(LIBDIR)
