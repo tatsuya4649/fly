@@ -197,6 +197,10 @@ def fly_command_line(
     request_timeout:    int,
     daemon:             bool,
 ):
+    """This is fly operation script.\n
+
+    detail: https://github.com/tatsuya4649/fly
+    """
     kwargs = {
         'app':                  app,
         "conf_path":            conf_path,
