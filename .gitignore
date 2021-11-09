@@ -13,6 +13,7 @@ lib/
 /fly_server.egg-info/
 __pycache__/
 /server
+/fly/_fly_server.*
 GPATH
 GRTAGS
 GTAGS
