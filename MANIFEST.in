@@ -8,7 +8,6 @@ include config.sub
 include config.guess
 include compile
 include depcomp
-include depcomp
 include install-sh
 include ltmain.sh
 include LICENSE
@@ -22,4 +21,3 @@ graft m4
 graft docs
 graft src
 graft fly
-recursive-exclude fly.egg-info *

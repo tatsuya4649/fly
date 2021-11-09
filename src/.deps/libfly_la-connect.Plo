@@ -40,9 +40,8 @@ libfly_la-connect.lo: connect.c /usr/include/stdc-predef.h connect.h \
  /usr/include/bits/waitflags.h /usr/include/bits/waitstatus.h \
  /usr/include/bits/floatn.h /usr/include/bits/floatn-common.h \
  /usr/include/bits/types/locale_t.h /usr/include/bits/types/__locale_t.h \
- /usr/include/alloca.h /usr/include/bits/stdlib-bsearch.h \
- /usr/include/bits/stdlib-float.h /usr/include/time.h \
- /usr/include/bits/time.h /usr/include/bits/timex.h \
+ /usr/include/alloca.h /usr/include/bits/stdlib-float.h \
+ /usr/include/time.h /usr/include/bits/time.h /usr/include/bits/timex.h \
  /usr/include/bits/types/struct_tm.h \
  /usr/include/bits/types/struct_itimerspec.h /usr/include/stdio.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdarg.h \
@@ -50,9 +49,8 @@ libfly_la-connect.lo: connect.c /usr/include/stdc-predef.h connect.h \
  /usr/include/bits/types/__fpos64_t.h /usr/include/bits/types/__FILE.h \
  /usr/include/bits/types/FILE.h /usr/include/bits/types/struct_FILE.h \
  /usr/include/bits/types/cookie_io_functions_t.h \
- /usr/include/bits/stdio_lim.h /usr/include/bits/stdio.h \
- /usr/include/openssl/safestack.h /usr/include/openssl/stack.h \
- /usr/include/openssl/ossl_typ.h \
+ /usr/include/bits/stdio_lim.h /usr/include/openssl/safestack.h \
+ /usr/include/openssl/stack.h /usr/include/openssl/ossl_typ.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include-fixed/limits.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include-fixed/syslimits.h \
  /usr/include/limits.h /usr/include/bits/posix1_lim.h \
@@ -200,7 +198,6 @@ connect.h:
 /usr/include/bits/types/locale_t.h:
 /usr/include/bits/types/__locale_t.h:
 /usr/include/alloca.h:
-/usr/include/bits/stdlib-bsearch.h:
 /usr/include/bits/stdlib-float.h:
 /usr/include/time.h:
 /usr/include/bits/time.h:
@@ -217,7 +214,6 @@ connect.h:
 /usr/include/bits/types/struct_FILE.h:
 /usr/include/bits/types/cookie_io_functions_t.h:
 /usr/include/bits/stdio_lim.h:
-/usr/include/bits/stdio.h:
 /usr/include/openssl/safestack.h:
 /usr/include/openssl/stack.h:
 /usr/include/openssl/ossl_typ.h:
