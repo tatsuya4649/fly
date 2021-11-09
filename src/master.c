@@ -3,6 +3,7 @@
 #include "util.h"
 #include "cache.h"
 #include "conf.h"
+#include <setjmp.h>
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
 __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx);
@@ -15,6 +16,7 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *);
 __fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
 __fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
+static sigjmp_buf env;
 
 fly_signal_t fly_master_signals[] = {
 	{ SIGCHLD, __fly_sigchld, NULL },
@@ -238,7 +240,9 @@ __noreturn static void fly_master_signal_default_handler(fly_master_t *master, f
 	}
 
 	fly_master_release(master);
-	exit(0);
+
+	/* jump to master process */
+	siglongjmp(env, 1);
 }
 
 __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info)
@@ -375,7 +379,7 @@ fly_master_t *fly_master_init(void)
 	return __m;
 }
 
-__direct_log __noreturn void fly_master_process(fly_master_t *master)
+__direct_log void fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
 
@@ -406,13 +410,17 @@ __direct_log __noreturn void fly_master_process(fly_master_t *master)
 			"initialize worker inotify error."
 		);
 
-
-	/* event handler start here */
-	if (fly_event_handler(manager) == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
-			"event handle error."
-		);
+	if (sigsetjmp(env, 1) == 0){
+		/* event handler start here */
+		if (fly_event_handler(manager) == -1)
+			FLY_EMERGENCY_ERROR(
+				FLY_EMERGENCY_STATUS_PROCS,
+				"event handle error."
+			);
+	}else{
+		/* signal return */
+		return;
+	}
 
 	/* will not come here. */
 	FLY_NOT_COME_HERE
