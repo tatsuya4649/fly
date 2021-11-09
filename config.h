@@ -74,6 +74,15 @@
 /* Define to 1 if you have the `setenv' function. */
 #define HAVE_SETENV 1
 
+/* Define to 1 if you have the <setjmp.h> header file. */
+#define HAVE_SETJMP_H 1
+
+/* Define to 1 if you have the `siglongjmp' function. */
+#define HAVE_SIGLONGJMP 1
+
+/* Define to 1 if you have the `sigsetjmp` function. */
+#define HAVE_SIGSETJMP 1
+
 /* Define to 1 if you have the `socket' function. */
 #define HAVE_SOCKET 1
 

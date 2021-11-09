@@ -40,16 +40,17 @@ libfly_la-encode.lo: encode.c /usr/include/stdc-predef.h encode.h \
  ../config.h alloc.h /usr/include/stdlib.h /usr/include/bits/waitflags.h \
  /usr/include/bits/waitstatus.h /usr/include/bits/floatn.h \
  /usr/include/bits/floatn-common.h /usr/include/alloca.h \
- /usr/include/bits/stdlib-float.h /usr/include/inttypes.h bllist.h \
- buffer.h /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdbool.h \
- event.h /usr/include/stdio.h /usr/include/bits/types/__fpos_t.h \
+ /usr/include/bits/stdlib-bsearch.h /usr/include/bits/stdlib-float.h \
+ /usr/include/inttypes.h bllist.h buffer.h \
+ /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdbool.h event.h \
+ /usr/include/stdio.h /usr/include/bits/types/__fpos_t.h \
  /usr/include/bits/types/__mbstate_t.h \
  /usr/include/bits/types/__fpos64_t.h /usr/include/bits/types/__FILE.h \
  /usr/include/bits/types/FILE.h /usr/include/bits/types/struct_FILE.h \
- /usr/include/bits/stdio_lim.h /usr/include/sys/epoll.h \
- /usr/include/bits/epoll.h /usr/include/sys/signalfd.h \
- /usr/include/bits/signalfd.h /usr/include/sys/timerfd.h \
- /usr/include/time.h /usr/include/bits/time.h \
+ /usr/include/bits/stdio_lim.h /usr/include/bits/stdio.h \
+ /usr/include/sys/epoll.h /usr/include/bits/epoll.h \
+ /usr/include/sys/signalfd.h /usr/include/bits/signalfd.h \
+ /usr/include/sys/timerfd.h /usr/include/time.h /usr/include/bits/time.h \
  /usr/include/bits/types/struct_tm.h \
  /usr/include/bits/types/struct_itimerspec.h /usr/include/bits/timerfd.h \
  /usr/include/sys/time.h rbtree.h queue.h response.h request.h context.h \
@@ -190,6 +191,7 @@ alloc.h:
 /usr/include/bits/floatn.h:
 /usr/include/bits/floatn-common.h:
 /usr/include/alloca.h:
+/usr/include/bits/stdlib-bsearch.h:
 /usr/include/bits/stdlib-float.h:
 /usr/include/inttypes.h:
 bllist.h:
@@ -204,6 +206,7 @@ event.h:
 /usr/include/bits/types/FILE.h:
 /usr/include/bits/types/struct_FILE.h:
 /usr/include/bits/stdio_lim.h:
+/usr/include/bits/stdio.h:
 /usr/include/sys/epoll.h:
 /usr/include/bits/epoll.h:
 /usr/include/sys/signalfd.h:
