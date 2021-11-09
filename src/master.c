@@ -16,7 +16,11 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *);
 __fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
 __fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
+#if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
 static sigjmp_buf env;
+#else
+static jmp_buf env;
+#endif
 
 fly_signal_t fly_master_signals[] = {
 	{ SIGCHLD, __fly_sigchld, NULL },
@@ -242,7 +246,11 @@ __noreturn static void fly_master_signal_default_handler(fly_master_t *master, f
 	fly_master_release(master);
 
 	/* jump to master process */
+#if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
 	siglongjmp(env, 1);
+#else
+	longjmp(env, 1);
+#endif
 }
 
 __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info)
@@ -410,7 +418,11 @@ __direct_log void fly_master_process(fly_master_t *master)
 			"initialize worker inotify error."
 		);
 
+#if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
 	if (sigsetjmp(env, 1) == 0){
+#else
+	if (setjmp(env) == 0){
+#endif
 		/* event handler start here */
 		if (fly_event_handler(manager) == -1)
 			FLY_EMERGENCY_ERROR(

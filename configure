@@ -13824,6 +13824,12 @@ then :
   printf "%s\n" "#define HAVE_UNISTD_H 1" >>confdefs.h
 
 fi
+ac_fn_c_check_header_compile "$LINENO" "setjmp.h" "ac_cv_header_setjmp_h" "$ac_includes_default"
+if test "x$ac_cv_header_setjmp_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_SETJMP_H 1" >>confdefs.h
+
+fi
 
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -14941,24 +14947,34 @@ then :
   printf "%s\n" "#define HAVE_STRERROR 1" >>confdefs.h
 
 fi
-
-
-CFLAGS = ""
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -O0" >&5
-printf %s "checking whether C compiler accepts -O0... " >&6; }
-if test ${ax_cv_check_cflags___O0+y}
+ac_fn_c_check_func "$LINENO" "sigsetjmp" "ac_cv_func_sigsetjmp"
+if test "x$ac_cv_func_sigsetjmp" = xyes
 then :
-  printf %s "(cached) " >&6
-else $as_nop
+  printf "%s\n" "#define HAVE_SIGSETJMP 1" >>confdefs.h
 
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -O0"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+fi
+ac_fn_c_check_func "$LINENO" "siglongjmp" "ac_cv_func_siglongjmp"
+if test "x$ac_cv_func_siglongjmp" = xyes
+then :
+  printf "%s\n" "#define HAVE_SIGLONGJMP 1" >>confdefs.h
+
+fi
+
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for sigsetjmp" >&5
+printf %s "checking for sigsetjmp... " >&6; }
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
+
+#include <setjmp.h>
+static sigjmp_buf senv;
 
 int
 main (void)
 {
+
+while(sigsetjmp(senv, 1) == 0)
+	siglongjmp(senv, 1);
 
   ;
   return 0;
@@ -14966,174 +14982,28 @@ main (void)
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"
 then :
-  ax_cv_check_cflags___O0=yes
+   ac_cv_func_sigsetjmp=yes
 else $as_nop
-  ax_cv_check_cflags___O0=no
+   ac_cv_func_sigsetjmp=no
+
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___O0" >&5
-printf "%s\n" "$ax_cv_check_cflags___O0" >&6; }
-if test "x$ax_cv_check_cflags___O0" = xyes
-then :
-  CFLAGS="$CFLAGS -O0"
-else $as_nop
-  :
-fi
 
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -W" >&5
-printf %s "checking whether C compiler accepts -W... " >&6; }
-if test ${ax_cv_check_cflags___W+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_func_sigsetjmp" >&5
+printf "%s\n" "$ac_cv_func_sigsetjmp" >&6; }
 
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -W"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
+if test "$ac_cv_func_sigsetjmp" = "yes"; then
 
-int
-main (void)
-{
+printf "%s\n" "#define HAVE_SIGSETJMP 1" >>confdefs.h
 
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"
-then :
-  ax_cv_check_cflags___W=yes
-else $as_nop
-  ax_cv_check_cflags___W=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___W" >&5
-printf "%s\n" "$ax_cv_check_cflags___W" >&6; }
-if test "x$ax_cv_check_cflags___W" = xyes
-then :
-  CFLAGS="$CFLAGS -W"
-else $as_nop
-  :
 fi
 
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -Wall" >&5
-printf %s "checking whether C compiler accepts -Wall... " >&6; }
-if test ${ax_cv_check_cflags___Wall+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -Wall"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main (void)
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"
-then :
-  ax_cv_check_cflags___Wall=yes
-else $as_nop
-  ax_cv_check_cflags___Wall=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___Wall" >&5
-printf "%s\n" "$ax_cv_check_cflags___Wall" >&6; }
-if test "x$ax_cv_check_cflags___Wall" = xyes
-then :
-  CFLAGS="$CFLAGS -Wall"
-else $as_nop
-  :
-fi
-
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -Werror" >&5
-printf %s "checking whether C compiler accepts -Werror... " >&6; }
-if test ${ax_cv_check_cflags___Werror+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -Werror"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main (void)
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"
-then :
-  ax_cv_check_cflags___Werror=yes
-else $as_nop
-  ax_cv_check_cflags___Werror=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___Werror" >&5
-printf "%s\n" "$ax_cv_check_cflags___Werror" >&6; }
-if test "x$ax_cv_check_cflags___Werror" = xyes
-then :
-  CFLAGS="$CFLAGS -Werror"
-else $as_nop
-  :
-fi
-
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking whether C compiler accepts -Wcast-align" >&5
-printf %s "checking whether C compiler accepts -Wcast-align... " >&6; }
-if test ${ax_cv_check_cflags___Wcast_align+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-
-  ax_check_save_flags=$CFLAGS
-  CFLAGS="$CFLAGS  -Wcast-align"
-  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-int
-main (void)
-{
-
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_compile "$LINENO"
-then :
-  ax_cv_check_cflags___Wcast_align=yes
-else $as_nop
-  ax_cv_check_cflags___Wcast_align=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-  CFLAGS=$ax_check_save_flags
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_check_cflags___Wcast_align" >&5
-printf "%s\n" "$ax_cv_check_cflags___Wcast_align" >&6; }
-if test "x$ax_cv_check_cflags___Wcast_align" = xyes
-then :
-  CFLAGS="$CFLAGS -Wcast-align"
-else $as_nop
-  :
-fi
-
+#CFLAGS = ""
+#AX_CHECK_COMPILE_FLAG([-O0], [CFLAGS="$CFLAGS -O0"])
+#AX_CHECK_COMPILE_FLAG([-W], [CFLAGS="$CFLAGS -W"])
+#AX_CHECK_COMPILE_FLAG([-Wall], [CFLAGS="$CFLAGS -Wall"])
+#AX_CHECK_COMPILE_FLAG([-Werror], [CFLAGS="$CFLAGS -Werror"])
+#AX_CHECK_COMPILE_FLAG([-Wcast-align], [CFLAGS="$CFLAGS -Wcast-align"])
 
 
 ac_config_files="$ac_config_files Makefile src/Makefile fly/__init__.py"
