@@ -214,7 +214,7 @@ AUTOMAKE = ${SHELL} '/home/tatsuya/fly/missing' automake-1.16
 AWK = gawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -O2
+CFLAGS =  -O0 -W -Wall -Werror -Wcast-align
 CPPFLAGS = 
 CSCOPE = cscope
 CTAGS = ctags
@@ -231,7 +231,7 @@ EGREP = /usr/bin/grep -E
 ETAGS = etags
 EXEEXT = 
 FGREP = /usr/bin/grep -F
-FLY_VERSION = 1.0.0
+FLY_VERSION = 1.1.2
 GREP = /usr/bin/grep
 INSTALL = /usr/bin/install -c
 INSTALL_DATA = ${INSTALL} -m 644

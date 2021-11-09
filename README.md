@@ -41,8 +41,10 @@ app = Fly()
 def index(request):
 	return "Hello, fly!"
 
-app.run()
+```
 
+```
+$ fly app.py
 ```
 
 <details>

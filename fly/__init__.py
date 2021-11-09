@@ -12,4 +12,4 @@ __all__ = [
 	FlyMount.__name__,
 ]
 
-__version__ = "1.0.0"
+__version__ = "1.1.2"

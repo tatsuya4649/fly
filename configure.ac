@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.71])
 
-VERSION="1.0.0"
+VERSION="1.1.2"
 AC_INIT([fly],[VERSION])
 AC_CONFIG_SRCDIR([src/master.c])
 AC_CONFIG_HEADERS([config.h])
@@ -74,18 +74,20 @@ if test "$ac_cv_func_sigsetjmp" = "yes"; then
 	AC_DEFINE(HAVE_SIGSETJMP, 1, [Define to 1 if you have the `sigsetjmp` function. ])
 fi
 
-#CFLAGS = ""
-#AX_CHECK_COMPILE_FLAG([-O0], [CFLAGS="$CFLAGS -O0"])
-#AX_CHECK_COMPILE_FLAG([-W], [CFLAGS="$CFLAGS -W"])
-#AX_CHECK_COMPILE_FLAG([-Wall], [CFLAGS="$CFLAGS -Wall"])
-#AX_CHECK_COMPILE_FLAG([-Werror], [CFLAGS="$CFLAGS -Werror"])
-#AX_CHECK_COMPILE_FLAG([-Wcast-align], [CFLAGS="$CFLAGS -Wcast-align"])
+AC_LANG_PUSH(C)
+CFLAGS=""
+AX_CHECK_COMPILE_FLAG([-O0], [CFLAGS="$CFLAGS -O0"])
+AX_CHECK_COMPILE_FLAG([-W], [CFLAGS="$CFLAGS -W"])
+AX_CHECK_COMPILE_FLAG([-Wall], [CFLAGS="$CFLAGS -Wall"])
+AX_CHECK_COMPILE_FLAG([-Werror], [CFLAGS="$CFLAGS -Werror"])
+AX_CHECK_COMPILE_FLAG([-Wcast-align], [CFLAGS="$CFLAGS -Wcast-align"])
+AC_LANG_POP(C)
 
 AC_PREFIX_DEFAULT($PWD/fly)
 AC_CONFIG_FILES([Makefile
                  src/Makefile
 				 fly/__init__.py])
 
-FLY_VERSION="1.0.0"
+FLY_VERSION="1.1.2"
 AC_SUBST([FLY_VERSION])
 AC_OUTPUT
