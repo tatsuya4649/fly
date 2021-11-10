@@ -1,4 +1,4 @@
-name: fly build test
+name: Test
 on:
     push:
         branches:

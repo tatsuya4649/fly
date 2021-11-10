@@ -5,8 +5,9 @@
 ![fork](https://img.shields.io/github/forks/tatsuya4649/fly)
 ![star](https://img.shields.io/github/stars/tatsuya4649/fly)
 ![license](https://img.shields.io/github/license/tatsuya4649/fly)
-![python](https://img.shields.io/badge/python-3.5%7C3.6%7C3.7%7C3.8%7C3.9%7C3.10-blue)
+![python](https://img.shields.io/badge/python-3.6%20%7C%203.7%20%7C%203.8%20%7C%203.9%20%7C%203.10-blue)
 ![pypi](https://badge.fury.io/py/fly-server.svg)
+![test](https://github.com/tatsuya4649/fly/actions/workflows/fly-test.yaml/badge.svg)
 
 Python lightweight web application framework.
 
