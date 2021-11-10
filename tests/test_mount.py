@@ -12,6 +12,9 @@ def test_init():
 def test_mounts(__pyfly_mount):
     assert(isinstance(__pyfly_mount.mounts, list))
 
+def test_mounts_count(__pyfly_mount):
+    assert(__pyfly_mount.mounts_count == 0)
+
 @pytest.mark.parametrize(
     "path", [
     10,
