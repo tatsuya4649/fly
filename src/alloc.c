@@ -55,7 +55,7 @@ void fly_free(void *ptr)
 }
 
 /* for red black tree */
-__fly_static int __fly_rb_search_block(void *k1, void *k2, void *)
+__fly_static int __fly_rb_search_block(void *k1, void *k2, void * __unused)
 {
 	if (k1 > k2)
 		return FLY_RB_CMP_BIG;
