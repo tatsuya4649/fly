@@ -22,6 +22,8 @@ jobs:
               run: python -V
             - name: Install dependencies
               run: |
+                  sudo apt update
+                  sudo apt install -y autotools-dev autoconf automake libtool autoconf-archive
                   sudo apt install -y libssl-dev zlib1g-dev
                   python -m pip install --upgrade pip
                   python -m pip install -r requirements.txt
