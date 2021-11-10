@@ -20,6 +20,11 @@ jobs:
                   architecture: 'x64'
             - name: Get Python version
               run: python -V
+            - name: Get tools version
+              run: |
+                  autoconf --version
+                  automake --version
+                  libtool --version
             - name: Install dependencies
               run: |
                   sudo apt update
