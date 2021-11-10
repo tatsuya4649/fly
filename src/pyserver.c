@@ -664,6 +664,10 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 				if (!PyUnicode_Check(pyhdr_value))
 					goto response_500;
 				hdr_value = PyUnicode_AsUTF8AndSize(pyhdr_value, &hdr_value_len);
+
+				if (hdr_name == NULL || hdr_value == NULL)
+					goto response_500;
+
 				if (fly_header_add_ver(res->header, (char *) hdr_name, hdr_name_len, (char *) hdr_value, hdr_value_len, is_fly_request_http_v2(request)) == -1)
 					return NULL;
 

@@ -12,6 +12,7 @@ lib/
 /autom4te.cache/
 /fly_server.egg-info/
 __pycache__/
+/.pytest_cache/
 /server
 /fly/_fly_server.*
 GPATH
