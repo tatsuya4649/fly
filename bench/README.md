@@ -7,7 +7,7 @@ List of benchmarks compared "fly" and popular HTTP/App server.
 
 * CPU: Intel(R) Core(TM) i7-4770HQ CPU @ 2.20GHz
 * Memory: 15GB
-* HTTP benchmarking tool: [wrk](https://github.com/wg/wrk "github of wrk")(HTTP/1.1)
+* HTTP benchmarking tool: [wrk2](https://github.com/giltene/wrk2)
 * HTML file: html/bench.html(147bytes)
 * SSL cert/key file: conf/server.crt, conf/server.key
 * Measurement time: 1m

@@ -38,9 +38,12 @@ TEST_READ_PATH="test_read.conf"
 def test_fly_iniit_path_perm_error():
     open(TEST_READ_PATH, "w")
     os.chmod(path=TEST_READ_PATH, mode=stat.S_IWRITE)
-    with pytest.raises(
-        ValueError
-    ):
+    if not os.access(TEST_READ_PATH, os.R_OK):
+        with pytest.raises(
+            ValueError
+        ):
+            Fly(config_path=TEST_READ_PATH)
+    else:
         Fly(config_path=TEST_READ_PATH)
 
     os.remove(TEST_READ_PATH)
