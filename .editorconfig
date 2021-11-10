@@ -16,7 +16,14 @@ indent_size = 4
 trim_trailing_whitespace = true
 insert_final_newline = true
 
-[{Makefile}]
+[{Makefile, _makefile}]
 indent_style = tab
 indent_size = 4
 
+[*.{yaml, yml}]
+end_of_line = 1f
+indent_style = spec
+index_size = 4
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
