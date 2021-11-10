@@ -22,6 +22,7 @@ gdb.*
 vgcore.*
 *.log
 config.status
+configure.scan
 gdb.*
 *~
 *.crt

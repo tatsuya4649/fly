@@ -23,6 +23,7 @@ RUN cat config.h
 RUN make
 RUN make install
 RUN python3 setup.py build
-RUN mv build/lib.linux*/fly/_fly_server.* fly/*
+# copy extension module(fly module) from build directory to fly directory
+RUN cp build/lib.linux*/fly/_fly_server.cpython* fly/
 # python test
 RUN python3 -m pytest tests
