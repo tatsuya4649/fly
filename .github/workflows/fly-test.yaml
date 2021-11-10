@@ -38,8 +38,13 @@ jobs:
               run: |
                   autoreconf
                   ./configure
+                  cat config.h
                   make
                   make install
+            - name: Build extension module
+                  python3 setup.py build
+                  cp build/lib.linux*/fly/_fly_server.cpython* fly/
+
             - name: Run Python
               run: python -m pytest tests
 
