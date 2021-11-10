@@ -296,6 +296,8 @@ void fly_body_parse_multipart(fly_request_t *req)
 	return;
 
 body_parse:
+	;
+
 	char *__p=__c->value;
 	char *body_ptr;
 	__unused size_t boundary_len;
