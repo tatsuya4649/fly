@@ -32,8 +32,10 @@ jobs:
                   autoconf --version
                   automake --version
                   libtool --version
+                  aclocal --version
             - name: Make fly library
               run: |
+                  autoreconf
                   ./configure
                   make
                   make install
