@@ -243,6 +243,7 @@ __fly_static enum method_type __fly_request_method(fly_reqlinec_t *c)
 
 	return -1;
 parse_method:
+	;
 	const char *ptr;
 	ptr = __m->name;
 	while(*ptr)
@@ -1056,6 +1057,7 @@ __fase_request_line:
 
 	/* parse header */
 __fase_header:
+	;
 	fly_buffer_c *hdr_buf;
 
 	fly_event_fase(event, HEADER);
@@ -1094,6 +1096,7 @@ __fase_header:
 
 	/* parse body */
 __fase_body:
+	;
 	size_t content_length;
 	content_length = fly_content_length(request->header);
 	if (!content_length)
@@ -1224,6 +1227,7 @@ response_path:
 	return fly_response_from_pf(event, request, pf);
 
 response_304:
+	;
 	struct fly_response_content *rc_304;
 
 	rc_304 = fly_pballoc(request->pool, sizeof(struct fly_response_content));
