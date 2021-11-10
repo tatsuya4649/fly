@@ -3,13 +3,15 @@
 #include "conf.h"
 
 __fly_static fly_encoding_type_t __fly_encodes[] = {
+#if defined HAVE_LIBZ
 	FLY_ENCODE_TYPE(gzip, 100),
 	{ fly_gzip, "x-gzip", 90, fly_gzip_encode, fly_gzip_decode },
-//	FLY_ENCODE_TYPE(compress, 50),
-//	{ fly_compress, "x-compress", 30 },
 	FLY_ENCODE_TYPE(deflate, 75),
+#endif
 	FLY_ENCODE_TYPE(identity, 1),
+#if defined HAVE_LIBBROTLIDEC && defined HAVE_LIBBROTLIENC
 	FLY_ENCODE_TYPE(br, 30),
+#endif
 	FLY_ENCODE_ASTERISK,
 	FLY_ENCODE_NULL
 };
@@ -101,6 +103,7 @@ fly_encoding_type_t *fly_encoding_from_name(fly_encname_t *name)
 	#undef FLY_ENCODE_NAME_LENGTH
 }
 
+#if defined HAVE_LIBZ
 int fly_gzip_decode(fly_de_t *de)
 {
 	int status;
@@ -296,7 +299,9 @@ error:
 		return FLY_ENCODE_ERROR;
 	return FLY_ENCODE_ERROR;
 }
+#endif
 
+#if defined HAVE_LIBBROTLIDEC && defined HAVE_LIBBROTLIENC
 /* brotli compress/decompress */
 int fly_br_decode(fly_de_t *de)
 {
@@ -499,90 +504,9 @@ buffer_error:
 	BrotliEncoderDestroyInstance(state);
 	return FLY_ENCODE_BUFFER_ERROR;
 }
+#endif
 
-//__fly_static int __fly_esend_blocking_handler(fly_event_t *e)
-//{
-//	fly_response_t *response;
-//
-//	response = (fly_response_t *) e->event_data;
-//	return fly_esend_body(e, response);
-//}
-//
-//__fly_static int __fly_esend_blocking(fly_event_t *e, fly_response_t *res, int read_or_write)
-//{
-//	e->event_data = (void *) res;
-//	e->read_or_write = read_or_write;
-//	e->eflag = 0;
-//	e->tflag = FLY_INHERIT;
-//	e->flag = FLY_NODELETE;
-//	e->available = false;
-//	FLY_EVENT_HANDLER(e, __fly_esend_blocking_handler);
-//	return fly_event_register(e);
-//}
-
-
-//int fly_esend_body(fly_event_t *e, fly_response_t *response)
-//{
-//	fly_de_t *de;
-//	int numsend;
-//	fly_buf_p *send_ptr;
-//	fly_buffer_c *chain;
-//
-//	de = response->de;
-//	if (!de->end)
-//		return -1;
-//
-//	size_t total = response->byte_from_start ? response->byte_from_start : 0;
-//	chain = fly_buffer_first_chain(de->encbuf);
-//	send_ptr = fly_buffer_first_ptr(de->encbuf);
-//	numsend = total;
-//	while(true){
-//		send_ptr = fly_update_chain(&chain, send_ptr, numsend);
-//		if (FLY_CONNECT_ON_SSL(response->request->connect)){
-//			SSL *ssl = response->request->connect->ssl;
-//			numsend = SSL_write(ssl, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr));
-//			switch(SSL_get_error(ssl, numsend)){
-//			case SSL_ERROR_NONE:
-//				break;
-//			case SSL_ERROR_ZERO_RETURN:
-//				return FLY_RESPONSE_ERROR;
-//			case SSL_ERROR_WANT_READ:
-//				goto read_blocking;
-//			case SSL_ERROR_WANT_WRITE:
-//				goto write_blocking;
-//			case SSL_ERROR_SYSCALL:
-//				return FLY_RESPONSE_ERROR;
-//			case SSL_ERROR_SSL:
-//				return FLY_RESPONSE_ERROR;
-//			default:
-//				/* unknown error */
-//				return FLY_RESPONSE_ERROR;
-//			}
-//		}else{
-//			numsend = send(de->c_sockfd, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr), 0);
-//			if (FLY_BLOCKING(numsend))
-//				goto write_blocking;
-//			else if (numsend == -1)
-//				return FLY_RESPONSE_ERROR;
-//		}
-//		response->byte_from_start += numsend;
-//		total += numsend;
-//
-//		/* send all content */
-//		if (total >= de->contlen)
-//			break;
-//	}
-//	return FLY_RESPONSE_SUCCESS;
-//read_blocking:
-//	if (__fly_esend_blocking(e, de->response, FLY_READ) == -1)
-//		return FLY_RESPONSE_ERROR;
-//	return FLY_RESPONSE_BLOCKING;
-//write_blocking:
-//	if (__fly_esend_blocking(e, de->response, FLY_WRITE) == -1)
-//		return FLY_RESPONSE_ERROR;
-//	return FLY_RESPONSE_BLOCKING;
-//}
-
+#if defined HAVE_LIBZ
 int fly_deflate_decode(fly_de_t *de)
 {
 	switch (de->type){
@@ -786,6 +710,7 @@ error:
 		return FLY_ENCODE_ERROR;
 	return FLY_ENCODE_ERROR;
 }
+#endif
 
 __unused int fly_identity_decode(__unused fly_de_t *de){ return 0; }
 __unused int fly_identity_encode(__unused fly_de_t *de){ return 0; }
