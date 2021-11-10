@@ -194,7 +194,11 @@ struct fly_response_content_by_stcode{
 	struct fly_bllist			blelem;
 	fly_bit_t					encoded: 1;
 };
+#if defined HAVE_LIBZ
 #define FLY_RCBS_DEFAULT_ENCODE_TYPE		fly_gzip
+#else
+#define FLY_RCBS_DEFAULT_ENCODE_TYPE		fly_identify
+#endif
 struct fly_response_content_by_stcode *fly_rcbs_init(fly_context_t *ctx);
 typedef struct fly_response_content_by_stcode fly_rcbs_t;
 fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);

@@ -77,7 +77,7 @@ error:
 	return NULL;
 }
 
-__fly_static int __fly_event_cmp(void *k1, void *k2, void *)
+__fly_static int __fly_event_cmp(void *k1, void *k2, void *data __unused)
 {
 	struct __fly_event_for_rbtree *__e1, *__e2;
 	__e1 = (struct __fly_event_for_rbtree *) k1;

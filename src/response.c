@@ -2,13 +2,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
-#include "response.h"
 #include "request.h"
 #include "header.h"
 #include "alloc.h"
 #include "mount.h"
 #include "math.h"
 #include "v2.h"
+#include "encode.h"
+#include "response.h"
 
 fly_status_code responses[] = {
 	/* 1xx Info */

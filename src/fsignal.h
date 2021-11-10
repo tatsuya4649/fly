@@ -43,5 +43,5 @@ int fly_signal_register(sigset_t *mask);
 __noreturn int fly_signal_default_handler(fly_context_t *, struct signalfd_siginfo *);
 int fly_send_signal(pid_t pid, int signumber, int value);
 
-static inline void FLY_SIG_IGN(fly_context_t *, struct signalfd_siginfo *){}
+static inline void FLY_SIG_IGN(fly_context_t *ctx __unused, struct signalfd_siginfo *__info __unused){}
 #endif

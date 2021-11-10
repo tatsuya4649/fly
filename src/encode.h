@@ -4,16 +4,19 @@
 #include <string.h>
 #include <ctype.h>
 #include <string.h>
+#include "util.h"
+
 /* compress/decompress libraries */
 #if defined HAVE_LIBZ
 #include <zlib.h>
+#else
+#error ZLIB NO_ERROR
 #endif
 #if defined HAVE_LIBBROTLIDEC && defined HAVE_LIBBROTLIENC
 #include <brotli/encode.h>
 #include <brotli/decode.h>
 #endif
 
-#include "util.h"
 #include "alloc.h"
 #include "bllist.h"
 #include "buffer.h"
@@ -26,7 +29,7 @@
 #define FLY_ACCEPT_ENCODING_HEADER				"Accept-Encoding"
 #define FLY_ACCEPT_ENCODING_HEADER_SMALL		"accept-encoding"
 enum __fly_encoding_type{
-#if defined HAVE_LIBZ
+#ifdef HAVE_LIBZ
 	fly_gzip,
 	fly_deflate,
 #endif
@@ -39,7 +42,9 @@ enum __fly_encoding_type{
 };
 typedef enum __fly_encoding_type fly_encoding_e;
 typedef char fly_encname_t;
+#if defined HAVE_LIBZ
 typedef Bytef fly_encbuf_t;
+#endif
 
 
 typedef ssize_t (*fly_send_t)(int c_sockfd, const void *buf, size_t buflen, int flag);
