@@ -48,6 +48,24 @@ $ fly app.py
 ```
 
 <details>
+<summary>result</summary>
+<div>
+
+```
+    * fly Running on 0.0.0.0:1234 (Press CTRL+C to quit)
+    * fly 5 workers
+    * SSL: False
+    * SSL certificate path: conf/server.crt
+    * SSL key path: conf/server.key
+    * Log directory path: ~/log
+    * Mount paths ()
+```
+
+
+</div>
+</details>
+
+<details>
 <summary>mount vs route</summary>
 <div>
 
@@ -57,6 +75,8 @@ $ fly app.py
 
 </div>
 </details>
+
+## Why fly ?
 
 ## How fast ?
 

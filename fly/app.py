@@ -14,7 +14,6 @@ from enum import Enum
 from .mount import FlyMount
 from ._fly_server import _fly_server
 from .route import FlyRoute
-from .env import FlyEnv
 from .response import *
 
 class FlyMethod(Enum):
@@ -59,13 +58,9 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
             # socket make, bind, listen
             _fly_server.__init__(self)
 
-    def mount(self, path):
-        super().mount(path)
-
-        self._mount(path)
 
     def route(self, path, method):
-        if not isinstance(path, str) and not isinstance(method, FlyMethod):
+        if not isinstance(path, str) or not isinstance(method, FlyMethod):
             raise TypeError(
                 "path must be str type and FlyMethod."
             )
@@ -117,6 +112,8 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
             raise TypeError("config_path must be str type.")
 
         super()._configure(self.config_path, self.routes)
+        for __p in self.mounts:
+            self._mount(__p)
 
         print("\n", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)

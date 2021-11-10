@@ -63,20 +63,7 @@ class Response(_Response):
         self._status_code = status_code
         self._content_type = content_type
         self._header = list()
-        if header is not None:
-            if not isinstance(header, list):
-                raise TypeError("header must be list type.")
-
-            for i in header:
-                if not isinstance(i, dict):
-                    raise TypeError("header element must be dict type.")
-                if i.get("name") is None or i.get("value") is None:
-                    raise ValueError("header element must have \"name\" key and \"value\" key")
-
-        if body is not None:
-            self._body = body
-        else:
-            self._body = bytes()
+        self._body = body if body is not None else bytes()
 
     @property
     def status_code(self):
@@ -102,7 +89,7 @@ class Response(_Response):
         hdr_elem = dict()
         hdr_elem["name"] = name
         hdr_elem["value"] = value
-        self._header.add(hdr_elem)
+        self._header.append(hdr_elem)
 
 class PlainResponse(Response):
     def __init__(
