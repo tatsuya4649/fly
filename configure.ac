@@ -21,15 +21,15 @@ AC_CHECK_LIB([brotlidec], [main])
 # FIXME: Replace 'main' with a function in '-lbrotlienc':
 AC_CHECK_LIB([brotlienc], [main])
 # FIXME: Replace 'main' with a function in '-lcrypto':
-AC_CHECK_LIB([crypto], [main])
+AC_CHECK_LIB([crypto], [main], [LIBS="-lcrypto $LIBS"], [AC_MSG_ERROR(could not find crypto on your system)])
 # FIXME: Replace 'main' with a function in '-lfly':
 AC_CHECK_LIB([fly], [main])
 # FIXME: Replace 'main' with a function in '-lpthread':
 AC_CHECK_LIB([pthread], [main])
 # FIXME: Replace 'main' with a function in '-lssl':
-AC_CHECK_LIB([ssl], [main])
+AC_CHECK_LIB([ssl], [main], [LIBS="-lssl $LIBS"], [AC_MSG_ERROR(could not find ssl on your system)])
 # FIXME: Replace 'main' with a function in '-lz':
-AC_CHECK_LIB([z], [main])
+AC_CHECK_LIB([z], [main], [LIBS="-lz $LIBS"], [AC_MSG_ERROR(could not find zlib on your system)])
 
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h netdb.h netinet/in.h stdint.h sys/ioctl.h sys/socket.h sys/time.h unistd.h setjmp.h])
