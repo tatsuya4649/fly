@@ -21,21 +21,21 @@ def test_fly_init():
     [],
     b"fly/conf"
 ])
-def test_fly_inti(path):
+def test_fly_init_path_error(path):
     with pytest.raises(
         TypeError
     ):
         Fly(config_path=path)
 
 TEST_PATH="fly"
-def test_fly_inti():
+def test_fly_init_path_value_error():
     with pytest.raises(
         ValueError
     ):
         Fly(config_path=TEST_PATH)
 
 TEST_READ_PATH="test_read.conf"
-def test_fly_inti():
+def test_fly_iniit_path_perm_error():
     open(TEST_READ_PATH, "w")
     os.chmod(path=TEST_READ_PATH, mode=stat.S_IWRITE)
     with pytest.raises(
@@ -56,7 +56,7 @@ def test_fly_singleton():
 TEST_MOUNT = "__fly_test_mount_dir"
 @pytest.fixture(scope="function", autouse=False)
 def fly_mount(fly_init):
-    os.mkdir(TEST_MOUNT)
+    os.makedirs(TEST_MOUNT, exist_ok=True)
 
     yield fly_init
 
@@ -72,8 +72,41 @@ def test_mount_value_error(fly_mount):
         fly_mount.mount(TEST_MOUNT + "test")
 
 def test_route(fly_init):
-    func = fly_init.route("/", "GET")
+    func = fly_init.route("/", FlyMethod.GET)
     assert(callable(func))
+
+@pytest.mark.parametrize(
+    "route", [
+    b"route",
+    1,
+    1.0,
+    [],
+    {},
+])
+def test_route_type_error(fly_init, route):
+    with pytest.raises(TypeError):
+        fly_init.route(route, FlyMethod.GET)
+
+@pytest.mark.parametrize(
+    "func", [
+    "func",
+    b"func",
+    1,
+    1.0,
+    [],
+    {},
+])
+def test_route_func_error(fly_init, func):
+    _route = fly_init.route("/", FlyMethod.GET)
+    with pytest.raises(TypeError):
+        _route(func)
+
+def hello():
+    return "Hello"
+
+def test_route(fly_init):
+    _route = fly_init.route("/", FlyMethod.GET)
+    _route(hello)
 
 def test_route_method(fly_init):
     func = fly_init.route("/", FlyMethod.GET)
