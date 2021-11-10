@@ -20,18 +20,18 @@ jobs:
                   architecture: 'x64'
             - name: Get Python version
               run: python -V
+            - name: Install dependencies
+              run: |
+                  sudo apt update
+                  sudo apt install -y m4 perl autotools-dev autoconf automake libtool autoconf-archive
+                  sudo apt install -y libssl-dev zlib1g-dev
+                  python -m pip install --upgrade pip
+                  python -m pip install -r requirements.txt
             - name: Get tools version
               run: |
                   autoconf --version
                   automake --version
                   libtool --version
-            - name: Install dependencies
-              run: |
-                  sudo apt update
-                  sudo apt install -y m4 perl autotools-dev autoconf automake libtool libtool-bin autoconf-archive
-                  sudo apt install -y libssl-dev zlib1g-dev
-                  python -m pip install --upgrade pip
-                  python -m pip install -r requirements.txt
             - name: Make fly library
               run: |
                   ./configure
