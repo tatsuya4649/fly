@@ -2258,6 +2258,7 @@ int fly_send_data_frame(fly_event_t *e, fly_response_t *res)
 	return __fly_send_data_fh(e, res, send_len, stream->id, flag);
 
 send:
+	;
 	size_t total = res->byte_from_start ? res->byte_from_start : 0;
 	ssize_t numsend;
 	send_len = res->send_len;
@@ -2512,6 +2513,7 @@ int fly_state_send_frame(fly_event_t *e, fly_hv2_state_t *state)
 {
 	struct fly_hv2_send_frame *__s;
 retry:
+	;
 	struct fly_queue *__q;
 	fly_for_each_queue(__q, &state->send){
 		__s = fly_queue_data(__q, struct fly_hv2_send_frame, sqelem);
@@ -3001,6 +3003,7 @@ void fly_received_settings_frame_ack(fly_hv2_stream_t *stream)
 	if (stream->yetack_count == 0)
 		return;
 retry:
+	;
 	struct fly_bllist *__b;
 
 	fly_for_each_bllist(__b, &stream->yetack){

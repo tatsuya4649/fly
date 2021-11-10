@@ -176,8 +176,16 @@ __unused __fly_static void __fly_printf_error(fly_errp_t *errp, FILE *fp)
 	fprintf(
 		fp,
 		"  [%s (%s)]: %s\n",
+#ifdef HAVE_STRERRORNAME_NP
 		strerrorname_np(errp->__errno),
+#else
+		"",
+#endif
+#ifdef HAVE_STRERRORDESC_NP
 		strerrordesc_np(errp->__errno),
+#else
+		strerror(errp->__errno),
+#endif
 		errp->content
 	);
 }
@@ -233,8 +241,16 @@ __fly_static void __fly_write_to_log_emerge(fly_errc_t *err_content, enum fly_em
 		"[%d] Emergency Error. Worker Process is gone. (%s) (%s: %s)\n",
 		__fly_errsys.pid,
 		err_content,
+#ifdef HAVE_STRERRORNAME_NP
 		strerrorname_np(__errno),
+#else
+		"",
+#endif
+#ifdef HAVE_STRERRORDESC_NP
 		strerrordesc_np(__errno)
+#else
+		strerror(__errno)
+#endif
 	);
 	write(errfile, errc, strlen(errc));
 
@@ -278,7 +294,7 @@ void fly_emergency_error(enum fly_emergency_status end_status, int __errno, cons
 
 	if (isatty(STDERR_FILENO))
 		/* if no daemon, error to stderr */
-		fprintf(stderr, err_content);
+		fprintf(stderr, "%s\n", err_content);
 	else
 		/* write error content in log */
 		__fly_write_to_log_emerge(err_content, end_status, __errno);

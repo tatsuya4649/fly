@@ -374,6 +374,8 @@ int fly_br_decode(fly_de_t *de)
 	}
 
 end_decode:
+	;
+
 	fly_buffer_c *__lec;
 	if (fly_update_buffer(de->decbuf, fly_buf_act_len(fly_buffer_last_chain(de->decbuf))-available_out) == -1)
 		return FLY_DECODE_ERROR;
