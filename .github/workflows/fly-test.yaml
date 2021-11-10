@@ -42,6 +42,7 @@ jobs:
                   make
                   make install
             - name: Build extension module
+              run: |
                   python3 setup.py build
                   cp build/lib.linux*/fly/_fly_server.cpython* fly/
 
