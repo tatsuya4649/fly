@@ -32,6 +32,7 @@ def get_packages(package):
 macros = []
 extra_compile_args = []
 if os.getenv("DEBUG") is not None:
+    print("DEBUG MODE")
     macros.append(("DEBUG", "fly"))
     extra_compile_args.append("-g3")
     extra_compile_args.append("-O0")
@@ -56,7 +57,7 @@ server = Extension(
 setup(
 	name="fly_server",
 	version=version_from_init(),
-	description="tiny web/app server with C/Python",
+	description="lightweight web framework",
 	ext_modules = [
 		server,
 	],

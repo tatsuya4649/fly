@@ -111,7 +111,12 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
         if self.config_path is not None and not isinstance(self.config_path, str):
             raise TypeError("config_path must be str type.")
 
-        super()._configure(self.config_path, self.routes)
+        try:
+            super()._configure(self.config_path, self.routes)
+        except Exception as e:
+            print(e)
+            return
+
         for __p in self.mounts:
             self._mount(__p)
 
