@@ -7,6 +7,9 @@ import tempfile
 import importlib.machinery as imm
 import signal
 
+class FlyNotFoundError(Exception):
+    pass
+
 @click.command()
 @click.argument(
     "app",
@@ -67,7 +70,7 @@ import signal
     "--ssl",
     "ssl",
     is_flag=True,
-    default=False,
+    default=None,
     help="Whether to use SSL/TLS Protocol",
     show_default=False
 )
@@ -118,7 +121,7 @@ import signal
     "--stdout",
     type=str,
     is_flag=True,
-    default=False,
+    default=None,
     help="Whether to display logs on stdout",
     show_default=False
 )
@@ -126,7 +129,7 @@ import signal
     "--stderr",
     type=str,
     is_flag=True,
-    default=True,
+    default=None,
     help="Whether to display logs on stderr",
     show_default=False
 )
@@ -300,6 +303,12 @@ def run(**kwargs):
             if _instance.__class__ == Fly:
                 _instance.config_path = os.path.abspath(_fp.name)
                 _instance.run(daemon=daemon)
+                break
+        raise FlyNotFoundError
+    except NotFoundError:
+        print(f"not found fly instance in your application({config_path})")
+    except Exception as e:
+        print(e)
     finally:
         _fp.close()
         sys.exit(0)

@@ -23,6 +23,9 @@ struct fly_connect{
 	char 					servname[NI_MAXSERV];
 	struct sockaddr_storage peer_addr;
 	socklen_t				addrlen;
+	/* for connection buffer */
+	size_t					buffer_init_len;
+	size_t					buffer_per_len;
 	/* for ssl/tls connection */
 	SSL						*ssl;
 	SSL_CTX					*ssl_ctx;
@@ -51,5 +54,10 @@ int fly_listen_socket_end_handler(fly_event_t *__e);
 
 #define FLY_MAX_REQUEST_LENGTH		"FLY_MAX_REQUEST_LENGTH"
 size_t fly_max_request_length(void);
+
+#define FLY_CONNECT_BUFFER_INIT_LEN "FLY_CONNECT_BUFFER_INIT_LEN"
+#define FLY_CONNECT_BUFFER_PER_LEN	"FLY_CONNECT_BUFFER_PER_LEN"
+size_t fly_connect_buffer_init_len(void);
+size_t fly_connect_buffer_per_len(void);
 
 #endif

@@ -36,3 +36,5 @@ Makefile
 update
 test_update
 test_read.conf
+fly_test.crt
+fly_test.key
