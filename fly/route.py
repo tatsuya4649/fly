@@ -1,5 +1,5 @@
 #from _fly_route import _fly_route
-from .method import FlyMethod, method_from_name
+from .method import method_from_name, FlyMethod
 
 
 class FlyRoute():

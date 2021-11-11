@@ -22,7 +22,7 @@ DEPEND_LIBS := -lz -lbrotlienc -lcrypto -lbrotlidec -lssl
 LIBDIR := fly/lib
 LIBNAME := lib$(TARGET).so.$(MAJOR_VERSION)
 BUILDDIR := build
-TESTDIR := test
+TESTDIR := tests
 TESTPRE := __fly_
 TEST_FILES := test_server.cpp test_signal.cpp test_fs.cpp test_route.cpp test_request.cpp test_util.cpp test_math.cpp test_body.cpp test_connect.cpp test_log.cpp
 ifdef DEBUG
