@@ -15,17 +15,7 @@ from .mount import FlyMount
 from ._fly_server import _fly_server
 from .route import FlyRoute
 from .response import *
-
-class FlyMethod(Enum):
-    GET         = "GET"
-    POST        = "POST"
-    HEAD        = "HEAD"
-    OPTIONS     = "OPTIONS"
-    PUT         = "PUT"
-    DELETE      = "DELETE"
-    CONNECT     = "CONNECT"
-    TRACE       = "TRACE"
-    PATCH       = "PATCH"
+from .method import FlyMethod
 
 class _Fly:
     def __new__(cls, *args, **kwargs):

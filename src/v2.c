@@ -2007,6 +2007,15 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 	fly_buffer_c *chain = fly_buffer_last_chain(buf);
 	uint8_t *ptr = fly_buffer_lunuse_ptr(buf);
 	uint32_t total = 0;
+#ifdef DEBUG
+	printf("%s: %s",
+			c->name,
+			c->value);
+	if (!c->name_index){
+		printf("(%s)\n", "name in static/dynamic table");
+	}else
+		printf("no table\n");
+#endif
 	/* static index  */
 	if (c->static_table || c->dynamic_table){
 		__fly_hv2_set_index_bit(ptr);
@@ -2014,12 +2023,21 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 	/* dynamic index */
 	/* static/dynamic index name, no index value  */
 	}else if (c->name_index){
+#ifdef DEBUG
+		printf("\tname_index");
+#endif
 		size_t value_len;
 		__unused char *value;
+#ifdef DEBUG
+		printf("(%d)\n", FLY_HEADERS_INDEX(c->index));
+#endif
 		/* set name index */
 		fly_hv2_set_index(FLY_HEADERS_INDEX(c->index), c->index_update, &ptr, &chain, &total);
 		/* set value length */
 		if (c->huffman_value){
+#ifdef DEBUG
+		printf("\thuffman_value\n");
+#endif
 			__fly_hv2_set_huffman_bit(ptr, true);
 			fly_hv2_set_integer(c->hvalue_len, &ptr, &chain, &total, FLY_HV2_VALUE_PREFIX_BIT);
 			value_len = c->hvalue_len;
@@ -2039,12 +2057,18 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 		}
 	/* no index name and value  */
 	}else{
+#ifdef DEBUG
+		printf("\tno index\n");
+#endif
 		size_t value_len, name_len;
 		char *value, *name;
 		/* set no index */
 		fly_hv2_set_index(0, c->index_update, &ptr, &chain, &total);
 		/* set name length */
 		if (c->huffman_name){
+#ifdef DEBUG
+		printf("\thuffman_name\n");
+#endif
 			__fly_hv2_set_huffman_bit(fly_buffer_lunuse_ptr(buf), true);
 			fly_hv2_set_integer(c->hname_len, &ptr, &chain, &total, FLY_HV2_NAME_PREFIX_BIT);
 			name_len = c->hname_len;
@@ -2064,6 +2088,9 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 		}
 		/* set value length */
 		if (c->huffman_value){
+#ifdef DEBUG
+		printf("\thuffman_value\n");
+#endif
 			__fly_hv2_set_huffman_bit(fly_buffer_lunuse_ptr(buf), true);
 			fly_hv2_set_integer(c->hvalue_len, &ptr, &chain, &total, FLY_HV2_VALUE_PREFIX_BIT);
 			value_len = c->hvalue_len;
@@ -4658,6 +4685,8 @@ response_500:
 int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning)
 {
 	fly_hdr_c *__c;
+	/* whether NULL header value of jtatic/dynamic table entry. */
+	bool null_value = false;
 
 	__c = fly_header_addc(chain_info, name, name_len, value, value_len, beginning);
 	__c->name_index = false;
@@ -4672,6 +4701,10 @@ int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, 
 		if (j<FLY_HV2_STATIC_TABLE_LENGTH){
 			name_cmp_res = static_table[j].hname ? strncmp(static_table[j].hname, name, strlen(static_table[j].hname)) : -1;
 			value_cmp_res = static_table[j].hvalue ? strncmp(static_table[j].hvalue, value, strlen(static_table[j].hvalue)) : -1;
+			if (static_table[j].hvalue == NULL)
+				null_value = true;
+			else
+				null_value = false;
 		}else{
 			int d_index = j-FLY_HV2_STATIC_TABLE_LENGTH;
 			struct fly_hv2_dynamic_table *dt=chain_info->state->dtable->next;
@@ -4681,6 +4714,10 @@ int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, 
 
 			name_cmp_res = (dt->hname_len&&dt->hname) ? strncmp(dt->hname, name, dt->hname_len) : -1;
 			value_cmp_res = (dt->hvalue_len&&dt->hvalue) ? strncmp(dt->hvalue, value, dt->hvalue_len) : -1;
+			if (dt->hvalue == NULL)
+				null_value = true;
+			else
+				null_value = false;
 		}
 
 		if (name_cmp_res == 0 && value_cmp_res == 0){
@@ -4693,11 +4730,12 @@ int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, 
 			else
 				__c->dynamic_table = true;
 			break;
-		}else if (name_cmp_res == 0){
+		}else if (null_value && name_cmp_res == 0){
 			__c->index = j;
 			__c->name_index = true;
 			__c->value_len = strlen(value);
 			__c->index_update = INDEX_UPDATE;
+			break;
 		}
 
 	}

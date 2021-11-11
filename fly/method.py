@@ -1,9 +1,15 @@
 from enum import Enum
 
 class FlyMethod(Enum):
-    GET = "GET"
-    POST = "POST"
-
+    GET         = "GET"
+    POST        = "POST"
+    HEAD        = "HEAD"
+    OPTIONS     = "OPTIONS"
+    PUT         = "PUT"
+    DELETE      = "DELETE"
+    CONNECT     = "CONNECT"
+    TRACE       = "TRACE"
+    PATCH       = "PATCH"
 
 def method_from_name(method):
     if isinstance(method, FlyMethod):
