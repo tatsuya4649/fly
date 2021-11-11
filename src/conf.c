@@ -108,7 +108,8 @@ int fly_parse_config_file(void)
 			(fly_alpha(*(__ptr)) || fly_underscore(*(__ptr)))
 #define FLY_PARSE_CONFIG_VALUE_CHAR(__ptr)				\
 			(fly_alpha(*(__ptr)) || fly_numeral(*(__ptr)) || \
-			 fly_dot(*(__ptr)) || fly_slash(*(__ptr)))
+			 fly_dot(*(__ptr)) || fly_slash(*(__ptr)) || \
+			 fly_minus(*(__ptr)) || fly_underscore(*(__ptr)))
 			switch(state){
 			case INIT:
 				if (FLY_PARSE_CONFIG_SPACE(ptr)){
@@ -208,6 +209,7 @@ end_line:
 			goto syntax_error;
 		}
 
+		goto newline;
 comment:
 newline:
 		memset(config_buf, '\0', FLY_CONFIG_BUF_LENGTH);

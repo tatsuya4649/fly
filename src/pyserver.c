@@ -165,7 +165,25 @@ __unused static PyObject *__pyfly_server_new(PyTypeObject *type, PyObject *args,
 
 static int pyfly_parse_config_file(void)
 {
-	return fly_parse_config_file();
+	int res;
+
+	res = fly_parse_config_file();
+	switch (res){
+	case FLY_PARSE_CONFIG_NOTFOUND:
+		break;
+	case FLY_PARSE_CONFIG_ERROR:
+		PyErr_SetString(PyExc_ValueError, "parse file error.");
+		break;
+	case FLY_PARSE_CONFIG_SUCCESS:
+		break;
+	case FLY_PARSE_CONFIG_SYNTAX_ERROR:
+		PyErr_SetString(PyExc_ValueError, "parse file error.");
+		break;
+	default:
+		PyErr_SetString(PyExc_ValueError, "parse file error.");
+		break;
+	}
+	return res;
 }
 
 static fly_master_t *pyfly_master_init(void)
@@ -239,6 +257,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	fly_query_t *query;
 	fly_hdr_ci *header;
 	fly_body_t *body;
+	fly_method_e request_method;
 	fly_scheme_t *scheme;
 	struct fly_bllist *__b;
 
@@ -247,6 +266,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	__reqdict = PyDict_New();
 	/* C request --> Python request */
 	reqline = request->request_line;
+	request_method = reqline->method->type;
 	uri = &reqline->uri;
 	PyObject *__pyuri = PyUnicode_FromStringAndSize((const char *) uri->ptr, (Py_ssize_t) uri->len);
 	if (PyDict_SetItemString(__reqdict, "uri", __pyuri) == -1)
@@ -599,7 +619,11 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 
 		PyObject *pyres_body, *pyres_header, *pyres_status_code, *pyres_content_type;
 		pyres_body = PyObject_GetAttrString(pyres, PYFLY_BODY_KEY);
-		if (fly_unlikely_null(pyres_body))
+
+		/* HTTP HEAD type must not include body(content) */
+		if (request_method == HEAD && pyres_body != NULL)
+			goto response_500;
+		else if (fly_unlikely_null(pyres_body))
 			goto response_500;
 		if (pyres_body != Py_None){
 			char *body_ptr;
@@ -714,6 +738,10 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 		const char *body_ptr;
 		ssize_t body_len;
 
+		/* HTTP HEAD type must not include body(content) */
+		if (request_method == HEAD)
+			goto response_500;
+
 		if ((body_ptr=PyUnicode_AsUTF8AndSize(pyres, &body_len)) == NULL)
 			goto response_500;
 
@@ -749,6 +777,10 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 				goto response_500;
 			memcpy(res->body->body, body_ptr, body_len);
 		}
+		res->status_code = _200;
+		Py_DECREF(pyres);
+		return res;
+	} else if (pyres == Py_None){
 		res->status_code = _200;
 		Py_DECREF(pyres);
 		return res;
@@ -912,7 +944,7 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 	self->host = (const char *) fly_server_host();
 	self->worker = (long) master->now_workers;
 	self->reqworker = (long) master->req_workers;
-	self->ssl = (char) fly_ssl();
+	self->ssl = (bool) fly_ssl();
 	self->ssl_crt_path = (const char *) fly_ssl_crt_path();
 	self->ssl_key_path = (const char *) fly_ssl_key_path();
 	self->log = (const char *) fly_log_path();

@@ -38,23 +38,22 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	conn->http_v = fly_default_http_version();
 	conn->v2_state = NULL;
 	conn->peer_closed = false;
-#if !defined(DEBUG) || defined(DEBUG_BODY)
-#define FLY_CONNECT_BUFFER_INIT_LEN			1
-#define FLY_CONNECT_BUFFER_PER_LEN			(1024*4)
-#else
-#define FLY_CONNECT_BUFFER_INIT_LEN			1
-#define FLY_CONNECT_BUFFER_PER_LEN			10
-#endif
 
-#define FLY_CONNECT_BUFFER_CHAIN_MAX(__ctx)			\
-			((size_t) (((int) ((__ctx)->max_request_length/FLY_CONNECT_BUFFER_PER_LEN))+1))
-	conn->buffer = fly_buffer_init(pool, FLY_CONNECT_BUFFER_INIT_LEN, FLY_CONNECT_BUFFER_CHAIN_MAX(ctx), FLY_CONNECT_BUFFER_PER_LEN);
+	/* setting buffer length */
+	conn->buffer_init_len = fly_connect_buffer_init_len();
+	conn->buffer_per_len = fly_connect_buffer_per_len();
+
+#define FLY_CONNECT_BUFFER_CHAIN_MAX(__ctx, per_len)			\
+			((size_t) (((int) ((__ctx)->max_request_length/(per_len)))+1))
+	conn->buffer = fly_buffer_init(pool, conn->buffer_init_len, FLY_CONNECT_BUFFER_CHAIN_MAX(ctx, conn->buffer_per_len), conn->buffer_per_len);
 	if (fly_unlikely_null(conn->buffer))
 		return NULL;
-#ifdef DEBUG
-	assert((FLY_CONNECT_BUFFER_PER_LEN*FLY_CONNECT_BUFFER_CHAIN_MAX(ctx)) > ctx->max_request_length);
-#endif
 
+#ifdef DEBUG
+	assert(conn->buffer_per_len > 0);
+	assert(conn->buffer_init_len > 0);
+	assert((conn->buffer_per_len*FLY_CONNECT_BUFFER_CHAIN_MAX(ctx, conn->buffer_per_len)) > ctx->max_request_length);
+#endif
 	if (__fly_info_of_connect(conn) == -1)
 		return NULL;
 
@@ -264,4 +263,14 @@ int fly_listen_socket_end_handler(fly_event_t *__e)
 size_t fly_max_request_length(void)
 {
 	return (size_t) fly_config_value_int(FLY_MAX_REQUEST_LENGTH);
+}
+
+size_t fly_connect_buffer_init_len(void)
+{
+	return (size_t) fly_config_value_int(FLY_CONNECT_BUFFER_INIT_LEN);
+}
+
+size_t fly_connect_buffer_per_len(void)
+{
+	return (size_t) fly_config_value_int(FLY_CONNECT_BUFFER_PER_LEN);
 }
