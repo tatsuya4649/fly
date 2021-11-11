@@ -13,7 +13,7 @@ __HTTP2 = "HTTP/2"
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server():
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test.conf")
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.5)
     yield process
     process.send_signal(SIGINT)
 
@@ -22,7 +22,7 @@ async def fly_server():
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_ssl():
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/https_test.conf")
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.5)
     yield process
     process.send_signal(SIGINT)
 
