@@ -1,6 +1,6 @@
 import os
 
-class FlyMount:
+class Mount:
     def __init__(self):
         self._mounts = list()
 
