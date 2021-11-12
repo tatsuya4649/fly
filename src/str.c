@@ -40,3 +40,4 @@ void fly_str_copy(fly_str_t *str, char *__p, size_t len)
 		((l1) > (l2) ? l1 : l2)
 	memcpy(str->ptr, __p, FLY_STR_LEN_MAX(len, str->len));
 }
+
