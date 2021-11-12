@@ -91,9 +91,15 @@ struct fly_request{
 	fly_mime_t			*mime;
 	fly_charset_t		*charset;
 	fly_lang_t			*language;
+	size_t				discard_length;
 
 	/* for http2 */
 	fly_hv2_stream_t		*stream;
+
+	fly_bit_t			receive_status_line:1;
+	fly_bit_t			receive_header:1;
+	fly_bit_t			receive_body:1;
+	fly_bit_t			discard_body:1;
 };
 typedef struct fly_request fly_request_t;
 
@@ -112,7 +118,6 @@ typedef struct fly_request fly_request_t;
 #define FLY_REQUEST_RECEIVE_READ_BLOCKING		(2)
 #define FLY_REQUEST_RECEIVE_WRITE_BLOCKING		(3)
 #define FLY_REQUEST_RECEIVE_OVERFLOW			(4)
-int fly_request_receive(fly_sock_t fd, fly_connect_t *connect);
 int fly_request_event_handler(fly_event_t *event);
 
 #define FLY_REQUEST_POOL_SIZE		1

@@ -526,6 +526,94 @@ void fly_hv2_state_release(fly_hv2_state_t *state)
 	fly_pbfree(state->pool, state);
 }
 
+int fly_receive_v2(fly_sock_t fd, fly_connect_t *connect)
+{
+#ifdef DEBUG
+	assert(connect != NULL);
+	assert(connect->buffer != NULL);
+#endif
+
+	fly_buffer_t *__buf;
+
+	__buf = connect->buffer;
+	if (fly_unlikely(__buf->chain_count == 0))
+		return -1;
+
+	int recvlen=0, total=0;
+	if (FLY_CONNECT_ON_SSL(connect)){
+		SSL *ssl = connect->ssl;
+
+		recvlen = SSL_read(ssl, fly_buffer_lunuse_ptr(__buf),  fly_buffer_lunuse_len(__buf));
+		switch(SSL_get_error(ssl, recvlen)){
+		case SSL_ERROR_NONE:
+			break;
+		case SSL_ERROR_ZERO_RETURN:
+			goto end_of_connection;
+		case SSL_ERROR_WANT_READ:
+			goto read_blocking;
+		case SSL_ERROR_WANT_WRITE:
+			goto write_blocking;
+		case SSL_ERROR_SYSCALL:
+			if (errno == EPIPE || errno == 0)
+				goto end_of_connection;
+			goto error;
+		case SSL_ERROR_SSL:
+			goto error;
+		default:
+			/* unknown error */
+			goto error;
+		}
+	}else{
+retry:
+		recvlen = recv(fd, fly_buffer_lunuse_ptr(__buf), fly_buffer_lunuse_len(__buf), MSG_DONTWAIT);
+		switch(recvlen){
+		case 0:
+			goto end_of_connection;
+		case -1:
+			if (errno == EINTR)
+				goto retry;
+			else if FLY_BLOCKING(recvlen)
+				goto read_blocking;
+			else if (errno == ECONNREFUSED)
+				goto end_of_connection;
+			else
+				goto error;
+		default:
+			break;
+		}
+	}
+	total += recvlen;
+	switch(fly_update_buffer(__buf, recvlen)){
+	case FLY_BUF_ADD_CHAIN_SUCCESS:
+		break;
+	case FLY_BUF_ADD_CHAIN_LIMIT:
+		goto overflow;
+	case FLY_BUF_ADD_CHAIN_ERROR:
+		goto buffer_error;
+	default:
+		FLY_NOT_COME_HERE
+	}
+
+	goto continuation;
+end_of_connection:
+	connect->peer_closed = true;
+	return FLY_REQUEST_RECEIVE_END;
+continuation:
+	return FLY_REQUEST_RECEIVE_SUCCESS;
+error:
+	return FLY_REQUEST_RECEIVE_ERROR;
+read_blocking:
+	if (total > 0)
+		goto continuation;
+	return FLY_REQUEST_RECEIVE_READ_BLOCKING;
+write_blocking:
+	return FLY_REQUEST_RECEIVE_WRITE_BLOCKING;
+buffer_error:
+	return FLY_REQUEST_RECEIVE_ERROR;
+overflow:
+	return FLY_REQUEST_RECEIVE_OVERFLOW;
+}
+
 int fly_hv2_init_handler(fly_event_t *e)
 {
 #if !defined FLY_BIG_ENDIAN && !defined FLY_LITTLE_ENDIAN
@@ -538,12 +626,19 @@ int fly_hv2_init_handler(fly_event_t *e)
 	conn = (fly_connect_t *) e->event_data;
 	buf = conn->buffer;
 
+	if ((size_t) (buf->per_len*buf->chain_max)<FLY_HV2_MAX_FRAME_SIZE_DEFAULT){
+		buf->chain_max = ((FLY_HV2_MAX_FRAME_SIZE_DEFAULT/buf->per_len) + 1);
+#ifdef DEBUG
+		assert((buf->chain_max*buf->per_len) >= FLY_HV2_MAX_FRAME_SIZE_DEFAULT);
+#endif
+	}
+
 	if (!conn->v2_state){
 		if (fly_unlikely_null(fly_hv2_state_init(conn)))
 			goto error;
 	}
 
-	switch(fly_request_receive(conn->c_sockfd, conn)){
+	switch(fly_receive_v2(conn->c_sockfd, conn)){
 	case FLY_REQUEST_RECEIVE_ERROR:
 		goto error;
 	case FLY_REQUEST_RECEIVE_SUCCESS:
@@ -554,6 +649,8 @@ int fly_hv2_init_handler(fly_event_t *e)
 		goto read_continuation;
 	case FLY_REQUEST_RECEIVE_WRITE_BLOCKING:
 		goto write_continuation;
+	case FLY_REQUEST_RECEIVE_OVERFLOW:
+		goto overflow;
 	default:
 		FLY_NOT_COME_HERE
 	}
@@ -596,6 +693,7 @@ continuation:
 	return fly_event_register(e);
 
 error:
+overflow:
 disconnect:
 	fly_hv2_state_release(conn->v2_state);
 	fly_connect_release(conn);
@@ -1366,7 +1464,7 @@ int fly_hv2_request_event_blocking_handler(fly_event_t *e)
 	conn = (fly_connect_t *) e->event_data;
 
 	/* receive from peer */
-	switch(fly_request_receive(conn->c_sockfd, conn)){
+	switch(fly_receive_v2(conn->c_sockfd, conn)){
 	case FLY_REQUEST_RECEIVE_ERROR:
 		return -1;
 	case FLY_REQUEST_RECEIVE_SUCCESS:
@@ -1377,6 +1475,8 @@ int fly_hv2_request_event_blocking_handler(fly_event_t *e)
 		goto read_continuation;
 	case FLY_REQUEST_RECEIVE_WRITE_BLOCKING:
 		goto write_continuation;
+	case FLY_REQUEST_RECEIVE_OVERFLOW:
+		goto overflow;
 	default:
 		FLY_NOT_COME_HERE
 	}
@@ -1401,6 +1501,8 @@ continuation:
 
 disconnect:
 	return fly_hv2_request_event_handler(e);
+overflow:
+	return -1;
 }
 
 int fly_hv2_request_event_blocking(fly_event_t *e, fly_connect_t *conn)
@@ -4109,26 +4211,56 @@ int fly_hv2_parse_data(fly_event_t *event, fly_hv2_stream_t *stream, uint32_t le
 	fly_request_t *req;
 
 	req = stream->request;
-	if (req->body == NULL){
+	if (req->discard_body){
+		/*
+		 * send window_udpate_frame and recover window size
+		 */
+		// window update for stream
+		if (fly_send_window_update_frame(stream, length, false) == -1)
+			return FLY_HV2_PARSE_DATA_ERROR;
+		// widnwo update for connection
+		if (fly_send_window_update_frame(FLY_HV2_ROOT_STREAM(stream->state), length, false) == -1)
+			return FLY_HV2_PARSE_DATA_ERROR;
+		event->read_or_write |= FLY_WRITE;
+		return FLY_HV2_PARSE_DATA_SUCCESS;
+	}else if (req->body == NULL){
 		size_t content_length;
 		body = fly_body_init(req->ctx);
 		if (fly_unlikely_null(body))
 			return FLY_HV2_PARSE_DATA_ERROR;
 
 		content_length = fly_content_length(req->header);
-		req->body = body;
+		if (content_length > req->ctx->max_request_length){
+			req->discard_body = true;
+			/*
+			 * send window_udpate_frame and recover window size
+			 */
+			// window update for stream
+			if (fly_send_window_update_frame(stream, length, false) == -1)
+				return FLY_HV2_PARSE_DATA_ERROR;
+			// widnwo update for connection
+			if (fly_send_window_update_frame(FLY_HV2_ROOT_STREAM(stream->state), length, false) == -1)
+				return FLY_HV2_PARSE_DATA_ERROR;
+			event->read_or_write |= FLY_WRITE;
+			return FLY_HV2_PARSE_DATA_SUCCESS;
+		}else{
+			req->body = body;
 
-		bc = fly_pballoc(body->pool, sizeof(uint8_t)*content_length);
-		if (fly_unlikely_null(bc))
-			return FLY_HV2_PARSE_DATA_ERROR;
+			bc = fly_pballoc(body->pool, sizeof(uint8_t)*content_length);
+			if (fly_unlikely_null(bc))
+				return FLY_HV2_PARSE_DATA_ERROR;
 
-		fly_body_setting(body, bc, content_length);
-		body->next_ptr = bc;
+			fly_body_setting(body, bc, content_length);
+			body->next_ptr = bc;
+		}
 	}else{
 		body = req->body;
 		bc = body->next_ptr;
 	}
 
+#ifdef DEBUG
+	assert(!req->discard_body);
+#endif
 	/* body overflow check */
 	if (body->next_ptr+length-1 > (body->body+body->body_len-1))
 		return FLY_HV2_PARSE_DATA_ERROR;
@@ -4301,6 +4433,9 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 	fly_response_t *response;
 
 	request = stream->request;
+
+	if (request->discard_body)
+		goto response_413;
 	/*
 	 *	create response from request.
 	 */
@@ -4417,6 +4552,13 @@ response_404:
 	goto __response_event;
 response_405:
 	response = fly_405_response(request);
+	goto __response_event;
+response_413:
+	if (request->request_line == NULL && \
+			fly_request_line_init(request) == -1)
+		goto response_500;
+	request->request_line->version = fly_http2_version();
+	response = fly_413_response(request);
 	goto __response_event;
 response_500:
 	response = fly_500_response(request);
