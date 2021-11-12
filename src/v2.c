@@ -4342,8 +4342,7 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 						}
 					}else if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY){
 					}else if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_PATH){
-						req->request_line->uri.ptr = __c->value;
-						req->request_line->uri.len = strlen(__c->value);
+						fly_uri_set(req, __c->value, __c->value_len);
 					}else{
 						FLY_NOT_COME_HERE
 					}

@@ -665,6 +665,40 @@ async def test_http_return_query(fly_server):
     assert(res.is_error is False)
     assert(res.http_version == http_scheme())
 
+@pytest.mark.asyncio
+async def test_https_return_query(fly_server_ssl):
+    async with httpx.AsyncClient(
+        http1=True,
+        verify=False,
+        params={"key1": "value1", "key2": "value2"},
+        timeout=60
+    ) as client:
+        res = await client.get(
+            "https://localhost:1234/query",
+        )
+
+    print(res.content)
+    assert(res.status_code == 200)
+    assert(res.is_error is False)
+    assert(res.http_version == http_scheme())
+
+@pytest.mark.asyncio
+async def test_https2_return_query(fly_server_ssl):
+    async with httpx.AsyncClient(
+        http1=False,
+        http2=True,
+        verify=False,
+        params={"key1": "value1", "key2": "value2"},
+        timeout=60
+    ) as client:
+        res = await client.get(
+            "https://localhost:1234/query",
+        )
+
+    print(res.content)
+    assert(res.status_code == 200)
+    assert(res.is_error is False)
+    assert(res.http_version == http2_scheme())
 """
 Illeagl test
 """
