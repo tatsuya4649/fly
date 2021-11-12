@@ -25,10 +25,17 @@ def not_have_ssl_crt_key_file():
         not os.path.isfile(key_path())
 
 ssl_reason = "require SSL cert/key file"
+pid_path = "log/fly.pid"
+
+@pytest.fixture(scope="function", autouse=False)
+def fly_remove_pid():
+    if os.path.isfile(pid_path):
+        os.remove(pid_path)
+    yield
 
 # make fly server (HTTP/1.1)
 @pytest.fixture(scope="function", autouse=False)
-async def fly_server():
+async def fly_server(fly_remove_pid):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test.conf")
     await asyncio.sleep(0.5)
     yield process
@@ -36,7 +43,7 @@ async def fly_server():
 
 # make fly server (HTTP/1.1)
 @pytest.fixture(scope="function", autouse=False)
-async def fly_mini_server():
+async def fly_mini_server(fly_remove_pid):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_mini.conf")
     await asyncio.sleep(0.5)
     yield process
@@ -44,7 +51,7 @@ async def fly_mini_server():
 
 # make fly server (HTTP1.1/2 over SSL)
 @pytest.fixture(scope="function", autouse=False)
-async def fly_server_ssl():
+async def fly_server_ssl(fly_remove_pid):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/https_test.conf")
     await asyncio.sleep(0.5)
     yield process
@@ -52,7 +59,7 @@ async def fly_server_ssl():
 
 # make fly server (HTTP/1.1)
 @pytest.fixture(scope="function", autouse=False)
-async def fly_mini_server_ssl():
+async def fly_mini_server_ssl(fly_remove_pid):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/https_test_mini.conf")
     await asyncio.sleep(0.5)
     yield process

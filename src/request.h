@@ -134,4 +134,11 @@ int fly_if_none_match(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_if_modified_since(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_request_timeout(void);
 
+static inline void fly_query_set(fly_request_t *req, fly_reqlinec_t *c, size_t len)
+{
+	req->request_line->query.ptr = c;
+	req->request_line->query.len = len;
+	return;
+}
+
 #endif

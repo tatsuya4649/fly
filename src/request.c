@@ -233,13 +233,6 @@ static bool __fly_http(char **c, ssize_t *len)
 	return true;
 }
 
-static inline void __fly_query_set(fly_request_t *req, fly_reqlinec_t *c, size_t len)
-{
-	req->request_line->query.ptr = c;
-	req->request_line->query.len = len;
-	return;
-}
-
 __fly_static enum method_type __fly_request_method(fly_reqlinec_t *c)
 {
 	fly_http_method_t *__m;
@@ -357,13 +350,13 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					continue;
 				}
 				if (fly_question(*ptr)){
+					target_len = ptr-request_target;
 					status = ORIGIN_FORM_QUESTION;
 					break;
 				}
 				goto error;
 			case ORIGIN_FORM_QUESTION:
 				if (fly_space(*ptr)){
-					target_len = ptr-request_target;
 					status = END_REQUEST_TARGET;
 					continue;
 				}
@@ -379,7 +372,6 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				if (__fly_query(&ptr, &len))	break;
 				if (fly_space(*ptr)){
 					query_len = ptr-query;
-					target_len = ptr-request_target;
 					status = END_REQUEST_TARGET;
 					continue;
 				}
@@ -398,6 +390,7 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				if (!__fly_hier_part(&ptr))
 					goto error;
 				if (fly_question(*ptr)){
+					target_len = ptr-request_target;
 					status = ABSOLUTE_FORM_QUESTION;
 					break;
 				}
@@ -420,7 +413,6 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				if (__fly_query(&ptr, &len))	break;
 				if (fly_space(*ptr)){
 					query_len = ptr-query;
-					target_len = ptr-request_target;
 					status = END_REQUEST_TARGET;
 					continue;
 				}
@@ -477,7 +469,7 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 				/* add request/request_line/uri */
 				fly_uri_set(req, request_target, target_len);
 				if (query)
-					__fly_query_set(req, query, query_len);
+					fly_query_set(req, query, query_len);
 				status = REQUEST_TARGET_SPACE;
 				continue;
 			case REQUEST_TARGET_SPACE:
@@ -1374,7 +1366,7 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 {
 	struct fly_request_line *reqline = req->request_line;
 	char *ptr=NULL, *query=NULL;
-	size_t query_len;
+	size_t query_len, target_len;
 	ssize_t len;
 	enum{
 		INIT,
@@ -1404,6 +1396,7 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 		goto error;
 
 	query_len = 0;
+	target_len = len;
 	while(true){
 		switch(status){
 		case INIT:
@@ -1431,6 +1424,7 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			if (fly_slash(*ptr))	break;
 			else if (__fly_segment(&ptr, &len))	break;
 			if (fly_question(*ptr)){
+				target_len = ptr - reqline->uri.ptr;
 				query = ptr;
 				status = ORIGIN_FORM_QUESTION;
 				break;
@@ -1445,8 +1439,8 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			goto error;
 		case ORIGIN_FORM_QUERY:
 			if (__fly_query(&ptr, &len))	break;
-			goto error;
 
+			goto error;
 		case ABSOLUTE_FORM:
 			if (!is_fly_scheme(&ptr, ':'))
 				goto error;
@@ -1460,6 +1454,7 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			if (!__fly_hier_part(&ptr))
 				goto error;
 			if (fly_question(*ptr)){
+				target_len = ptr - reqline->uri.ptr;
 				query = ptr;
 				status = ABSOLUTE_FORM_QUESTION;
 				break;
@@ -1475,6 +1470,7 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 			goto error;
 		case ABSOLUTE_FORM_QUERY:
 			if (__fly_query(&ptr, &len))	break;
+
 			goto error;
 		case AUTHORITY_FORM:
 			if (__fly_userinfo(&ptr, &len)){
@@ -1522,8 +1518,13 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 		case ASTERISK_FORM:
 			break;
 		case END:
-			if (query)
-				__fly_query_set(req, query, query_len);
+			if (query){
+#ifdef DEBUG
+				assert(target_len > 0);
+#endif
+				fly_uri_set(req, reqline->uri.ptr, target_len);
+				fly_query_set(req, query, query_len);
+			}
 			return 0;
 		}
 
