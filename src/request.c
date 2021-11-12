@@ -46,6 +46,11 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 	req->fase = EFLY_REQUEST_FASE_REQUEST_LINE;
 	req->ctx = conn->event->manager->ctx;
 
+	req->receive_status_line = false;
+	req->receive_header = false;
+	req->receive_body = false;
+	req->discard_body = false;
+	req->discard_length = 0;
 	return req;
 }
 
@@ -86,6 +91,7 @@ int fly_request_line_init(fly_request_t *req)
 
 	if (fly_unlikely_null(req->request_line->scheme))
 		return -1;
+
 	return 0;
 }
 
@@ -860,7 +866,43 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain)
 	return __fly_parse_header(rchain_info, header_chain);
 }
 
-int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
+int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req);
+#define FLY_DISCARD_BODY_END			2
+#define FLY_DISCARD_BODY_WRITE_YET		1
+#define FLY_DISCARD_BODY_READ_YET		0
+#define FLY_DISCARD_BODY_ERROR			-1
+#define FLY_DISCARD_BODY_DISCONNECT		-2
+int __fly_discard_body(fly_request_t *req, size_t content_length)
+{
+	req->discard_body = true;
+	while(req->discard_length < content_length){
+		switch (fly_request_receive(
+			req->connect->c_sockfd,
+			req->connect,
+			req)
+		){
+		case FLY_REQUEST_RECEIVE_OVERFLOW:
+			return FLY_DISCARD_BODY_ERROR;
+		case FLY_REQUEST_RECEIVE_END:
+			return FLY_DISCARD_BODY_DISCONNECT;
+		case FLY_REQUEST_RECEIVE_SUCCESS:
+			break;
+		case FLY_REQUEST_RECEIVE_READ_BLOCKING:
+			if (req->discard_length < content_length)
+				return FLY_DISCARD_BODY_READ_YET;
+			break;
+		case FLY_REQUEST_RECEIVE_WRITE_BLOCKING:
+			if (req->discard_length < content_length)
+				return FLY_DISCARD_BODY_WRITE_YET;
+			break;
+		default:
+			FLY_NOT_COME_HERE
+		}
+	}
+	return FLY_DISCARD_BODY_END;
+}
+
+int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req)
 {
 #ifdef DEBUG
 	assert(connect != NULL);
@@ -872,6 +914,9 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 	__buf = connect->buffer;
 	if (fly_unlikely(__buf->chain_count == 0))
 		return -1;
+
+	if (req->discard_body)
+		req->discard_length += (size_t) __buf->use_len;
 
 	int recvlen=0, total=0;
 	while(true){
@@ -917,16 +962,48 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect)
 			}
 		}
 		total += recvlen;
-		switch(fly_update_buffer(__buf, recvlen)){
-		case FLY_BUF_ADD_CHAIN_SUCCESS:
-			break;
-		case FLY_BUF_ADD_CHAIN_LIMIT:
-			goto overflow;
-		case FLY_BUF_ADD_CHAIN_ERROR:
-			goto buffer_error;
-		default:
-			FLY_NOT_COME_HERE
+		bool __gc = false;
+		/**/
+		if (!req->receive_status_line){
+			/* CRLF in buffer */
+			if(fly_buffer_strstr(fly_buffer_first_chain(__buf), FLY_CRLF)){
+				req->receive_status_line = true;
+				__gc = true;
+			}
 		}
+
+		if (!req->receive_header){
+			/* CRLF in buffer */
+#define FLY_END_OF_HEADER				("\r\n\r\n")
+			if(fly_buffer_strstr(fly_buffer_first_chain(__buf), FLY_END_OF_HEADER)){
+				req->receive_header = true;
+				__gc = true;
+			}
+		}
+
+		if (req->discard_body){
+			fly_buffer_c *__c;
+			__gc = false;
+			req->discard_length += recvlen;
+			__c = fly_buffer_last_chain(connect->buffer);
+			__c->use_ptr = __c->ptr;
+			__c->unuse_ptr = __c->ptr;
+			__c->unuse_len = __c->len;
+		}else{
+			switch(fly_update_buffer(__buf, recvlen)){
+			case FLY_BUF_ADD_CHAIN_SUCCESS:
+				break;
+			case FLY_BUF_ADD_CHAIN_LIMIT:
+				goto overflow;
+			case FLY_BUF_ADD_CHAIN_ERROR:
+				goto buffer_error;
+			default:
+				FLY_NOT_COME_HERE
+			}
+		}
+
+		if (__gc)
+			goto continuation;
 	}
 end_of_connection:
 	connect->peer_closed = true;
@@ -936,7 +1013,7 @@ continuation:
 error:
 	return FLY_REQUEST_RECEIVE_ERROR;
 read_blocking:
-	if (total > 0)
+	if (!req->discard_body && total > 0)
 		goto continuation;
 	return FLY_REQUEST_RECEIVE_READ_BLOCKING;
 write_blocking:
@@ -1002,9 +1079,12 @@ int fly_request_event_handler(fly_event_t *event)
 	request = (fly_request_t *) event->event_data;
 	conn = request->connect;
 
+	if (request->discard_body)
+		goto __fase_body;
+
 	fly_event_fase(event, REQUEST_LINE);
 	fly_event_state(event, RECEIVE);
-	switch (fly_request_receive(event->fd, conn)){
+	switch (fly_request_receive(event->fd, conn, request)){
 	case FLY_REQUEST_RECEIVE_ERROR:
 		goto error;
 	case FLY_REQUEST_RECEIVE_END:
@@ -1054,6 +1134,9 @@ __fase_request_line:
 	default:
 		break;
 	}
+#ifdef DEBUG
+	printf("%s\n", request->request_line->request_line);
+#endif
 
 	/* parse header */
 __fase_header:
@@ -1061,6 +1144,9 @@ __fase_header:
 	fly_buffer_c *hdr_buf;
 
 	fly_event_fase(event, HEADER);
+	if (!request->receive_header)
+		goto read_continuation;
+
 	hdr_buf = fly_get_header_lines_buf(conn->buffer);
 	if (hdr_buf == NULL)
 		goto read_continuation;
@@ -1097,10 +1183,26 @@ __fase_header:
 	/* parse body */
 __fase_body:
 	;
+
 	size_t content_length;
 	content_length = fly_content_length(request->header);
-	if (!content_length)
-		goto __fase_end_of_parse;
+	/* Too payload large */
+	if (content_length > request->ctx->max_request_length){
+		switch (__fly_discard_body(request, content_length)){
+		case  FLY_DISCARD_BODY_END:
+			goto response_413;
+		case  FLY_DISCARD_BODY_WRITE_YET:
+			goto write_continuation;
+		case  FLY_DISCARD_BODY_READ_YET:
+			goto read_continuation;
+		case  FLY_DISCARD_BODY_ERROR:
+			goto error;
+		case  FLY_DISCARD_BODY_DISCONNECT:
+			goto disconnection;
+		default:
+			FLY_NOT_COME_HERE
+		}
+	}
 
 	fly_buffer_c *body_buf;
 	fly_event_fase(event, BODY);
@@ -1111,6 +1213,8 @@ __fase_body:
 	body_buf = fly_get_body_buf(conn->buffer);
 	if (body_buf == NULL || conn->buffer->use_len < content_length)
 		goto read_continuation;
+	else
+		request->receive_body = true;
 
 	/* content-encoding */
 	fly_hdr_value *ev;
@@ -1173,7 +1277,7 @@ __fase_end_of_parse:
 	response->request = request;
 	fly_response_http_version_from_request(response, request);
 	goto response;
-/* TODO: error response event memory release */
+
 response_400:
 	return fly_400_event(event, request);
 response_404:

@@ -3,6 +3,8 @@
 #include "worker.h"
 #include "server.h"
 #include "response.h"
+#include "ssl.h"
+#include "conf.h"
 
 #define TEST_PORT			"1234"
 
@@ -16,8 +18,6 @@ fly_response_t *hello(fly_request_t *request)
 	res->body = fly_body_init(request->ctx);
 	if (fly_header_add(res->header, fly_header_name_length("Hello"), fly_header_value_length("World")) == -1)
 		return NULL;
-	if (fly_header_add(res->header, fly_header_name_length("Connection"), fly_header_value_length("keep-alive")) == -1)
-		return NULL;
 	res->status_code = _200;
 	res->version = V1_1;
 	return res;
@@ -30,7 +30,7 @@ int main()
 	fly_route_reg_t *reg;
 	struct fly_pool_manager pm;
 
-	if (setenv(FLY_CONFIG_PATH, "tests/http_test.conf", 1) == -1)
+	if (setenv(FLY_CONFIG_PATH, "tests/https_test_mini.conf", 1) == -1)
 		return -1;
 
 	/* load config file */

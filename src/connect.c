@@ -220,15 +220,23 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 	}
 
 	if (fly_tls_handshake_magic(buf)){
-		if (!(sockinfo->flag & FLY_SOCKINFO_SSL))
+		if (!(sockinfo->flag & FLY_SOCKINFO_SSL)){
+#ifdef DEBUG
+			printf("Illegal request(HTTP server but HTTPS request). disconnect.\n");
+#endif
 			goto disconnect;
+		}
 
 		/* HTTP request over TLS */
 		return fly_accept_listen_socket_ssl_handler(e, conn);
 	}else{
 		/* HTTP request */
-		if (sockinfo->flag & FLY_SOCKINFO_SSL)
+		if (sockinfo->flag & FLY_SOCKINFO_SSL){
+#ifdef DEBUG
+			printf("Illegal request(HTTPS server but HTTP request). response 400.\n");
+#endif
 			goto response_400;
+		}
 
 		return fly_listen_connected(e);
 	}
