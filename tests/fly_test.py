@@ -13,6 +13,11 @@ def index(request):
     print(request)
     return "Hello, Test"
 
+@app.get("/user")
+def index(request):
+    print(request)
+    return "Hello, user"
+
 @app.head("/")
 def index_head(request):
     return None
@@ -46,3 +51,9 @@ def index_patch(request):
 def index_option(request):
     return "Success, OPTIONS"
 
+@app.get("/query")
+def query(request):
+    if request.get("query") is None:
+        raise RuntimeError
+    print(request.get("query"))
+    return None
