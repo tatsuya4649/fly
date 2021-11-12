@@ -2377,6 +2377,7 @@ int fly_send_data_frame(fly_event_t *e, fly_response_t *res)
 	size_t max_can_send;
 	size_t send_len;
 	int flag=0;
+	size_t total=0;
 
 	stream = res->request->stream;
 	state = stream->state;
@@ -2406,7 +2407,7 @@ int fly_send_data_frame(fly_event_t *e, fly_response_t *res)
 
 send:
 	;
-	size_t total = res->byte_from_start ? res->byte_from_start : 0;
+	total = res->byte_from_start ? res->byte_from_start : 0;
 	ssize_t numsend;
 	send_len = res->send_len;
 	fly_buffer_c *chain;
@@ -4434,8 +4435,6 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 
 	request = stream->request;
 
-	if (request->discard_body)
-		goto response_413;
 	/*
 	 *	create response from request.
 	 */
@@ -4447,6 +4446,8 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 		goto response_400;
 	}
 
+	if (request->discard_body)
+		goto response_413;
 	/* accept encoding type */
 	if (fly_accept_encoding(request) == -1)
 		goto error;
@@ -4554,10 +4555,6 @@ response_405:
 	response = fly_405_response(request);
 	goto __response_event;
 response_413:
-	if (request->request_line == NULL && \
-			fly_request_line_init(request) == -1)
-		goto response_500;
-	request->request_line->version = fly_http2_version();
 	response = fly_413_response(request);
 	goto __response_event;
 response_500:
