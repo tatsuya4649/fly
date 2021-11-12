@@ -2,7 +2,7 @@ import pytest
 import os
 import stat
 from fly import Fly
-from fly.app import FlyMethod
+from fly.app import Method
 
 @pytest.fixture(scope="function", autouse=False)
 def fly_init():
@@ -75,7 +75,7 @@ def test_mount_value_error(fly_mount):
         fly_mount.mount(TEST_MOUNT + "test")
 
 def test_route(fly_init):
-    func = fly_init.route("/", FlyMethod.GET)
+    func = fly_init.route("/", Method.GET)
     assert(callable(func))
 
 @pytest.mark.parametrize(
@@ -88,7 +88,7 @@ def test_route(fly_init):
 ])
 def test_route_type_error(fly_init, route):
     with pytest.raises(TypeError):
-        fly_init.route(route, FlyMethod.GET)
+        fly_init.route(route, Method.GET)
 
 @pytest.mark.parametrize(
     "func", [
@@ -100,7 +100,7 @@ def test_route_type_error(fly_init, route):
     {},
 ])
 def test_route_func_error(fly_init, func):
-    _route = fly_init.route("/", FlyMethod.GET)
+    _route = fly_init.route("/", Method.GET)
     with pytest.raises(TypeError):
         _route(func)
 
@@ -108,11 +108,11 @@ def hello():
     return "Hello"
 
 def test_route(fly_init):
-    _route = fly_init.route("/", FlyMethod.GET)
+    _route = fly_init.route("/", Method.GET)
     _route(hello)
 
 def test_route_method(fly_init):
-    func = fly_init.route("/", FlyMethod.GET)
+    func = fly_init.route("/", Method.GET)
     assert(callable(func))
 
 def test_get(fly_init):
