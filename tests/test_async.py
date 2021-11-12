@@ -2,53 +2,11 @@ from fly import Fly
 import pytest
 import asyncio
 import httpx
-from signal import SIGINT
-import os
+import conftest
+from conftest import *
 
 """
 """
-
-__HTTP = "HTTP/1.1"
-__HTTP2 = "HTTP/2"
-__CRT = "tests/fly_test.crt"
-__KEY = "tests/fly_test.key"
-not_have_ssl_crt_key_file = \
-    not os.path.isfile(__CRT) or \
-    not os.path.isfile(__KEY)
-ssl_reason = "require SSL cert/key file"
-
-# make fly server (HTTP/1.1)
-@pytest.fixture(scope="function", autouse=False)
-async def fly_server():
-    process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test.conf")
-    await asyncio.sleep(0.5)
-    yield process
-    process.send_signal(SIGINT)
-
-# make fly server (HTTP/1.1)
-@pytest.fixture(scope="function", autouse=False)
-async def fly_mini_server():
-    process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_mini.conf")
-    await asyncio.sleep(0.5)
-    yield process
-    process.send_signal(SIGINT)
-
-# make fly server (HTTP1.1/2 over SSL)
-@pytest.fixture(scope="function", autouse=False)
-async def fly_server_ssl():
-    process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/https_test.conf")
-    await asyncio.sleep(0.5)
-    yield process
-    process.send_signal(SIGINT)
-
-# make fly server (HTTP/1.1)
-@pytest.fixture(scope="function", autouse=False)
-async def fly_mini_server_ssl():
-    process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/https_test_mini.conf")
-    await asyncio.sleep(0.5)
-    yield process
-    process.send_signal(SIGINT)
-
 
 """
 GET method test
@@ -60,20 +18,20 @@ async def test_http_get_index(fly_server):
 
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_get_index(fly_server_ssl):
     async with httpx.AsyncClient(verify=False, timeout=1) as client:
         res = await client.get("https://localhost:1234/")
 
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_get_index(fly_server_ssl):
     async with httpx.AsyncClient(
         verify = False,
@@ -85,7 +43,7 @@ async def test_https2_get_index(fly_server_ssl):
 
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
 
 """
 POST method test
@@ -100,11 +58,11 @@ async def test_http_post_data_index(fly_server):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_post_data_index(fly_server_ssl):
     async with httpx.AsyncClient(
         http1=True,
@@ -118,11 +76,11 @@ async def test_https_post_data_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_post_data_index(fly_server_ssl):
     async with httpx.AsyncClient(
         verify=False,
@@ -137,7 +95,7 @@ async def test_https2_post_data_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
@@ -155,11 +113,11 @@ async def test_http_post_file_index(fly_server):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_post_file_index(fly_server_ssl):
     # send with multipart/form-data
     files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
@@ -175,11 +133,11 @@ async def test_https_post_file_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_post_file_index(fly_server_ssl):
     # send with multipart/form-data
     files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
@@ -196,7 +154,7 @@ async def test_https2_post_file_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
@@ -219,11 +177,11 @@ async def test_http_post_files_index(fly_server):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_post_files_index(fly_server_ssl):
     # send with multipart/form-data
     files = {
@@ -244,11 +202,11 @@ async def test_https_post_files_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_post_files_index(fly_server_ssl):
     # send with multipart/form-data
     files = {
@@ -270,7 +228,7 @@ async def test_https2_post_files_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
@@ -281,11 +239,11 @@ async def test_http_get_empty(fly_server):
     print(res)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_get_empty(fly_server_ssl):
     async with httpx.AsyncClient(
         http1 = True,
@@ -297,11 +255,11 @@ async def test_https_get_empty(fly_server_ssl):
     print(res)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_get_empty(fly_server_ssl):
     async with httpx.AsyncClient(
         http1 = False,
@@ -314,7 +272,7 @@ async def test_https2_get_empty(fly_server_ssl):
     print(res)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
@@ -325,11 +283,11 @@ async def test_http_head_index(fly_server):
     print(res)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_head_index(fly_server_ssl):
     async with httpx.AsyncClient(
         http1 = True,
@@ -341,11 +299,11 @@ async def test_https_head_index(fly_server_ssl):
     print(res)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_head_index(fly_server_ssl):
     async with httpx.AsyncClient(
         http1 = False,
@@ -358,7 +316,7 @@ async def test_https2_head_index(fly_server_ssl):
     print(res)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
@@ -369,11 +327,11 @@ async def test_http_head_500(fly_server):
     print(res)
     assert(res.status_code == 500)
     assert(res.is_server_error is True)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_head_500(fly_server_ssl):
     async with httpx.AsyncClient(
         http1=True,
@@ -385,11 +343,11 @@ async def test_https_head_500(fly_server_ssl):
     print(res)
     assert(res.status_code == 500)
     assert(res.is_server_error is True)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_head_500(fly_server_ssl):
     async with httpx.AsyncClient(
         http1 = False,
@@ -402,7 +360,7 @@ async def test_https2_head_500(fly_server_ssl):
     print(res)
     assert(res.status_code == 500)
     assert(res.is_server_error is True)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
@@ -416,11 +374,11 @@ async def test_http_put_index_data(fly_server):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_put_index_data(fly_server_ssl):
     async with httpx.AsyncClient(
         http1=True,
@@ -435,11 +393,11 @@ async def test_https_put_index_data(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_put_index_data(fly_server_ssl):
     async with httpx.AsyncClient(
         http1 = False,
@@ -455,7 +413,7 @@ async def test_https2_put_index_data(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
 
 @pytest.mark.asyncio
@@ -478,11 +436,11 @@ async def test_http_put_index_files(fly_server):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_put_index_files(fly_server_ssl):
     files = {
         'dummy1':
@@ -503,11 +461,11 @@ async def test_https_put_index_files(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_put_index_files(fly_server_ssl):
     files = {
         'dummy1':
@@ -529,7 +487,7 @@ async def test_https2_put_index_files(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
 
 @pytest.mark.asyncio
@@ -545,11 +503,11 @@ async def test_http_delete_index(fly_server):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, DELETE")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_delete_index(fly_server_ssl):
     async with httpx.AsyncClient(
         http1=True,
@@ -563,11 +521,11 @@ async def test_https_delete_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, DELETE")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_delete_index(fly_server_ssl):
     async with httpx.AsyncClient(
         http1=False,
@@ -582,7 +540,7 @@ async def test_https2_delete_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, DELETE")
 
 @pytest.mark.asyncio
@@ -598,11 +556,11 @@ async def test_http_patch_index(fly_server):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PATCH")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_patch_index(fly_server_ssl):
     async with httpx.AsyncClient(
         http1=True,
@@ -616,11 +574,11 @@ async def test_https_patch_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PATCH")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_patch_index(fly_server_ssl):
     async with httpx.AsyncClient(
         http1=False,
@@ -635,7 +593,7 @@ async def test_https2_patch_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, PATCH")
 
 @pytest.mark.asyncio
@@ -651,11 +609,11 @@ async def test_http_options_index(fly_server):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, OPTIONS")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_options_index(fly_server_ssl):
     async with httpx.AsyncClient(
         http1=True,
@@ -669,11 +627,11 @@ async def test_https_options_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, OPTIONS")
 
 @pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file, reason=ssl_reason)
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_options_index(fly_server_ssl):
     async with httpx.AsyncClient(
         http1=False,
@@ -688,9 +646,24 @@ async def test_https2_options_index(fly_server_ssl):
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, OPTIONS")
 
+@pytest.mark.asyncio
+async def test_http_return_query(fly_server):
+    async with httpx.AsyncClient(
+        http1=True,
+        params={"key1": "value1", "key2": "value2"},
+        timeout=60
+    ) as client:
+        res = await client.get(
+            "http://localhost:1234/query",
+        )
+
+    print(res.content)
+    assert(res.status_code == 200)
+    assert(res.is_error is False)
+    assert(res.http_version == http_scheme())
 
 """
 Illeagl test
@@ -707,7 +680,7 @@ async def test_illegal_http(fly_server_ssl):
         )
 
     assert(res.status_code == 400)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
 
 # HTTP Server but, HTTPS request
 @pytest.mark.asyncio
@@ -737,7 +710,7 @@ async def test_request_over(fly_mini_server):
         )
 
     assert(res.status_code == 413)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
 async def test_ssl_request_over(fly_mini_server_ssl):
@@ -753,7 +726,7 @@ async def test_ssl_request_over(fly_mini_server_ssl):
         )
 
     assert(res.status_code == 413)
-    assert(res.http_version == __HTTP)
+    assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
 async def test_http2_ssl_request_over(fly_mini_server_ssl):
@@ -770,4 +743,5 @@ async def test_http2_ssl_request_over(fly_mini_server_ssl):
         )
 
     assert(res.status_code == 413)
-    assert(res.http_version == __HTTP2)
+    assert(res.http_version == http2_scheme())
+
