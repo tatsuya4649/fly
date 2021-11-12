@@ -113,3 +113,15 @@ fly_http_version_t *fly_default_http_version(void)
 	FLY_NOT_COME_HERE
 	return NULL;
 }
+
+fly_http_version_t *fly_http2_version(void)
+{
+	for (fly_http_version_t *__v=versions; __v->full; __v++){
+		if (__v->type == V2)
+			return __v;
+		else
+			continue;
+	}
+	FLY_NOT_COME_HERE
+	return NULL;
+}
