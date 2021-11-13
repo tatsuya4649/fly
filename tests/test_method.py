@@ -3,7 +3,7 @@ from fly.method import *
 
 def test_method_from_name():
     result = method_from_name("GET")
-    assert(isinstance(result, FlyMethod))
+    assert(isinstance(result, Method))
 
 @pytest.mark.parametrize(
     "method", [
@@ -17,8 +17,8 @@ def test_method_from_name_value_error(method):
         assert(method_from_name(method));
 
 def test_method_from_name_method():
-    result = method_from_name(FlyMethod.GET)
-    assert(isinstance(result, FlyMethod))
+    result = method_from_name(Method.GET)
+    assert(isinstance(result, Method))
 
 @pytest.mark.parametrize(
     "method", [
