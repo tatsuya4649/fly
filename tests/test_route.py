@@ -1,14 +1,14 @@
 import pytest
-from fly.route import FlyRoute
-from fly.method import FlyMethod
+from fly.route import Route
+from fly.method import Method
 
 @pytest.fixture(scope="function", autouse=False)
 def __pyroute_init():
-    __route = FlyRoute()
+    __route = Route()
     yield __route
 
 def test_init():
-    FlyRoute()
+    Route()
 
 def test_routes(__pyroute_init):
     assert(isinstance(__pyroute_init.routes, list))
@@ -19,7 +19,7 @@ def test_register(__pyroute_init):
     __pyroute_init.register_route("/", hello, "GET")
 
 def test_register_method(__pyroute_init):
-    __pyroute_init.register_route("/", hello, FlyMethod.GET)
+    __pyroute_init.register_route("/", hello, Method.GET)
 
 @pytest.mark.parametrize(
     "uri", [
@@ -33,7 +33,7 @@ def test_register_uri_type_error(__pyroute_init, uri):
     with pytest.raises(
         TypeError
     ):
-        __pyroute_init.register_route(uri, hello, FlyMethod.GET)
+        __pyroute_init.register_route(uri, hello, Method.GET)
 
 @pytest.mark.parametrize(
     "method", [
@@ -41,8 +41,8 @@ def test_register_uri_type_error(__pyroute_init, uri):
     10,
     10.0,
     True,
-    [FlyMethod.GET],
-    {"method", FlyMethod.GET},
+    [Method.GET],
+    {"method", Method.GET},
 ])
 def test_register_method_type_error(__pyroute_init, method):
     with pytest.raises(
@@ -62,4 +62,4 @@ def test_register_func_type_error(__pyroute_init, func):
     with pytest.raises(
         TypeError
     ):
-        __pyroute_init.register_route("/", func, FlyMethod.GET)
+        __pyroute_init.register_route("/", func, Method.GET)
