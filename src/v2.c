@@ -4445,6 +4445,8 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 		goto response_400;
 	}
 
+	if (request->header)
+		fly_check_cookie(request->header);
 	if (request->discard_body)
 		goto response_413;
 	/* accept encoding type */
