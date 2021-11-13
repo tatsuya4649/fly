@@ -827,6 +827,8 @@ __fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_c *header_chain)
 			}
 			break;
 		case END:
+			/* check of including cookie item in header */
+			fly_check_cookie(ci);
 			fly_buffer_chain_release_from_length(chain, FLY_CRLF_LENGTH);
 			goto end;
 		default:

@@ -322,6 +322,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 	if (request->header){
 		header = request->header;
 		PyListObject *__pylist = (PyListObject *) PyList_New((Py_ssize_t) header->chain_count);
+		PyListObject *__pycookie = (PyListObject *) PyList_New(0);
 		fly_hdr_c *__c;
 		int i=0;
 		fly_for_each_bllist(__b, &header->chain){
@@ -339,6 +340,46 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 			if (PyList_SetItem((PyObject *) __pylist, i, (PyObject *) __hd) == -1)
 				return NULL;
 
+			if (__c->cookie){
+				PyDictObject *__cookie = (PyDictObject *) PyDict_New();
+				PyObject *__cn=NULL, *__cv=NULL;
+				char *__cn_ptr=NULL, *__cv_ptr=NULL, *np;
+				size_t __cn_len=0, __cv_len=0;
+
+				np = __c->value;
+
+				__cn_ptr = __c->value;
+				while(!fly_equal(*np) && \
+						np<__c->value+__c->value_len-1){
+					np++;
+				}
+
+				__cn_len = np-__cn_ptr;
+				if (++np<=__c->value+__c->value_len-1){
+					__cv_ptr = np;
+					__cv_len = (size_t) ((__c->value+__c->value_len)-np);
+#ifdef DEBUG
+					assert(__cv_len>0);
+#endif
+				}
+
+				__cn = PyUnicode_FromStringAndSize(__cn_ptr, __cn_len);
+				if (PyDict_SetItemString((PyObject *) __cookie, "name", __cn) == -1)
+					return NULL;
+
+				if (__cv_ptr){
+					__cv = PyUnicode_FromStringAndSize(__cv_ptr, __cv_len);
+					if (PyDict_SetItemString((PyObject *) __cookie, "value", __cv) == -1)
+						return NULL;
+				}
+
+				if (PyList_Append((PyObject *) __pycookie, (PyObject *) __cookie) == -1)
+					return NULL;
+
+				Py_DECREF(__cn);
+				if (__cv != NULL)
+					Py_DECREF(__cv);
+			}
 			i++;
 			Py_DECREF(__n);
 			Py_DECREF(__v);
@@ -346,7 +387,11 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 		if (PyDict_SetItemString((PyObject *) __reqdict, "header", (PyObject *) __pylist) == -1)
 			return NULL;
 
+		if (PyDict_SetItemString((PyObject *) __reqdict, "cookie", (PyObject *) __pycookie) == -1)
+			return NULL;
+
 		Py_DECREF(__pylist);
+		Py_DECREF(__pycookie);
 	}
 
 	/* accept encoding */
@@ -681,6 +726,10 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 				if (!PyUnicode_Check(pyhdr_name))
 					goto response_500;
 				hdr_name = PyUnicode_AsUTF8AndSize(pyhdr_name, &hdr_name_len);
+				if (is_fly_request_http_v2(request)){
+					for (ssize_t i=0; i<hdr_name_len; i++)
+						fly_alpha_upper_to_lower((char *) hdr_name+i);
+				}
 
 				pyhdr_value = PyDict_GetItemString(pyhdr_c, "value");
 				if (fly_unlikely_null(pyhdr_value))
