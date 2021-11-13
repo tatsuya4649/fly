@@ -6,10 +6,22 @@ def test_text_render():
     assert(isinstance(txt, str))
     assert(txt == "Hello World")
 
+def test_text_render_type_error():
+    with pytest.raises(
+        TypeError
+    ):
+        text_render(None, world="World")
+
 def test_file_render():
     txt = file_render("tests/fly_test.j2", world="World")
     assert(isinstance(txt, str))
     assert(txt == "Hello World")
+
+def test_file_render_type_error():
+    with pytest.raises(
+        TypeError
+    ):
+        file_render(None, world="World")
 
 def test_template_init():
     Templates(dir_path="tests")
