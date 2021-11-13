@@ -1,10 +1,10 @@
 import pytest
 from fly.route import Route
-    from fly.method import Method
+from fly.method import Method
 
-    @pytest.fixture(scope="function", autouse=False)
-    def __pyroute_init():
-        __route = Route()
+@pytest.fixture(scope="function", autouse=False)
+def __pyroute_init():
+    __route = Route()
     yield __route
 
 def test_init():
