@@ -124,4 +124,8 @@ const char *fly_log_path(void);
 bool fly_log_stdout(void);
 bool fly_log_stderr(void);
 
+#ifdef DEBUG
+void __log_test(struct fly_context *ctx);
+#endif
+
 #endif

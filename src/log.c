@@ -499,3 +499,19 @@ bool fly_log_stderr(void)
 {
 	return fly_config_value_bool(FLY_LOG_STDERR);
 }
+
+#ifdef DEBUG
+#include "context.h"
+void __log_test(struct fly_context *ctx)
+{
+	fly_log_t *log;
+	__fly_log_t *__n;
+
+	log = ctx->log;
+	__n = log->notice;
+
+#define FLY_TEST_LOGCONT					"TEST"
+	write(__n->file, FLY_TEST_LOGCONT, strlen(FLY_TEST_LOGCONT));
+}
+#endif
+

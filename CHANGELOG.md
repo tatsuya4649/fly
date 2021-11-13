@@ -8,13 +8,11 @@ Released: 2021/11/13
 
 ### Python
 
+* `fly` command to operate fly server.
+
 * 'cookie' request key.
 
-* Templaets class with Jinja2 to support template response.
-
-* Templates helper function.
-
-* Route function(@app.get, @app.post, ...) cat receive return value of str type, bytes type.
+* Templaets class with Jinja2 to support template response.  * Templates helper function.  * Route function(@app.get, @app.post, ...) cat receive return value of str type, bytes type.
 
 * set_cookie function in Response class.
 
@@ -26,12 +24,13 @@ Released: 2021/11/13
 
 ### Python
 
-* delete 'Fly' prefix from some Python class
+* Delete 'Fly' prefix from some Python class
 
 ### C
 
-* handle of 413 response(Payload Too Large)
+* Handle of 413 response(Payload Too Large)
 
+- Updated configure.ac
 
 ### Fixed
 
