@@ -4,7 +4,7 @@ import os
 sys.path.append(
     os.path.dirname(__file__)
 )
-from fly import Fly
+from fly import Fly, Response
 
 app = Fly()
 
@@ -57,3 +57,18 @@ def query(request):
         raise RuntimeError
     print(request.get("query"))
     return None
+
+@app.get("/cookie")
+def cookie(request):
+    print(request)
+    cookie = request.get("cookie")
+    if cookie is None or len(cookie) == 0:
+        raise RuntimeError
+
+    return "OK, Cookie"
+
+@app.get("/set_cookie")
+def set_cookie(request):
+    res = Response(200)
+    res.set_cookie("id", 100)
+    return res

@@ -5,6 +5,7 @@
 #include <structmember.h>
 #include "server.h"
 #include "context.h"
+#include "char.h"
 #include "mount.h"
 #include "err.h"
 #include "connect.h"

@@ -65,6 +65,7 @@ fly_hdr_c *__fly_header_chain_init(fly_hdr_ci *ci)
 	c->dynamic_table = false;
 	c->huffman_name = false;
 	c->huffman_value = false;
+	c->cookie = false;
 	return c;
 }
 
@@ -629,3 +630,34 @@ void fly_response_header_init(struct fly_response *__res, struct fly_request *__
 	}
 }
 
+bool fly_is_cookie(char *name, size_t len)
+{
+	if (FLY_COOKIE_HEADER_NAME_LEN != len)
+		return false;
+
+	if (strncmp(name, FLY_COOKIE_HEADER_NAME, FLY_COOKIE_HEADER_NAME_LEN)==0 || strncmp(name, FLY_COOKIE_HEADER_NAME_S, FLY_COOKIE_HEADER_NAME_LEN)==0)
+		return true;
+	else
+		return false;
+}
+
+bool fly_is_cookie_chain(fly_hdr_c *__c)
+{
+	return fly_is_cookie(__c->name, __c->name_len);
+}
+
+void fly_check_cookie(fly_hdr_ci *__ci)
+{
+#ifdef DEBUG
+	assert(__ci);
+#endif
+	struct fly_bllist *__b;
+	fly_hdr_c *c;
+
+	fly_for_each_bllist(__b, &__ci->chain){
+		c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (fly_is_cookie(c->name, c->name_len))
+			c->cookie = true;
+	}
+	return;
+}
