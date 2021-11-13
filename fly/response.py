@@ -1,5 +1,6 @@
 from ._fly_server import _fly_response
 import json
+from cookie import *
 
 class _Response(_fly_response):
 
@@ -88,6 +89,18 @@ class Response(_Response):
     def add_header(self, name, value):
         hdr_elem = dict()
         hdr_elem["name"] = name
+        hdr_elem["value"] = value
+        self._header.append(hdr_elem)
+
+    def set_cookie(
+        self,
+        name,
+        value,
+        **kwards
+    ):
+        hdr_elem = dict()
+        hdr_elem["name"] = "Set-Cookie"
+        value = header_value_from_cookie(name, value, **kwards)
         hdr_elem["value"] = value
         self._header.append(hdr_elem)
 

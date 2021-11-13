@@ -63,6 +63,16 @@ static inline bool fly_lalpha(char c)
 	return (c>=0x61 && c<=0x7A) ? true : false;
 }
 
+static inline void fly_alpha_upper_to_lower(char *c)
+{
+	if (fly_ualpha(*c)){
+		char __u = *c;
+		*c = __u + 0x20;
+	}else
+		return;
+}
+
+
 static inline bool fly_alpha(char c)
 {
 	return (fly_ualpha(c) || fly_lalpha(c)) ? true : false;
