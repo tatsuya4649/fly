@@ -9,10 +9,6 @@ def text_render(text, **data):
         raise TypeError(
             "text must be str type."
         )
-    if data is None or not isinstance(data, dict):
-        raise TypeError(
-            "data must be dict type."
-        )
 
     __tmp = j2.Template(text)
     return __tmp.render(data)
@@ -21,10 +17,6 @@ def file_render(file_path, **data):
     if file_path is None or not os.path.isfile(file_path):
         raise TypeError(
             "file_path must exist."
-        )
-    if data is None or not isinstance(data, dict):
-        raise TypeError(
-            "data must be dict type."
         )
 
     __env = j2.Environment(loader=j2.FileSystemLoader(
