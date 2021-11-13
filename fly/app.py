@@ -11,11 +11,11 @@ ctypes.cdll.LoadLibrary(
     )
 )
 from enum import Enum
-from .mount import FlyMount
+from .mount import Mount
 from ._fly_server import _fly_server
-from .route import FlyRoute
+from .route import Route
 from .response import *
-from .method import FlyMethod
+from .method import Method
 
 class _Fly:
     def __new__(cls, *args, **kwargs):
@@ -23,14 +23,14 @@ class _Fly:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
+class Fly(_Fly, Mount, Route, _fly_server):
     def __init__(
         self,
         config_path=None,
         **kwargs,
     ):
-        FlyMount.__init__(self)
-        FlyRoute.__init__(self)
+        Mount.__init__(self)
+        Route.__init__(self)
 
         if config_path is not None:
             if not isinstance(config_path, str):
@@ -50,9 +50,9 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
 
 
     def route(self, path, method):
-        if not isinstance(path, str) or not isinstance(method, FlyMethod):
+        if not isinstance(path, str) or not isinstance(method, Method):
             raise TypeError(
-                "path must be str type and FlyMethod."
+                "path must be str type and Method."
             )
 
         def __route(func):
@@ -69,31 +69,31 @@ class Fly(_Fly, FlyMount, FlyRoute, _fly_server):
         return __route
 
     def get(self, path):
-        return self.route(path, FlyMethod.GET)
+        return self.route(path, Method.GET)
 
     def post(self, path):
-        return self.route(path, FlyMethod.POST)
+        return self.route(path, Method.POST)
 
     def head(self, path):
-        return self.route(path, FlyMethod.HEAD)
+        return self.route(path, Method.HEAD)
 
     def options(self, path):
-        return self.route(path, FlyMethod.OPTIONS)
+        return self.route(path, Method.OPTIONS)
 
     def put(self, path):
-        return self.route(path, FlyMethod.PUT)
+        return self.route(path, Method.PUT)
 
     def delete(self, path):
-        return self.route(path, FlyMethod.DELETE)
+        return self.route(path, Method.DELETE)
 
     def connect(self, path):
-        return self.route(path, FlyMethod.CONNECT)
+        return self.route(path, Method.CONNECT)
 
     def trace(self, path):
-        return self.route(path, FlyMethod.TRACE)
+        return self.route(path, Method.TRACE)
 
     def patch(self, path):
-        return self.route(path, FlyMethod.PATCH)
+        return self.route(path, Method.PATCH)
 
     def run(self, daemon=False):
         if self.mounts_count == 0 and len(self.routes) == 0:

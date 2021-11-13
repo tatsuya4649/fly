@@ -1,13 +1,13 @@
 import pytest
-from fly.mount import FlyMount
+from fly.mount import Mount
 
 @pytest.fixture(scope="function", autouse=False)
 def __pyfly_mount():
-    __mnt = FlyMount()
+    __mnt = Mount()
     yield __mnt
 
 def test_init():
-    FlyMount()
+    Mount()
 
 def test_mounts(__pyfly_mount):
     assert(isinstance(__pyfly_mount.mounts, list))

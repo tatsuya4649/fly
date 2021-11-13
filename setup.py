@@ -67,7 +67,8 @@ setup(
         "fly": glob('fly/lib/*'),
     },
     install_requires = [
-        "click>=7.1.0"
+        "click>=7.1.0",
+        "jinja2>=3.0.0",
     ],
     entry_points="""
     [console_scripts]
