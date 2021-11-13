@@ -1,8 +1,9 @@
 import pytest
-from fly import Fly
 import asyncio
 from signal import SIGINT
 import os
+import sys
+from fly import Fly
 
 def http_scheme():
     __HTTP = "HTTP/1.1"

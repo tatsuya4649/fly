@@ -1021,6 +1021,9 @@ static PyObject *__pyfly_run(__pyfly_server_t *self, PyObject *args)
 			return NULL;
 		}
 	}
+#ifdef DEBUG
+	__log_test(self->master->context);
+#endif
 
 	fly_master_worker_spawn(self->master, fly_worker_process);
 	fly_master_process(self->master);
