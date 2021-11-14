@@ -20,6 +20,8 @@ async def test_daemon():
         if (len(i) > 0):
             j+=1
             os.kill(int(i), signal.SIGINT)
+            if os.path.isfile("./log/fly.pid"):
+                os.remove("./log/fly.pid")
 
     assert(j == 2)
 
