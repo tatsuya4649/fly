@@ -21,6 +21,7 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 
 	memset(ctx, 0, sizeof(fly_context_t));
 	ctx->pool = pool;
+	ctx->event_pool = NULL;
 	ctx->pool_manager = __pm;
 	ctx->misc_pool = fly_create_pool(__pm, FLY_CONTEXT_POOL_SIZE);
 	if (!ctx->misc_pool)

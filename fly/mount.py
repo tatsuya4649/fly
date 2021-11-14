@@ -17,6 +17,10 @@ class Mount:
             raise TypeError(
                 "path must be str type."
             )
+        if not os.path.isdir(path):
+            raise ValueError(
+                f"{path} must be existing directory."
+            )
 
         abspath = os.path.abspath(path)
         if not os.path.isdir(abspath):

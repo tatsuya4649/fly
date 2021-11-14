@@ -151,7 +151,7 @@ static void __pyfly_server_dealloc(__pyfly_server_t *self)
 	if (self->master)
 		fly_master_release(self->master);
 
-	fly_remove_pidfile();
+//	fly_remove_pidfile();
 	Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
@@ -192,7 +192,7 @@ static fly_master_t *pyfly_master_init(void)
 
 	res = fly_master_init();
 	if (res == NULL)
-		PyErr_Format(PyExc_Exception, "parse master init error. (\"%s\")", strerror(errno));
+		PyErr_Format(PyExc_Exception, "master init error. (\"%s\")", strerror(errno));
 
 	return res;
 }
@@ -930,7 +930,8 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 	if (master == NULL)
 		goto error;
 
-	if (pyfly_create_pidfile_noexit() == -1)
+	if (fly_is_create_pidfile() && \
+			pyfly_create_pidfile_noexit() == -1)
 		goto error;
 
 	ctx = master->context;
@@ -1016,11 +1017,14 @@ static PyObject *__pyfly_run(__pyfly_server_t *self, PyObject *args)
 
 	if (daemon){
 		fprintf(stderr, "To be daemon process...");
-		if (fly_master_daemon() == -1){
+		if (fly_master_daemon(self->master->context) == -1){
 			PyErr_SetString(PyExc_RuntimeError, "to be daemon process error.");
 			return NULL;
 		}
 	}
+#ifdef DEBUG
+	__log_test(self->master->context);
+#endif
 
 	fly_master_worker_spawn(self->master, fly_worker_process);
 	fly_master_process(self->master);
