@@ -151,7 +151,7 @@ static void __pyfly_server_dealloc(__pyfly_server_t *self)
 	if (self->master)
 		fly_master_release(self->master);
 
-	fly_remove_pidfile();
+//	fly_remove_pidfile();
 	Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
@@ -930,7 +930,8 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 	if (master == NULL)
 		goto error;
 
-	if (pyfly_create_pidfile_noexit() == -1)
+	if (fly_is_create_pidfile() && \
+			pyfly_create_pidfile_noexit() == -1)
 		goto error;
 
 	ctx = master->context;

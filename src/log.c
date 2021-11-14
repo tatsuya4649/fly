@@ -18,28 +18,28 @@ __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 	char rpath[FLY_PATH_MAX];
 	char *__lp = log_path_buf;
 
+#ifdef DEBUG
+	assert(log_path_buf);
+#endif
 	path = fly_log_path();
 	memset(rpath, '\0', FLY_PATH_MAX);
-	if (realpath(path, rpath) == NULL)
+	if (path == NULL || realpath(path, rpath) == NULL)
 		return -1;
 
 	memset(log_path_buf, '\0', buflen);
-	if (path != NULL){
-		if (log_path_buf+strlen(rpath) > __lp+buflen)
-			return -1;
-		memcpy(log_path_buf, rpath, strlen(rpath));
-		log_path_buf += strlen(rpath);
+	if (log_path_buf+strlen(rpath) > __lp+buflen)
+		return -1;
+	memcpy(log_path_buf, rpath, strlen(rpath));
+	log_path_buf += strlen(rpath);
 
-		if (log_path_buf+1 > __lp+buflen)
-			return -1;
-		memcpy(log_path_buf, "/", 1);
-		log_path_buf += 1;
+	if (log_path_buf+1 > __lp+buflen)
+		return -1;
+	memcpy(log_path_buf, "/", 1);
+	log_path_buf += 1;
 
-		if (log_path_buf+strlen(FLY_ERRORLOG_FILENAME) > __lp+buflen)
-			return -1;
-		memcpy(log_path_buf, FLY_ERRORLOG_FILENAME, strlen(FLY_ERRORLOG_FILENAME));
-	}else
-		memcpy(log_path_buf, FLY_ERRORLOG_DEFAULT, strlen(FLY_ERRORLOG_DEFAULT));
+	if (log_path_buf+strlen(FLY_ERRORLOG_FILENAME) > __lp+buflen)
+		return -1;
+	memcpy(log_path_buf, FLY_ERRORLOG_FILENAME, strlen(FLY_ERRORLOG_FILENAME));
 
 #ifdef DEBUG
 	printf("error log file: %s\n", __lp);
@@ -54,29 +54,29 @@ __fly_static int __fly_access_log_path(char *log_path_buf, size_t buflen)
 	char rpath[FLY_PATH_MAX];
 	char *__lp = log_path_buf;
 
-	memset(log_path_buf, '\0', buflen);
+#ifdef DEBUG
+	assert(log_path_buf);
+#endif
 
 	path = fly_log_path();
 	memset(rpath, '\0', FLY_PATH_MAX);
-	if (realpath(path, rpath) == NULL)
+	if (path == NULL || realpath(path, rpath) == NULL)
 		return -1;
 
-	if (path != NULL){
-		if (log_path_buf+strlen(rpath) > __lp+buflen)
-			return -1;
-		memcpy(log_path_buf, rpath, strlen(rpath));
-		log_path_buf += strlen(rpath);
+	memset(log_path_buf, '\0', buflen);
+	if (log_path_buf+strlen(rpath) > __lp+buflen)
+		return -1;
+	memcpy(log_path_buf, rpath, strlen(rpath));
+	log_path_buf += strlen(rpath);
 
-		if (log_path_buf+1 > __lp+buflen)
-			return -1;
-		memcpy(log_path_buf, "/", 1);
-		log_path_buf += 1;
+	if (log_path_buf+1 > __lp+buflen)
+		return -1;
+	memcpy(log_path_buf, "/", 1);
+	log_path_buf += 1;
 
-		if (log_path_buf+strlen(FLY_ACCESLOG_FILENAME) > __lp+buflen)
-			return -1;
-		memcpy(log_path_buf, FLY_ACCESLOG_FILENAME, strlen(FLY_ACCESLOG_FILENAME));
-	}else
-		memcpy(log_path_buf, FLY_ACCESLOG_DEFAULT, strlen(FLY_ACCESLOG_DEFAULT));
+	if (log_path_buf+strlen(FLY_ACCESLOG_FILENAME) > __lp+buflen)
+		return -1;
+	memcpy(log_path_buf, FLY_ACCESLOG_FILENAME, strlen(FLY_ACCESLOG_FILENAME));
 #ifdef DEBUG
 	printf("access log file: %s\n", __lp);
 #endif
@@ -89,28 +89,28 @@ __fly_static int __fly_notice_log_path(char *log_path_buf, size_t buflen)
 	char rpath[FLY_PATH_MAX];
 	char *__lp = log_path_buf;
 
+#ifdef DEBUG
+	assert(log_path_buf);
+#endif
 	path = fly_log_path();
 	memset(rpath, '\0', FLY_PATH_MAX);
-	if (realpath(path, rpath) == NULL)
+	if (path == NULL || realpath(path, rpath) == NULL)
 		return -1;
 
 	memset(log_path_buf, '\0', buflen);
-	if (path != NULL){
-		if (log_path_buf+strlen(rpath) > __lp+buflen)
-			return -1;
-		memcpy(log_path_buf, rpath, strlen(rpath));
-		log_path_buf += strlen(rpath);
+	if (log_path_buf+strlen(rpath) > __lp+buflen)
+		return -1;
+	memcpy(log_path_buf, rpath, strlen(rpath));
+	log_path_buf += strlen(rpath);
 
-		if (log_path_buf+1 > __lp+buflen)
-			return -1;
-		memcpy(log_path_buf, "/", 1);
-		log_path_buf += 1;
+	if (log_path_buf+1 > __lp+buflen)
+		return -1;
+	memcpy(log_path_buf, "/", 1);
+	log_path_buf += 1;
 
-		if (log_path_buf+strlen(FLY_NOTICLOG_FILENAME) > __lp+buflen)
-			return -1;
-		memcpy(log_path_buf, FLY_NOTICLOG_FILENAME, strlen(FLY_NOTICLOG_FILENAME));
-	}else
-		memcpy(log_path_buf, FLY_NOTICLOG_DEFAULT, strlen(FLY_NOTICLOG_DEFAULT));
+	if (log_path_buf+strlen(FLY_NOTICLOG_FILENAME) > __lp+buflen)
+		return -1;
+	memcpy(log_path_buf, FLY_NOTICLOG_FILENAME, strlen(FLY_NOTICLOG_FILENAME));
 
 #ifdef DEBUG
 	printf("notice log file: %s\n", __lp);
@@ -132,18 +132,22 @@ __fly_static __fly_log_t *__fly_logfile_init(fly_pool_t *pool, const fly_path_t 
 	if (fly_log_path != NULL){
 		lfile = open(fly_log_path, O_RDWR|O_CREAT, FLY_LOGFILE_MODE);
 		if (lfile == -1)
-			return NULL;
-
-		lt->file = lfile;
-	}else
+			lt->file = -1;
+		else
+			lt->file = lfile;
+	}else{
+		memset(lt->log_path, '\0', FLY_PATH_MAX);
 		lt->file = -1;
+	}
 
 	if (lt->file != -1 && isatty(lt->file))
 		lt->tty = true;
 	else
 		lt->tty = false;
+
 	lt->flag = flag;
-	strcpy(lt->log_path, fly_log_path);
+	if (fly_log_path)
+		strcpy(lt->log_path, fly_log_path);
 	return lt;
 }
 
@@ -162,7 +166,7 @@ static inline int __fly_log_stderr()
 
 fly_log_t *fly_log_init(fly_context_t *ctx)
 {
-	char log_path_buf[FLY_PATH_MAX];
+	char log_path_buf[FLY_PATH_MAX], *lpptr;
 	fly_log_t *lt;
 	__fly_log_t *alp, *elp, *nlp;
 
@@ -171,28 +175,37 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 		goto error;
 
 	if (__fly_log_path(access, log_path_buf, FLY_PATH_MAX) == -1)
-		return NULL;
+		lpptr = NULL;
+	else
+		lpptr = log_path_buf;
+
 	alp = __fly_logfile_init(
 		ctx->pool,
-		log_path_buf,
+		lpptr,
 		__fly_log_stdout() | \
 		__fly_log_stderr()
 	);
 
 	if (__fly_log_path(error, log_path_buf, FLY_PATH_MAX) == -1)
-		return NULL;
+		lpptr = NULL;
+	else
+		lpptr = log_path_buf;
+
 	elp = __fly_logfile_init(
 		ctx->pool,
-		log_path_buf,
+		lpptr,
 		__fly_log_stdout() | \
 		__fly_log_stderr()
 	);
 
 	if (__fly_log_path(notice, log_path_buf, FLY_PATH_MAX) == -1)
-		return NULL;
+		lpptr = NULL;
+	else
+		lpptr = log_path_buf;
+
 	nlp = __fly_logfile_init(
 		ctx->pool,
-		log_path_buf,
+		lpptr,
 		__fly_log_stdout() | \
 		__fly_log_stderr()
 	);
@@ -301,6 +314,9 @@ __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc)
 {
 	char phd[FLY_LOG_PLACE_SIZE];
 	int phd_len;
+
+	if (file == -1)
+		return 0;
 
 	phd_len = __fly_placeholder(phd, FLY_LOG_PLACE_SIZE, lc->when);
 	if (phd_len < 0 || phd_len >= FLY_LOG_PLACE_SIZE)
@@ -564,7 +580,8 @@ void __log_test(struct fly_context *ctx)
 
 #define FLY_TEST_LOGCONT					"DEBUG TEST\n"
 	buf = FLY_TEST_LOGCONT;
-	res = write(__n->file, buf, strlen(FLY_TEST_LOGCONT));
+	if (is_fly_log_valid(__n))
+		res = write(__n->file, buf, strlen(FLY_TEST_LOGCONT));
 }
 #endif
 

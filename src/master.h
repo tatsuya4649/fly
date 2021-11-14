@@ -60,4 +60,7 @@ void fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *,
 #define FLY_WORKER_MAX		"FLY_WORKER_MAX"
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 
+#define FLY_CREATE_PIDFILE					"FLY_CREATE_PIDFILE"
+bool fly_is_create_pidfile(void);
+
 #endif
