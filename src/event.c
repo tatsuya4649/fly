@@ -2,7 +2,6 @@
 #include "err.h"
 
 
-fly_pool_t *fly_event_pool = NULL;
 __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx);
 __fly_static int __fly_event_fd_init(void);
 __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager);
@@ -18,14 +17,13 @@ static void fly_event_handle(fly_event_t *e);
 
 __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx)
 {
-	if (fly_event_pool)
-		return fly_event_pool;
-
-	fly_event_pool = fly_create_pool(ctx->pool_manager, FLY_EVENT_POOL_SIZE);
-	if (!fly_event_pool)
+	fly_pool_t *__ep;
+	__ep = fly_create_pool(ctx->pool_manager, FLY_EVENT_POOL_SIZE);
+	if (!__ep)
 		return NULL;
 
-	return fly_event_pool;
+	ctx->event_pool = __ep;
+	return __ep;
 }
 
 __fly_static int __fly_event_fd_init(void)
@@ -43,14 +41,14 @@ __fly_static int __fly_event_fd_init(void)
  */
 fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 {
-	fly_pool_t *pool;
+	fly_pool_t *__ep;
 	fly_event_manager_t *manager;
 	int fd;
 
-	if ((pool=__fly_event_pool_init(ctx)) == NULL)
+	if ((__ep =__fly_event_pool_init(ctx)) == NULL)
 		return NULL;
 
-	manager = fly_pballoc(pool, sizeof(fly_event_manager_t));
+	manager = fly_pballoc(__ep , sizeof(fly_event_manager_t));
 	if (!manager)
 		goto error;
 
@@ -58,7 +56,7 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	if (fd == -1)
 		goto error;
 
-	manager->pool = fly_event_pool;
+	manager->pool = __ep;
 	manager->evlist = fly_pballoc(manager->pool, sizeof(struct epoll_event)*FLY_EVLIST_ELES);
 	if (fly_unlikely_null(manager->evlist))
 		return NULL;

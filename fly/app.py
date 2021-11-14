@@ -113,24 +113,37 @@ class Fly(_Fly, Mount, Route, _fly_server):
         print("\n", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
-        print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m")
-        print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m")
-        print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m")
-        print(f"    \033[1m*\033[0m Log directory path: \033[1m{os.path.abspath(self._log)}\033[0m")
+        print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m", file=sys.stderr)
+        if self._ssl:
+            print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m", file=sys.stderr)
+            print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m", file=sys.stderr)
+        if self._log is not None:
+            print(f"    \033[1m*\033[0m Log directory path: \033[1m{os.path.abspath(self._log)}\033[0m", file=sys.stderr)
+            print(f"        \033[1m-\033[0m Access log path(\033[1m fly_access.log \033[0m)", file=sys.stderr)
+            print(f"        \033[1m-\033[0m Error log path(\033[1m fly_error.log \033[0m)", file=sys.stderr)
+            print(f"        \033[1m-\033[0m Notice log path(\033[1m fly_notice.log \033[0m)", file=sys.stderr)
+        else:
+            print(f"    \033[1m*\033[0m Log directory path: \033[1m-\033[0m", file=sys.stderr)
 
-        print(f"    \033[1m*\033[0m Mount paths (\033[1m{','.join(self.mounts)}\033[0m)", file=sys.stderr)
-        max_len = 0
-        for mount in self.mounts:
-            max_len = len(mount) if max_len < len(mount) else max_len
+        if len(self.mounts) > 0:
+            print(f"    \033[1m*\033[0m Mount paths (\033[1m{','.join(self.mounts)}\033[0m)", file=sys.stderr)
+            max_len = 0
+            for mount in self.mounts:
+                max_len = len(mount) if max_len < len(mount) else max_len
 
-        for mount in self.mounts:
-            __mn = self._mount_number(mount)
-            __mfc = self._mount_files(__mn)
-            print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, __mfc, width=max_len, mn=__mn), file=sys.stderr)
+            for mount in self.mounts:
+                __mn = self._mount_number(mount)
+                __mfc = self._mount_files(__mn)
+                print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, __mfc, width=max_len, mn=__mn), file=sys.stderr)
+        else:
+            print(f"    \033[1m*\033[0m Mount paths: \033[1m-\033[0m", file=sys.stderr)
+
         print("\n", file=sys.stderr)
         super().run(daemon)
 
     def _debug_run(self):
         if self.mounts_count == 0 and len(self.routes) == 0:
-            raise RuntimeError("fly must have one or more mount points.")
+            raise RuntimeError(
+                 "fly must have at least one `mount points` or `route`."
+            )
         super()._debug_run()

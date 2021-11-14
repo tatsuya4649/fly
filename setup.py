@@ -43,12 +43,14 @@ else:
     __run(["./configure"])
     __run(["make"])
     __run(["make", "install"])
+    extra_compile_args.append("-O3")
 
 server = Extension(
 	name="fly._fly_server",
 	sources=["src/pyserver.c"],
-	library_dirs=["./fly/lib"],
+    language='c',
 	libraries=["fly"],
+	library_dirs=["fly/lib"],
 	runtime_library_dirs=["lib"],
     extra_compile_args = extra_compile_args,
     define_macros = macros,
