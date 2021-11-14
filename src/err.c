@@ -263,12 +263,35 @@ __fly_static void __fly_write_to_log_emerge(fly_errc_t *err_content, enum fly_em
 	if (fcntl(noticefile, F_SETLKW, &__fly_errsys.lock) == -1)
 		return;
 
+	char *__status_str=NULL;
+	switch(status){
+	case FLY_EMERGENCY_STATUS_NOMEM:
+		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_NOMEM);
+		break;
+	case FLY_EMERGENCY_STATUS_PROCS:
+		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_PROCS);
+		break;
+	case FLY_EMERGENCY_STATUS_READY:
+		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_READY);
+		break;
+	case FLY_EMERGENCY_STATUS_ELOG:
+		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_ELOG);
+		break;
+	case FLY_EMERGENCY_STATUS_NOMOUNT:
+		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_NOMOUNT);
+		break;
+	case FLY_EMERGENCY_STATUS_MODF:
+		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_MODF);
+		break;
+	default:
+		FLY_NOT_COME_HERE
+	}
 	snprintf(
 		noticec,
 		FLY_EMERGENCY_LOG_LENGTH,
-		"process[%d] is end by emergency error (%d)\n",
+		"process[%d] is end by emergency error (%s)\n",
 		__fly_errsys.pid,
-		status
+		__status_str
 	);
 	write(noticefile, noticec, strlen(noticec));
 

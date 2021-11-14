@@ -50,7 +50,10 @@ struct fly_config *fly_config_item_search(char *item_name, size_t item_name_len)
 void fly_config_item_default_setting(void)
 {
 	for (struct fly_config *__c=configs; __c->name; __c++)
-		assert(setenv(__c->env_name, __c->env_value, FLY_ENV_OVERWRITE) != -1);
+		if (__c->env_value)
+			assert(setenv(__c->env_name, __c->env_value, FLY_ENV_OVERWRITE) != -1);
+		else
+			assert(unsetenv(__c->env_name) != -1);
 
 	return;
 }
@@ -139,6 +142,10 @@ int fly_parse_config_file(void)
 				if (FLY_PARSE_CONFIG_SPACE(ptr)){
 					name_len = ptr - name;
 					state = NAME_END;
+					break;
+				} else if (fly_equal(*ptr)){
+					name_len = ptr - name;
+					state = EQUAL;
 					break;
 				} else if (FLY_PARSE_CONFIG_NAME_CHAR(ptr)){
 					ptr++;
@@ -308,7 +315,6 @@ char *fly_config_value_str(char *name)
 	for (struct fly_config *__c=configs; __c->name; __c++){
 		if (strlen(name) == strlen(__c->env_name) && strncmp(name, __c->env_name, strlen(name)) == 0){
 			env_value = getenv(name);
-			assert(env_value != NULL);
 			return env_value;
 		}
 	}

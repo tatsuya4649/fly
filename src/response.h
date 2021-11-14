@@ -13,7 +13,6 @@
 #define RESPONSE_LENGTH_PER		1024
 #define FLY_RESPONSE_POOL_PAGE		100
 #define DEFAULT_RESPONSE_VERSION			"1.1"
-#define FLY_DEFAULT_CONTENT_PATH_LEN		(30)
 
 typedef unsigned long long fly_flag_t;
 
@@ -184,7 +183,7 @@ struct fly_response_content{
 /* default response content(static content) */
 struct fly_response_content_by_stcode{
 	fly_stcode_t				status_code;
-	char						*content_path;
+	char						content_path[FLY_PATH_MAX];
 	int							fd;
 	fly_mime_type_t				*mime;
 	fly_de_t					*de;
