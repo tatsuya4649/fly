@@ -78,7 +78,7 @@ AC_TYPE_UINT8_T
 AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_FUNC_MKTIME
-AC_CHECK_FUNCS([atexit dup2 gettimeofday localtime_r memset realpath setenv socket strchr strerror sigsetjmp siglongjmp strerrorname_np strerrordesc_np])
+AC_CHECK_FUNCS([atexit dup2 gettimeofday localtime_r memset realpath setenv socket strchr strerror sigsetjmp siglongjmp strerrorname_np strerrordesc_np realpath])
 
 AC_MSG_CHECKING(for sigsetjmp)
 AC_COMPILE_IFELSE(

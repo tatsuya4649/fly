@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <string.h>
 #include "log.h"
 #include <errno.h>
@@ -9,26 +10,38 @@ __fly_static int __fly_log_write_logcont(fly_logcont_t *lc);
 __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc);
 __fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t);
 
-__fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize);
-
 __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 {
 	const char *path;
+	char rpath[FLY_PATH_MAX];
 	char *__lp = log_path_buf;
 
 	path = fly_log_path();
+	memset(rpath, '\0', FLY_PATH_MAX);
+	if (realpath(path, rpath) == NULL)
+		return -1;
 
 	memset(log_path_buf, '\0', buflen);
 	if (path != NULL){
-		memcpy(log_path_buf, path, strlen(path));
-		log_path_buf += strlen(path);
+		if (log_path_buf+strlen(rpath) > __lp+buflen)
+			return -1;
+		memcpy(log_path_buf, rpath, strlen(rpath));
+		log_path_buf += strlen(rpath);
+
+		if (log_path_buf+1 > __lp+buflen)
+			return -1;
 		memcpy(log_path_buf, "/", 1);
 		log_path_buf += 1;
-		memcpy(log_path_buf, FLY_ERRORLOG_FILENAME, strlen(FLY_ERRORLOG_FILENAME));
-		if (__lp+buflen <= log_path_buf)
+
+		if (log_path_buf+strlen(FLY_ERRORLOG_FILENAME) > __lp+buflen)
 			return -1;
+		memcpy(log_path_buf, FLY_ERRORLOG_FILENAME, strlen(FLY_ERRORLOG_FILENAME));
 	}else
 		memcpy(log_path_buf, FLY_ERRORLOG_DEFAULT, strlen(FLY_ERRORLOG_DEFAULT));
+
+#ifdef DEBUG
+	printf("error log file: %s\n", __lp);
+#endif
 
 	return 0;
 }
@@ -36,42 +49,70 @@ __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 __fly_static int __fly_access_log_path(char *log_path_buf, size_t buflen)
 {
 	const char *path;
+	char rpath[FLY_PATH_MAX];
 	char *__lp = log_path_buf;
 
-	path = fly_log_path();
 	memset(log_path_buf, '\0', buflen);
+
+	path = fly_log_path();
+	memset(rpath, '\0', FLY_PATH_MAX);
+	if (realpath(path, rpath) == NULL)
+		return -1;
+
 	if (path != NULL){
-		memcpy(log_path_buf, path, strlen(path));
-		log_path_buf += strlen(path);
+		if (log_path_buf+strlen(rpath) > __lp+buflen)
+			return -1;
+		memcpy(log_path_buf, rpath, strlen(rpath));
+		log_path_buf += strlen(rpath);
+
+		if (log_path_buf+1 > __lp+buflen)
+			return -1;
 		memcpy(log_path_buf, "/", 1);
 		log_path_buf += 1;
-		memcpy(log_path_buf, FLY_ACCESLOG_FILENAME, strlen(FLY_ACCESLOG_FILENAME));
 
-		if (__lp+buflen <= log_path_buf)
+		if (log_path_buf+strlen(FLY_ACCESLOG_FILENAME) > __lp+buflen)
 			return -1;
+		memcpy(log_path_buf, FLY_ACCESLOG_FILENAME, strlen(FLY_ACCESLOG_FILENAME));
 	}else
 		memcpy(log_path_buf, FLY_ACCESLOG_DEFAULT, strlen(FLY_ACCESLOG_DEFAULT));
+#ifdef DEBUG
+	printf("access log file: %s\n", __lp);
+#endif
 	return 0;
 }
 
 __fly_static int __fly_notice_log_path(char *log_path_buf, size_t buflen)
 {
 	const char *path;
+	char rpath[FLY_PATH_MAX];
 	char *__lp = log_path_buf;
 
 	path = fly_log_path();
+	memset(rpath, '\0', FLY_PATH_MAX);
+	if (realpath(path, rpath) == NULL)
+		return -1;
+
 	memset(log_path_buf, '\0', buflen);
 	if (path != NULL){
-		memcpy(log_path_buf, path, strlen(path));
-		log_path_buf += strlen(path);
+		if (log_path_buf+strlen(rpath) > __lp+buflen)
+			return -1;
+		memcpy(log_path_buf, rpath, strlen(rpath));
+		log_path_buf += strlen(rpath);
+
+		if (log_path_buf+1 > __lp+buflen)
+			return -1;
 		memcpy(log_path_buf, "/", 1);
 		log_path_buf += 1;
-		memcpy(log_path_buf, FLY_NOTICLOG_FILENAME, strlen(FLY_NOTICLOG_FILENAME));
 
-		if (__lp+buflen <= log_path_buf)
+		if (log_path_buf+strlen(FLY_NOTICLOG_FILENAME) > __lp+buflen)
 			return -1;
+		memcpy(log_path_buf, FLY_NOTICLOG_FILENAME, strlen(FLY_NOTICLOG_FILENAME));
 	}else
 		memcpy(log_path_buf, FLY_NOTICLOG_DEFAULT, strlen(FLY_NOTICLOG_DEFAULT));
+
+#ifdef DEBUG
+	printf("notice log file: %s\n", __lp);
+#endif
 	return 0;
 }
 
@@ -87,9 +128,6 @@ __fly_static __fly_log_t *__fly_logfile_init(fly_pool_t *pool, const fly_path_t 
 		return NULL;
 
 	if (fly_log_path != NULL){
-		if (__fly_make_logdir((fly_path_t *) fly_log_path, strlen(fly_log_path)) < 0)
-			return NULL;
-
 		lfile = open(fly_log_path, O_RDWR|O_CREAT, FLY_LOGFILE_MODE);
 		if (lfile == -1)
 			return NULL;
@@ -109,44 +147,6 @@ __fly_static __fly_log_t *__fly_logfile_init(fly_pool_t *pool, const fly_path_t 
 
 #define __fly_log_path(name, buf, buflen)		\
 			__fly_ ## name ## _log_path((buf), (buflen))
-
-__fly_static int __fly_make_logdir(fly_path_t *dir, size_t dirsize)
-{
-	size_t n = 0;
-	fly_path_t *ptr = dir;
-	fly_path_t path[FLY_PATH_MAX];
-	bool only_word = true;
-
-	if (dirsize > FLY_PATH_MAX)
-		return FLY_EBUFLEN;
-
-	while(n<=dirsize){
-		if (*ptr == '/'){
-			int path_length = (ptr - dir);
-
-			if (FLY_PATH_MAX < path_length)
-				return FLY_EBUFLEN;
-
-			strncpy(path, dir, path_length);
-			path[path_length] = '\0';
-
-			if (fly_isdir(path) <= 0)
-				return FLY_ENFOUNDDIR;
-
-			only_word = false;
-		}
-
-		if (*ptr == '\0'){
-			if (only_word && fly_isdir(dir) <= 0)
-				return FLY_ENFOUNDDIR;
-			return FLY_SUCCESS;
-		}
-
-		ptr++;
-		n++;
-	}
-	return FLY_EBUFLEN;
-}
 
 static inline int __fly_log_stdout()
 {
@@ -355,14 +355,16 @@ __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type)
 	}
 }
 
+#define __FLY_LOG_WRITE_LOGCONT_STDOUTERR		-2
+#define __FLY_LOG_WRITE_LOGCONT_STDERRERR		-3
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc)
 {
 	if (lc->log != NULL && (lc->__log->flag & __FLY_LOGFILE_INIT_STDOUT))
 		if (__fly_log_write(STDOUT_FILENO, lc) == -1)
-			return -1;
+			return __FLY_LOG_WRITE_LOGCONT_STDOUTERR;
 	if (lc->log != NULL && (lc->__log->flag & __FLY_LOGFILE_INIT_STDERR))
 		if (__fly_log_write(STDERR_FILENO, lc) == -1)
-			return -1;
+			return __FLY_LOG_WRITE_LOGCONT_STDERRERR;
 
 	return __fly_log_write(lc->__log->file, lc);
 }
@@ -434,12 +436,12 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 	if (lc == NULL)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_ELOG,
-			"can't ready for log content."
+			"can't ready log content init."
 		);
 	if (fly_logcont_setting(lc, FLY_NOTICE_DIRECT_LOG_MAXLENGTH) == -1)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_ELOG,
-			"can't ready for setting of log content."
+			"can't ready setting log content."
 		);
 
 	va_start(va, fmt);
@@ -453,11 +455,45 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 			"can't set log time."
 		);
 
-	if (__fly_log_write_logcont(lc) == -1)
+#define FLY_LOGECONT_LENGTH			(100+FLY_PATH_MAX)
+	char __logecont[FLY_LOGECONT_LENGTH];
+	char __filepath[FLY_PATH_MAX], devname[FLY_PATH_MAX];
+	int res, __e;
+
+	memset(__logecont, '\0', FLY_LOGECONT_LENGTH);
+	memset(__filepath, '\0', FLY_PATH_MAX);
+	memset(devname, '\0', FLY_PATH_MAX);
+	res = __fly_log_write_logcont(lc);
+	__e = errno;
+	if (res < 0){
+		switch(res){
+		case __FLY_LOG_WRITE_LOGCONT_STDOUTERR:
+			snprintf(__filepath, FLY_PATH_MAX, "/proc/self/fd/%d", STDOUT_FILENO);
+			errno = 0;
+			if (readlink(__filepath, devname, FLY_PATH_MAX) == -1)
+				snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stdout) write error.. readlink error(%s)", strerror(errno));
+			else
+				snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stdout) write error.%s", devname);
+			break;
+		case __FLY_LOG_WRITE_LOGCONT_STDERRERR:
+			snprintf(__filepath, FLY_PATH_MAX, "/proc/self/fd/%d", STDERR_FILENO);
+			errno = 0;
+			if (readlink(__filepath, devname, FLY_PATH_MAX) == -1)
+				snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stderr) write error. readlink error(%s)", strerror(errno));
+			else
+				snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stderr) write error.%s", devname);
+			break;
+		default:
+			snprintf(__logecont, FLY_LOGECONT_LENGTH, "log write error.");
+			break;
+		}
+
+		errno = __e;
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_ELOG,
-			"log write error."
+			__logecont
 		);
+	}
 	__fly_logcont_release(lc);
 }
 
@@ -506,12 +542,15 @@ void __log_test(struct fly_context *ctx)
 {
 	fly_log_t *log;
 	__fly_log_t *__n;
+	__unused int res;
+	char *buf;
 
 	log = ctx->log;
 	__n = log->notice;
 
-#define FLY_TEST_LOGCONT					"TEST"
-	write(__n->file, FLY_TEST_LOGCONT, strlen(FLY_TEST_LOGCONT));
+#define FLY_TEST_LOGCONT					"DEBUG TEST\n"
+	buf = FLY_TEST_LOGCONT;
+	res = write(__n->file, buf, strlen(FLY_TEST_LOGCONT));
 }
 #endif
 

@@ -113,10 +113,13 @@ class Fly(_Fly, Mount, Route, _fly_server):
         print("\n", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
-        print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m")
-        print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m")
-        print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m")
-        print(f"    \033[1m*\033[0m Log directory path: \033[1m{os.path.abspath(self._log)}\033[0m")
+        print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Log directory path: \033[1m{os.path.abspath(self._log)}\033[0m", file=sys.stderr)
+        print(f"        \033[1m-\033[0m Access log path(\033[1m fly_access.log \033[0m)", file=sys.stderr)
+        print(f"        \033[1m-\033[0m Error log path(\033[1m fly_error.log \033[0m)", file=sys.stderr)
+        print(f"        \033[1m-\033[0m Notice log path(\033[1m fly_notice.log \033[0m)", file=sys.stderr)
 
         print(f"    \033[1m*\033[0m Mount paths (\033[1m{','.join(self.mounts)}\033[0m)", file=sys.stderr)
         max_len = 0
