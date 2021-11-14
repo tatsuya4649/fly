@@ -3,6 +3,7 @@
 #include "util.h"
 #include "cache.h"
 #include "conf.h"
+#include <setjmp.h>
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
 __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx);
@@ -15,6 +16,11 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *);
 __fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
 __fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
+#if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
+static sigjmp_buf env;
+#else
+static jmp_buf env;
+#endif
 
 fly_signal_t fly_master_signals[] = {
 	{ SIGCHLD, __fly_sigchld, NULL },
@@ -22,11 +28,12 @@ fly_signal_t fly_master_signals[] = {
 	{ SIGTERM, NULL, NULL },
 };
 
-int fly_master_daemon(void)
+int fly_master_daemon(fly_context_t *ctx)
 {
 	struct rlimit fd_limit;
 	int nullfd;
 
+	ctx->daemon = true;
 	switch(fork()){
 	case -1:
 		FLY_STDERR_ERROR(
@@ -74,6 +81,11 @@ int fly_master_daemon(void)
 		);
 
 	for (int i=0; i<(int) fd_limit.rlim_cur; i++){
+		if (is_fly_log_fd(i, ctx))
+			continue;
+		if (is_fly_listen_socket(i, ctx))
+			continue;
+
 		if (close(i) == -1 && errno != EBADF)
 			FLY_EMERGENCY_ERROR(
 				FLY_EMERGENCY_STATUS_PROCS,
@@ -81,7 +93,7 @@ int fly_master_daemon(void)
 			);
 	}
 
-	nullfd = open(__FLY_DEVNULL, 0);
+	nullfd = open(__FLY_DEVNULL, O_RDWR);
 	if (nullfd == -1 || nullfd != STDIN_FILENO)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_PROCS,
@@ -238,7 +250,13 @@ __noreturn static void fly_master_signal_default_handler(fly_master_t *master, f
 	}
 
 	fly_master_release(master);
-	exit(0);
+
+	/* jump to master process */
+#if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
+	siglongjmp(env, 1);
+#else
+	longjmp(env, 1);
+#endif
 }
 
 __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info)
@@ -375,16 +393,16 @@ fly_master_t *fly_master_init(void)
 	return __m;
 }
 
-__direct_log __noreturn void fly_master_process(fly_master_t *master)
+__direct_log void fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
 
-	/* destructor setting */
-	if (atexit(fly_remove_pidfile) == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"initialize worker inotify error."
-		);
+//	/* destructor setting */
+//	if (atexit(fly_remove_pidfile) == -1)
+//		FLY_EMERGENCY_ERROR(
+//			FLY_EMERGENCY_STATUS_READY,
+//			"initialize worker inotify error."
+//		);
 
 	manager = fly_event_manager_init(master->context);
 	if (manager == NULL)
@@ -406,13 +424,21 @@ __direct_log __noreturn void fly_master_process(fly_master_t *master)
 			"initialize worker inotify error."
 		);
 
-
-	/* event handler start here */
-	if (fly_event_handler(manager) == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
-			"event handle error."
-		);
+#if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
+	if (sigsetjmp(env, 1) == 0){
+#else
+	if (setjmp(env) == 0){
+#endif
+		/* event handler start here */
+		if (fly_event_handler(manager) == -1)
+			FLY_EMERGENCY_ERROR(
+				FLY_EMERGENCY_STATUS_PROCS,
+				"event handle error."
+			);
+	}else{
+		/* signal return */
+		return;
+	}
 
 	/* will not come here. */
 	FLY_NOT_COME_HERE
@@ -485,9 +511,7 @@ void fly_remove_pidfile(void)
 
 	pidfd = open(FLY_PID_FILE, O_RDONLY);
 	if (pidfd == -1)
-		FLY_STDERR_ERROR(
-			"open pid file error for removing in destructor."
-		);
+		return;
 
 	memset(pidbuf, 0, FLY_PID_MAXSTRLEN);
 	res = read(pidfd, pidbuf, FLY_PID_MAXSTRLEN);
@@ -518,7 +542,7 @@ __fly_static void __fly_master_worker_spawn(fly_master_t *master, void (*proc)(f
 
 	master->worker_process = proc;
 	for (int i=master->now_workers;
-			i<master->req_workers;
+			(i<master->req_workers && i<fly_worker_max_limit());
 			i=master->now_workers){
 		if (__fly_master_fork(master, WORKER, proc, master->context) == -1)
 			FLY_EMERGENCY_ERROR(
@@ -584,6 +608,7 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 		{
 			fly_context_t *mctx;
 			/* unnecessary resource release */
+			master->now_workers++;
 			mctx = fly_master_release_except_context(master);
 
 			/* alloc worker resource */
@@ -815,3 +840,9 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 
 	return fly_event_register(e);
 }
+
+bool fly_is_create_pidfile(void)
+{
+	return fly_config_value_bool(FLY_CREATE_PIDFILE);
+}
+

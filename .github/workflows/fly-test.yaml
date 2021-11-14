@@ -1,0 +1,51 @@
+name: Test
+on:
+    push:
+        branches:
+            - master
+            - develop
+    workflow_dispatch:
+jobs:
+    fly-test:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                python-version: ['3.6', '3.7', '3.8', '3.9', '3.10-dev']
+        steps:
+            - uses: actions/checkout@v2
+            - name: Setup Python
+              uses: actions/setup-python@v2
+              with:
+                  python-version: ${{ matrix.python-version }}
+                  architecture: 'x64'
+            - name: Get Python version
+              run: python -V
+            - name: Install dependencies
+              run: |
+                  sudo apt update
+                  sudo apt install -y build-essential m4 perl autotools-dev autoconf automake libtool-bin autoconf-archive
+                  sudo apt install -y libssl-dev zlib1g-dev libbrotli-dev
+                  python -m pip install --upgrade pip
+                  python -m pip install -r requirements.txt
+            - name: Get tools version
+              run: |
+                  gcc --version
+                  autoconf --version
+                  automake --version
+                  libtool --version
+                  aclocal --version
+            - name: Make fly library
+              run: |
+                  autoreconf
+                  ./configure
+                  cat config.h
+                  make
+                  make install
+            - name: Build extension module
+              run: |
+                  python3 setup.py build
+                  cp build/lib.linux*/fly/_fly_server.cpython* fly/
+
+            - name: Run Python
+              run: python -m pytest tests
+

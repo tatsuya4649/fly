@@ -28,6 +28,11 @@ static inline bool fly_atsign(char c)
 	return c == 0x40 ? true : false;
 }
 
+static inline bool fly_minus(char c)
+{
+	return c == 0x2D ? true : false;
+}
+
 static inline bool fly_asterisk(char c)
 {
 	return c == 0x2A ? true : false;
@@ -58,6 +63,16 @@ static inline bool fly_lalpha(char c)
 	return (c>=0x61 && c<=0x7A) ? true : false;
 }
 
+static inline void fly_alpha_upper_to_lower(char *c)
+{
+	if (fly_ualpha(*c)){
+		char __u = *c;
+		*c = __u + 0x20;
+	}else
+		return;
+}
+
+
 static inline bool fly_alpha(char c)
 {
 	return (fly_ualpha(c) || fly_lalpha(c)) ? true : false;
@@ -86,6 +101,11 @@ static inline bool fly_dot(char c)
 static inline bool fly_colon(char c)
 {
 	return c == 0x3A ? true : false;
+}
+
+static inline bool fly_semicolon(char c)
+{
+	return c == 0x3B ? true : false;
 }
 
 static inline bool fly_question(char c)

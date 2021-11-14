@@ -13,7 +13,6 @@
 #define RESPONSE_LENGTH_PER		1024
 #define FLY_RESPONSE_POOL_PAGE		100
 #define DEFAULT_RESPONSE_VERSION			"1.1"
-#define FLY_DEFAULT_CONTENT_PATH_LEN		(30)
 
 typedef unsigned long long fly_flag_t;
 
@@ -154,6 +153,7 @@ int fly_400_event_norequest(fly_event_t *e, fly_connect_t *conn);
 int fly_400_event(fly_event_t *e, fly_request_t *req);
 int fly_404_event(fly_event_t *e, fly_request_t *req);
 int fly_405_event(fly_event_t *e, fly_request_t *req);
+int fly_413_event(fly_event_t *e, fly_request_t *req);
 int fly_414_event(fly_event_t *e, fly_request_t *req);
 int fly_415_event(fly_event_t *e, fly_request_t *req);
 
@@ -183,7 +183,7 @@ struct fly_response_content{
 /* default response content(static content) */
 struct fly_response_content_by_stcode{
 	fly_stcode_t				status_code;
-	char						*content_path;
+	char						content_path[FLY_PATH_MAX];
 	int							fd;
 	fly_mime_type_t				*mime;
 	fly_de_t					*de;
@@ -193,7 +193,11 @@ struct fly_response_content_by_stcode{
 	struct fly_bllist			blelem;
 	fly_bit_t					encoded: 1;
 };
+#if defined HAVE_LIBZ
 #define FLY_RCBS_DEFAULT_ENCODE_TYPE		fly_gzip
+#else
+#define FLY_RCBS_DEFAULT_ENCODE_TYPE		fly_identify
+#endif
 struct fly_response_content_by_stcode *fly_rcbs_init(fly_context_t *ctx);
 typedef struct fly_response_content_by_stcode fly_rcbs_t;
 fly_encoding_type_t *fly_decided_encoding_type(fly_encoding_t *enc);

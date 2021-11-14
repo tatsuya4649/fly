@@ -1,4 +1,7 @@
 #include "buffer.h"
+#ifdef DEBUG
+#include <stdio.h>
+#endif
 
 fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_max, size_t per_len);
 int fly_buffer_add_chain(fly_buffer_t *buffer);
@@ -126,6 +129,13 @@ int fly_update_buffer(fly_buffer_t *buf, size_t len)
 		__l->unuse_len = 0;
 		__l->status = FLY_BUF_FULL;
 		__l->unuse_ptr = __l->lptr;
+#ifdef DEBUG
+		assert(__l->use_len + __l->unuse_len == __l->len);
+		if (__l->unuse_len > 0)
+			assert((__l->unuse_ptr + __l->unuse_len - 1) == __l->lptr);
+		else
+			assert((__l->unuse_ptr + __l->unuse_len) == __l->lptr);
+#endif
 		switch (fly_buffer_add_chain(buf)){
 		case FLY_BUF_ADD_CHAIN_SUCCESS:
 			break;
@@ -145,9 +155,16 @@ int fly_update_buffer(fly_buffer_t *buf, size_t len)
 		__l->unuse_len -= (size_t) i;
 		__l->status = FLY_BUF_HALF;
 		__l->unuse_ptr += (size_t) i;
+#ifdef DEBUG
+		assert(__l->use_len + __l->unuse_len == __l->len);
+		if (__l->unuse_len > 0)
+			assert((__l->unuse_ptr + __l->unuse_len - 1) == __l->lptr);
+		else
+			assert((__l->unuse_ptr + __l->unuse_len) == __l->lptr);
+#endif
 	}
 
-	return 0;
+	return FLY_BUF_ADD_CHAIN_SUCCESS;
 }
 
 __fly_static fly_buf_p *__fly_bufp_inc(fly_buffer_c **__c, fly_buf_p *ptr)
@@ -303,7 +320,7 @@ void fly_buffer_memcpy(char *dist, char *src, fly_buffer_c *__c, size_t len)
 		*dist++ = *sptr++;
 		if (sptr > (char *) __c->lptr){
 			__c = fly_buffer_next_chain(__c);
-			sptr = __c->ptr;
+			sptr = __c->use_ptr;
 		}
 	}
 
@@ -374,6 +391,29 @@ void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len)
 		size_t left = len-total_delete_len;
 		__n->use_ptr = __n->ptr+left;
 		__n->buffer->use_len -= left;
+#ifdef DEBUG
+		assert(__n->use_len + __n->unuse_len == __n->len);
+		if (__n->unuse_len > 0)
+			assert((__n->unuse_ptr + __n->unuse_len - 1) == __n->lptr);
+		else
+			assert((__n->unuse_ptr + __n->unuse_len) == __n->lptr);
+
+		size_t total=0;
+		struct fly_bllist *__b;
+		struct fly_buffer_chain *__c;
+
+		fly_for_each_bllist(__b, &__n->buffer->chain){
+			__c = fly_bllist_data(__b, struct fly_buffer_chain, blelem);
+			printf("%ld\n", __c->unuse_ptr-__c->use_ptr+1);
+			if (__c->status == FLY_BUF_FULL)
+				total += (__c->unuse_ptr-__c->use_ptr+1);
+			else
+				total += (__c->unuse_ptr-__c->use_ptr);
+		}
+		printf("%ld\n", total);
+		printf("%ld\n", __n->buffer->use_len);
+		assert(total == __n->buffer->use_len);
+#endif
 	}
 	return;
 }

@@ -1,8 +1,8 @@
 #from _fly_route import _fly_route
-from .method import FlyMethod, method_from_name
+from .method import method_from_name, Method
 
 
-class FlyRoute():
+class Route():
     def __init__(self):
         self._routes = list()
 
@@ -15,7 +15,7 @@ class FlyRoute():
             raise TypeError(
                 "uri must be str type."
             )
-        if not isinstance(method, (str, FlyMethod)):
+        if not isinstance(method, (str, Method)):
             raise TypeError(
                 "mwethod must be str type."
             )
@@ -29,6 +29,6 @@ class FlyRoute():
         _rd = dict()
         _rd.setdefault("uri", uri)
         _rd.setdefault("func", func)
-        _rd.setdefault("method", method_from_name(method))
+        _rd.setdefault("method", method_str)
 
         self._routes.append(_rd)

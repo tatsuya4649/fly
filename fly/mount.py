@@ -1,6 +1,6 @@
 import os
 
-class FlyMount:
+class Mount:
     def __init__(self):
         self._mounts = list()
 
@@ -16,6 +16,10 @@ class FlyMount:
         if not isinstance(path, str):
             raise TypeError(
                 "path must be str type."
+            )
+        if not os.path.isdir(path):
+            raise ValueError(
+                f"{path} must be existing directory."
             )
 
         abspath = os.path.abspath(path)

@@ -22,12 +22,8 @@
 
 #define FLY_REQUEST_LINE_MAX			8000
 #define FLY_REQUEST_URI_MAX				6000
-#ifdef DEBUG
-#define FLY_REQUEST_TIMEOUT				(2)
-#else
-#define FLY_REQUEST_TIMEOUT				(60)
-#endif
 #define FLY_REQUEST_NOREADY				100
+#define FLY_REQUEST_TIMEOUT				"FLY_REQUEST_TIMEOUT"
 
 struct fly_query{
 	char *ptr;
@@ -95,9 +91,15 @@ struct fly_request{
 	fly_mime_t			*mime;
 	fly_charset_t		*charset;
 	fly_lang_t			*language;
+	size_t				discard_length;
 
 	/* for http2 */
 	fly_hv2_stream_t		*stream;
+
+	fly_bit_t			receive_status_line:1;
+	fly_bit_t			receive_header:1;
+	fly_bit_t			receive_body:1;
+	fly_bit_t			discard_body:1;
 };
 typedef struct fly_request fly_request_t;
 
@@ -105,6 +107,7 @@ typedef struct fly_request fly_request_t;
 	((c)->flag & FLY_SSL_CONNECT)
 #define FLY_SSL_FROM_REQUEST(r)		\
 	((r)->connect->ssl)
+
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_LEN			(1)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_CHAIN_MAX		(100)
 #define FLY_REQUEST_BUFFER_CHAIN_INIT_PER_LEN		(10)
@@ -112,9 +115,9 @@ typedef struct fly_request fly_request_t;
 #define FLY_REQUEST_RECEIVE_ERROR				(-1)
 #define FLY_REQUEST_RECEIVE_SUCCESS				(1)
 #define FLY_REQUEST_RECEIVE_END					(0)
-#define FLY_REQUEST_RECEIVE_READ_BLOCKING			(2)
-#define FLY_REQUEST_RECEIVE_WRITE_BLOCKING			(3)
-int fly_request_receive(fly_sock_t fd, fly_connect_t *connect);
+#define FLY_REQUEST_RECEIVE_READ_BLOCKING		(2)
+#define FLY_REQUEST_RECEIVE_WRITE_BLOCKING		(3)
+#define FLY_REQUEST_RECEIVE_OVERFLOW			(4)
 int fly_request_event_handler(fly_event_t *event);
 
 #define FLY_REQUEST_POOL_SIZE		1
@@ -129,4 +132,13 @@ int fly_request_timeout_handler(fly_event_t *event);
 int fly_hv2_request_target_parse(fly_request_t *req);
 int fly_if_none_match(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_if_modified_since(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
+int fly_request_timeout(void);
+
+static inline void fly_query_set(fly_request_t *req, fly_reqlinec_t *c, size_t len)
+{
+	req->request_line->query.ptr = c;
+	req->request_line->query.len = len;
+	return;
+}
+
 #endif

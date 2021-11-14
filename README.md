@@ -1,7 +1,11 @@
 
 # fly
 
-Python lightweight Web application framework.
+![python](https://img.shields.io/badge/python-3.6%20%7C%203.7%20%7C%203.8%20%7C%203.9%20%7C%203.10-blue)
+![pypi](https://badge.fury.io/py/fly-server.svg)
+![test](https://github.com/tatsuya4649/fly/actions/workflows/fly-test.yaml/badge.svg)
+
+Python lightweight web application framework.
 
 * Event driven architecture.
 
@@ -26,24 +30,37 @@ It is so easy to use fly.
 3. run fly.
 
 ```python
-
 from fly import Fly
 
 app = Fly()
 
-# register index route
 @app.get("/")
 def index(request):
-	return HTMLResponse(
-		200,
-		[],
-		"Hello World, fly"
-	)
-
-# start server
-app.run()
+    return "Hello, fly!"
 
 ```
+
+```
+$ fly app.py
+```
+
+<details>
+<summary>result</summary>
+<div>
+
+```
+    * fly Running on 0.0.0.0:1234 (Press CTRL+C to quit)
+    * fly 5 workers
+    * SSL: False
+    * SSL certificate path: conf/server.crt
+    * SSL key path: conf/server.key
+    * Log directory path: ~/log
+    * Mount paths ()
+```
+
+
+</div>
+</details>
 
 <details>
 <summary>mount vs route</summary>
@@ -56,6 +73,13 @@ app.run()
 </div>
 </details>
 
+## Why fly ?
+
+Interface of fly is as simple as possible. Extracted only the necessary parts as Web framework by referring to variout Python web frameworks.
+
+But, a core part of fly is implemented by C language, you can't think of it as Python Web framework.
+
+So, if you're looking for **flexible** and **fast** Web framework, should use fly.
 ## How fast ?
 
 look at [benchmark](https://github.com/tatsuya4649/fly/blob/develop/bench/README.md).
@@ -74,3 +98,9 @@ Let's coding.
 4. Push to the bench. (git push origin my-new-feature)
 5. Create new pull request.
 
+## Running tests
+
+```
+# move to fly project directory and run following command.
+$ python3 -m pytest
+```

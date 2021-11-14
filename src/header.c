@@ -65,6 +65,7 @@ fly_hdr_c *__fly_header_chain_init(fly_hdr_ci *ci)
 	c->dynamic_table = false;
 	c->huffman_name = false;
 	c->huffman_value = false;
+	c->cookie = false;
 	return c;
 }
 
@@ -326,15 +327,9 @@ char *fly_chain_string(char *buffer, fly_hdr_c *chain, char *ebuffer)
 
 fly_buffer_c *fly_get_header_lines_buf(fly_buffer_t *__buf)
 {
-	fly_buffer_c *__c;
-//	char *header;
-
-	__c = fly_buffer_first_chain(__buf);
-	return __c;
-//	header = fly_buffer_strstr_after(__c, FLY_CRLF);
-//	if (header == NULL)
-//		return NULL;
-//	return *header != '\0' ? header : NULL;
+	if (__buf->use_len == 0)
+		return NULL;
+	return fly_buffer_first_chain(__buf);
 }
 
 long long fly_content_length(fly_hdr_ci *ci)
@@ -352,6 +347,27 @@ long long fly_content_length(fly_hdr_ci *ci)
 		}
 	}
 	return 0;
+}
+
+bool fly_is_multipart_form_data(fly_hdr_ci *ci)
+{
+	if (ci->chain_count == 0)
+		return false;
+
+	struct fly_bllist *__b;
+	fly_hdr_c *c;
+	fly_mime_type_t *__m;
+
+	fly_for_each_bllist(__b, &ci->chain){
+		c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (c->name_len>0 && (strcmp(c->name, "Content-Type") == 0 || \
+				strcmp(c->name, "content-type") == 0) && c->value){
+			__m = fly_mime_type_from_strn(c->value, c->value_len);
+			if (__m != NULL && __m->type == fly_mime_multipart_form_data)
+				return true;
+		}
+	}
+	return false;
 }
 
 int fly_connection(fly_hdr_ci *ci)
@@ -579,7 +595,10 @@ int fly_add_allow(fly_hdr_ci *ci, fly_request_t *req)
 	value[vallen] = '\0';
 
 	/* add header */
-	return fly_header_add(ci, fly_header_name_length("Allow"), fly_header_value_length(value));
+	if (is_fly_request_http_v2(req))
+		return fly_header_add_v2(ci, fly_header_name_length("allow"), fly_header_value_length(value), false);
+	else
+		return fly_header_add(ci, fly_header_name_length("Allow"), fly_header_value_length(value));
 }
 
 int fly_add_server(fly_hdr_ci *ci, bool hv2)
@@ -611,3 +630,34 @@ void fly_response_header_init(struct fly_response *__res, struct fly_request *__
 	}
 }
 
+bool fly_is_cookie(char *name, size_t len)
+{
+	if (FLY_COOKIE_HEADER_NAME_LEN != len)
+		return false;
+
+	if (strncmp(name, FLY_COOKIE_HEADER_NAME, FLY_COOKIE_HEADER_NAME_LEN)==0 || strncmp(name, FLY_COOKIE_HEADER_NAME_S, FLY_COOKIE_HEADER_NAME_LEN)==0)
+		return true;
+	else
+		return false;
+}
+
+bool fly_is_cookie_chain(fly_hdr_c *__c)
+{
+	return fly_is_cookie(__c->name, __c->name_len);
+}
+
+void fly_check_cookie(fly_hdr_ci *__ci)
+{
+#ifdef DEBUG
+	assert(__ci);
+#endif
+	struct fly_bllist *__b;
+	fly_hdr_c *c;
+
+	fly_for_each_bllist(__b, &__ci->chain){
+		c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (fly_is_cookie(c->name, c->name_len))
+			c->cookie = true;
+	}
+	return;
+}

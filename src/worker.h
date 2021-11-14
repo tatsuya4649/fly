@@ -49,4 +49,9 @@ void fly_worker_signal(void);
 #define FLY_WORKER_ENCBUF_INIT_LEN		(1)
 #define FLY_WORKER_ENCBUF_PER_LEN		(1024*4)
 #define FLY_WORKER_ENCBUF_CHAIN_MAX(__size)		((size_t) (((size_t) __size/FLY_WORKER_ENCBUF_PER_LEN) + 1))
+
+#define FLY_DEFAULT_CONTENT_PATH		"FLY_DEFAULT_CONTENT_PATH"
+const char *fly_default_content_path(void);
+
 #endif
+

@@ -4,6 +4,7 @@
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif
+#include "util.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -139,6 +140,7 @@ void fly_stderr_error(fly_errp_t *);
 
 /* emergency error */
 #define FLY_EMERGENCY_LOG_LENGTH						200
+#define fly_status_str(__s)				(# __s)
 enum fly_emergency_status{
 	FLY_EMERGENCY_STATUS_NOMEM = 100,
 	FLY_EMERGENCY_STATUS_PROCS,
