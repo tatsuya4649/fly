@@ -68,7 +68,7 @@ async def check_workers_processes():
     return rprcs
 
 @pytest.mark.asyncio
-async def test_worker_segv(test_spawn_processes):
+async def test_worker_kill(test_spawn_processes):
     mid = get_master_pid(test_spawn_processes)
     wids = get_worker_pids(test_spawn_processes)
     print(f"fly processes: {test_spawn_processes}")
@@ -79,6 +79,7 @@ async def test_worker_segv(test_spawn_processes):
 
     kill_wid = wids[0]
     print(f"kill worker: {kill_wid}")
+    # kill worker
     os.kill(kill_wid, signal.SIGKILL)
     await asyncio.sleep(0.1)
 
@@ -93,3 +94,50 @@ async def test_worker_segv(test_spawn_processes):
     assert(len(wids) == len(nwids))
     assert(not kill_wid in nwids)
 
+@pytest.mark.asyncio
+@pytest.fixture(scope="function", autouse=False)
+async def test_spawn_over_worker(fly_server_over_worker):
+    prc = await asyncio.create_subprocess_shell(
+        "lsof -i:1234 -Fp | sed -e 's/^p//'",
+        stdout=asyncio.subprocess.PIPE
+    )
+    __out, _ = await prc.communicate()
+    prc = __out.decode("utf-8")
+    prcs = prc.split("\n")
+
+    rprcs = list()
+    for i in prcs:
+        if len(i)>0:
+            rprcs.append(int(i))
+
+    yield rprcs
+
+@pytest.mark.asyncio
+@pytest.fixture(scope="function", autouse=False)
+async def test_spawn_over_worker_d(fly_server_over_worker_d):
+    prc = await asyncio.create_subprocess_shell(
+        "lsof -i:1234 -Fp | sed -e 's/^p//'",
+        stdout=asyncio.subprocess.PIPE
+    )
+    __out, _ = await prc.communicate()
+    prc = __out.decode("utf-8")
+    prcs = prc.split("\n")
+
+    rprcs = list()
+    for i in prcs:
+        if len(i)>0:
+            rprcs.append(int(i))
+
+    yield rprcs
+
+@pytest.mark.asyncio
+async def test_over_max_workers(test_spawn_over_worker):
+    wids = get_worker_pids(test_spawn_over_worker)
+    print(f"workers: {wids}")
+    assert(len(wids) == 10)
+
+@pytest.mark.asyncio
+async def test_over_max_workers_d(test_spawn_over_worker_d):
+    wids = get_worker_pids(test_spawn_over_worker_d)
+    print(f"workers: {wids}")
+    assert(len(wids) == 10)

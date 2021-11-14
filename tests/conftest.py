@@ -192,3 +192,19 @@ async def fly_mini_server_ssl_d(fly_remove_pid, remove_already_in_use):
             os.kill(int(i), SIGINT)
     assert(j == 2)
 
+# make fly server over workers max
+@pytest.mark.asyncio
+@pytest.fixture(scope="function", autouse=False)
+async def fly_server_over_worker(fly_remove_pid, remove_already_in_use):
+    process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_over.conf")
+    await asyncio.sleep(0.5)
+    yield process
+    process.send_signal(SIGINT)
+
+@pytest.mark.asyncio
+@pytest.fixture(scope="function", autouse=False)
+async def fly_server_over_worker_d(fly_remove_pid, remove_already_in_use):
+    process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_over.conf --daemon")
+    await asyncio.sleep(0.5)
+    yield process
+    process.send_signal(SIGINT)
