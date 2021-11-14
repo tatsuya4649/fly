@@ -13,6 +13,7 @@
 struct fly_response_content_by_stcode;
 struct fly_context{
 	fly_pool_t					*pool;
+	fly_pool_t					*event_pool;
 	struct fly_pool_manager		*pool_manager;
 	fly_pool_t					*misc_pool;
 	fly_sockinfo_t				*listen_sock;

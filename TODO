@@ -2,8 +2,8 @@ TODO list:
 
 * add test script(client session)
 
-* add test script(illegal request)
-
-* template added
-
 * daemon process handle
+
+* handle of worker segv
+
+* added test of worker segv
