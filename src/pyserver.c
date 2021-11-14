@@ -192,7 +192,7 @@ static fly_master_t *pyfly_master_init(void)
 
 	res = fly_master_init();
 	if (res == NULL)
-		PyErr_Format(PyExc_Exception, "parse master init error. (\"%s\")", strerror(errno));
+		PyErr_Format(PyExc_Exception, "master init error. (\"%s\")", strerror(errno));
 
 	return res;
 }
@@ -1016,7 +1016,7 @@ static PyObject *__pyfly_run(__pyfly_server_t *self, PyObject *args)
 
 	if (daemon){
 		fprintf(stderr, "To be daemon process...");
-		if (fly_master_daemon() == -1){
+		if (fly_master_daemon(self->master->context) == -1){
 			PyErr_SetString(PyExc_RuntimeError, "to be daemon process error.");
 			return NULL;
 		}
