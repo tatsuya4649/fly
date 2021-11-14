@@ -14826,6 +14826,12 @@ then :
   printf "%s\n" "#define HAVE_STRERRORDESC_NP 1" >>confdefs.h
 
 fi
+ac_fn_c_check_func "$LINENO" "realpath" "ac_cv_func_realpath"
+if test "x$ac_cv_func_realpath" = xyes
+then :
+  printf "%s\n" "#define HAVE_REALPATH 1" >>confdefs.h
+
+fi
 
 
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for sigsetjmp" >&5
