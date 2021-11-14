@@ -43,6 +43,7 @@ else:
     __run(["./configure"])
     __run(["make"])
     __run(["make", "install"])
+    extra_compile_args.append("-O3")
 
 server = Extension(
 	name="fly._fly_server",
