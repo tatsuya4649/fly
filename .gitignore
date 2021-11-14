@@ -15,6 +15,8 @@ __pycache__/
 /.pytest_cache/
 /server
 /fly/_fly_server.*
+.deps/
+.libs/
 GPATH
 GRTAGS
 GTAGS
