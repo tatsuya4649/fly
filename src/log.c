@@ -6,9 +6,11 @@
 #include "conf.h"
 
 __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type);
+#define FLY_LOGECONT_LENGTH			(100+FLY_PATH_MAX)
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc);
 __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc);
 __fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t);
+__noreturn void __fly_log_error_handle(int res);
 
 __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 {
@@ -411,12 +413,56 @@ void __fly_logcont_release(fly_logcont_t *logcont)
 	fly_pbfree(logcont->log->pool, logcont);
 }
 
+__noreturn void __fly_log_error_handle(int res)
+{
+	char __logecont[FLY_LOGECONT_LENGTH];
+	char __filepath[FLY_PATH_MAX], devname[FLY_PATH_MAX];
+	int __e;
+
+	__e = errno;
+	memset(__logecont, '\0', FLY_LOGECONT_LENGTH);
+	memset(__filepath, '\0', FLY_PATH_MAX);
+	memset(devname, '\0', FLY_PATH_MAX);
+	switch(res){
+	case __FLY_LOG_WRITE_LOGCONT_STDOUTERR:
+		snprintf(__filepath, FLY_PATH_MAX, "/proc/self/fd/%d", STDOUT_FILENO);
+		errno = 0;
+		if (readlink(__filepath, devname, FLY_PATH_MAX) == -1)
+			snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stdout) write error.. readlink error(%s)", strerror(errno));
+		else
+			snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stdout) write error.%s", devname);
+		break;
+	case __FLY_LOG_WRITE_LOGCONT_STDERRERR:
+		snprintf(__filepath, FLY_PATH_MAX, "/proc/self/fd/%d", STDERR_FILENO);
+		errno = 0;
+		if (readlink(__filepath, devname, FLY_PATH_MAX) == -1)
+			snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stderr) write error. readlink error(%s)", strerror(errno));
+		else
+			snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stderr) write error.%s", devname);
+		break;
+	default:
+		snprintf(__logecont, FLY_LOGECONT_LENGTH, "log write error.");
+		break;
+	}
+
+	errno = __e;
+	FLY_EMERGENCY_ERROR(
+		FLY_EMERGENCY_STATUS_ELOG,
+		__logecont
+	);
+}
+
 int fly_log_event_handler(fly_event_t *e)
 {
 	__unused fly_logcont_t *content;
+	int res;
 
 	content = (fly_logcont_t *) e->event_data;
-	__fly_log_write_logcont(content);
+	res = __fly_log_write_logcont(content);
+	if (res < 0)
+		/* noreturn */
+		__fly_log_error_handle(res);
+
 	__fly_logcont_release(content);
 	return 0;
 }
@@ -455,45 +501,13 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 			"can't set log time."
 		);
 
-#define FLY_LOGECONT_LENGTH			(100+FLY_PATH_MAX)
-	char __logecont[FLY_LOGECONT_LENGTH];
-	char __filepath[FLY_PATH_MAX], devname[FLY_PATH_MAX];
-	int res, __e;
+	int res;
 
-	memset(__logecont, '\0', FLY_LOGECONT_LENGTH);
-	memset(__filepath, '\0', FLY_PATH_MAX);
-	memset(devname, '\0', FLY_PATH_MAX);
 	res = __fly_log_write_logcont(lc);
-	__e = errno;
-	if (res < 0){
-		switch(res){
-		case __FLY_LOG_WRITE_LOGCONT_STDOUTERR:
-			snprintf(__filepath, FLY_PATH_MAX, "/proc/self/fd/%d", STDOUT_FILENO);
-			errno = 0;
-			if (readlink(__filepath, devname, FLY_PATH_MAX) == -1)
-				snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stdout) write error.. readlink error(%s)", strerror(errno));
-			else
-				snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stdout) write error.%s", devname);
-			break;
-		case __FLY_LOG_WRITE_LOGCONT_STDERRERR:
-			snprintf(__filepath, FLY_PATH_MAX, "/proc/self/fd/%d", STDERR_FILENO);
-			errno = 0;
-			if (readlink(__filepath, devname, FLY_PATH_MAX) == -1)
-				snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stderr) write error. readlink error(%s)", strerror(errno));
-			else
-				snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stderr) write error.%s", devname);
-			break;
-		default:
-			snprintf(__logecont, FLY_LOGECONT_LENGTH, "log write error.");
-			break;
-		}
+	if (res < 0)
+		/* noreturn */
+		__fly_log_error_handle(res);
 
-		errno = __e;
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_ELOG,
-			__logecont
-		);
-	}
 	__fly_logcont_release(lc);
 }
 
