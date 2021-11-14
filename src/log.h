@@ -128,4 +128,10 @@ bool fly_log_stderr(void);
 void __log_test(struct fly_context *ctx);
 #endif
 
+static inline bool is_fly_log_valid(struct __fly_log *__l)
+{
+	return __l->file != -1;
+}
+
+
 #endif

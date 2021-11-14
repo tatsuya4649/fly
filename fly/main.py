@@ -6,11 +6,13 @@ from fly import Fly
 import tempfile
 import importlib.machinery as imm
 import signal
+from fly.__init__ import __version__ as __version__
 
 class FlyNotFoundError(Exception):
     pass
 
 @click.command()
+@click.version_option(__version__)
 @click.argument(
     "app",
     type=click.Path(exists=True),
@@ -251,7 +253,6 @@ def run(**kwargs):
         sys.exit(1)
     except Exception as e:
         print(e)
-        display_help(fly_command_line, f"\"{app}\" invalid module")
         sys.exit(1)
 
     daemon = kwargs.get("daemon")
@@ -303,10 +304,11 @@ def run(**kwargs):
             if _instance.__class__ == Fly:
                 _instance.config_path = os.path.abspath(_fp.name)
                 _instance.run(daemon=daemon)
-                break
-        raise FlyNotFoundError
-    except NotFoundError:
-        print(f"not found fly instance in your application({config_path})")
+                sys.exit(1)
+
+        display_help(fly_command_line, f"\"{app}\" can't find Fly instance.")
+        sys.exit(1)
+
     except Exception as e:
         print(e)
     finally:

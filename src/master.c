@@ -397,12 +397,12 @@ __direct_log void fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
 
-	/* destructor setting */
-	if (atexit(fly_remove_pidfile) == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"initialize worker inotify error."
-		);
+//	/* destructor setting */
+//	if (atexit(fly_remove_pidfile) == -1)
+//		FLY_EMERGENCY_ERROR(
+//			FLY_EMERGENCY_STATUS_READY,
+//			"initialize worker inotify error."
+//		);
 
 	manager = fly_event_manager_init(master->context);
 	if (manager == NULL)
@@ -840,3 +840,9 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 
 	return fly_event_register(e);
 }
+
+bool fly_is_create_pidfile(void)
+{
+	return fly_config_value_bool(FLY_CREATE_PIDFILE);
+}
+

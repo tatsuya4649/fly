@@ -39,7 +39,7 @@ def fly_remove_pid():
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def remove_already_in_use():
-    process = await asyncio.create_subprocess_shell("lsof -i:1234 -Fp | sed -e 's/^p//'", stdout = asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_shell("lsof -i:1234 -Fp | sed -e 's/^p//' | xargs kill -KILL", stdout = asyncio.subprocess.PIPE)
     await process.wait()
     yield
 
@@ -199,7 +199,6 @@ async def fly_server_over_worker(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_over.conf")
     await asyncio.sleep(0.5)
     yield process
-    process.send_signal(SIGINT)
 
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
@@ -207,4 +206,3 @@ async def fly_server_over_worker_d(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_over.conf --daemon")
     await asyncio.sleep(0.5)
     yield process
-    process.send_signal(SIGINT)
