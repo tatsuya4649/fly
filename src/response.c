@@ -101,7 +101,7 @@ struct fly_response_content_by_stcode *fly_rcbs_init(fly_context_t *ctx)
 	__frc = fly_pballoc(ctx->pool, sizeof(struct fly_response_content_by_stcode));
 	if (fly_unlikely_null(__frc))
 		return NULL;
-	__frc->content_path = NULL;
+	memset(__frc->content_path, '\0', FLY_PATH_MAX);
 	__frc->fd = -1;
 	__frc->mime = NULL;
 	__frc->de = NULL;

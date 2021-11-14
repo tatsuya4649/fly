@@ -2,8 +2,4 @@ TODO list:
 
 * add test script(client session)
 
-* daemon process handle
-
-* handle of worker segv
-
-* added test of worker segv
+* error handle
