@@ -28,24 +28,29 @@ def get_packages(package):
         for dirpath, dirnames, filenames in os.walk(package)
         if os.path.exists(os.path.join(dirpath, "__init__.py"))
     ]
-"""
-make fly library
-"""
-__run(["./configure"])
-__run(["make"])
-__run(["make", "install"])
+
 macros = []
 extra_compile_args = []
 if os.getenv("DEBUG") is not None:
+    print("DEBUG MODE")
     macros.append(("DEBUG", "fly"))
     extra_compile_args.append("-g3")
     extra_compile_args.append("-O0")
+else:
+    """
+    make fly library
+    """
+    __run(["./configure"])
+    __run(["make"])
+    __run(["make", "install"])
+    extra_compile_args.append("-O3")
 
 server = Extension(
 	name="fly._fly_server",
 	sources=["src/pyserver.c"],
-	library_dirs=["./fly/lib"],
+    language='c',
 	libraries=["fly"],
+	library_dirs=["fly/lib"],
 	runtime_library_dirs=["lib"],
     extra_compile_args = extra_compile_args,
     define_macros = macros,
@@ -54,7 +59,7 @@ server = Extension(
 setup(
 	name="fly_server",
 	version=version_from_init(),
-	description="tiny web/app server with C/Python",
+	description="lightweight web framework",
 	ext_modules = [
 		server,
 	],
@@ -63,5 +68,13 @@ setup(
     package_data = {
         "fly": glob('fly/lib/*'),
     },
+    install_requires = [
+        "click>=7.1.0",
+        "jinja2>=3.0.0",
+    ],
+    entry_points="""
+    [console_scripts]
+    fly=fly.main:fly_command_line
+    """,
     license_files = ('LICENSE'),
 )

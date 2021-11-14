@@ -2,13 +2,14 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
-#include "response.h"
 #include "request.h"
 #include "header.h"
 #include "alloc.h"
 #include "mount.h"
 #include "math.h"
 #include "v2.h"
+#include "encode.h"
+#include "response.h"
 
 fly_status_code responses[] = {
 	/* 1xx Info */
@@ -100,7 +101,7 @@ struct fly_response_content_by_stcode *fly_rcbs_init(fly_context_t *ctx)
 	__frc = fly_pballoc(ctx->pool, sizeof(struct fly_response_content_by_stcode));
 	if (fly_unlikely_null(__frc))
 		return NULL;
-	__frc->content_path = NULL;
+	memset(__frc->content_path, '\0', FLY_PATH_MAX);
 	__frc->fd = -1;
 	__frc->mime = NULL;
 	__frc->de = NULL;
@@ -267,10 +268,12 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	fly_response_t *res;
 	fly_request_t *req;
 	fly_connect_t *con;
+	fly_context_t *ctx;
 
 	res = (fly_response_t *) e->event_data;
 	req = res->request;
 	con = req->connect;
+	ctx = fly_context_from_event(e);
 
 	fly_request_release(req);
 	fly_response_release(res);
@@ -282,7 +285,7 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->flag = FLY_MODIFY;
 	e->tflag = 0;
 	e->eflag = 0;
-	fly_sec(&e->timeout, FLY_REQUEST_TIMEOUT);
+	fly_sec(&e->timeout, ctx->request_timeout);
 	FLY_EVENT_HANDLER(e, fly_request_event_handler);
 	e->event_data = (void *) req;
 	e->available = false;
@@ -1238,7 +1241,7 @@ fly_response_t *fly_413_response(fly_request_t *req)
 		return NULL;
 
 	res->header = fly_header_init(req->ctx);
-	if (is_fly_request_http_v2(req))
+	if (req->request_line != NULL && is_fly_request_http_v2(req))
 		res->header->state = req->stream->state;
 	fly_response_http_version_from_request(res, req);
 	res->status_code = _413;
@@ -1250,9 +1253,29 @@ fly_response_t *fly_413_response(fly_request_t *req)
 	fly_add_server(res->header, is_fly_request_http_v2(req));
 	fly_add_date(res->header, is_fly_request_http_v2(req));
 	if (!is_fly_request_http_v2(req))
-		fly_add_connection(res->header, KEEP_ALIVE);
+		fly_add_connection(res->header, CLOSE);
 
 	return res;
+}
+
+int fly_413_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_413_response(req);
+	if (fly_unlikely_null(res))
+		return -1;
+
+	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
+	e->event_data = (void *) res;
+	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
+	return fly_event_register(e);
 }
 
 fly_response_t *fly_415_response(fly_request_t *req)

@@ -820,7 +820,7 @@ void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type _
 	if (tree->node_count == 0)
 		return;
 
-#ifdef DEBUG
+#if defined DEBUG && defined RBTREE_DEBUG
 	switch(type){
 	case __FLY_RBTREE_DEBUG_DELETE:
 		printf("__FLY_RBTREE_DEBUG_DELETE\n");

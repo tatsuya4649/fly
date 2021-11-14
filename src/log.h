@@ -124,4 +124,14 @@ const char *fly_log_path(void);
 bool fly_log_stdout(void);
 bool fly_log_stderr(void);
 
+#ifdef DEBUG
+void __log_test(struct fly_context *ctx);
+#endif
+
+static inline bool is_fly_log_valid(struct __fly_log *__l)
+{
+	return __l->file != -1;
+}
+
+
 #endif

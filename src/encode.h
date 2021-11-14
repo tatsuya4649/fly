@@ -4,12 +4,19 @@
 #include <string.h>
 #include <ctype.h>
 #include <string.h>
+#include "util.h"
+
 /* compress/decompress libraries */
+#if defined HAVE_LIBZ
 #include <zlib.h>
+#else
+#error ZLIB NO_ERROR
+#endif
+#if defined HAVE_LIBBROTLIDEC && defined HAVE_LIBBROTLIENC
 #include <brotli/encode.h>
 #include <brotli/decode.h>
+#endif
 
-#include "util.h"
 #include "alloc.h"
 #include "bllist.h"
 #include "buffer.h"
@@ -22,17 +29,22 @@
 #define FLY_ACCEPT_ENCODING_HEADER				"Accept-Encoding"
 #define FLY_ACCEPT_ENCODING_HEADER_SMALL		"accept-encoding"
 enum __fly_encoding_type{
+#ifdef HAVE_LIBZ
 	fly_gzip,
-//	fly_compress,
 	fly_deflate,
+#endif
 	fly_identity,
+#if defined HAVE_LIBBROTLIDEC && defined HAVE_LIBBROTLIENC
 	fly_br,
+#endif
 	fly_asterisk_encode,
 	fly_noencode,
 };
 typedef enum __fly_encoding_type fly_encoding_e;
 typedef char fly_encname_t;
+#if defined HAVE_LIBZ
 typedef Bytef fly_encbuf_t;
+#endif
 
 
 typedef ssize_t (*fly_send_t)(int c_sockfd, const void *buf, size_t buflen, int flag);
@@ -137,17 +149,21 @@ bool fly_encoding_matching(struct fly_encoding *enc, struct fly_encoding_type *t
 #define FLY_DECODE_READ_ERROR		-4
 #define FLY_DECODE_BUFFER_ERROR		-5
 
+#if defined HAVE_LIBBROTLIDEC && defined HAVE_LIBBROTLIENC
+/* br encode/decode */
+int fly_br_decode(fly_de_t *de);
+int fly_br_encode(fly_de_t *de);
+#endif
+
+#if defined HAVE_LIBZ
 /* gzip encode/decode */
 int fly_gzip_decode(fly_de_t *de);
 int fly_gzip_encode(fly_de_t *de);
 
-/* br encode/decode */
-int fly_br_decode(fly_de_t *de);
-int fly_br_encode(fly_de_t *de);
-
 /* deflate encode/decode */
 int fly_deflate_decode(fly_de_t *de);
 int fly_deflate_encode(fly_de_t *de);
+#endif
 
 /* identity encode/decode */
 int fly_identity_decode(fly_de_t *de);

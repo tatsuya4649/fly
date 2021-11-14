@@ -5,6 +5,7 @@
 #include <structmember.h>
 #include "server.h"
 #include "context.h"
+#include "char.h"
 #include "mount.h"
 #include "err.h"
 #include "connect.h"
@@ -12,6 +13,7 @@
 #include "header.h"
 #include "body.h"
 #include "response.h"
+#include "conf.h"
 
 #define PYFLY_SERVER_MODULE_NAME			"_fly_server"
 #define PYFLY_SERVER_NAME					"_fly_server"

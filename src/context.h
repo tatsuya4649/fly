@@ -13,6 +13,7 @@
 struct fly_response_content_by_stcode;
 struct fly_context{
 	fly_pool_t					*pool;
+	fly_pool_t					*event_pool;
 	struct fly_pool_manager		*pool_manager;
 	fly_pool_t					*misc_pool;
 	fly_sockinfo_t				*listen_sock;
@@ -26,10 +27,13 @@ struct fly_context{
 	long long					max_response_content_length;
 	size_t						max_request_length;
 	size_t						response_encode_threshold;
+	int							request_timeout;
 	bool						log_stdout;
 	bool						log_stderr;
 	/* for SSL/TLS */
 	SSL_CTX						*ssl_ctx;
+
+	fly_bit_t					daemon;
 };
 typedef struct fly_context fly_context_t;
 
@@ -47,5 +51,25 @@ struct fly_response_content_by_stcode *fly_default_content_by_stcode(fly_context
 struct fly_response_content_by_stcode *fly_default_content_by_stcode_from_event(fly_event_t *e, enum status_code_type status_code);
 //int fly_send_default_content(fly_event_t *e, struct fly_response_content_by_stcode *__r);
 #define FLY_SEND_BUF_LENGTH			(4096)
+
+__unused static inline bool is_fly_log_fd(int i, fly_context_t *ctx){
+	if (i == ctx->log->access->file)
+		return true;
+	else if (i == ctx->log->error->file)
+		return true;
+	else if (i == ctx->log->notice->file)
+		return true;
+	else
+		return false;
+
+	FLY_NOT_COME_HERE
+}
+
+__unused static inline bool is_fly_listen_socket(int i, fly_context_t *ctx){
+	if (i == ctx->listen_sock->fd)
+		return true;
+	else
+		return false;
+}
 
 #endif

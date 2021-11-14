@@ -30,5 +30,6 @@ fly_http_version_t *fly_match_version_from_type(enum fly_version_type type);
 
 #define FLY_HTTP_DEFAULT_VERSION			V1_1
 fly_http_version_t *fly_default_http_version(void);
+fly_http_version_t *fly_http2_version(void);
 
 #endif

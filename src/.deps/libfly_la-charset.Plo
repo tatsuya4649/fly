@@ -14,7 +14,7 @@ libfly_la-charset.lo: charset.c /usr/include/stdc-predef.h charset.h \
  /usr/include/strings.h /usr/include/assert.h /usr/include/errno.h \
  /usr/include/bits/errno.h /usr/include/linux/errno.h \
  /usr/include/asm/errno.h /usr/include/asm-generic/errno.h \
- /usr/include/asm-generic/errno-base.h bllist.h request.h \
+ /usr/include/asm-generic/errno-base.h ../config.h bllist.h request.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdbool.h context.h \
  alloc.h /usr/include/stdlib.h /usr/include/bits/waitflags.h \
  /usr/include/bits/waitstatus.h /usr/include/bits/floatn.h \
@@ -141,6 +141,7 @@ util.h:
 /usr/include/asm/errno.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
+../config.h:
 bllist.h:
 request.h:
 /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdbool.h:

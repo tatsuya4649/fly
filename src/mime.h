@@ -87,6 +87,8 @@ enum __fly_mime_list{
 	fly_mime_video_x_ms_wmv,
 	fly_mime_video_x_sgi_movie,
 
+	/* multipart */
+	fly_mime_multipart_form_data,
 	/* unknown */
 	fly_mime_unknown,
 	fly_mime_noextension,
@@ -118,13 +120,13 @@ struct __fly_accept_param{
 	char token_l[FLY_ACCEPT_PARAM_MAXLEN];
 	char token_r[FLY_ACCEPT_PARAM_MAXLEN];
 
-	struct __fly_accept_param		*next;
+	struct fly_bllist				blelem;
 };
 struct __fly_accept_ext{
 	char token_l[FLY_ACCEPT_EXT_MAXLEN];
 	char token_r[FLY_ACCEPT_EXT_MAXLEN];
 
-	struct __fly_accept_ext		*next;
+	struct fly_bllist				blelem;
 };
 
 struct __fly_mime_type{
@@ -132,6 +134,7 @@ struct __fly_mime_type{
 		fly_mime_type_text,
 		fly_mime_type_image,
 		fly_mime_type_application,
+		fly_mime_type_multipart,
 		fly_mime_type_asterisk,
 		fly_mime_type_unknown,
 	} type;
@@ -139,6 +142,7 @@ struct __fly_mime_type{
 };
 #define FLY_MIME_TYPE(n)				(fly_mime_type_ ## n)
 #define __FLY_MIME_TYPE(n)				{fly_mime_type_ ## n, #n}
+#define __FLY_MIME_TYPE_ASTERISK		{fly_mime_type_asterisk, "*"}
 #define __FLY_MIME_NULL					{ -1, NULL }
 #define FLY_MIME_TYPE_MAXLEN				30
 #define FLY_MIME_SUBTYPE_MAXLEN				30
@@ -153,10 +157,10 @@ struct __fly_mime_subtype{
 		(am)->type.type = FLY_MIME_TYPE(asterisk);		\
 		(am)->type.type_name = "*";						\
 		(am)->quality_value = 100;						\
-		(am)->params = NULL;							\
-		(am)->parqty = 0;								\
-		(am)->extension = NULL;							\
-		(am)->extqty = 0;								\
+		fly_bllist_init(&(am)->params);					\
+		(am)->param_count = 0;								\
+		fly_bllist_init(&(am)->extension);				\
+		(am)->ext_count = 0;								\
 		(am)->subtype.asterisk = true;					\
 	} while(0)
 
@@ -169,13 +173,13 @@ struct __fly_mime{
 	struct __fly_mime_type		type;
 	struct __fly_mime_subtype	subtype;
 	/* 0~100% */
-	int							 quality_value;
-	/* parametess */
-	struct __fly_accept_param	*params;
-	int							parqty;
+	int							quality_value;
+	/* parameters */
+	struct fly_bllist			params;
+	int							param_count;
 	/* extensions */
-	struct __fly_accept_ext		*extension;
-	int							extqty;
+	struct fly_bllist			extension;
+	int							ext_count;
 
 	struct fly_bllist			blelem;
 };
@@ -227,4 +231,6 @@ int fly_accept_mime(fly_request_t *request);
 fly_mime_type_t *fly_mime_type_from_path_name(char *path);
 bool fly_mime_invalid(fly_mime_type_t *type);
 fly_mime_type_t *fly_mime_type_from_str(const char *str, size_t len);
+fly_mime_type_t *fly_mime_type_from_strn(const char *str, size_t len);
+
 #endif
