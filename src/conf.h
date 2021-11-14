@@ -12,8 +12,10 @@
 #define FLY_CONFIG_DEFAULT_PATH		"fly.conf"
 #define FLY_CONFIG_PATH				"FLY_CONFIG_PATH"
 
-#define FLY_CONFIG_BOOL_TRUE		"true"
-#define FLY_CONFIG_BOOL_FALSE		"false"
+#define FLY_CONFIG_BOOL_TRUE			"true"
+#define FLY_CONFIG_BOOL_UPPER_TRUE		"True"
+#define FLY_CONFIG_BOOL_FALSE			"false"
+#define FLY_CONFIG_BOOL_UPPER_FALSE		"False"
 struct fly_config{
 	/* config file item name */
 	const char *name;
@@ -30,6 +32,10 @@ struct fly_config{
 extern struct fly_config configs[];
 #define FLY_CONFIG(__n, __en, __ev, __f)		{__n, __en, __ev, __f}
 
+#define FLY_PARSE_CONFIG_NOTFOUND			(-2)
+#define FLY_PARSE_CONFIG_ERROR				(-1)
+#define FLY_PARSE_CONFIG_SUCCESS			(1)
+#define FLY_PARSE_CONFIG_SYNTAX_ERROR		(0)
 int fly_parse_config_file(void);
 int fly_config_value_int(char *name);
 char *fly_config_value_str(char *name);

@@ -58,7 +58,7 @@ __attribute__((noreturn)) void fly_sigint_handler(__unused int signo)
 }
 
 
-void __fly_only_recv(fly_context_t *, struct signalfd_siginfo *)
+void __fly_only_recv(fly_context_t *ctx __unused, struct signalfd_siginfo *info __unused)
 {
 	return;
 }
@@ -83,7 +83,7 @@ int fly_signal_register(sigset_t *mask)
 	return sigfd;
 }
 
-__noreturn int fly_signal_default_handler(fly_context_t *, struct signalfd_siginfo *)
+__noreturn int fly_signal_default_handler(fly_context_t *ctx __unused, struct signalfd_siginfo *info __unused)
 {
 	exit(0);
 }
