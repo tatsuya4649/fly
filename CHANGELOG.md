@@ -40,6 +40,8 @@ Released: 2021/11/13
 
 * Fixed POST handle.
 
+* Fixed master spawn handler.
+
 * Fixed a bug where parsing Query parameter.
 
 * etc...
