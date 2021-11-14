@@ -542,7 +542,7 @@ __fly_static void __fly_master_worker_spawn(fly_master_t *master, void (*proc)(f
 
 	master->worker_process = proc;
 	for (int i=master->now_workers;
-			i<master->req_workers;
+			(i<master->req_workers && i<fly_worker_max_limit());
 			i=master->now_workers){
 		if (__fly_master_fork(master, WORKER, proc, master->context) == -1)
 			FLY_EMERGENCY_ERROR(
