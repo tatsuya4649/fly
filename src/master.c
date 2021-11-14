@@ -28,11 +28,12 @@ fly_signal_t fly_master_signals[] = {
 	{ SIGTERM, NULL, NULL },
 };
 
-int fly_master_daemon(void)
+int fly_master_daemon(fly_context_t *ctx)
 {
 	struct rlimit fd_limit;
 	int nullfd;
 
+	ctx->daemon = true;
 	switch(fork()){
 	case -1:
 		FLY_STDERR_ERROR(
@@ -80,6 +81,11 @@ int fly_master_daemon(void)
 		);
 
 	for (int i=0; i<(int) fd_limit.rlim_cur; i++){
+		if (is_fly_log_fd(i, ctx))
+			continue;
+		if (is_fly_listen_socket(i, ctx))
+			continue;
+
 		if (close(i) == -1 && errno != EBADF)
 			FLY_EMERGENCY_ERROR(
 				FLY_EMERGENCY_STATUS_PROCS,
@@ -87,7 +93,7 @@ int fly_master_daemon(void)
 			);
 	}
 
-	nullfd = open(__FLY_DEVNULL, 0);
+	nullfd = open(__FLY_DEVNULL, O_RDWR);
 	if (nullfd == -1 || nullfd != STDIN_FILENO)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_PROCS,

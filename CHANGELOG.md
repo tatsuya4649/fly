@@ -36,6 +36,8 @@ Released: 2021/11/13
 
 ### C
 
+* Fixed daemon process.
+
 * Fixed POST handle.
 
 * Fixed a bug where parsing Query parameter.

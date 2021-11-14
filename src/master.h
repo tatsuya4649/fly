@@ -37,7 +37,7 @@ typedef struct fly_master fly_master_t;
 
 extern fly_signal_t fly_master_signals[];
 
-int fly_master_daemon(void);
+int fly_master_daemon(fly_context_t *ctx);
 int fly_create_pidfile(void);
 int fly_create_pidfile_noexit(void);
 void fly_remove_pidfile(void);
