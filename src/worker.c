@@ -47,6 +47,7 @@ struct fly_worker *fly_worker_init(fly_context_t *mcontext)
 		goto w_error;
 
 	__w->context = mcontext;
+	__w->context->event_pool = NULL;
 	__w->context->pool_manager = __pm;
 
 	/* move to master pool manager to worker pool manager */
@@ -610,81 +611,102 @@ __fly_static void __fly_add_rcbs(fly_context_t *ctx, fly_rcbs_t *__r)
 extern fly_status_code responses[];
 __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 {
+	const char *__defpath;
+	struct stat sb;
+
+	__defpath = fly_default_content_path();
+	if (__defpath == NULL)
+		return 0;
+
+	if (stat(__defpath, &sb) == -1 || !S_ISDIR(sb.st_mode))
+		return 0;
+
 	for (fly_status_code *__res=responses; __res->status_code>0; __res++){
-		char env_var[FLY_DEFAULT_CONTENT_PATH_LEN];
-		char *defenv;
-		int res;
-		res = snprintf(env_var, FLY_DEFAULT_CONTENT_PATH_LEN, "FLY_DEFAULT_CONTENT_PATH_%d", __res->status_code);
-		defenv = getenv(env_var);
-		if (res < 0 || res > FLY_DEFAULT_CONTENT_PATH_LEN)
+		char __tmp[FLY_PATH_MAX], *__tmpptr;
+
+		__tmpptr = __tmp;
+		memset(__tmp, '\0', FLY_PATH_MAX);
+		if (realpath(__defpath, __tmp) == NULL)
+			return -1;
+
+		__tmpptr += strlen(__tmp);
+		*__tmpptr++ = '/';
+		sprintf(__tmpptr, "%d.html", __res->status_code);
+		if (access(__tmp, R_OK) == -1)
 			continue;
+
 		/* there is a default content path */
-		if (defenv || __res->default_path){
-			struct fly_response_content_by_stcode *__frc;
-			__frc = fly_rcbs_init(ctx);
-			if (fly_unlikely_null(__frc))
-				return -1;
-			__frc->status_code = __res->type;
-			__frc->content_path = defenv ? defenv : __res->default_path;
-			__frc->mime = fly_mime_type_from_path_name(__frc->content_path);
-			__frc->fd = open(__frc->content_path, O_RDONLY);
-			if (__frc->fd == -1)
-				return -1;
+		struct fly_response_content_by_stcode *__frc;
 
-			if (fstat(__frc->fd, &__frc->fs) == -1)
-				return -1;
+		__frc = fly_rcbs_init(ctx);
+		if (fly_unlikely_null(__frc))
+			return -1;
 
-			if (fly_over_encoding_threshold(ctx, (size_t) __frc->fs.st_size)){
-				struct fly_de *__de;
+		__frc->status_code = __res->type;
+		memcpy(__frc->content_path, __tmp, FLY_PATH_MAX);
+		__frc->mime = fly_mime_type_from_path_name(__frc->content_path);
+		__frc->fd = open(__frc->content_path, O_RDONLY);
+		if (__frc->fd == -1)
+			continue;
 
-				__de = fly_de_init(ctx->pool);
-				__de->type = FLY_DE_FROM_PATH;
-				__de->fd = __frc->fd;
-				__de->offset = 0;
-				__de->count = __frc->fs.st_size;
-				__de->etype = fly_encoding_from_type(__frc->encode_type);
-				if (fly_response_content_max_length() >= __frc->fs.st_size){
-					size_t __max;
+		if (fstat(__frc->fd, &__frc->fs) == -1)
+			return -1;
 
-					__max = fly_response_content_max_length();
-					__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
-					__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
-					__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
-					__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
+		if (fly_over_encoding_threshold(ctx, (size_t) __frc->fs.st_size)){
+			struct fly_de *__de;
+
+			__de = fly_de_init(ctx->pool);
+			__de->type = FLY_DE_FROM_PATH;
+			__de->fd = __frc->fd;
+			__de->offset = 0;
+			__de->count = __frc->fs.st_size;
+			__de->etype = fly_encoding_from_type(__frc->encode_type);
+			if (fly_response_content_max_length() >= __frc->fs.st_size){
+				size_t __max;
+				int res;
+
+				__max = fly_response_content_max_length();
+				__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
+				__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
+				__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
+				__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
 #ifdef DEBUG
-					assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
+				assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
 #endif
-					res = __de->etype->encode(__de);
-					switch(res){
-					case FLY_ENCODE_SUCCESS:
-						break;
-					case FLY_ENCODE_OVERFLOW:
-						FLY_NOT_COME_HERE
-					case FLY_ENCODE_ERROR:
-						return -1;
-					case FLY_ENCODE_SEEK_ERROR:
-						return -1;
-					case FLY_ENCODE_TYPE_ERROR:
-						return -1;
-					case FLY_ENCODE_READ_ERROR:
-						return -1;
-					case FLY_ENCODE_BUFFER_ERROR:
-						__de->overflow = true;
-						break;
-					default:
-						return -1;
-					}
-				}else{
+				res = __de->etype->encode(__de);
+				switch(res){
+				case FLY_ENCODE_SUCCESS:
+					break;
+				case FLY_ENCODE_OVERFLOW:
+					FLY_NOT_COME_HERE
+				case FLY_ENCODE_ERROR:
+					return -1;
+				case FLY_ENCODE_SEEK_ERROR:
+					return -1;
+				case FLY_ENCODE_TYPE_ERROR:
+					return -1;
+				case FLY_ENCODE_READ_ERROR:
+					return -1;
+				case FLY_ENCODE_BUFFER_ERROR:
 					__de->overflow = true;
+					break;
+				default:
+					return -1;
 				}
-
-				__frc->de = __de;
-				__frc->encoded = true;
+			}else{
+				__de->overflow = true;
 			}
 
-			__fly_add_rcbs(ctx, __frc);
+			__frc->de = __de;
+			__frc->encoded = true;
 		}
+
+		__fly_add_rcbs(ctx, __frc);
 	}
 	return 0;
 }
 
+const char *fly_default_content_path(void)
+{
+	return (const char *) fly_config_value_str(FLY_DEFAULT_CONTENT_PATH);
+}

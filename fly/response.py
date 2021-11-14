@@ -1,22 +1,6 @@
 from ._fly_server import _fly_response
-
-class __metaresponse(type):
-    REQUIRED_ATTR = [
-        "status_code",
-        "header",
-        "body",
-        "content_type",
-    ]
-
-    def __new__(cls, name, bases, attributes):
-        for i in cls.REQUIRED_ATTR:
-            for __b in bases:
-                if not hasattr(__b, i):
-                    raise NotImplementedError(
-                        f"{cls} must be implemented \"{i}\""
-                    )
-        return type.__new__(cls, name, bases, attributes)
-
+import json
+from cookie import *
 
 class _Response(_fly_response):
 
@@ -51,7 +35,7 @@ class _Response(_fly_response):
         )
 
 
-class Response(_Response, metaclass=__metaresponse):
+class Response(_Response):
     """
     All Response subclass must have 5 attributes.
 
@@ -68,26 +52,19 @@ class Response(_Response, metaclass=__metaresponse):
         body=None,
         content_type="text/plain",
     ):
+        if not isinstance(status_code, int):
+            raise TypeError("status_code must be int type.")
+        if header is not None and not isinstance(header, (list)):
+            raise TypeError("status_code must be list type.")
+        if not isinstance(content_type, str):
+            raise TypeError("content_type must be str type.")
+        if body is not None and not isinstance(body, (bytes)):
+            raise TypeError("body must be bytes type.")
+
         self._status_code = status_code
         self._content_type = content_type
         self._header = list()
-        if header is not None:
-            if not isinstance(header, list):
-                raise TypeError("header must be list type.")
-
-            for i in header:
-                if not isinstance(i, dict):
-                    raise TypeError("header element must be dict type.")
-                if i.get("name") is None or i.get("value") is None:
-                    raise ValueError("header element must have \"name\" key and \"value\" key")
-
-        if body is not None:
-            if not isinstance(body, bytes):
-                raise TypeError("body must be bytes type.")
-            self._body = body
-        else:
-            self._body = bytes()
-
+        self._body = body if body is not None else bytes()
 
     @property
     def status_code(self):
@@ -113,7 +90,19 @@ class Response(_Response, metaclass=__metaresponse):
         hdr_elem = dict()
         hdr_elem["name"] = name
         hdr_elem["value"] = value
-        self._header.add(hdr_elem)
+        self._header.append(hdr_elem)
+
+    def set_cookie(
+        self,
+        name,
+        value,
+        **kwards
+    ):
+        hdr_elem = dict()
+        hdr_elem["name"] = "Set-Cookie"
+        value = header_value_from_cookie(name, value, **kwards)
+        hdr_elem["value"] = value
+        self._header.append(hdr_elem)
 
 class PlainResponse(Response):
     def __init__(
@@ -122,12 +111,13 @@ class PlainResponse(Response):
         header=None,
         body=None,
     ):
-        if not isinstance(body, str):
+        if body is not None and not isinstance(body, str):
             raise TypeError("body must be str type.")
+
         super().__init__(
             status_code,
             header,
-            body.encode("utf-8"),
+            body.encode("utf-8") if isinstance(body, str) else None,
             content_type="text/plain"
         )
 
@@ -140,6 +130,7 @@ class HTMLResponse(Response):
     ):
         if body is not None and not isinstance(body, str):
             raise TypeError("body must be str type.")
+
         super().__init__(
             status_code,
             header,
@@ -154,11 +145,16 @@ class JSONResponse(Response):
         header=None,
         body=None,
     ):
-        if body is not None and not isinstance(body, str):
-            raise TypeError("body must be str type.")
+        if body is not None and not isinstance(body, dict) and \
+                not isinstance(body, list):
+            raise TypeError("body must be list/dict type.")
+
+        print(json.dumps(body))
         super().__init__(
             status_code,
             header,
-            body.encode("utf-8") if body is not None else None,
+            json.dumps(body).encode("utf-8") \
+                    if body is not None and len(body) > 0 \
+                    else None,
             content_type="application/json"
         )

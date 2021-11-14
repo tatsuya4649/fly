@@ -8,7 +8,14 @@ libfly_la-encode.lo: encode.c /usr/include/stdc-predef.h encode.h \
  /usr/include/strings.h /usr/include/ctype.h /usr/include/bits/types.h \
  /usr/include/bits/timesize.h /usr/include/bits/typesizes.h \
  /usr/include/bits/time64.h /usr/include/bits/endian.h \
- /usr/include/bits/endianness.h /usr/include/zlib.h /usr/include/zconf.h \
+ /usr/include/bits/endianness.h util.h /usr/include/unistd.h \
+ /usr/include/bits/posix_opt.h /usr/include/bits/environments.h \
+ /usr/include/bits/confname.h /usr/include/bits/getopt_posix.h \
+ /usr/include/bits/getopt_core.h /usr/include/bits/unistd_ext.h \
+ /usr/include/assert.h /usr/include/errno.h /usr/include/bits/errno.h \
+ /usr/include/linux/errno.h /usr/include/asm/errno.h \
+ /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
+ ../config.h /usr/include/zlib.h /usr/include/zconf.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include-fixed/limits.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include-fixed/syslimits.h \
  /usr/include/limits.h /usr/include/bits/posix1_lim.h \
@@ -26,18 +33,12 @@ libfly_la-encode.lo: encode.c /usr/include/stdc-predef.h encode.h \
  /usr/include/bits/pthreadtypes-arch.h /usr/include/bits/struct_mutex.h \
  /usr/include/bits/struct_rwlock.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdarg.h \
- /usr/include/unistd.h /usr/include/bits/posix_opt.h \
- /usr/include/bits/environments.h /usr/include/bits/confname.h \
- /usr/include/bits/getopt_posix.h /usr/include/bits/getopt_core.h \
- /usr/include/bits/unistd_ext.h /usr/include/brotli/encode.h \
- /usr/include/brotli/port.h /usr/include/brotli/types.h \
+ /usr/include/brotli/encode.h /usr/include/brotli/port.h \
+ /usr/include/brotli/types.h \
  /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdint.h \
  /usr/include/stdint.h /usr/include/bits/wchar.h \
- /usr/include/bits/stdint-uintn.h /usr/include/brotli/decode.h util.h \
- /usr/include/assert.h /usr/include/errno.h /usr/include/bits/errno.h \
- /usr/include/linux/errno.h /usr/include/asm/errno.h \
- /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
- alloc.h /usr/include/stdlib.h /usr/include/bits/waitflags.h \
+ /usr/include/bits/stdint-uintn.h /usr/include/brotli/decode.h alloc.h \
+ /usr/include/stdlib.h /usr/include/bits/waitflags.h \
  /usr/include/bits/waitstatus.h /usr/include/bits/floatn.h \
  /usr/include/bits/floatn-common.h /usr/include/alloca.h \
  /usr/include/bits/stdlib-float.h /usr/include/inttypes.h bllist.h \
@@ -129,6 +130,22 @@ encode.h:
 /usr/include/bits/time64.h:
 /usr/include/bits/endian.h:
 /usr/include/bits/endianness.h:
+util.h:
+/usr/include/unistd.h:
+/usr/include/bits/posix_opt.h:
+/usr/include/bits/environments.h:
+/usr/include/bits/confname.h:
+/usr/include/bits/getopt_posix.h:
+/usr/include/bits/getopt_core.h:
+/usr/include/bits/unistd_ext.h:
+/usr/include/assert.h:
+/usr/include/errno.h:
+/usr/include/bits/errno.h:
+/usr/include/linux/errno.h:
+/usr/include/asm/errno.h:
+/usr/include/asm-generic/errno.h:
+/usr/include/asm-generic/errno-base.h:
+../config.h:
 /usr/include/zlib.h:
 /usr/include/zconf.h:
 /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include-fixed/limits.h:
@@ -159,13 +176,6 @@ encode.h:
 /usr/include/bits/struct_mutex.h:
 /usr/include/bits/struct_rwlock.h:
 /usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0/include/stdarg.h:
-/usr/include/unistd.h:
-/usr/include/bits/posix_opt.h:
-/usr/include/bits/environments.h:
-/usr/include/bits/confname.h:
-/usr/include/bits/getopt_posix.h:
-/usr/include/bits/getopt_core.h:
-/usr/include/bits/unistd_ext.h:
 /usr/include/brotli/encode.h:
 /usr/include/brotli/port.h:
 /usr/include/brotli/types.h:
@@ -174,14 +184,6 @@ encode.h:
 /usr/include/bits/wchar.h:
 /usr/include/bits/stdint-uintn.h:
 /usr/include/brotli/decode.h:
-util.h:
-/usr/include/assert.h:
-/usr/include/errno.h:
-/usr/include/bits/errno.h:
-/usr/include/linux/errno.h:
-/usr/include/asm/errno.h:
-/usr/include/asm-generic/errno.h:
-/usr/include/asm-generic/errno-base.h:
 alloc.h:
 /usr/include/stdlib.h:
 /usr/include/bits/waitflags.h:

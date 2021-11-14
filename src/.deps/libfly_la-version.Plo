@@ -20,7 +20,7 @@ libfly_la-version.lo: version.c /usr/include/stdc-predef.h \
  /usr/include/assert.h /usr/include/errno.h /usr/include/bits/errno.h \
  /usr/include/linux/errno.h /usr/include/asm/errno.h \
  /usr/include/asm-generic/errno.h /usr/include/asm-generic/errno-base.h \
- version.h /usr/include/ctype.h /usr/include/bits/endian.h \
+ ../config.h version.h /usr/include/ctype.h /usr/include/bits/endian.h \
  /usr/include/bits/endianness.h
 /usr/include/stdc-predef.h:
 /usr/include/string.h:
@@ -65,6 +65,7 @@ util.h:
 /usr/include/asm/errno.h:
 /usr/include/asm-generic/errno.h:
 /usr/include/asm-generic/errno-base.h:
+../config.h:
 version.h:
 /usr/include/ctype.h:
 /usr/include/bits/endian.h:

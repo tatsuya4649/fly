@@ -38,23 +38,22 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	conn->http_v = fly_default_http_version();
 	conn->v2_state = NULL;
 	conn->peer_closed = false;
-#ifndef DEBUG
-#define FLY_CONNECT_BUFFER_INIT_LEN			1
-#define FLY_CONNECT_BUFFER_PER_LEN			(1024*4)
-#else
-#define FLY_CONNECT_BUFFER_INIT_LEN			1
-#define FLY_CONNECT_BUFFER_PER_LEN			10
-#endif
 
-#define FLY_CONNECT_BUFFER_CHAIN_MAX(__ctx)			\
-			((size_t) (((int) ((__ctx)->max_request_length/FLY_CONNECT_BUFFER_PER_LEN))+1))
-	conn->buffer = fly_buffer_init(pool, FLY_CONNECT_BUFFER_INIT_LEN, FLY_CONNECT_BUFFER_CHAIN_MAX(ctx), FLY_CONNECT_BUFFER_PER_LEN);
+	/* setting buffer length */
+	conn->buffer_init_len = fly_connect_buffer_init_len();
+	conn->buffer_per_len = fly_connect_buffer_per_len();
+
+#define FLY_CONNECT_BUFFER_CHAIN_MAX(__ctx, per_len)			\
+			((size_t) (((int) ((__ctx)->max_request_length/(per_len)))+1))
+	conn->buffer = fly_buffer_init(pool, conn->buffer_init_len, FLY_CONNECT_BUFFER_CHAIN_MAX(ctx, conn->buffer_per_len), conn->buffer_per_len);
 	if (fly_unlikely_null(conn->buffer))
 		return NULL;
-#ifdef DEBUG
-	assert((FLY_CONNECT_BUFFER_PER_LEN*FLY_CONNECT_BUFFER_CHAIN_MAX(ctx)) > ctx->max_request_length);
-#endif
 
+#ifdef DEBUG
+	assert(conn->buffer_per_len > 0);
+	assert(conn->buffer_init_len > 0);
+	assert((conn->buffer_per_len*FLY_CONNECT_BUFFER_CHAIN_MAX(ctx, conn->buffer_per_len)) > ctx->max_request_length);
+#endif
 	if (__fly_info_of_connect(conn) == -1)
 		return NULL;
 
@@ -124,7 +123,8 @@ int fly_listen_connected(fly_event_t *e)
 		return fly_request_event_handler(e);
 	case V2:
 		e->event_data = (void *) conn;
-		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_hv2_end_timeout_handle, conn);
+		FLY_EVENT_END_HANDLER(e, fly_hv2_end_handle, conn);
+		FLY_EVENT_EXPIRED_HANDLER(e, fly_hv2_timeout_handle, conn);
 		return fly_hv2_init_handler(e);
 	default:
 		FLY_NOT_COME_HERE
@@ -146,6 +146,7 @@ static fly_connect_t *fly_http_connected(fly_sock_t fd, fly_sock_t cfd, fly_even
 int fly_accept_listen_socket_handler(struct fly_event *event)
 {
 	fly_connect_t *conn;
+	fly_context_t *ctx;
 	fly_sock_t conn_sock;
 	fly_sock_t listen_sock = event->fd;
 	struct sockaddr_storage addr;
@@ -153,6 +154,7 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	int flag;
 	fly_event_t *ne;
 
+	ctx = fly_context_from_event(event);
 	addrlen = sizeof(struct sockaddr_storage);
 	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
 	memset(&addr, '\0', sizeof(addr));
@@ -174,7 +176,7 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	ne->read_or_write = FLY_READ;
 	FLY_EVENT_HANDLER(ne, fly_recognize_protocol_of_connected);
 	ne->flag = 0;
-	fly_sec(&ne->timeout, FLY_REQUEST_TIMEOUT);
+	fly_sec(&ne->timeout, ctx->request_timeout);
 	ne->tflag = 0;
 	ne->eflag = 0;
 	ne->expired = false;
@@ -218,15 +220,23 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 	}
 
 	if (fly_tls_handshake_magic(buf)){
-		if (!(sockinfo->flag & FLY_SOCKINFO_SSL))
+		if (!(sockinfo->flag & FLY_SOCKINFO_SSL)){
+#ifdef DEBUG
+			printf("Illegal request(HTTP server but HTTPS request). disconnect.\n");
+#endif
 			goto disconnect;
+		}
 
 		/* HTTP request over TLS */
 		return fly_accept_listen_socket_ssl_handler(e, conn);
 	}else{
 		/* HTTP request */
-		if (sockinfo->flag & FLY_SOCKINFO_SSL)
+		if (sockinfo->flag & FLY_SOCKINFO_SSL){
+#ifdef DEBUG
+			printf("Illegal request(HTTPS server but HTTP request). response 400.\n");
+#endif
 			goto response_400;
+		}
 
 		return fly_listen_connected(e);
 	}
@@ -261,4 +271,14 @@ int fly_listen_socket_end_handler(fly_event_t *__e)
 size_t fly_max_request_length(void)
 {
 	return (size_t) fly_config_value_int(FLY_MAX_REQUEST_LENGTH);
+}
+
+size_t fly_connect_buffer_init_len(void)
+{
+	return (size_t) fly_config_value_int(FLY_CONNECT_BUFFER_INIT_LEN);
+}
+
+size_t fly_connect_buffer_per_len(void)
+{
+	return (size_t) fly_config_value_int(FLY_CONNECT_BUFFER_PER_LEN);
 }
