@@ -47,6 +47,7 @@ struct fly_worker *fly_worker_init(fly_context_t *mcontext)
 		goto w_error;
 
 	__w->context = mcontext;
+	__w->context->event_pool = NULL;
 	__w->context->pool_manager = __pm;
 
 	/* move to master pool manager to worker pool manager */

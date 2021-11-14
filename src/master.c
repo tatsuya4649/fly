@@ -608,6 +608,7 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 		{
 			fly_context_t *mctx;
 			/* unnecessary resource release */
+			master->now_workers++;
 			mctx = fly_master_release_except_context(master);
 
 			/* alloc worker resource */

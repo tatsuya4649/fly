@@ -1052,6 +1052,7 @@ D["HAVE_STRERROR"]=" 1"
 D["HAVE_SIGLONGJMP"]=" 1"
 D["HAVE_STRERRORNAME_NP"]=" 1"
 D["HAVE_STRERRORDESC_NP"]=" 1"
+D["HAVE_REALPATH"]=" 1"
 D["HAVE_SIGSETJMP"]=" 1"
   for (key in D) D_is_set[key] = 1
   FS = ""
