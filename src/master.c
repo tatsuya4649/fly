@@ -28,11 +28,12 @@ fly_signal_t fly_master_signals[] = {
 	{ SIGTERM, NULL, NULL },
 };
 
-int fly_master_daemon(void)
+int fly_master_daemon(fly_context_t *ctx)
 {
 	struct rlimit fd_limit;
 	int nullfd;
 
+	ctx->daemon = true;
 	switch(fork()){
 	case -1:
 		FLY_STDERR_ERROR(
@@ -80,6 +81,11 @@ int fly_master_daemon(void)
 		);
 
 	for (int i=0; i<(int) fd_limit.rlim_cur; i++){
+		if (is_fly_log_fd(i, ctx))
+			continue;
+		if (is_fly_listen_socket(i, ctx))
+			continue;
+
 		if (close(i) == -1 && errno != EBADF)
 			FLY_EMERGENCY_ERROR(
 				FLY_EMERGENCY_STATUS_PROCS,
@@ -87,7 +93,7 @@ int fly_master_daemon(void)
 			);
 	}
 
-	nullfd = open(__FLY_DEVNULL, 0);
+	nullfd = open(__FLY_DEVNULL, O_RDWR);
 	if (nullfd == -1 || nullfd != STDIN_FILENO)
 		FLY_EMERGENCY_ERROR(
 			FLY_EMERGENCY_STATUS_PROCS,
@@ -391,12 +397,12 @@ __direct_log void fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
 
-	/* destructor setting */
-	if (atexit(fly_remove_pidfile) == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"initialize worker inotify error."
-		);
+//	/* destructor setting */
+//	if (atexit(fly_remove_pidfile) == -1)
+//		FLY_EMERGENCY_ERROR(
+//			FLY_EMERGENCY_STATUS_READY,
+//			"initialize worker inotify error."
+//		);
 
 	manager = fly_event_manager_init(master->context);
 	if (manager == NULL)
@@ -536,7 +542,7 @@ __fly_static void __fly_master_worker_spawn(fly_master_t *master, void (*proc)(f
 
 	master->worker_process = proc;
 	for (int i=master->now_workers;
-			i<master->req_workers;
+			(i<master->req_workers && i<fly_worker_max_limit());
 			i=master->now_workers){
 		if (__fly_master_fork(master, WORKER, proc, master->context) == -1)
 			FLY_EMERGENCY_ERROR(
@@ -602,6 +608,7 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 		{
 			fly_context_t *mctx;
 			/* unnecessary resource release */
+			master->now_workers++;
 			mctx = fly_master_release_except_context(master);
 
 			/* alloc worker resource */
@@ -833,3 +840,9 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 
 	return fly_event_register(e);
 }
+
+bool fly_is_create_pidfile(void)
+{
+	return fly_config_value_bool(FLY_CREATE_PIDFILE);
+}
+

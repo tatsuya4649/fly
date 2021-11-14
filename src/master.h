@@ -37,7 +37,7 @@ typedef struct fly_master fly_master_t;
 
 extern fly_signal_t fly_master_signals[];
 
-int fly_master_daemon(void);
+int fly_master_daemon(fly_context_t *ctx);
 int fly_create_pidfile(void);
 int fly_create_pidfile_noexit(void);
 void fly_remove_pidfile(void);
@@ -59,5 +59,8 @@ void fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *,
 #define FLY_WORKER			"FLY_WORKER"
 #define FLY_WORKER_MAX		"FLY_WORKER_MAX"
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
+
+#define FLY_CREATE_PIDFILE					"FLY_CREATE_PIDFILE"
+bool fly_is_create_pidfile(void);
 
 #endif
