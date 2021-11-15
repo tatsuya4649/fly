@@ -700,7 +700,7 @@ disconnect:
 
 	e->tflag = 0;
 	e->flag = FLY_CLOSE_EV;
-	return fly_event_unregister(e);
+	return 0;
 }
 
 struct fly_hv2_send_frame *fly_hv2_send_frame_init(fly_hv2_stream_t *stream)
@@ -1421,7 +1421,8 @@ close_connection:
 	/* close connection */
 	if (fly_hv2_close_handle(e, state) == -1)
 		return -1;
-	return fly_event_unregister(e);
+	e->flag = FLY_CLOSE_EV;
+	return 0;
 }
 
 int fly_hv2_goaway(fly_hv2_state_t *state, bool r, uint32_t last_stream_id, uint32_t error_code)
@@ -1947,7 +1948,8 @@ closed:
 		if (fly_hv2_close_handle(event, state) == -1)
 			return -1;
 
-		return fly_event_unregister(event);
+		event->flag = FLY_CLOSE_EV;
+		return 0;
 emergency:
 		fly_hv2_emergency(event, state);
 		return -1;

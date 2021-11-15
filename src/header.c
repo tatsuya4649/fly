@@ -485,8 +485,16 @@ int fly_add_content_length_from_fd(fly_hdr_ci *ci, int fd, bool v2)
 {
 	struct stat sb;
 
-	if (fstat(fd, &sb) == 1)
+	if (fstat(fd, &sb) == 1){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			ci->pool, errno, FLY_ERR_CRIT,
+			"trying to response to an invalid file. (%s: %s)",
+			__FILE__, __LINE__
+		);
+		fly_critical_error(__err);
 		return -1;
+	}
 
 	return fly_add_content_length_from_stat(ci, &sb, v2);
 }

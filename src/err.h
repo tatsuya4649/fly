@@ -13,6 +13,7 @@
 #include "alloc.h"
 #include "event.h"
 #include "context.h"
+#include "bllist.h"
 
 /* errno */
 #ifndef FLY_ERROR
@@ -57,30 +58,42 @@
 #define FLY_EFILE_LIMIT					-18
 
 
-/* error log event */
-typedef const char fly_errc_t;
 #define FLY_ERR_POOL_SIZE				10
-#define FLY_ERRPTR_FOR_EMERGE_SIZE		1000
+
+enum fly_error_level{
+	/* end worker/master process */
+	FLY_ERR_EMERG = 10,
+	FLY_ERR_CRIT,
+	/* end worker process */
+	FLY_ERR_ERR,
+	/* only log */
+	FLY_ERR_ALERT,
+	FLY_ERR_WARN,
+	FLY_ERR_NOTICE,
+	FLY_ERR_INFO,
+	FLY_ERR_DEBUG,
+};
 
 struct fly_err{
-	fly_errc_t	*content;
-	/* -1 is invalid errno(errno is positive int) */
-	int			__errno;
-	fly_event_t *event;
-	fly_pool_t  *pool;
+#define FLY_ERROR_CONTENT_SIZE			200
+	char			content[FLY_ERROR_CONTENT_SIZE];
+	size_t				content_len;
+#define FLY_ERRPTR_FOR_EMERGE_SIZE		1000
+	char				*emergency_memory;
 
-	enum {
-		FLY_ERR_EMERG,
-		FLY_ERR_ALERT,
-		FLY_ERR_CRIT,
-		FLY_ERR_ERR,
-		FLY_ERR_WARN,
-		FLY_ERR_NOTICE,
-		FLY_ERR_INFO,
-		FLY_ERR_DEBUG,
-	} level;
+	/* -1 is invalid errno(errno is positive int) */
+	int					__errno;
+	struct fly_event	*event;
+	fly_pool_t			*pool;
+
+	enum fly_error_level	level;
+	struct fly_bllist	blelem;
+
+	fly_bit_t			end_process: 1;
 };
+
 typedef struct fly_err fly_err_t;
+#define fly_error_level(__e)			((__e)->level)
 #define fly_errlogfile_from_manager(m)	((m)->ctx->log->error->file)
 #define fly_errlogfile_from_event(e)	(fly_errlogfile_manager(e)->manager)
 #define fly_seterrno(err, __errno)		((err)->__errno = (__errno))
@@ -89,15 +102,18 @@ typedef struct fly_err fly_err_t;
 #define FLY_NULL_ERRNO					-1
 #define FLY_NULL_ERRNO_DESC				"unknown error number(-1)"
 
-int fly_errsys_init(fly_context_t *ctx);
-fly_err_t *fly_err_init(fly_errc_t *content, int __errno, int level);
+void fly_errsys_init(fly_context_t *ctx);
+fly_err_t *fly_err_init(fly_pool_t *pool, int __errno, enum fly_error_level level, const char *fmt, ...);
+void fly_err_release(struct fly_err *__e);
 int fly_errlog_event(fly_event_manager_t *manager, fly_err_t *err);
 
+#define FLY_EMERGE_MEMORY_SIZE			1000
+extern uint8_t fly_emerge_memory[FLY_EMERGE_MEMORY_SIZE];
 /*
  * structure for printing error
  */
 struct fly_errp{
-	fly_errc_t *content;
+	const char *content;
 	int __errno;
 };
 typedef struct fly_errp fly_errp_t;
@@ -124,7 +140,7 @@ void fly_stderr_error(fly_errp_t *);
 
 #define FLY_STDERR_ERROR(fmt, ...)			do{				\
 		fly_errp_t __fly_errp;								\
-		fly_errc_t __errp_content[FLY_ERRP_CONTENT_MAX];	\
+		const char __errp_content[FLY_ERRP_CONTENT_MAX];	\
 		snprintf(											\
 			(char *) __errp_content,						\
 			FLY_ERRP_CONTENT_MAX,							\
@@ -150,12 +166,21 @@ enum fly_emergency_status{
 	FLY_EMERGENCY_STATUS_MODF,
 };
 
-__noreturn void fly_emergency_error(enum fly_emergency_status end_status, int __errno, const char *format, ...);
+__noreturn void fly_emergency_verror(int __errno, const char *format, ...);
 
-#define FLY_EMERGENCY_ERROR(es, fmt, ...)						\
+#define FLY_EMERGENCY_ERROR(fmt, ...)						\
 	do{															\
 		int __err = errno;										\
-		fly_emergency_error((es), __err, (fmt), ##__VA_ARGS__);	\
+		fly_emergency_verror(__err, (fmt), ##__VA_ARGS__);	\
 	} while(0)
+
+__noreturn void fly_critical_error(struct fly_err *err);
+__noreturn void fly_error_error(struct fly_err *err);
+__noreturn void fly_emergency_error(struct fly_err *err);
+void fly_alert_error(struct fly_err *err);
+void fly_warn_error(struct fly_err *err);
+void fly_notice_error(struct fly_err *err);
+void fly_info_error(struct fly_err *err);
+void fly_debug_error(struct fly_err *err);
 
 #endif

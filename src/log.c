@@ -389,12 +389,13 @@ __fly_static int __fly_log_write_logcont(fly_logcont_t *lc)
 
 int fly_logcont_setting(fly_logcont_t *lc, size_t content_length)
 {
-	if (lc == NULL)
-		return -1;
+#ifdef DEBUG
+	assert(lc != NULL);
+#endif
 
 	lc->contlen = content_length;
 	lc->content = fly_pballoc(lc->log->pool, content_length);
-	if (lc->content == NULL)
+	if (fly_unlikely_null(lc->content))
 		return -1;
 	memset(lc->content, '\0', content_length);
 
@@ -463,7 +464,6 @@ __noreturn void __fly_log_error_handle(int res)
 
 	errno = __e;
 	FLY_EMERGENCY_ERROR(
-		FLY_EMERGENCY_STATUS_ELOG,
 		__logecont
 	);
 }
@@ -497,12 +497,10 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 	lc = fly_logcont_init(log, FLY_LOG_NOTICE);
 	if (lc == NULL)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_ELOG,
 			"can't ready log content init."
 		);
 	if (fly_logcont_setting(lc, FLY_NOTICE_DIRECT_LOG_MAXLENGTH) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_ELOG,
 			"can't ready setting log content."
 		);
 
@@ -513,7 +511,6 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 	lc->contlen = strlen(lc->content);
 	if (fly_log_now(&lc->when) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_ELOG,
 			"can't set log time."
 		);
 
