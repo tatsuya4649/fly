@@ -188,8 +188,16 @@ int fly_accept_mime(__unused fly_request_t *request)
 	if (fly_unlikely_null(request) || fly_unlikely_null(request->pool) || fly_unlikely_null(request->header))
 		return -1;
 
-	if (__fly_mime_init(request) == -1)
+	if (__fly_mime_init(request) == -1){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			request->connect->pool, errno, FLY_ERR_ERR,
+			"accept mime init error. (%s: %s)", __FILE__, __LINE__
+		);
+		fly_error_error(__err);
+		FLY_NOT_COME_HERE
 		return -1;
+	}
 
 	switch(__fly_accept_mime(header, &accept)){
 	case __FLY_ACCEPT_MIME_ERROR:
@@ -201,7 +209,7 @@ int fly_accept_mime(__unused fly_request_t *request)
 	case __FLY_ACCEPT_MIME_FOUND:
 		return __fly_accept_parse(request->mime, accept);
 	default:
-		return -1;
+		FLY_NOT_COME_HERE
 	}
 	FLY_NOT_COME_HERE
 	return -1;

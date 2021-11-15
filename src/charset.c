@@ -383,8 +383,15 @@ int fly_accept_charset(fly_request_t *req)
 		return -1;
 
 	accept_charset = NULL;
-	if (__fly_accept_charset_init(req) == -1)
-		return -1;
+	if (__fly_accept_charset_init(req) == -1){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			req->connect->pool, errno, FLY_ERR_ERR,
+			"charset init error. (%s: %s)", __FILE__, __LINE__
+		);
+		fly_error_error(__err);
+		FLY_NOT_COME_HERE
+	}
 	switch(__fly_accept_charset(header, &accept_charset)){
 	case __FLY_ACCEPT_CHARSET_FOUND:
 		return __fly_accept_charset_parse(req, accept_charset);

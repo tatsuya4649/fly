@@ -37,7 +37,6 @@ __direct_log __fly_static void *__fly_malloc(size_t size)
 	/* if failure to allocate memory, process is end. */
 	if (res == NULL)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_NOMEM,
 			"no memory"
 		);
 	return res;

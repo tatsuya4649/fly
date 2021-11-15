@@ -381,8 +381,16 @@ int fly_accept_language(fly_request_t *req)
 	if (header == NULL)
 		return -1;
 
-	if (__fly_accept_lang_init(req) == -1)
+	if (__fly_accept_lang_init(req) == -1){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			req->connect->pool, errno, FLY_ERR_ERR,
+			"accept language init error. (%s: %s)", __FILE__, __LINE__
+		);
+		fly_error_error(__err);
+		FLY_NOT_COME_HERE
 		return -1;
+	}
 	switch(__fly_accept_lang(header, &accept_lang)){
 	case __FLY_ACCEPT_LANG_FOUND:
 		return __fly_accept_lang_parse(req, accept_lang);

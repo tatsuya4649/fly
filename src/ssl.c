@@ -69,8 +69,15 @@ int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 
 	FLY_EVENT_EXPIRED_END_HANDLER(e, fly_accept_end_timeout_handler, conn);
 	__ac = fly_pballoc(e->manager->ctx->misc_pool, sizeof(struct fly_ssl_accept));
-	if (fly_unlikely_null(__ac))
+	if (fly_unlikely_null(__ac)){
+		struct fly_err *__err;
+		__err = fly_event_err_init(
+			e, errno, FLY_ERR_ERR,
+			"SSL/TLS connection setting error . (%s: %s)", __FILE__, __LINE__
+		);
+		fly_event_error_add(e, __err);
 		return -1;
+	}
 	__ac->manager = e->manager;
 	__ac->connect = conn;
 	__ac->pool = e->manager->ctx->misc_pool;
@@ -184,8 +191,16 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 
 	SSL_get0_alpn_selected(__ac->ssl, &data, &len);
 	__ac->connect->http_v = fly_match_version_from_alpn(data, len);
-	if (fly_unlikely_null(__ac->connect->http_v))
-		return -1;
+	if (fly_unlikely_null(__ac->connect->http_v)){
+		struct fly_err *__err;
+		__err = fly_event_err_init(
+			e, errno, FLY_ERR_ALERT,
+			"invalid alpn error in SSL/TLS negotiation."
+		);
+		fly_event_error_add(e, __err);
+		fly_pbfree(__ac->pool, __ac);
+		goto disconnect;
+	}
 
 	e->event_data = __ac->connect;
 	/* release accept resource */
@@ -218,8 +233,8 @@ connect_error:
 disconnect:
 	fly_ssl_accept_free(__ac->ssl);
 	fly_pbfree(__ac->pool, __ac);
-	return fly_event_unregister(e);
-
+	e->flag = FLY_CLOSE_EV;
+	return 0;
 }
 
 __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e)

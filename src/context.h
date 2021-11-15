@@ -30,6 +30,7 @@ struct fly_context{
 	int							request_timeout;
 	bool						log_stdout;
 	bool						log_stderr;
+	uint8_t						*emerge_ptr;
 	/* for SSL/TLS */
 	SSL_CTX						*ssl_ctx;
 

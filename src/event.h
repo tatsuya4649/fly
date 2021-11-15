@@ -1,6 +1,9 @@
 #ifndef _EVENT_H
 #define _EVENT_H
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <stdio.h>
 #include <stdbool.h>
 #include <sys/epoll.h>
@@ -29,6 +32,9 @@ struct fly_event_manager{
 	struct fly_rb_tree			*rbtree;
 	struct fly_queue			monitorable;
 	struct fly_queue			unmonitorable;
+
+	/* if event occurred error termination the process, called*/
+	void (*jbend_handle)(fly_context_t *ctx);
 };
 typedef struct fly_event_manager fly_event_manager_t;
 
@@ -43,6 +49,7 @@ struct __fly_event_for_rbtree{
 		(__e)->rbtree_elem.ptr = (__e);		\
 	} while(0)
 
+struct fly_err;
 struct fly_event{
 	fly_event_manager_t				*manager;
 	int								fd;
@@ -76,12 +83,16 @@ struct fly_event{
 	void							*expired_event_data;
 	void 							*event_fase;
 	void 							*event_state;
+	uint8_t							*emerge_ptr;
 
 	/*
 	 * if event handler fail, this function is called.
 	 * this function must close fd(event file).
 	 */
 	int								(*fail_close)(int fd);
+
+	struct fly_bllist				errors;
+	size_t							err_count;
 
 	/* event bit fields */
 	fly_bit_t						file_type: 4;
@@ -219,6 +230,9 @@ int fly_event_inherit_register(fly_event_t *e);
 /* manager setting */
 fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx);
 int fly_event_manager_release(fly_event_manager_t *manager);
+#define FLY_EVENT_HANDLER_INVALID_MANAGER			-2
+#define FLY_EVENT_HANDLER_EPOLL_ERROR				-3
+#define FLY_EVENT_HANDLER_EXPIRED_EVENT_ERROR		-4
 int fly_event_handler(fly_event_manager_t *manager);
 
 /* event setting */
@@ -233,4 +247,19 @@ void fly_msec(fly_time_t *t, int msec);
 int is_fly_event_timeout(fly_event_t *e);
 float fly_diff_time(struct timeval new, struct timeval old);
 int fly_timeout_restart(fly_event_t *e);
+void fly_event_error_add(fly_event_t *e, struct fly_err *__err);
+void fly_jbhandle_setting(fly_event_manager_t *em, void (*handle)(fly_context_t *ctx));
+struct fly_err;
+enum fly_error_level;
+struct fly_err *fly_event_err_init(fly_event_t *e, int __errno, enum fly_error_level level, const char *fmt, ...);
+
+
+#define fly_event_err_init(ev, err_num, level, fmt, ...) \
+			fly_err_init(		\
+					(ev)->manager->pool,	\
+					err_num,	\
+					level,	\
+					fmt,		\
+					## __VA_ARGS__)
+
 #endif

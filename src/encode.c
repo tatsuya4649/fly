@@ -833,8 +833,18 @@ int fly_accept_encoding(struct fly_request *req)
 	assert(req != NULL && req->pool != NULL && req->header != NULL);
 #endif
 
-	if (__fly_encode_init(req) == -1)
+	if (__fly_encode_init(req) == -1){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			req->connect->pool, errno, FLY_ERR_ERR,
+			"accept encoding init error. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		fly_error_error(__err);
+		FLY_NOT_COME_HERE
 		return -1;
+	}
 
 	switch (__fly_accept_encoding(header, &accept_encoding)){
 	case __FLY_ACCEPT_ENCODING_ERROR:
@@ -850,7 +860,7 @@ int fly_accept_encoding(struct fly_request *req)
 			return -1;
 		return 0;
 	default:
-		return -1;
+		FLY_NOT_COME_HERE
 	}
 	FLY_NOT_COME_HERE
 	return -1;
@@ -1386,8 +1396,6 @@ struct fly_de *fly_de_init(fly_pool_t *pool)
 	de->pool = pool;
 	de->encbuf = NULL;
 	de->decbuf = NULL;
-//	de->encbuf = fly_de_buffer_init(pool);
-//	de->decbuf = fly_de_buffer_init(pool);
 	de->encbuflen = 0;
 	de->decbuflen = 0;
 	de->offset = 0;
@@ -1404,8 +1412,6 @@ struct fly_de *fly_de_init(fly_pool_t *pool)
 	de->target_already_alloc = false;
 	de->overflow = false;
 
-//	fly_e_buf_add(de);
-//	fly_d_buf_add(de);
 	return de;
 }
 
