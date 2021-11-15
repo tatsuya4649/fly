@@ -559,15 +559,42 @@ __fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reqli
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
 		goto error_414;
 
-	if (fly_request_line_init(req) == -1)
+	if (fly_request_line_init(req) == -1){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			req->connect->pool, errno, FLY_ERR_ERR,
+			"request line init error. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		fly_error_error(__err);
 		return -1;
+	}
 	req->request_line->request_line = fly_pballoc(req->pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
 	req->request_line->request_line_len = request_line_length;
 
-	if (fly_unlikely_null(req->request_line))
-		goto error_500;
-	if (fly_unlikely_null(req->request_line->request_line))
-		goto error_500;
+	if (fly_unlikely_null(req->request_line)){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			req->connect->pool, errno, FLY_ERR_ERR,
+			"request line init error. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		fly_error_error(__err);
+		return -1;
+	}
+	if (fly_unlikely_null(req->request_line->request_line)){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			req->connect->pool, errno, FLY_ERR_ERR,
+			"request line init error. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		fly_error_error(__err);
+		return -1;
+	}
 
 	fly_buffer_memcpy(req->request_line->request_line, reqline_bufc->use_ptr, reqline_bufc, request_line_length);
 
@@ -586,14 +613,6 @@ error_400:
 error_414:
 	/* URI Too Long */
 	return FLY_REQUEST_ERROR(414);
-//error_not_found_request_line:
-//	return FLY_REQUEST_ERROR(400);
-error_500:
-	/* Server Error */
-	return FLY_REQUEST_ERROR(500);
-//error_501:
-//	/* Request line Too long */
-//	return FLY_REQUEST_ERROR(501);
 not_ready:
 	return FLY_REQUEST_NOREADY;
 }
@@ -876,6 +895,14 @@ int __fly_discard_body(fly_request_t *req, size_t content_length)
 			req)
 		){
 		case FLY_REQUEST_RECEIVE_OVERFLOW:
+			;
+			struct fly_err *__err;
+			__err = fly_err_init(
+				req->connect->pool, 0, FLY_ERR_ERR,
+				"discard request error."
+			);
+			fly_error_error(__err);
+			FLY_NOT_COME_HERE
 			return FLY_DISCARD_BODY_ERROR;
 		case FLY_REQUEST_RECEIVE_END:
 			return FLY_DISCARD_BODY_DISCONNECT;
@@ -906,8 +933,15 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 	fly_buffer_t *__buf;
 
 	__buf = connect->buffer;
-	if (fly_unlikely(__buf->chain_count == 0))
-		return -1;
+	if (fly_unlikely(__buf->chain_count == 0)){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			connect->pool, 0, FLY_ERR_ERR,
+			"request receive no buffer chain error in receiving request ."
+		);
+		fly_error_error(__err);
+		goto error;
+	}
 
 	if (req->discard_body)
 		req->discard_length += (size_t) __buf->use_len;
@@ -949,8 +983,16 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 					goto read_blocking;
 				else if (errno == ECONNREFUSED)
 					goto end_of_connection;
-				else
-					goto error;
+				else{
+					struct fly_err *__err;
+					__err = fly_err_init(
+						connect->pool, errno, FLY_ERR_ERR,
+						"recv error in receiving request ."
+					);
+					fly_error_error(__err);
+
+					FLY_NOT_COME_HERE
+				}
 			default:
 				break;
 			}
@@ -1029,9 +1071,6 @@ int fly_request_disconnect_handler(fly_event_t *event)
 	fly_connect_release(req->connect);
 	fly_request_release(req);
 
-	/* release some resources */
-	if (fly_event_unregister(event) == -1)
-		return -1;
 	return 0;
 }
 
@@ -1120,8 +1159,6 @@ __fase_request_line:
 		goto response_414;
 	case FLY_REQUEST_ERROR(500):
 		goto response_500;
-	case FLY_REQUEST_ERROR(501):
-		goto response_501;
 	/* not ready for request line */
 	case FLY_REQUEST_NOREADY:
 		goto read_continuation;
@@ -1201,8 +1238,15 @@ __fase_body:
 	fly_buffer_c *body_buf;
 	fly_event_fase(event, BODY);
 	body = fly_body_init(request->ctx);
-	if (body == NULL)
+	if (body == NULL){
+		struct fly_err *__err;
+		__err = fly_event_err_init(
+			event, errno, FLY_ERR_ERR,
+			"request body init error."
+		);
+		fly_event_error_add(event, __err);
 		goto error;
+	}
 	request->body = body;
 	body_buf = fly_get_body_buf(conn->buffer);
 	if (body_buf == NULL || conn->buffer->use_len < content_length)
@@ -1219,12 +1263,27 @@ __fase_body:
 		et = fly_supported_content_encoding(ev);
 		if (!et)
 			goto response_415;
-		if (fly_decode_body(body_buf, et, body, content_length) == NULL)
+		if (fly_decode_body(body_buf, et, body, content_length) == NULL){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				event, errno, FLY_ERR_ERR,
+				"decode body init error."
+			);
+			fly_event_error_add(event, __err);
 			goto error;
+		}
 	}else{
 		char *body_ptr = fly_pballoc(body->pool, sizeof(uint8_t)*content_length);
-		if (fly_unlikely_null(body_ptr))
+		if (fly_unlikely_null(body_ptr)){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				event, errno, FLY_ERR_ERR,
+				"body alloc error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(event, __err);
 			goto error;
+		}
 
 		fly_buffer_memcpy(body_ptr, body_buf->use_ptr, body_buf, content_length);
 		fly_body_setting(body, body_ptr, content_length);
@@ -1289,9 +1348,7 @@ response_414:
 response_415:
 	return fly_415_event(event, request);
 response_500:
-	return 0;
-response_501:
-	return 0;
+	return fly_500_event(event, request);
 
 /* continuation event publish. */
 write_continuation:
@@ -1316,7 +1373,6 @@ disconnection:
 	return fly_request_disconnect_handler(event);
 
 response_path:
-
 	if (fly_if_none_match(request->header, pf))
 		goto response_304;
 	if (fly_if_modified_since(request->header, pf))
@@ -1334,9 +1390,8 @@ response_304:
 	rc_304->pf = pf;
 	rc_304->request = request;
 	event->event_data = (void *) rc_304;
-	if (fly_304_event(event) == -1)
-		goto error;
-	return 0;
+
+	return fly_304_event(event);
 
 response:
 	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
@@ -1349,10 +1404,7 @@ response:
 	fly_event_socket(event);
 	fly_response_timeout_end_setting(event, response);
 
-	if (fly_event_register(event) == -1)
-		goto error;
-
-	return  0;
+	return fly_event_register(event);
 
 error:
 	return -1;
