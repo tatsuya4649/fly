@@ -26,6 +26,7 @@ struct fly_worker{
 	struct fly_pool_manager		*pool_manager;
 	struct fly_event_manager	*event_manager;
 	fly_context_t				*context;
+	struct fly_bllist			signals;
 
 	/* use in master process */
 	struct fly_master			*master;

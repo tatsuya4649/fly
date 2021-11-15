@@ -4,6 +4,7 @@
 #include <sys/signalfd.h>
 #include "util.h"
 #include "context.h"
+#include "bllist.h"
 
 
 /* detect to modify file in mount points */
@@ -27,8 +28,10 @@ typedef int32_t fly_signum_t;
 struct fly_signal{
 	fly_signum_t number;
 	void (*handler)(fly_context_t *ctx, struct signalfd_siginfo *);
-	struct fly_signal *next;
+	struct fly_bllist blelem;
 };
+#define FLY_SIGNAL_SETTING(__sig, __h)	\
+				{ .number = __sig, .handler = __h }
 typedef void (fly_sighand_t)(fly_context_t *ctx, struct signalfd_siginfo *);
 typedef struct fly_signal fly_signal_t;
 

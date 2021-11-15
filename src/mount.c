@@ -300,7 +300,6 @@ check_total_mount_count:
 	if (mnt->mount_count == 0)
 		/* emergency error. log and end process. */
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_NOMOUNT,
 			"There is no mount point."
 		);
 	return 0;

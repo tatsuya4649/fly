@@ -1,74 +1,85 @@
 #include "err.h"
 
+void fly_emerge_memory_zero(void);
 
-__fly_static fly_pool_t *fly_err_pool = NULL;
-/*
- * pointer for emergency (size -> FLY_RERRPTR_FOR_EMERGE_SIZE macro )
- *
- */
-__fly_static void *fly_errptr_for_emerge = NULL;
-__fly_static int fly_err_pool_init(void);
 __fly_static int __fly_err_logcont(fly_err_t *err, fly_logcont_t *lc);
 static inline const char *__fly_level_str(fly_err_t *err);
+static const char *fly_level_str(enum fly_error_level level);
 
-__fly_static struct {
+static struct {
 	pid_t pid;
 	fly_context_t *ctx;
-	fly_pool_t *pool;
 	struct flock lock;
 } __fly_errsys;
 
-int fly_errsys_init(fly_context_t *ctx)
+void fly_errsys_init(fly_context_t *ctx)
 {
-	if (fly_err_pool == NULL)
-		fly_err_pool = fly_create_pool(ctx->pool_manager, FLY_ERR_POOL_SIZE);
-
-	if (fly_err_pool == NULL)
-		return -1;
-
-	fly_errptr_for_emerge = fly_pballoc(fly_err_pool, FLY_ERRPTR_FOR_EMERGE_SIZE);
-	if (fly_errptr_for_emerge == NULL)
-		return -1;
-
 	__fly_errsys.pid = getpid();
-	__fly_errsys.pool = fly_err_pool;
 	__fly_errsys.ctx = ctx;
-
-	return 0;
 }
 
-__fly_static int fly_err_pool_init(void)
+__attribute__ ((format (printf, 4, 5)))
+fly_err_t *fly_err_init(fly_pool_t *pool, int __errno, enum fly_error_level level, const char *fmt, ...)
 {
-	if ((fly_err_pool == NULL || fly_errptr_for_emerge == NULL))
-		return -1;
-
-	if (fly_err_pool == NULL)
-		return -1;
-	else
-		return 0;
-}
-
-fly_err_t *fly_err_init(fly_errc_t *content, int __errno, int level)
-{
-	if (fly_err_pool_init() == -1)
-		return NULL;
-
 	fly_err_t *err;
-	err = fly_pballoc(fly_err_pool, sizeof(fly_err_t));
+	va_list ap;
+
+	err = fly_pballoc(pool, sizeof(fly_err_t));
 	if (err == NULL)
 		return NULL;
 
-	err->content = content;
+	memset(err->content, '\0', FLY_ERROR_CONTENT_SIZE);
+
+	va_start(ap, fmt);
+	snprintf(err->content, FLY_ERROR_CONTENT_SIZE, fmt, ap);
+	va_end(ap);
+
+	err->content_len = strlen(err->content);
 	err->__errno = __errno;
-	err->level = level;
+	err->level	 = level;
 	err->event   = NULL;
-	err->pool	 = fly_err_pool;
+	err->pool	 = pool;
+
+	fly_bllist_init(&err->blelem);
 	return err;
+}
+
+void fly_err_release(struct fly_err *__e)
+{
+	fly_bllist_remove(&__e->blelem);
+	fly_pbfree(__e->pool, __e);
+}
+
+static const char *fly_level_str(enum fly_error_level level)
+{
+	switch(level){
+	case FLY_ERR_EMERG:
+		return "EMERGE";
+	case FLY_ERR_CRIT:
+		return "CRIT";
+	case FLY_ERR_ERR:
+		return "ERROR";
+	case FLY_ERR_ALERT:
+		return "ALERT";
+	case FLY_ERR_WARN:
+		return "WARN";
+	case FLY_ERR_NOTICE:
+		return "NOTICE";
+	case FLY_ERR_INFO:
+		return "INFO";
+	case FLY_ERR_DEBUG:
+		return "DEBUG";
+	default:
+		return "UNKNOWN";
+	}
 }
 
 static inline const char *__fly_level_str(fly_err_t *err)
 {
-	if (err == NULL)
+#ifdef DEBUG
+	assert(err);
+#endif
+	if (fly_unlikely_null(err))
 		return NULL;
 	switch(err->level){
 	case FLY_ERR_EMERG:
@@ -198,10 +209,9 @@ void fly_stderr_error(fly_errp_t *errp){
 }
 
 /*
- * for emergency error. noreturn function.
+ * for emerge.
  */
-
-__fly_static void __fly_write_to_log_emerge(fly_errc_t *err_content, enum fly_emergency_status status, int __errno)
+__fly_static void __fly_write_to_log_emerg(const char *err_content, enum fly_error_level level, int __errno)
 {
 	fly_context_t *ctx;
 	__fly_log_t *err, *notice;
@@ -210,9 +220,7 @@ __fly_static void __fly_write_to_log_emerge(fly_errc_t *err_content, enum fly_em
 	char *errc, *noticec;
 
 	/* emergency pointer */
-	__ptr = fly_errptr_for_emerge;
-	if (__ptr == NULL)
-		return;
+	__ptr = fly_emerge_memory;
 	errc = (char *) __ptr;
 	noticec = __ptr + FLY_EMERGENCY_LOG_LENGTH;
 	ctx = __fly_errsys.ctx;
@@ -223,7 +231,6 @@ __fly_static void __fly_write_to_log_emerge(fly_errc_t *err_content, enum fly_em
 	notice = ctx->log->notice;
 	errfile = err->file;
 	noticefile = notice->file;
-
 
 	/* get file lock */
 	__fly_errsys.lock.l_type = F_WRLCK;
@@ -252,7 +259,12 @@ __fly_static void __fly_write_to_log_emerge(fly_errc_t *err_content, enum fly_em
 		strerror(__errno)
 #endif
 	);
-	write(errfile, errc, strlen(errc));
+	if (errfile != -1)
+		write(errfile, errc, strlen(errc));
+	if (ctx->log_stdout)
+		fprintf(stdout, "%s", errc);
+	if (ctx->log_stderr)
+		fprintf(stderr, "%s", errc);
 
 	/* release file lock */
 	__fly_errsys.lock.l_type = F_UNLCK;
@@ -263,37 +275,19 @@ __fly_static void __fly_write_to_log_emerge(fly_errc_t *err_content, enum fly_em
 	if (fcntl(noticefile, F_SETLKW, &__fly_errsys.lock) == -1)
 		return;
 
-	char *__status_str=NULL;
-	switch(status){
-	case FLY_EMERGENCY_STATUS_NOMEM:
-		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_NOMEM);
-		break;
-	case FLY_EMERGENCY_STATUS_PROCS:
-		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_PROCS);
-		break;
-	case FLY_EMERGENCY_STATUS_READY:
-		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_READY);
-		break;
-	case FLY_EMERGENCY_STATUS_ELOG:
-		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_ELOG);
-		break;
-	case FLY_EMERGENCY_STATUS_NOMOUNT:
-		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_NOMOUNT);
-		break;
-	case FLY_EMERGENCY_STATUS_MODF:
-		__status_str = fly_status_str(FLY_EMERGENCY_STATUS_MODF);
-		break;
-	default:
-		FLY_NOT_COME_HERE
-	}
 	snprintf(
 		noticec,
 		FLY_EMERGENCY_LOG_LENGTH,
-		"process[%d] is end by emergency error (%s)\n",
-		__fly_errsys.pid,
-		__status_str
+		"[%s] process(%d) was terminated by emergency error.\n",
+		fly_level_str(level),
+		__fly_errsys.pid
 	);
-	write(noticefile, noticec, strlen(noticec));
+	if (noticefile != -1)
+		write(noticefile, noticec, strlen(noticec));
+	if (ctx->log_stdout)
+		fprintf(stdout, "%s", noticec);
+	if (ctx->log_stderr)
+		fprintf(stderr, "%s", noticec);
 
 	__fly_errsys.lock.l_type = F_UNLCK;
 	fcntl(noticefile, F_SETLKW, &__fly_errsys.lock);
@@ -301,25 +295,269 @@ __fly_static void __fly_write_to_log_emerge(fly_errc_t *err_content, enum fly_em
 	return;
 }
 
-__noreturn __attribute__ ((format (printf, 3, 4)))
-void fly_emergency_error(enum fly_emergency_status end_status, int __errno, const char *format, ...)
+__fly_static void __fly_write_to_log_err(const char *err_content, size_t len, enum fly_error_level level)
 {
-#define __FLY_EMERGENCY_ERROR_CONTENT_MAX		100
-	va_list va;
-	char err_content[__FLY_EMERGENCY_ERROR_CONTENT_MAX];
+	fly_context_t *ctx;
+	__fly_log_t *err, *notice;
+	fly_logfile_t errfile, noticefile;
+	char *errc, *noticec;
+	size_t err_content_len, not_content_len;
 
-	memset(err_content, '\0', __FLY_EMERGENCY_ERROR_CONTENT_MAX);
+	/* emergency pointer */
+#define FLY_ERROR_PLACEHOLDER_SIZE			\
+		strlen("[9999999999999] Occurred error. Worker process is gone. ")
+	err_content_len = len+FLY_ERROR_PLACEHOLDER_SIZE;
+	errc = fly_malloc(err_content_len);
+	if (errc == NULL)
+		return;
+
+	ctx = __fly_errsys.ctx;
+	if (ctx == NULL)
+		return;
+
+	err = ctx->log->error;
+	notice = ctx->log->notice;
+	errfile = err->file;
+	noticefile = notice->file;
+
+	/* get file lock */
+	__fly_errsys.lock.l_type = F_WRLCK;
+	__fly_errsys.lock.l_whence = SEEK_END;
+	__fly_errsys.lock.l_start = 0;
+	__fly_errsys.lock.l_len = 0;
+
+	/* write error log */
+	if (fcntl(errfile, F_SETLKW, &__fly_errsys.lock) == -1)
+		return;
+
+	snprintf(
+		errc,
+		err_content_len,
+		"[%d] Occurred error. Worker process is gone. %s\n",
+		__fly_errsys.pid,
+		err_content
+	);
+	if (errfile != -1)
+		write(errfile, errc, strlen(errc));
+	if (ctx->log_stdout)
+		fprintf(stdout, "%s", errc);
+	if (ctx->log_stderr)
+		fprintf(stderr, "%s", errc);
+
+	fly_free(errc);
+	/* release file lock */
+	__fly_errsys.lock.l_type = F_UNLCK;
+	fcntl(errfile, F_SETLKW, &__fly_errsys.lock);
+
+	/* write notice log */
+	__fly_errsys.lock.l_type = F_WRLCK;
+	if (fcntl(noticefile, F_SETLKW, &__fly_errsys.lock) == -1)
+		return;
+
+	const char *format;
+
+#define FLY_ERR_NOTICE_PLACEHOLDER_SIZE			\
+		strlen("[NOTICE] process(99999999999) was terminated by critical error. ")
+	not_content_len = FLY_ERR_NOTICE_PLACEHOLDER_SIZE;
+	noticec = fly_malloc(not_content_len);
+	switch(level){
+	case FLY_ERR_CRIT:
+		format = "[%s] process(%d) was terminated by critical error.\n";
+		break;
+	/* end worker process */
+	case FLY_ERR_ERR:
+		format = "[%s] process(%d) was terminated by error.\n";
+		break;
+	default:
+		FLY_NOT_COME_HERE
+	}
+	snprintf(
+		noticec,
+		not_content_len,
+		format,
+		fly_level_str(level),
+		__fly_errsys.pid
+	);
+	if (noticefile != -1)
+		write(noticefile, noticec, strlen(noticec));
+	if (ctx->log_stdout)
+		fprintf(stdout, "%s", noticec);
+	if (ctx->log_stderr)
+		fprintf(stderr, "%s", noticec);
+
+	fly_free(noticec);
+	__fly_errsys.lock.l_type = F_UNLCK;
+	fcntl(noticefile, F_SETLKW, &__fly_errsys.lock);
+
+	return;
+}
+
+__fly_static void __fly_write_to_log_info(const char *content, size_t len, enum fly_error_level level)
+{
+	fly_context_t *ctx;
+	__fly_log_t *notice;
+	fly_logfile_t noticefile;
+	char *noticec;
+	const char *format;
+	size_t notice_content_len;
+
+	ctx = __fly_errsys.ctx;
+	if (ctx == NULL)
+		return;
+
+	notice = ctx->log->notice;
+	noticefile = notice->file;
+
+	/* write notice log */
+	__fly_errsys.lock.l_type = F_WRLCK;
+	__fly_errsys.lock.l_whence = SEEK_END;
+	__fly_errsys.lock.l_start = 0;
+	__fly_errsys.lock.l_len = 0;
+	if (fcntl(noticefile, F_SETLKW, &__fly_errsys.lock) == -1)
+		return;
+
+#define FLY_NOTICE_PLACEHOLDER_SIZE			\
+		strlen("[ALERT] pid: (99999999999). ")
+	notice_content_len = FLY_NOTICE_PLACEHOLDER_SIZE+len;
+	noticec = fly_malloc(notice_content_len);
+	format = "[%s] pid: (%d). %s\n";
+	snprintf(
+		noticec,
+		notice_content_len,
+		format,
+		fly_level_str(level),
+		__fly_errsys.pid,
+		content
+	);
+	if (noticefile != -1)
+		write(noticefile, noticec, strlen(noticec));
+	if (ctx->log_stdout)
+		fprintf(stdout, "%s", noticec);
+	if (ctx->log_stderr)
+		fprintf(stderr, "%s", noticec);
+
+	fly_free(noticec);
+	__fly_errsys.lock.l_type = F_UNLCK;
+	fcntl(noticefile, F_SETLKW, &__fly_errsys.lock);
+
+	return;
+}
+uint8_t fly_emerge_memory[FLY_EMERGE_MEMORY_SIZE];
+
+void fly_emerge_memory_zero(void)
+{
+	memset(fly_emerge_memory, '\0', FLY_EMERGE_MEMORY_SIZE);
+}
+
+__noreturn __attribute__ ((format (printf, 2, 3)))
+void fly_emergency_verror(int __errno, const char *format, ...)
+{
+	va_list va;
+	char *err_content;
+
+	err_content = (char *) fly_emerge_memory;
+	fly_emerge_memory_zero();
+
 	va_start(va, format);
 
-	snprintf(err_content, __FLY_EMERGENCY_ERROR_CONTENT_MAX, format, va);
+	snprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
 
 	va_end(va);
 
-	if (isatty(STDERR_FILENO))
-		/* if no daemon, error to stderr */
-		fprintf(stderr, "%s\n", err_content);
-	else
-		/* write error content in log */
-		__fly_write_to_log_emerge(err_content, end_status, __errno);
-	exit((int) end_status);
+	/* write error content in log */
+	__fly_write_to_log_emerg(err_content, FLY_ERR_EMERG, __errno);
+	exit((int) FLY_ERR_EMERG);
+}
+
+void fly_emergency_error(struct fly_err *err)
+{
+	assert(err != NULL);
+#ifdef DEBUG
+	assert(err->level == FLY_ERR_EMERG);
+#endif
+	/* write error content in log */
+	__fly_write_to_log_emerg(err->content, FLY_ERR_EMERG, err->__errno);
+	exit((int) FLY_ERR_EMERG);
+}
+
+__noreturn void fly_critical_error(struct fly_err *err)
+{
+	assert(err != NULL);
+#ifdef DEBUG
+	assert(err->level == FLY_ERR_CRIT);
+#endif
+	/* write error content in log */
+	__fly_write_to_log_err(err->content, err->content_len, FLY_ERR_CRIT);
+	exit((int) FLY_ERR_CRIT);
+}
+
+__noreturn void fly_error_error(struct fly_err *err)
+{
+	assert(err != NULL);
+#ifdef DEBUG
+	assert(err->level == FLY_ERR_ERR);
+#endif
+	/* write error content in log */
+	__fly_write_to_log_err(err->content, err->content_len, FLY_ERR_ERR);
+	exit((int) FLY_ERR_CRIT);
+}
+
+void fly_alert_error(struct fly_err *err)
+{
+	assert(err != NULL);
+#ifdef DEBUG
+	assert(err->level == FLY_ERR_ALERT);
+#endif
+	/* write error content in log */
+	__fly_write_to_log_info(err->content, err->content_len, FLY_ERR_ALERT);
+	fly_pbfree(err->pool, err);
+	return;
+}
+
+void fly_warn_error(struct fly_err *err)
+{
+	assert(err != NULL);
+#ifdef DEBUG
+	assert(err->level == FLY_ERR_WARN);
+#endif
+	/* write error content in log */
+	__fly_write_to_log_info(err->content, err->content_len, FLY_ERR_WARN);
+	fly_pbfree(err->pool, err);
+	return;
+}
+
+void fly_notice_error(struct fly_err *err)
+{
+	assert(err != NULL);
+#ifdef DEBUG
+	assert(err->level == FLY_ERR_NOTICE);
+#endif
+	/* write error content in log */
+	__fly_write_to_log_info(err->content, err->content_len, FLY_ERR_NOTICE);
+	fly_pbfree(err->pool, err);
+	return;
+}
+
+void fly_info_error(struct fly_err *err)
+{
+	assert(err != NULL);
+#ifdef DEBUG
+	assert(err->level == FLY_ERR_NOTICE);
+#endif
+	/* write error content in log */
+	__fly_write_to_log_info(err->content, err->content_len, FLY_ERR_NOTICE);
+	fly_pbfree(err->pool, err);
+	return;
+}
+
+void fly_debug_error(struct fly_err *err)
+{
+	assert(err != NULL);
+#ifdef DEBUG
+	assert(err->level == FLY_ERR_DEBUG);
+#endif
+	/* write error content in log */
+	__fly_write_to_log_info(err->content, err->content_len, FLY_ERR_DEBUG);
+	fly_pbfree(err->pool, err);
+	return;
 }
