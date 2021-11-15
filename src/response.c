@@ -510,28 +510,10 @@ int fly_response_event(fly_event_t *e)
 	if (res->body == NULL && res->pf == NULL){
 		rcbs = fly_default_content_by_stcode_from_event(e, res->status_code);
 		if (rcbs){
-			if (fly_add_content_length_from_fd(res->header, rcbs->fd, false) == -1){
-				struct fly_err *__err;
-				__err = fly_event_err_init(
-					e, errno, FLY_ERR_ERR,
-					"content length error from fd. (%s: %s)",
-					__FILE__,
-					__LINE__
-				);
-				fly_event_error_add(e, __err);
-				return -1;
-			}
-			if (fly_add_content_type(res->header, rcbs->mime, false) == -1){
-				struct fly_err *__err;
-				__err = fly_event_err_init(
-					e, errno, FLY_ERR_ERR,
-					"content type error from rcbs. (%s: %s)",
-					__FILE__,
-					__LINE__
-				);
-				fly_event_error_add(e, __err);
-				return -1;
-			}
+			if (fly_add_content_length_from_fd(res->header, rcbs->fd, false) == -1)
+				goto response_500;
+			if (fly_add_content_type(res->header, rcbs->mime, false) == -1)
+				goto response_500;
 		}
 	}
 
@@ -625,18 +607,6 @@ int fly_response_event(fly_event_t *e)
 		__de->bfs = 0;
 		__de->end = false;
 		res->de = __de;
-
-		if (fly_unlikely_null(__de->decbuf) || \
-				fly_unlikely_null(__de->encbuf)){
-			struct fly_err *__err;
-			__err = fly_event_err_init(
-				e, errno, FLY_ERR_ERR,
-				"response de buffer alloc error. %s",
-				strerror(errno)
-			);
-			fly_event_error_add(e, __err);
-			return -1;
-		}
 		if (res->encoding_type->encode(__de) == -1){
 			struct fly_err *__err;
 			__err = fly_event_err_init(

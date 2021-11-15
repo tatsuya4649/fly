@@ -491,6 +491,24 @@ __noreturn void fly_critical_error(struct fly_err *err)
 	exit((int) FLY_ERR_CRIT);
 }
 
+__noreturn __attribute__ ((format (printf, 2, 3)))
+void fly_nomem_verror(__unused int __errno, const char *format, ...)
+{
+	va_list va;
+	char *err_content;
+
+	err_content = (char *) fly_emerge_memory;
+	fly_emerge_memory_zero();
+
+	va_start(va, format);
+	snprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
+	va_end(va);
+
+	/* write error content in log */
+	__fly_write_to_log_err(err_content, strlen(err_content), FLY_ERR_ERR);
+	exit((int) FLY_ERR_ERR);
+}
+
 __noreturn void fly_error_error(struct fly_err *err)
 {
 	assert(err != NULL);
@@ -499,7 +517,7 @@ __noreturn void fly_error_error(struct fly_err *err)
 #endif
 	/* write error content in log */
 	__fly_write_to_log_err(err->content, err->content_len, FLY_ERR_ERR);
-	exit((int) FLY_ERR_CRIT);
+	exit((int) FLY_ERR_ERR);
 }
 
 void fly_alert_error(struct fly_err *err)
