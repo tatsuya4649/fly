@@ -940,7 +940,6 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 			"request receive no buffer chain error in receiving request ."
 		);
 		fly_error_error(__err);
-		goto error;
 	}
 
 	if (req->discard_body)

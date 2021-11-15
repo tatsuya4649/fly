@@ -3,3 +3,7 @@ TODO list:
 * add test script(client session)
 
 * error handle(show errors in more detail)
+
+* error handle modify HTTP2
+
+* error handle test
