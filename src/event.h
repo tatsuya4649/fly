@@ -177,8 +177,7 @@ typedef struct fly_event fly_event_t;
 	(										\
 		((e)->flag & FLY_PERSISTENT)	||	\
 		((e)->flag & FLY_NODELETE)		||	\
-		((e)->flag & FLY_MODIFY)		||	\
-		((e)->flag & FLY_CLOSE_EV)			\
+		((e)->flag & FLY_MODIFY)			\
 	)
 int fly_event_inherit_register(fly_event_t *e);
 /* monitored event file type(4bit field) */

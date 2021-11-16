@@ -290,6 +290,7 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->event_fase = EFLY_REQUEST_FASE_INIT;
 	e->event_state = EFLY_REQUEST_STATE_INIT;
 	FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
+	e->expired_event_data = req;
 	fly_event_socket(e);
 
 	return fly_event_register(e);

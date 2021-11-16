@@ -626,9 +626,11 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 		fly_event->available_row = event->events;
 		fly_event_handle(fly_event);
 
-		/* remove event if not persistent */
-		if (fly_unlikely_null(fly_event) && \
-				!fly_nodelete(fly_event))
+#ifdef DEBUG
+		/* check whethere event is invalid. */
+		assert(fly_event);
+#endif
+		if (fly_event && !fly_nodelete(fly_event))
 			fly_event_unregister(fly_event);
 	}
 
