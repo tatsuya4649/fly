@@ -12,21 +12,28 @@ from random import randint
 async def test_multiple_request(fly_server):
     async with httpx.AsyncClient(
         http1=True,
-        timeout=1
+        timeout=100
     ) as client:
         for i in range(100):
-            if randint(0, 1):
+            res = randint(1, 3)
+
+            if res % 3 == 0:
                 res = await client.get(
                     "http://localhost:1234",
                 )
                 assert(res.status_code == 200)
-                assert(res.is_error is False)
                 assert(res.http_version == http_scheme())
-            else:
+            elif res % 2 == 0:
                 res = await client.get(
                     "http://localhost:1234/user",
                 )
                 print(res.content)
                 assert(res.status_code == 200)
-                assert(res.is_error is False)
+                assert(res.http_version == http_scheme())
+            else:
+                res = await client.get(
+                    "http://localhost:1234/__test",
+                )
+                print(res.content)
+                assert(res.status_code == 404)
                 assert(res.http_version == http_scheme())
