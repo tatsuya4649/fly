@@ -258,8 +258,7 @@ int fly_ssl_error_log(fly_event_manager_t *manager)
 		fly_logcont_t *logcont;
 
 		logcont = fly_logcont_init(log, FLY_SSL_ERROR_LOG_TYPE);
-		if (fly_logcont_setting(logcont, FLY_SSL_ERROR_LOG_MAXLENGTH) == -1)
-			return -1;
+		fly_logcont_setting(logcont, FLY_SSL_ERROR_LOG_MAXLENGTH);
 
 		ERR_error_string_n(err_code, logcont->content, logcont->contlen);
 

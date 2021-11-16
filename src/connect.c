@@ -127,6 +127,7 @@ int fly_listen_connected(fly_event_t *e)
 		}
 		e->event_data = (void *) req;
 
+		e->fail_close = fly_request_fail_close_handler;
 		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
 		return fly_request_event_handler(e);
 	case V2:
@@ -137,6 +138,14 @@ int fly_listen_connected(fly_event_t *e)
 	default:
 		FLY_NOT_COME_HERE
 	}
+}
+
+int fly_fail_recognize_protocol(fly_event_t *e, int fd __unused)
+{
+	fly_connect_t *con;
+
+	con = (fly_connect_t *) e->expired_event_data;
+	return fly_connect_release(con);
 }
 
 static int fly_recognize_protocol_of_connected(fly_event_t *e);
@@ -177,7 +186,7 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 			goto read_blocking;
 		else{
 			struct fly_err	*error;
-			error = fly_event_err_init(event, errno, FLY_ERR_EMERG, "an error occurred while accepting a listening socket(%s: %s)", __FILE__, __LINE__);
+			error = fly_event_err_init(event, errno, FLY_ERR_ERR, "an error occurred while accepting a listening socket(%s: %s)", __FILE__, __LINE__);
 			fly_event_error_add(event, error);
 			return FLY_EVENT_HANDLE_FAILURE;
 		}
@@ -187,7 +196,7 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	ne = fly_event_init(event->manager);
 	if (ne == NULL){
 		struct fly_err	*error;
-		error = fly_event_err_init(event, errno, FLY_ERR_ERR, "an error occurred in event init (%s: %s)", __FILE__, __LINE__);
+		error = fly_event_err_init(event, errno, FLY_ERR_EMERG, "an error occurred in event init (%s: %s)", __FILE__, __LINE__);
 		fly_event_error_add(event, error);
 		return FLY_EVENT_HANDLE_FAILURE;
 	}
@@ -205,6 +214,8 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	FLY_EVENT_EXPIRED_HANDLER(ne, fly_listen_socket_end_handler, conn);
 	FLY_EVENT_END_HANDLER(ne, fly_listen_socket_end_handler, conn);
 	ne->event_data = conn;
+	ne->expired_event_data = conn;
+	ne->fail_close = fly_fail_recognize_protocol;
 	fly_event_socket(ne);
 
 	return fly_event_register(ne);
