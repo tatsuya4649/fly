@@ -20,8 +20,7 @@
 	do{												\
 		if (sigaddset((sset), FLY_SIGNAL_ ## s) == -1)	\
 			return -1;								\
-		if (__fly_add_worker_sigs(ctx, FLY_SIGNAL_ ## s, FLY_SIGNAL_ ## s ## _HANDLER) == -1)												\
-			return -1;								\
+		__fly_add_worker_sigs(ctx, FLY_SIGNAL_ ## s, FLY_SIGNAL_ ## s ## _HANDLER);											\
 	} while (0)
 
 typedef int32_t fly_signum_t;

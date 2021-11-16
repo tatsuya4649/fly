@@ -20,7 +20,7 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 #define FLY_WORKER_SIGNAL_EVENT_SIGNAL_REGISTER_ERROR	-7
 __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
-__fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler);
+__fly_static void __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler);
 __fly_static void FLY_SIGNAL_MODF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_ADDF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_DELF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
@@ -109,19 +109,16 @@ void fly_worker_release(fly_worker_t *worker)
 	fly_free(worker);
 }
 
-__fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler)
+__fly_static void __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler)
 {
 	fly_worker_t *__w;
 	fly_signal_t *__nf;
 
 	__w = (fly_worker_t *) ctx->data;
 	__nf = fly_pballoc(ctx->pool, sizeof(struct fly_signal));
-	if (fly_unlikely_null(__nf))
-		return -1;
 	__nf->number = num;
 	__nf->handler = handler;
 	fly_bllist_add_tail(&__w->signals, &__nf->blelem);
-	return 0;
 }
 
 __fly_static void __fly_modupdate(fly_mount_parts_t *parts)
@@ -409,8 +406,8 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 
 		if (sigaddset(&sset, fly_worker_signals[i].number) == -1)
 			return FLY_WORKER_SIGNAL_EVENT_SIGADDSET_ERROR;
-		if (__fly_add_worker_sigs(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler) == -1)
-			return -1;
+
+		__fly_add_worker_sigs(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler);
 	}
 
 	if (__fly_worker_rtsig_added(ctx, &sset) == -1)
@@ -421,7 +418,7 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 		return FLY_WORKER_SIGNAL_EVENT_SIGNAL_REGISTER_ERROR;
 
 	e = fly_event_init(manager);
-	if (e == NULL)
+	if (fly_unlikely_null(e))
 		return FLY_WORKER_SIGNAL_EVENT_INIT_ERROR;
 
 	e->fd = sigfd;
@@ -434,6 +431,7 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 	e->expired = false;
 	e->available = false;
 	e->handler = __fly_worker_signal_handler;
+	e->if_fail_term = true;
 	e->event_data = (void *) worker;
 
 	fly_time_null(e->timeout);
@@ -562,8 +560,9 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 
 	manager = fly_event_manager_init(ctx);
 	if (manager == NULL)
-		FLY_EMERGENCY_ERROR(
-			"worker event manager init error. (%s: %s)",
+		FLY_EXIT_ERROR(
+			"worker event manager init error. %s (%s: %s)",
+			strerror(errno),
 			__FILE__,
 			__LINE__
 		);
@@ -642,6 +641,7 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 	e->event_data = sockinfo;
 	e->expired = false;
 	e->available = false;
+	e->if_fail_term = true;
 	fly_event_socket(e);
 
 	return fly_event_register(e);

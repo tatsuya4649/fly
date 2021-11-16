@@ -8,9 +8,6 @@ fly_body_t *fly_body_init(fly_context_t *ctx)
 	fly_body_t *body;
 
 	pool = fly_create_pool(ctx->pool_manager, FLY_REQBODY_SIZE);
-	if (pool == NULL)
-		return NULL;
-
 	body = fly_pballoc(pool, sizeof(fly_body_t));
 
 	body->pool = pool;

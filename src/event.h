@@ -89,7 +89,7 @@ struct fly_event{
 	 * if event handler fail, this function is called.
 	 * this function must close fd(event file).
 	 */
-	int								(*fail_close)(int fd);
+	int								(*fail_close)(struct fly_event *e, int fd);
 
 	struct fly_bllist				errors;
 	size_t							err_count;
@@ -99,6 +99,7 @@ struct fly_event{
 	fly_bit_t 						expired: 1;
 	fly_bit_t 						available: 1;
 	fly_bit_t						yetadd: 1;
+	fly_bit_t						if_fail_term: 1;
 };
 
 #ifdef DEBUG

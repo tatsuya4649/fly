@@ -168,6 +168,11 @@ enum fly_emergency_status{
 
 __noreturn void fly_emergency_verror(int __errno, const char *format, ...);
 
+#define FLY_EXIT_ERROR(fmt, ...)							\
+	do{														\
+		int __err = errno;									\
+		fly_nomem_verror(__err, (fmt), ## __VA_ARGS__);		\
+	} while(0)
 #define FLY_EMERGENCY_ERROR(fmt, ...)						\
 	do{															\
 		int __err = errno;										\
@@ -177,6 +182,7 @@ __noreturn void fly_emergency_verror(int __errno, const char *format, ...);
 __noreturn void fly_critical_error(struct fly_err *err);
 __noreturn void fly_error_error(struct fly_err *err);
 __noreturn void fly_emergency_error(struct fly_err *err);
+__noreturn void fly_nomem_verror(__unused int __errno, const char *format, ...);
 void fly_alert_error(struct fly_err *err);
 void fly_warn_error(struct fly_err *err);
 void fly_notice_error(struct fly_err *err);

@@ -2,8 +2,8 @@
 #include "request.h"
 #include "header.h"
 
-__fly_static int __fly_accept_lang_init(fly_request_t *req);
-__fly_static int __fly_accept_lang_add_asterisk(fly_request_t *req);
+static void __fly_accept_lang_init(fly_request_t *req);
+static void __fly_accept_lang_add_asterisk(fly_request_t *req);
 __fly_static void __fly_accept_lang_add(fly_lang_t *l, struct __fly_lang *__nc);
 static inline bool __fly_digit(char c);
 static inline bool __fly_lalpha(char c);
@@ -59,40 +59,28 @@ __fly_static void __fly_accept_lang_add(fly_lang_t *l, struct __fly_lang *__nl)
 	l->lang_count++;
 }
 
-__fly_static int __fly_accept_lang_add_asterisk(fly_request_t *req)
+static void __fly_accept_lang_add_asterisk(fly_request_t *req)
 {
 	struct __fly_lang *__l;
 
 	__l = fly_pballoc(req->pool, sizeof(struct __fly_lang));
-	if (__l == NULL)
-		return -1;
-
 	strcpy(__l->lname, "*");
 	__l->quality_value = FLY_LANG_QVALUE_MAX;
 	__l->asterisk = true;
 	__fly_accept_lang_add(req->language, __l);
-	return 0;
 }
 
-__fly_static int __fly_accept_lang_init(fly_request_t *req)
+static void __fly_accept_lang_init(fly_request_t *req)
 {
 	fly_lang_t *lang;
 	fly_pool_t *pool;
 
 	pool = req->pool;
-	if (!pool)
-		return -1;
-
 	lang = fly_pballoc(pool, sizeof(fly_lang_t));
-	if (lang == NULL)
-		return -1;
-
 	lang->lang_count = 0;
 	fly_bllist_init(&lang->langs);
 	lang->request = req;
 	req->language = lang;
-
-	return 0;
 }
 
 static inline bool __fly_digit(char c)
@@ -381,22 +369,12 @@ int fly_accept_language(fly_request_t *req)
 	if (header == NULL)
 		return -1;
 
-	if (__fly_accept_lang_init(req) == -1){
-		struct fly_err *__err;
-		__err = fly_err_init(
-			req->connect->pool, errno, FLY_ERR_ERR,
-			"accept language init error. (%s: %s)", __FILE__, __LINE__
-		);
-		fly_error_error(__err);
-		FLY_NOT_COME_HERE
-		return -1;
-	}
+	__fly_accept_lang_init(req);
 	switch(__fly_accept_lang(header, &accept_lang)){
 	case __FLY_ACCEPT_LANG_FOUND:
 		return __fly_accept_lang_parse(req, accept_lang);
 	case __FLY_ACCEPT_LANG_NOTFOUND:
-		if (__fly_accept_lang_add_asterisk(req))
-			return -1;
+		__fly_accept_lang_add_asterisk(req);
 		return 0;
 	case __FLY_ACCEPT_LANG_ERROR:
 		return -1;

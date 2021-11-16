@@ -12,9 +12,6 @@ fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_ma
 	fly_buffer_t *buffer;
 
 	buffer = fly_pballoc(pool, sizeof(fly_buffer_t));
-	if (fly_unlikely_null(buffer))
-		return NULL;
-
 	fly_bllist_init(&buffer->chain);
 	buffer->chain_count = 0;
 	buffer->pool = pool;

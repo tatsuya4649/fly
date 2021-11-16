@@ -19,9 +19,6 @@ __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx)
 {
 	fly_pool_t *__ep;
 	__ep = fly_create_pool(ctx->pool_manager, FLY_EVENT_POOL_SIZE);
-	if (!__ep)
-		return NULL;
-
 	ctx->event_pool = __ep;
 	return __ep;
 }
@@ -40,12 +37,8 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	fly_event_manager_t *manager;
 	int fd;
 
-	if ((__ep =__fly_event_pool_init(ctx)) == NULL)
-		return NULL;
-
+	__ep =__fly_event_pool_init(ctx);
 	manager = fly_pballoc(__ep , sizeof(fly_event_manager_t));
-	if (!manager)
-		goto error;
 
 	fd = __fly_event_fd_init();
 	if (fd == -1)
@@ -53,17 +46,12 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 
 	manager->pool = __ep;
 	manager->evlist = fly_pballoc(manager->pool, sizeof(struct epoll_event)*FLY_EVLIST_ELES);
-	if (fly_unlikely_null(manager->evlist))
-		return NULL;
 	fly_queue_init(&manager->monitorable);
 	fly_queue_init(&manager->unmonitorable);
 	manager->maxevents = FLY_EVLIST_ELES;
 	manager->ctx = ctx;
 	manager->efd = fd;
 	manager->rbtree = fly_rb_tree_init(__fly_event_cmp);
-	if (fly_unlikely_null(manager->rbtree))
-		return NULL;
-
 	manager->jbend_handle = NULL;
 	return manager;
 error:
@@ -144,13 +132,14 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 {
 	fly_event_t *event;
 
+#ifdef	 DEBUG
+	assert(manager);
+	assert(manager->pool);
+#endif
 	if (manager == NULL || manager->pool == NULL)
 		return NULL;
 
 	event = fly_pballoc(manager->pool, sizeof(fly_event_t));
-	if (!event)
-		return NULL;
-
 	event->manager = manager;
 	event->rbnode = NULL;
 	event->fd = -1;
@@ -176,6 +165,7 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	fly_bllist_init(&event->errors);
 	event->err_count = 0;
 	event->emerge_ptr = manager->ctx->emerge_ptr;
+	event->if_fail_term = false;
 
 	FLY_EVENT_FOR_RBTREE_INIT(event);
 	return event;
@@ -220,7 +210,7 @@ void fly_event_debug_rbtree(fly_event_manager_t *manager)
 
 	fly_for_each_queue(__q, &manager->monitorable){
 		__e = (fly_event_t *) fly_queue_data(__q, fly_event_t, qelem);
-		if ((__e->flag & FLY_INFINITY))
+		if ((__e->tflag & FLY_INFINITY))
 			continue;
 
 		assert(__e->rbnode->data == __e);
@@ -322,9 +312,7 @@ int fly_event_register(fly_event_t *event)
 			"epoll_ctl error in event_register."
 		);
 		fly_event_error_add(event, __err);
-		return -1;
 	}
-
 	return 0;
 }
 
@@ -426,7 +414,7 @@ __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager)
 {
 	fly_rb_node_t *node;
 
-	if (!manager->rbtree->node_count)
+	if (manager->rbtree->node_count == 0)
 		return NULL;
 
 	node = manager->rbtree->root->node;
@@ -600,6 +588,9 @@ __fly_static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager)
 	while(manager->unmonitorable.count>0){
 		__q = manager->unmonitorable.next;
 		__e = fly_queue_data(__q, struct fly_event, uqelem);
+#ifdef DEBUG
+	assert(__e->err_count == 0);
+#endif
 		fly_event_handle(__e);
 
 		if (!fly_nodelete(__e)){
@@ -723,14 +714,12 @@ __fly_static int __fly_event_handler_failure_logcontent(fly_logcont_t *lc, fly_e
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e)
 {
 	fly_logcont_t *lc;
-	fly_event_t *le;
 
 	lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_NOTICE);
 	if (lc == NULL)
 		return -1;
 
-	if (fly_logcont_setting(lc, FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN) == -1)
-		return -1;
+	fly_logcont_setting(lc, FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN);
 
 	if (__fly_event_handler_failure_logcontent(lc, e) == -1)
 		return -1;
@@ -738,33 +727,12 @@ __fly_static int __fly_event_handle_failure_log(fly_event_t *e)
 	if (fly_log_now(&lc->when) == -1)
 		return -1;
 
-	/* close failure fd*/
-	if ((e->fail_close != NULL ? e->fail_close(e->fd) : close(e->fd)) == -1)
+	fly_notice_direct_log_lc(fly_log_from_event(e), lc);
+	/* close failure fd */
+	if ((e->fail_close != NULL ? e->fail_close(e, e->fd) : close(e->fd)) == -1)
 		return -1;
 
 	e->flag = FLY_CLOSE_EV;
-	le = fly_event_init(e->manager);
-	if (fly_unlikely_null(le))
-		return -1;
-	FLY_EVENT_HANDLER(le, fly_log_event_handler);
-	le->fd = fly_log_from_event(e)->notice->file;
-	le->read_or_write = FLY_WRITE;
-	le->flag = FLY_MODIFY;
-	le->tflag = 0;
-	le->eflag = 0;
-	le->available = false;
-	le->expired = false;
-	le->event_data = (void *) lc;
-	le->end_handler = NULL;
-	le->end_event_data = NULL;
-	fly_time_zero(le->timeout);
-	fly_event_regular(le);
-
-	if (fly_event_register(le) == -1)
-		return -1;
-	if (fly_event_unregister(e) == -1)
-		return -1;
-
 	return 0;
 }
 
@@ -785,6 +753,9 @@ __direct_log static void fly_event_handle(fly_event_t *e)
 {
 	int handle_result;
 
+#ifdef DEBUG
+	assert(e->err_count == 0);
+#endif
 	if (e->handler != NULL)
 		handle_result = e->handler(e);
 	else
@@ -850,6 +821,14 @@ retry:
 		fly_err_release(__e);
 		e->err_count--;
 		goto retry;
+	}
+	if (e->if_fail_term && \
+			handle_result == FLY_EVENT_HANDLE_FAILURE){
+		fly_notice_direct_log(
+			e->manager->ctx->log,
+			"terminate worker. fail to handle event that if_fail_term flag is on."
+		);
+		exit(FLY_ERR_ERR);
 	}
 	return;
 }

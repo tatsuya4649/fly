@@ -27,9 +27,6 @@ int main()
 	/* master signal test */
 	assert((master=fly_master_init()) != NULL);
 
-	/* create pid */
-	assert(fly_create_pidfile() != -1);
-
 	/* mount setting */
 	assert(fly_mount_init(master->context) != -1);
 	assert(fly_mount(master->context, "./mnt") != -1);
