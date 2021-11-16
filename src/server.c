@@ -124,5 +124,10 @@ int fly_server_port(void)
 
 int fly_socket_close(int fd, int how __unused)
 {
-	return close (fd);
+retry:
+	if (close(fd) == -1){
+		if (errno == EINTR)
+			goto retry;
+	}
+	return 0;
 }

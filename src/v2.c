@@ -26,7 +26,7 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame);
 void fly_settings_frame_ack(fly_hv2_stream_t *stream);
 void __fly_hv2_add_yet_ack_frame(struct fly_hv2_send_frame *frame);
 void fly_received_settings_frame_ack(fly_hv2_stream_t *stream);
-int fly_hv2_dynamic_table_init(struct fly_hv2_state *state);
+void fly_hv2_dynamic_table_init(struct fly_hv2_state *state);
 int fly_hv2_parse_headers(fly_hv2_stream_t *stream __unused, uint32_t length __unused, uint8_t *payload, fly_buffer_c *__c __unused);
 #define fly_hv2_send_no_error(__s, type)	\
 		__fly_hv2_send_error((__s), FLY_HV2_NO_ERROR, type)
@@ -235,13 +235,11 @@ int fly_hv2_stream_create_reserved(fly_hv2_state_t *state, fly_sid_t id, bool fr
 	return 0;
 }
 
-int fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length, uint8_t flags)
+void fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length, uint8_t flags)
 {
 	fly_hv2_frame_t *frame;
 
 	frame = fly_pballoc(stream->state->pool, sizeof(struct fly_hv2_frame));
-	if (fly_unlikely_null(frame))
-		return -1;
 	frame->stream = stream;
 	frame->type = type;
 	frame->length = length;
@@ -250,7 +248,6 @@ int fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length
 	fly_queue_init(&frame->felem);
 	stream->frame_count++;
 	fly_queue_push(&stream->frames, &frame->felem);
-	return 0;
 }
 
 void fly_hv2_pop_frame(struct fly_hv2_stream *stream)
@@ -276,9 +273,6 @@ static fly_hv2_stream_t *__fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid
 {
 	fly_hv2_stream_t *__s;
 	__s = fly_pballoc(state->pool, sizeof(fly_hv2_stream_t));
-	if (fly_unlikely_null(__s))
-		return NULL;
-
 	__s->id = id;
 	__s->dependency_id = FLY_HV2_STREAM_ROOT_ID;
 	fly_bllist_init(&__s->blelem);
@@ -466,9 +460,6 @@ fly_hv2_state_t *fly_hv2_state_init(fly_connect_t *conn)
 
 	state = fly_pballoc(conn->pool, sizeof(fly_hv2_state_t));
 	state->pool = conn->pool;
-	if (fly_unlikely_null(state))
-		goto state_error;
-
 	fly_hv2_default_settings(state);
 
 	state->connect = conn;
@@ -494,22 +485,15 @@ fly_hv2_state_t *fly_hv2_state_init(fly_connect_t *conn)
 	state->goaway = false;
 	state->goaway_lsid = 0;
 	state->response_count = 0;
-	if (fly_hv2_dynamic_table_init(state) == -1)
-		goto dynamic_table_error;
+	fly_hv2_dynamic_table_init(state);
 	state->emergency_ptr = fly_pballoc(state->pool, FLY_HV2_STATE_EMEPTR_MIN);
-	if (fly_unlikely_null(state->emergency_ptr))
-		goto emergency_error;
 	state->first_send_settings = false;
 
 	conn->v2_state = state;
 	return state;
 
-emergency_error:
-	fly_hv2_dynamic_table_release(state);
-dynamic_table_error:
 streams_error:
 	fly_pbfree(conn->pool, state);
-state_error:
 	return NULL;
 }
 
@@ -1609,8 +1593,8 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 				continue;
 		}
 
-		if (sid!=FLY_HV2_STREAM_ROOT_ID && fly_hv2_create_frame(__stream, type, length, flags) == -1)
-			goto emergency;
+		if (sid!=FLY_HV2_STREAM_ROOT_ID)
+			fly_hv2_create_frame(__stream, type, length, flags);
 
 		switch(state->connection_state){
 		case FLY_HV2_CONNECTION_STATE_INIT:
@@ -3432,13 +3416,11 @@ struct fly_hv2_static_table static_table[] = {
 	{61, "www-authenticate"					, NULL},
 };
 
-int fly_hv2_dynamic_table_init(struct fly_hv2_state *state)
+void fly_hv2_dynamic_table_init(struct fly_hv2_state *state)
 {
 	struct fly_hv2_dynamic_table *dt;
 
 	dt = fly_pballoc(state->pool, sizeof(struct fly_hv2_dynamic_table));
-	if (fly_unlikely_null(dt))
-		return -1;
 	dt->entry_size = 0;
 	dt->prev = dt->prev;
 	dt->next = dt->next;
@@ -3446,8 +3428,6 @@ int fly_hv2_dynamic_table_init(struct fly_hv2_state *state)
 	state->dtable_entry_count = 0;
 	state->dtable_size = 0;
 	state->dtable_max_index = FLY_HV2_STATIC_TABLE_LENGTH;
-
-	return 0;
 }
 
 void fly_hv2_dynamic_table_remove_entry(struct fly_hv2_state *state);
@@ -4418,8 +4398,7 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 
 	fly_hdr_ci *ci = req->header;
 
-	if (fly_request_line_init(req) == -1)
-		return -1;
+	fly_request_line_init(req);
 
 	req->request_line->version = fly_match_version_from_type(V2);
 	if (fly_unlikely_null(req->request_line->version))
