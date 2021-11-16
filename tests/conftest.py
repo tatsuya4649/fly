@@ -76,7 +76,7 @@ def fly_mini_servers_ssl(request):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test.conf")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
     process.send_signal(SIGINT)
 
@@ -85,7 +85,7 @@ async def fly_server(fly_remove_pid, remove_already_in_use):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_d(fly_remove_pid, remove_already_in_use):
     await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test.conf --daemon")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
 
     process = await asyncio.create_subprocess_shell("lsof -i:1234 -Fp | sed -e 's/^p//'", stdout = asyncio.subprocess.PIPE)
     await process.wait()
@@ -106,7 +106,7 @@ async def fly_server_d(fly_remove_pid, remove_already_in_use):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_mini_server(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_mini.conf")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
     process.send_signal(SIGINT)
 
@@ -115,7 +115,7 @@ async def fly_mini_server(fly_remove_pid, remove_already_in_use):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_mini_server_d(fly_remove_pid, remove_already_in_use):
     await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_mini.conf --daemon")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
 
     process = await asyncio.create_subprocess_shell("lsof -i:1234 -Fp | sed -e 's/^p//'", stdout = asyncio.subprocess.PIPE)
     await process.wait()
@@ -136,7 +136,7 @@ async def fly_mini_server_d(fly_remove_pid, remove_already_in_use):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_ssl(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/https_test.conf")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
     process.send_signal(SIGINT)
 
@@ -145,7 +145,7 @@ async def fly_server_ssl(fly_remove_pid, remove_already_in_use):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_ssl_d(fly_remove_pid, remove_already_in_use):
     await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/https_test.conf --daemon")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
 
     process = await asyncio.create_subprocess_shell("lsof -i:1234 -Fp | sed -e 's/^p//'", stdout = asyncio.subprocess.PIPE)
     await process.wait()
@@ -167,7 +167,7 @@ async def fly_server_ssl_d(fly_remove_pid, remove_already_in_use):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_mini_server_ssl(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/https_test_mini.conf")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
     process.send_signal(SIGINT)
 
@@ -176,7 +176,7 @@ async def fly_mini_server_ssl(fly_remove_pid, remove_already_in_use):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_mini_server_ssl_d(fly_remove_pid, remove_already_in_use):
     await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/https_test_mini.conf --daemon")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
 
     process = await asyncio.create_subprocess_shell("lsof -i:1234 -Fp | sed -e 's/^p//'", stdout = asyncio.subprocess.PIPE)
     await process.wait()
@@ -197,12 +197,12 @@ async def fly_mini_server_ssl_d(fly_remove_pid, remove_already_in_use):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_over_worker(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_over.conf")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
 
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_over_worker_d(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test_over.conf --daemon")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process

@@ -1,5 +1,25 @@
 # Change Log
 
+## 1.1.1
+
+Released: 2021/11/16
+
+## Added
+
+* Added error handling test.
+
+## Changed
+
+### C
+
+* Changed handling when there was no memory.
+
+## Fixed
+
+### C
+
+* More flexible error handling.
+
 ## 1.1.0
 
 Released: 2021/11/13
