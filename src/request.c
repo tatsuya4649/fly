@@ -1063,7 +1063,7 @@ int fly_request_disconnect_handler(fly_event_t *event)
 {
 	__unused fly_request_t *req;
 
-	event->flag |= FLY_CLOSE_EV;
+	event->flag = FLY_CLOSE_EV;
 
 	req = (fly_request_t *) event->event_data;
 
