@@ -124,7 +124,7 @@ int fly_request_event_handler(fly_event_t *event);
 fly_request_t *fly_request_init(fly_connect_t *conn);
 void fly_request_release(fly_request_t *req);
 
-int fly_request_line_init(fly_request_t *req);
+void fly_request_line_init(fly_request_t *req);
 void fly_request_line_release(fly_request_t *req);
 
 struct fly_buffer_chain *fly_get_request_line_ptr(fly_buffer_t *__buf);
@@ -133,6 +133,7 @@ int fly_hv2_request_target_parse(fly_request_t *req);
 int fly_if_none_match(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_if_modified_since(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_request_timeout(void);
+int fly_request_fail_close_handler(fly_event_t *event, int fd __unused);
 
 static inline void fly_query_set(fly_request_t *req, fly_reqlinec_t *c, size_t len)
 {

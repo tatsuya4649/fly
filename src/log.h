@@ -86,7 +86,7 @@ typedef struct fly_logcont fly_logcont_t;
  *  if write log, this resource is released.
  */
 fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type);
-int fly_logcont_setting(fly_logcont_t *lc, size_t content_length);
+void fly_logcont_setting(fly_logcont_t *lc, size_t content_length);
 #define fly_log_from_manager(m)		((m)->ctx->log)
 #define fly_log_from_event(e)		(fly_log_from_manager((e)->manager))
 #define FLY_LOGFILE_MODE			(S_IRUSR|S_IWUSR)
@@ -115,6 +115,7 @@ int fly_log_now(fly_time_t *t);
 #define FLY_NOTICE_DIRECT_LOG_MAXLENGTH			200
 #define FLY_NOTICE_DIRECT_LOG					fly_notice_direct_log
 void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...);
+void fly_notice_direct_log_lc(fly_log_t *log, struct fly_logcont *lc);
 int fly_log_event_register(fly_event_manager_t *manager, struct fly_logcont *lc);
 
 const char *fly_log_path(void);

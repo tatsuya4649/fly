@@ -22,7 +22,7 @@ __fly_static fly_encoding_type_t __fly_encodes[] = {
 __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encoding);
 __fly_static void __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_encoding *ne);
 static inline int __fly_quality_value(struct __fly_encoding *e, int qvalue);
-__fly_static int __fly_add_accept_encode_asterisk(fly_request_t *req);
+static void __fly_add_accept_encode_asterisk(fly_request_t *req);
 static inline fly_encoding_type_t *__fly_asterisk(void);
 #define __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR		0
 #define __FLY_PARSE_ACCEPT_ENCODING_SUCCESS			1
@@ -739,24 +739,19 @@ __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encodi
 	return __FLY_ACCEPT_ENCODING_NOTFOUND;
 }
 
-__fly_static int __fly_encode_init(fly_request_t *req)
+__fly_static void __fly_encode_init(fly_request_t *req)
 {
 	fly_encoding_t *enc;
 	fly_pool_t *pool;
 
 	pool = req->pool;
 	enc = fly_pballoc(pool, sizeof(fly_encoding_t));
-
-	if (fly_unlikely_null(enc))
-		return -1;
-
 	enc->pool = pool;
 	enc->accept_count = 0;
 	enc->request = req;
 	req->encoding = enc;
 
 	fly_bllist_init(&enc->accepts);
-	return 0;
 }
 
 __fly_static void __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_encoding *ne)
@@ -789,24 +784,17 @@ __fly_static void __fly_memcpy_name(char *dist, char *src, size_t src_len, size_
 	}
 }
 
-__fly_static int __fly_add_accept_encode_asterisk(fly_request_t *req)
+static void __fly_add_accept_encode_asterisk(fly_request_t *req)
 {
 	struct __fly_encoding *__e;
 	fly_pool_t *pool;
 
 	pool = req->pool;
 	__e = fly_pballoc(pool, sizeof(struct __fly_encoding));
-	if (fly_unlikely_null(__e))
-		return -1;
-
 	__e->type = __fly_asterisk();
 	__e->quality_value = 100;
 	__e->use = false;
-	if (__e->type == NULL)
-		return -1;
-
 	__fly_add_accept_encoding(req->encoding, __e);
-	return 0;
 }
 
 static inline bool fly_is_accept_type(fly_encoding_t *e, fly_encoding_type_t *type)
@@ -833,27 +821,13 @@ int fly_accept_encoding(struct fly_request *req)
 	assert(req != NULL && req->pool != NULL && req->header != NULL);
 #endif
 
-	if (__fly_encode_init(req) == -1){
-		struct fly_err *__err;
-		__err = fly_err_init(
-			req->connect->pool, errno, FLY_ERR_ERR,
-			"accept encoding init error. (%s: %s)",
-			__FILE__,
-			__LINE__
-		);
-		fly_error_error(__err);
-		FLY_NOT_COME_HERE
-		return -1;
-	}
-
+	__fly_encode_init(req);
 	switch (__fly_accept_encoding(header, &accept_encoding)){
 	case __FLY_ACCEPT_ENCODING_ERROR:
 		req->encoding = NULL;
 		return -1;
 	case __FLY_ACCEPT_ENCODING_NOTFOUND:
-		if(__fly_add_accept_encode_asterisk(req) == -1)
-			return -1;
-
+		__fly_add_accept_encode_asterisk(req);
 		return __fly_decide_encoding(req->encoding);
 	case __FLY_ACCEPT_ENCODING_FOUND:
 		if (__fly_parse_accept_encoding(req, accept_encoding) == -1)

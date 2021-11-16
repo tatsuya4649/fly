@@ -37,7 +37,7 @@ def fly_remove_pid():
         os.remove(pid_path)
 
 @pytest.mark.asyncio
-@pytest.fixture(scope="function", autouse=False)
+@pytest.fixture(scope="function", autouse=True)
 async def remove_already_in_use():
     process = await asyncio.create_subprocess_shell("lsof -i:1234 -Fp | sed -e 's/^p//' | xargs kill -KILL", stdout = asyncio.subprocess.PIPE)
     await process.wait()

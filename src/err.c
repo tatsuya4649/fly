@@ -25,8 +25,6 @@ fly_err_t *fly_err_init(fly_pool_t *pool, int __errno, enum fly_error_level leve
 	va_list ap;
 
 	err = fly_pballoc(pool, sizeof(fly_err_t));
-	if (err == NULL)
-		return NULL;
 
 	memset(err->content, '\0', FLY_ERROR_CONTENT_SIZE);
 
@@ -136,8 +134,7 @@ int fly_errlog_event_handler(fly_event_t *e)
 	err = (fly_err_t *) e->event_data;
 	if (lc == NULL)
 		return -1;
-	if (fly_logcont_setting(lc, FLY_ERROR_LOG_LENGTH) == -1)
-		return -1;
+	fly_logcont_setting(lc, FLY_ERROR_LOG_LENGTH);
 	if (__fly_err_logcont(err, lc) == __FLY_ERROR_LOGCONTENT_ERROR)
 		return -1;
 	if (fly_log_now(&lc->when) == -1)

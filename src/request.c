@@ -19,12 +19,8 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 	fly_pool_t *pool;
 	fly_request_t *req;
 	pool = fly_create_pool(FLY_POOL_MANAGER_FROM_EVENT(conn->event), FLY_REQUEST_POOL_SIZE);
-	if (fly_unlikely_null(pool))
-		return NULL;
-	req = fly_pballoc(pool, sizeof(fly_request_t));
-	if (fly_unlikely_null(req))
-		return NULL;
 
+	req = fly_pballoc(pool, sizeof(fly_request_t));
 	req->pool = pool;
 	req->request_line = NULL;		/* use request pool */
 	req->header = NULL;				/* use hedaer pool */
@@ -34,7 +30,7 @@ fly_request_t *fly_request_init(fly_connect_t *conn)
 		FLY_REQUEST_BUFFER_CHAIN_INIT_LEN,
 		FLY_REQUEST_BUFFER_CHAIN_INIT_CHAIN_MAX,
 		FLY_REQUEST_BUFFER_CHAIN_INIT_PER_LEN
-	); /* usr request pool */
+	);
 	if (fly_unlikely_null(req->buffer))
 		return NULL;
 
@@ -72,11 +68,9 @@ void fly_request_release(fly_request_t *req)
 	fly_delete_pool(req->pool);
 }
 
-int fly_request_line_init(fly_request_t *req)
+void fly_request_line_init(fly_request_t *req)
 {
 	req->request_line = fly_pballoc(req->pool, sizeof(struct fly_request_line));
-	if (fly_unlikely_null(req->request_line))
-		return -1;
 	req->request_line->request_line = NULL;
 	req->request_line->method = NULL;
 	req->request_line->uri.ptr = NULL;
@@ -88,11 +82,6 @@ int fly_request_line_init(fly_request_t *req)
 		req->request_line->scheme = fly_match_scheme_type(fly_https);
 	else
 		req->request_line->scheme = fly_match_scheme_type(fly_http);
-
-	if (fly_unlikely_null(req->request_line->scheme))
-		return -1;
-
-	return 0;
 }
 
 void fly_request_line_release(fly_request_t *req)
@@ -559,42 +548,10 @@ __fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reqli
 	if (request_line_length >= FLY_REQUEST_LINE_MAX)
 		goto error_414;
 
-	if (fly_request_line_init(req) == -1){
-		struct fly_err *__err;
-		__err = fly_err_init(
-			req->connect->pool, errno, FLY_ERR_ERR,
-			"request line init error. (%s: %s)",
-			__FILE__,
-			__LINE__
-		);
-		fly_error_error(__err);
-		return -1;
-	}
+	fly_request_line_init(req);
+
 	req->request_line->request_line = fly_pballoc(req->pool, sizeof(fly_reqlinec_t)*(request_line_length+1));
 	req->request_line->request_line_len = request_line_length;
-
-	if (fly_unlikely_null(req->request_line)){
-		struct fly_err *__err;
-		__err = fly_err_init(
-			req->connect->pool, errno, FLY_ERR_ERR,
-			"request line init error. (%s: %s)",
-			__FILE__,
-			__LINE__
-		);
-		fly_error_error(__err);
-		return -1;
-	}
-	if (fly_unlikely_null(req->request_line->request_line)){
-		struct fly_err *__err;
-		__err = fly_err_init(
-			req->connect->pool, errno, FLY_ERR_ERR,
-			"request line init error. (%s: %s)",
-			__FILE__,
-			__LINE__
-		);
-		fly_error_error(__err);
-		return -1;
-	}
 
 	fly_buffer_memcpy(req->request_line->request_line, reqline_bufc->use_ptr, reqline_bufc, request_line_length);
 
@@ -872,9 +829,6 @@ int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain)
 {
 	fly_hdr_ci *rchain_info;
 	rchain_info = fly_header_init(req->ctx);
-	if (fly_unlikely_null(rchain_info))
-		return -1;
-
 	req->header = rchain_info;
 	return __fly_parse_header(rchain_info, header_chain);
 }
@@ -1091,6 +1045,11 @@ int fly_request_timeout_handler(fly_event_t *event)
 	return 0;
 }
 
+int fly_request_fail_close_handler(fly_event_t *event, int fd __unused)
+{
+	return fly_request_timeout_handler(event);
+}
+
 #include "cache.h"
 int fly_request_event_handler(fly_event_t *event)
 {
@@ -1149,8 +1108,6 @@ int fly_request_event_handler(fly_event_t *event)
 	/* parse request_line */
 __fase_request_line:
 	reline_buf_chain = fly_get_request_line_buf(conn->buffer);
-	if (fly_unlikely_null(reline_buf_chain))
-		goto response_400;
 	switch(__fly_request_operation(request, reline_buf_chain)){
 	case FLY_REQUEST_ERROR(400):
 		goto response_400;
@@ -1188,6 +1145,8 @@ __fase_header:
 		goto read_continuation;
 	case __REQUEST_HEADER_SUCCESS:
 		break;
+	default:
+		FLY_NOT_COME_HERE
 	}
 
 	/* accept encoding parse */
@@ -1237,15 +1196,6 @@ __fase_body:
 	fly_buffer_c *body_buf;
 	fly_event_fase(event, BODY);
 	body = fly_body_init(request->ctx);
-	if (body == NULL){
-		struct fly_err *__err;
-		__err = fly_event_err_init(
-			event, errno, FLY_ERR_ERR,
-			"request body init error."
-		);
-		fly_event_error_add(event, __err);
-		goto error;
-	}
 	request->body = body;
 	body_buf = fly_get_body_buf(conn->buffer);
 	if (body_buf == NULL || conn->buffer->use_len < content_length)
@@ -1273,17 +1223,6 @@ __fase_body:
 		}
 	}else{
 		char *body_ptr = fly_pballoc(body->pool, sizeof(uint8_t)*content_length);
-		if (fly_unlikely_null(body_ptr)){
-			struct fly_err *__err;
-			__err = fly_event_err_init(
-				event, errno, FLY_ERR_ERR,
-				"body alloc error. %s",
-				strerror(errno)
-			);
-			fly_event_error_add(event, __err);
-			goto error;
-		}
-
 		fly_buffer_memcpy(body_ptr, body_buf->use_ptr, body_buf, content_length);
 		fly_body_setting(body, body_ptr, content_length);
 	}
@@ -1337,9 +1276,8 @@ response_404:
 response_405:
 	return fly_405_event(event, request);
 response_413:
-	if (request->request_line == NULL && \
-			fly_request_line_init(request) == -1)
-		goto response_500;
+	if (request->request_line == NULL)
+		fly_request_line_init(request);
 	request->request_line->version = fly_default_http_version();
 	return fly_413_event(event, request);
 response_414:
@@ -1363,10 +1301,7 @@ continuation:
 	event->tflag = FLY_INHERIT;
 	event->available = false;
 	fly_event_socket(event);
-	if (fly_event_register(event) == -1)
-		goto error;
-
-	return 0;
+	return fly_event_register(event);
 
 disconnection:
 	return fly_request_disconnect_handler(event);
@@ -1384,8 +1319,6 @@ response_304:
 	struct fly_response_content *rc_304;
 
 	rc_304 = fly_pballoc(request->pool, sizeof(struct fly_response_content));
-	if (fly_unlikely_null(rc_304))
-		goto error;
 	rc_304->pf = pf;
 	rc_304->request = request;
 	event->event_data = (void *) rc_304;
@@ -1402,6 +1335,7 @@ response:
 	event->event_data = (void *) response;
 	fly_event_socket(event);
 	fly_response_timeout_end_setting(event, response);
+	event->fail_close = fly_response_fail_close_handler;
 
 	return fly_event_register(event);
 

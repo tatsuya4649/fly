@@ -15,9 +15,6 @@
 fly_hdr_ci *fly_header_init(fly_context_t *ctx)
 {
 	fly_pool_t *pool = fly_create_pool(ctx->pool_manager, FLY_HEADER_POOL_PAGESIZE);
-	if (pool == NULL)
-		return NULL;
-
 	fly_hdr_ci *chain_info;
 	chain_info = fly_pballoc(pool, sizeof(fly_hdr_ci));
 	chain_info->pool = pool;
@@ -288,42 +285,6 @@ char *fly_chain_string(char *buffer, fly_hdr_c *chain, char *ebuffer)
 	/* next header point */
 	return ptr;
 }
-
-//char *fly_header_from_chain(fly_hdr_ci *chain_info)
-//{
-//#ifdef DEBUG
-//	assert(chain_info != NULL);
-//#endif
-//
-//	char *chain_str;
-//	char *ptr;
-//	struct fly_bllist *__b;
-//	fly_hdr_c *c;
-//
-//	chain_str= fly_palloc(chain_info->pool, FLY_HEADER_POOL_PAGESIZE);
-//	if (fly_unlikely_null(chain_str))
-//		return NULL;
-//
-//	ptr = chain_str;
-//	fly_for_each_bllist(__b, &chain_info->chain){
-//		c = fly_bllist_data(__b, fly_hdr_c, blelem);
-//		ptr = fly_chain_string(ptr, c, chain_str+ (int) fly_byte_convert(FLY_HEADER_POOL_PAGESIZE));
-//		if (ptr == NULL)
-//			return NULL;
-//	}
-//	*ptr = '\0';
-//	return chain_str;
-//}
-
-//size_t fly_hdrlen_from_chain(fly_hdr_ci *chain_info)
-//{
-//	char *chain_str;
-//	chain_str = fly_header_from_chain(chain_info);
-//	if (chain_str == NULL)
-//		return 0;
-//
-//	return strlen(chain_str);
-//}
 
 fly_buffer_c *fly_get_header_lines_buf(fly_buffer_t *__buf)
 {

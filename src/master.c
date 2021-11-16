@@ -17,6 +17,7 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *);
 __fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
 __fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
 __noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused);
+static int fly_master_default_fail_close(fly_event_t *e, int fd);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 #if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
 static sigjmp_buf env;
@@ -153,7 +154,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 		case FLY_ERR_EMERG:
 			FLY_NOTICE_DIRECT_LOG(
 				ctx->log,
-				"master process(%d) detected the termination of worker process(%d).",
+				"master process(%d) detected the emergency termination of worker process(%d).",
 				getpid(),
 				info->ssi_pid,
 				info->ssi_status
@@ -163,7 +164,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 		case FLY_ERR_CRIT:
 			FLY_NOTICE_DIRECT_LOG(
 				ctx->log,
-				"master process(%d) detected the termination of worker process(%d).",
+				"master process(%d) detected the critical termination of worker process(%d).",
 				getpid(),
 				info->ssi_pid,
 				info->ssi_status
@@ -173,7 +174,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 		case FLY_ERR_ERR:
 			FLY_NOTICE_DIRECT_LOG(
 				ctx->log,
-				"master process(%d) detected the termination of worker process(%d).",
+				"master process(%d) detected the error termination of worker process(%d).",
 				getpid(),
 				info->ssi_pid,
 				info->ssi_status
@@ -303,6 +304,8 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 	e->expired = false;
 	e->available = false;
 	e->event_data = (void *) master;
+	e->if_fail_term = true;
+	e->fail_close = fly_master_default_fail_close;
 	FLY_EVENT_HANDLER(e, __fly_master_signal_handler);
 
 	fly_time_null(e->timeout);
@@ -389,13 +392,6 @@ void fly_kill_workers(fly_context_t *ctx)
 __direct_log void fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
-
-//	/* destructor setting */
-//	if (atexit(fly_remove_pidfile) == -1)
-//		FLY_EMERGENCY_ERROR(
-//			FLY_EMERGENCY_STATUS_READY,
-//			"initialize worker inotify error."
-//		);
 
 	manager = fly_event_manager_init(master->context);
 	if (manager == NULL)
@@ -678,6 +674,13 @@ error:
 
 }
 
+static int fly_master_default_fail_close(fly_event_t *e, int fd)
+{
+	fly_kill_workers(e->manager->ctx);
+	close(fd);
+	return 0;
+}
+
 __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, struct inotify_event *ie)
 {
 	/* ie->len includes null terminate */
@@ -849,6 +852,8 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 	FLY_EVENT_HANDLER(e, __fly_master_inotify_handler);
 	e->expired = false;
 	e->available = false;
+	e->if_fail_term = true;
+	e->fail_close = fly_master_default_fail_close;
 	fly_event_inotify(e);
 
 	return fly_event_register(e);
