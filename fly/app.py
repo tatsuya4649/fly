@@ -48,7 +48,6 @@ class Fly(_Fly, Mount, Route, _fly_server):
             # socket make, bind, listen
             _fly_server.__init__(self)
 
-
     def route(self, path, method):
         if not isinstance(path, str) or not isinstance(method, Method):
             raise TypeError(
@@ -60,6 +59,12 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 raise TypeError(
                     "func must be function object."
                 )
+            setattr(func, "_application", self)
+            setattr(func, "route", {
+                "uri": path,
+                "func": func,
+                "method": method,
+            })
             self.register_route(
                 uri=path,
                 func=func,
