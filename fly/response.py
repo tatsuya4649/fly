@@ -2,6 +2,7 @@ from ._fly_server import _fly_response
 import json
 from cookie import *
 
+
 class _Response(_fly_response):
 
     @property
