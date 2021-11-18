@@ -10,11 +10,11 @@ Released: 2021/11/18
 
 ### Python
 
-* HTTPResponse exceptions(fly/status.py). if error occurred or raise HTTPResponse, return it's status code and error content as response body.
+* HTTPException (fly/status.py). if error occurred or raise HTTPResponse, return it's status code and error content as response body.
 
-* HTTP4xxResponse
+* HTTP4xxException
 
-* HTTP5xxResponse
+* HTTP5xxException
 
 * debug mode and production mode in Fly (fly/app.py)
 
