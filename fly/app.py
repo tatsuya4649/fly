@@ -54,7 +54,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
 
             self._debug = True if kwargs.get("debug") is True else False
         else:
-            self._debug = False
+            self._debug = True
 
     def route(self, path, method):
         if not isinstance(path, str) or not isinstance(method, Method):
