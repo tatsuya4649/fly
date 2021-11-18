@@ -12,7 +12,7 @@ class Route():
     def routes(self):
         return self._routes
 
-    def register_route(self, uri, func, method):
+    def register_route(self, uri, func, method, debug=True):
         if not isinstance(uri, str):
             raise TypeError(
                 "uri must be str type."
@@ -25,10 +25,14 @@ class Route():
             raise TypeError(
                 "func must be callable or None."
             )
+        if not isinstance(debug, bool):
+            raise TypeError(
+                "debug must be bool type."
+            )
 
         method_str = method if isinstance(method, str) else method.value
 
-        _base = _BaseRoute(func)
+        _base = _BaseRoute(func, debug)
         _rd = dict()
         _rd.setdefault("uri", uri)
         _rd.setdefault("func", _base.handler)
