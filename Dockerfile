@@ -2,8 +2,8 @@
 FROM ubuntu:latest
 
 # system basic
-RUN apt update
-RUN apt install -y build-essential m4 perl autotools-dev autoconf automake libtool-bin autoconf-archive vim
+RUN apt update -y
+RUN apt install -y build-essential m4 perl autotools-dev autoconf automake libtool-bin autoconf-archive lsof vim
 # fly dependent library
 RUN apt install -y libssl-dev zlib1g-dev libbrotli-dev
 # python install
@@ -25,5 +25,11 @@ RUN make install
 RUN python3 setup.py build
 # copy extension module(fly module) from build directory to fly directory
 RUN cp build/lib.linux*/fly/_fly_server.cpython* fly/
+# make key file
+RUN openssl req \
+	-subj '/CN=localhost' \
+	-x509 -nodes -days 365 -newkey rsa:2048 \
+	-keyout tests/fly_test.key \
+	-out tests/fly_test.crt
 # python test
 RUN python3 -m pytest tests

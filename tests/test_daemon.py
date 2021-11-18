@@ -5,10 +5,10 @@ import signal
 
 @pytest.mark.asyncio
 async def test_daemon(remove_already_in_use):
-    await asyncio.create_subprocess_shell("python -m fly tests/fly_test.py -c tests/http_test.conf --daemon")
+    await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test.conf --daemon")
     await asyncio.sleep(2)
 
-    process = await asyncio.create_subprocess_shell("lsof -i:1234 -Fp | sed -e 's/^p//'", stdout = asyncio.subprocess.PIPE)
+    process = await asyncio.create_subprocess_shell("lsof -i:1234 -t", stdout = asyncio.subprocess.PIPE)
     await process.wait()
     __out, __err = await process.communicate()
     print("\n")
