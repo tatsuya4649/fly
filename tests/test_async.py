@@ -666,6 +666,7 @@ async def test_http_return_query(fly_servers):
     assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_return_query(fly_servers_ssl):
     async with httpx.AsyncClient(
         http1=True,
@@ -683,6 +684,7 @@ async def test_https_return_query(fly_servers_ssl):
     assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_return_query(fly_servers_ssl):
     async with httpx.AsyncClient(
         http1=False,
@@ -718,6 +720,7 @@ async def test_illegal_http(fly_servers_ssl):
 
 # HTTP Server but, HTTPS request
 @pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_illegal_https(fly_servers):
     async with httpx.AsyncClient(
         http1=True,
@@ -747,6 +750,7 @@ async def test_request_over(fly_mini_servers):
     assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_ssl_request_over(fly_mini_servers_ssl):
     files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
     async with httpx.AsyncClient(
@@ -763,6 +767,7 @@ async def test_ssl_request_over(fly_mini_servers_ssl):
     assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_http2_ssl_request_over(fly_mini_servers_ssl):
     files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
     async with httpx.AsyncClient(
