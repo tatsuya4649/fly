@@ -27,6 +27,20 @@ def test_fly_init_path_error(path):
     ):
         Fly(config_path=path)
 
+@pytest.mark.parametrize(
+    "debug", [
+    200,
+    200.0,
+    {},
+    [],
+    b"fly/conf"
+])
+def test_fly_debug_error(debug):
+    with pytest.raises(
+        TypeError
+    ):
+        Fly(debug=debug)
+
 TEST_PATH="fly"
 def test_fly_init_path_value_error():
     with pytest.raises(
