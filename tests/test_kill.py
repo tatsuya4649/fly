@@ -37,7 +37,7 @@ def get_worker_pids(pid_list):
 @pytest.fixture(scope="function", autouse=False)
 async def test_spawn_processes(fly_servers):
     prc = await asyncio.create_subprocess_shell(
-        "lsof -i:1234 -Fp | sed -e 's/^p//'",
+        "lsof -i:1234 -t",
         stdout=asyncio.subprocess.PIPE
     )
     __out, _ = await prc.communicate()
@@ -53,7 +53,7 @@ async def test_spawn_processes(fly_servers):
 
 async def check_workers_processes():
     prc = await asyncio.create_subprocess_shell(
-        "lsof -i:1234 -Fp | sed -e 's/^p//'",
+        "lsof -i:1234 -t",
         stdout=asyncio.subprocess.PIPE
     )
     __out, _ = await prc.communicate()
@@ -98,7 +98,7 @@ async def test_worker_kill(test_spawn_processes):
 @pytest.fixture(scope="function", autouse=False)
 async def test_spawn_over_worker(fly_server_over_worker):
     prc = await asyncio.create_subprocess_shell(
-        "lsof -i:1234 -Fp | sed -e 's/^p//'",
+        "lsof -i:1234 -t",
         stdout=asyncio.subprocess.PIPE
     )
     __out, _ = await prc.communicate()
@@ -116,7 +116,7 @@ async def test_spawn_over_worker(fly_server_over_worker):
 @pytest.fixture(scope="function", autouse=False)
 async def test_spawn_over_worker_d(fly_server_over_worker_d):
     prc = await asyncio.create_subprocess_shell(
-        "lsof -i:1234 -Fp | sed -e 's/^p//'",
+        "lsof -i:1234 -t",
         stdout=asyncio.subprocess.PIPE
     )
     __out, _ = await prc.communicate()
