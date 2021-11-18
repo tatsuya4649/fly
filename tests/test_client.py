@@ -17,7 +17,13 @@ async def test_multiple_request(fly_server):
         for i in range(100):
             res = randint(1, 3)
 
-            if res % 3 == 0:
+            if res % 4 == 0:
+                res = await client.get(
+                    "http://localhsot:1234/raise_404"
+                )
+                assert(res.status_code == 404)
+                assert(res.http_version == http_scheme())
+            elif res % 3 == 0:
                 res = await client.get(
                     "http://localhost:1234",
                 )
