@@ -134,7 +134,6 @@ int fly_accept_encoding(struct fly_request *req);
 bool fly_encoding_matching(struct fly_encoding *enc, struct fly_encoding_type *type);
 
 #define FLY_ENCODE_SUCCESS			1
-#define FLY_ENCODE_OVERFLOW			0
 #define FLY_ENCODE_ERROR			-1
 #define FLY_ENCODE_SEEK_ERROR		-2
 #define FLY_ENCODE_TYPE_ERROR		-3
@@ -142,7 +141,6 @@ bool fly_encoding_matching(struct fly_encoding *enc, struct fly_encoding_type *t
 #define FLY_ENCODE_BUFFER_ERROR		-5
 
 #define FLY_DECODE_SUCCESS			1
-#define FLY_DECODE_OVERFLOW			0
 #define FLY_DECODE_ERROR			-1
 #define FLY_DECODE_SEEK_ERROR		-2
 #define FLY_DECODE_TYPE_ERROR		-3

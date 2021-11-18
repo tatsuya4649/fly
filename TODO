@@ -2,4 +2,8 @@ TODO list:
 
 * add test script(client session)
 
-* error handle
+* error handle(show errors in more detail)
+
+* error handle test(with gdb)
+
+* raise HTTP Response(tests)

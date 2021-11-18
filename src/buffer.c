@@ -12,9 +12,6 @@ fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_ma
 	fly_buffer_t *buffer;
 
 	buffer = fly_pballoc(pool, sizeof(fly_buffer_t));
-	if (fly_unlikely_null(buffer))
-		return NULL;
-
 	fly_bllist_init(&buffer->chain);
 	buffer->chain_count = 0;
 	buffer->pool = pool;
@@ -60,16 +57,12 @@ int fly_buffer_add_chain(fly_buffer_t *buffer)
 		return FLY_BUF_ADD_CHAIN_LIMIT;
 
 	chain = fly_pballoc(__pool, sizeof(struct fly_buffer_chain));
-	if (fly_unlikely_null(chain))
-		return FLY_BUF_ADD_CHAIN_ERROR;
 	chain->status = FLY_BUF_EMPTY;
 	chain->len = buffer->per_len;
 	chain->use_len = 0;
 	chain->buffer = buffer;
 	chain->unuse_len = chain->len;
 	chain->ptr = fly_pballoc(__pool, chain->len);
-	if (fly_unlikely_null(chain->ptr))
-		return FLY_BUF_ADD_CHAIN_ERROR;
 	chain->use_ptr = chain->ptr;
 	chain->lptr = chain->ptr + chain->len - 1;
 	chain->unuse_ptr = chain->ptr;
@@ -142,7 +135,8 @@ int fly_update_buffer(fly_buffer_t *buf, size_t len)
 		case FLY_BUF_ADD_CHAIN_LIMIT:
 			return FLY_BUF_ADD_CHAIN_LIMIT;
 		case FLY_BUF_ADD_CHAIN_ERROR:
-			return FLY_BUF_ADD_CHAIN_ERROR;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		__l = fly_buffer_last_chain(buf);

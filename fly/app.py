@@ -48,6 +48,13 @@ class Fly(_Fly, Mount, Route, _fly_server):
             # socket make, bind, listen
             _fly_server.__init__(self)
 
+        if kwargs.get("debug") is not None:
+            if not isinstance(kwargs.get("debug"), bool):
+                raise TypeError("debug must be bool type.")
+
+            self._debug = True if kwargs.get("debug") is True else False
+        else:
+            self._debug = True
 
     def route(self, path, method):
         if not isinstance(path, str) or not isinstance(method, Method):
@@ -60,10 +67,17 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 raise TypeError(
                     "func must be function object."
                 )
+            setattr(func, "_application", self)
+            setattr(func, "route", {
+                "uri": path,
+                "func": func,
+                "method": method,
+            })
             self.register_route(
                 uri=path,
                 func=func,
-                method=method.value
+                method=method.value,
+                debug=self.is_debug
             )
             return func
         return __route
@@ -141,9 +155,6 @@ class Fly(_Fly, Mount, Route, _fly_server):
         print("\n", file=sys.stderr)
         super().run(daemon)
 
-    def _debug_run(self):
-        if self.mounts_count == 0 and len(self.routes) == 0:
-            raise RuntimeError(
-                 "fly must have at least one `mount points` or `route`."
-            )
-        super()._debug_run()
+    @property
+    def is_debug(self):
+        return self._debug
