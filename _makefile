@@ -79,6 +79,10 @@ $(TESTPRE)%.c:
 		@echo "Source: $(subst $(TESTPRE),,$@)"
 		$(CC) -g3 -O0 -Isrc -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
 		LD_LIBRARY_PATH=fly/lib ./$(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),,$@))
+b$(TESTPRE)%.c:
+		@echo "Target: $@"
+		@echo "Source: $(subst b$(TESTPRE),,$@)"
+		$(CC) -g3 -O0 -Isrc -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst b$(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst b$(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lgtest_main -lgtest -lgmock -lpthread -lfly
 
 %.o:	%.c
 	gcc -c $(CFLAG) -o $@ $<

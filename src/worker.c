@@ -8,28 +8,52 @@
 #include "ssl.h"
 #include "context.h"
 #include "conf.h"
+#include "event.h"
 
 __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo);
+#define FLY_WORKER_SIGNAL_EVENT_INVALID_MANAGER			-1
+#define FLY_WORKER_SIGNAL_EVENT_REFRESH_SIGNAL_ERROR	-2
+#define FLY_WORKER_SIGNAL_EVENT_SIGNAL_FILLSET_ERROR	-3
+#define FLY_WORKER_SIGNAL_EVENT_SIGNAL_ERROR			-4
+#define FLY_WORKER_SIGNAL_EVENT_SIGADDSET_ERROR			-5
+#define FLY_WORKER_SIGNAL_EVENT_INIT_ERROR				-6
+#define FLY_WORKER_SIGNAL_EVENT_SIGNAL_REGISTER_ERROR	-7
 __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
-__fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler);
+__fly_static void __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler);
 __fly_static void FLY_SIGNAL_MODF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_ADDF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_DELF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
+#define FLY_WORKER_OPEN_FILE_SUCCESS				0
+#define FLY_WORKER_OPEN_FILE_CTX_ERROR				-2
+#define FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR		-3
+#define FLY_WORKER_OPEN_FILE_ENCODE_ERROR			-4
+#define FLY_WORKER_OPEN_FILE_ENCODE_UNKNOWN_RETURN	-5
 __fly_static int __fly_worker_open_file(fly_context_t *ctx);
+#define FLY_WORKER_OPEN_DEFAULT_CONTENT_NOCONTENT				0
+#define FLY_WORKER_OPEN_DEFAULT_CONTENT_NODIR					1
+#define FLY_WORKER_OPEN_DEFAULT_CONTENT_SUCCESS					2
+#define FLY_WORKER_OPEN_DEFAULT_CONTENT_SOLVPATH_ERROR			-1
+#define FLY_WORKER_OPEN_DEFAULT_CONTENT_FRC_INIT_ERROR			-2
+#define FLY_WORKER_OPEN_DEFAULT_CONTENT_INVALID_FILE			-3
+#define FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR			-4
+#define FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_UNKNOWN_RETURN	-5
 __fly_static int __fly_worker_open_default_content(fly_context_t *ctx);
 
 
 #define FLY_WORKER_SIG_COUNT				(sizeof(fly_worker_signals)/sizeof(fly_signal_t))
+
 /*
  *  worker process signal info.
  */
-static struct fly_signal *fly_worker_sigptr = NULL;
 static fly_signal_t fly_worker_signals[] = {
-	{SIGINT,			NULL, NULL},
-	{SIGTERM,			NULL, NULL},
-	{SIGPIPE,			FLY_SIG_IGN, NULL}, }; /*
+	FLY_SIGNAL_SETTING(SIGINT,	NULL),
+	FLY_SIGNAL_SETTING(SIGTERM, NULL),
+	FLY_SIGNAL_SETTING(SIGPIPE, FLY_SIG_IGN),
+};
+
+/*
  *	 alloc resource:
  *	 pool_manager, struct fly_worker, struct fly_context
  */
@@ -61,6 +85,7 @@ struct fly_worker *fly_worker_init(fly_context_t *mcontext)
 	__w->start = time(NULL);
 	__w->pool_manager = __pm;
 	__w->event_manager = NULL;
+	fly_bllist_init(&__w->signals);
 
 	return __w;
 
@@ -84,27 +109,16 @@ void fly_worker_release(fly_worker_t *worker)
 	fly_free(worker);
 }
 
-__fly_static int __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler)
+__fly_static void __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler)
 {
+	fly_worker_t *__w;
 	fly_signal_t *__nf;
 
+	__w = (fly_worker_t *) ctx->data;
 	__nf = fly_pballoc(ctx->pool, sizeof(struct fly_signal));
-	if (fly_unlikely_null(__nf))
-		return -1;
 	__nf->number = num;
 	__nf->handler = handler;
-	__nf->next = NULL;
-
-	if (fly_worker_sigptr == NULL)
-		fly_worker_sigptr = __nf;
-	else{
-		fly_signal_t *__f;
-		for (__f=fly_worker_sigptr; __f->next; __f=__f->next)
-			;
-
-		__f->next = __nf;
-	}
-	return 0;
+	fly_bllist_add_tail(&__w->signals, &__nf->blelem);
 }
 
 __fly_static void __fly_modupdate(fly_mount_parts_t *parts)
@@ -123,7 +137,6 @@ __fly_static void __fly_modupdate(fly_mount_parts_t *parts)
 			return;
 		if (fly_hash_update_from_parts_file_path(rpath, __f) == -1)
 			FLY_EMERGENCY_ERROR(
-				FLY_EMERGENCY_STATUS_MODF,
 				"modify file error in worker."
 			);
 	}
@@ -324,8 +337,11 @@ __noreturn void fly_worker_signal_default_handler(fly_worker_t *worker, fly_cont
 
 __fly_static int __fly_wsignal_handle(fly_worker_t *worker, fly_context_t *ctx, struct signalfd_siginfo *info)
 {
-	fly_signal_t *__s;
-	for (__s=fly_worker_sigptr; __s; __s=__s->next){
+	struct fly_signal *__s;
+	struct fly_bllist *__b;
+
+	fly_for_each_bllist(__b, &worker->signals){
+		__s = fly_bllist_data(__b, struct fly_signal, blelem);
 		if (__s->number == (fly_signum_t) info->ssi_signo){
 			if (__s->handler)
 				__s->handler(ctx, info);
@@ -374,24 +390,24 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 	fly_event_t *e;
 
 	if (!manager ||  !manager->pool || !ctx)
-		return -1;
+		return FLY_WORKER_SIGNAL_EVENT_INVALID_MANAGER;
 
 	if (fly_refresh_signal() == -1)
-		return -1;
+		return FLY_WORKER_SIGNAL_EVENT_REFRESH_SIGNAL_ERROR;
 	if (sigfillset(&sset) == -1)
-		return -1;
+		return FLY_WORKER_SIGNAL_EVENT_SIGNAL_FILLSET_ERROR;
 
 	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++){
 		if (fly_worker_signals[i].handler == FLY_SIG_IGN){
 			if (signal(fly_worker_signals[i].number, SIG_IGN) == SIG_ERR)
-				return -1;
+				return FLY_WORKER_SIGNAL_EVENT_SIGNAL_ERROR;
 			continue;
 		}
 
 		if (sigaddset(&sset, fly_worker_signals[i].number) == -1)
-			return -1;
-		if (__fly_add_worker_sigs(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler) == -1)
-			return -1;
+			return FLY_WORKER_SIGNAL_EVENT_SIGADDSET_ERROR;
+
+		__fly_add_worker_sigs(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler);
 	}
 
 	if (__fly_worker_rtsig_added(ctx, &sset) == -1)
@@ -399,11 +415,11 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 
 	sigfd = fly_signal_register(&sset);
 	if (sigfd == -1)
-		return -1;
+		return FLY_WORKER_SIGNAL_EVENT_SIGNAL_REGISTER_ERROR;
 
 	e = fly_event_init(manager);
-	if (e == NULL)
-		return -1;
+	if (fly_unlikely_null(e))
+		return FLY_WORKER_SIGNAL_EVENT_INIT_ERROR;
 
 	e->fd = sigfd;
 	e->read_or_write = FLY_READ;
@@ -415,6 +431,7 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 	e->expired = false;
 	e->available = false;
 	e->handler = __fly_worker_signal_handler;
+	e->if_fail_term = true;
 	e->event_data = (void *) worker;
 
 	fly_time_null(e->timeout);
@@ -436,27 +453,118 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 	worker = (fly_worker_t *) data;
 	if (!ctx)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"invalid context(null context)."
+			"worker context is invalid(null context)."
 		);
+	ctx->data = (void *) worker;
+	fly_errsys_init(ctx);
 
-	if (__fly_worker_open_file(ctx) == -1)
+	switch (__fly_worker_open_file(ctx)){
+	case FLY_WORKER_OPEN_FILE_SUCCESS:
+		break;
+	case FLY_WORKER_OPEN_FILE_CTX_ERROR:
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"worker open file error."
+			"worker opening file error. \
+			worker context is invalid. (%s: %s)",
+			__FILE__,
+			__LINE__
 		);
+		break;
+	case FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR:
+		FLY_EMERGENCY_ERROR(
+			"worker opening file error. \
+			occurred error when solving time. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		break;
+	case FLY_WORKER_OPEN_FILE_ENCODE_ERROR:
+		FLY_EMERGENCY_ERROR(
+			"worker opening file error. \
+			occurred error when encoding opening file. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		break;
+	case FLY_WORKER_OPEN_FILE_ENCODE_UNKNOWN_RETURN:
+		FLY_EMERGENCY_ERROR(
+			"worker opening file error. \
+			unknown return value in encoding opening file. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		break;
+	default:
+		FLY_EMERGENCY_ERROR(
+			"worker opening file error. \
+			unknown return value. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+	}
 
-	if (__fly_worker_open_default_content(ctx) == -1)
+	switch(__fly_worker_open_default_content(ctx)){
+	case FLY_WORKER_OPEN_DEFAULT_CONTENT_NOCONTENT:
+		break;
+	case FLY_WORKER_OPEN_DEFAULT_CONTENT_NODIR:
+		break;
+	case FLY_WORKER_OPEN_DEFAULT_CONTENT_SUCCESS:
+		break;
+	case FLY_WORKER_OPEN_DEFAULT_CONTENT_SOLVPATH_ERROR:
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"worker open default content error."
+			"worker opening default content error.	\
+			solving path error in opening worker default content.",
+			__FILE__,
+			__LINE__
 		);
+		break;
+	case FLY_WORKER_OPEN_DEFAULT_CONTENT_FRC_INIT_ERROR:
+		FLY_EMERGENCY_ERROR(
+			"worker opening default content error.	\
+			frc init error in opening worker default content.",
+			__FILE__,
+			__LINE__
+		);
+		break;
+	case FLY_WORKER_OPEN_DEFAULT_CONTENT_INVALID_FILE:
+		FLY_EMERGENCY_ERROR(
+			"worker opening default content error.	\
+			found invalid file in opening worker default content.",
+			__FILE__,
+			__LINE__
+		);
+		break;
+	case FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR:
+		FLY_EMERGENCY_ERROR(
+			"worker opening default content error.	\
+			occurred error when encoding default content. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		break;
+	case FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_UNKNOWN_RETURN:
+		FLY_EMERGENCY_ERROR(
+			"worker opening default content error.	\
+			unknown return value in encoding default content. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		break;
+	default:
+		FLY_EMERGENCY_ERROR(
+			"worker open default content error.	\
+			unknown return value in opening default content. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+	}
 
 	manager = fly_event_manager_init(ctx);
 	if (manager == NULL)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"initialize event manager error."
+		FLY_EXIT_ERROR(
+			"worker event manager init error. %s (%s: %s)",
+			strerror(errno),
+			__FILE__,
+			__LINE__
 		);
 
 	worker->event_manager = manager;
@@ -464,23 +572,48 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 	/* signal setting */
 	if (__fly_worker_signal_event(worker, manager, ctx) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"initialize worker signal error."
+			"initialize worker signal error. (%s: %s)",
+			__FILE__,
+			__LINE__
 		);
 
 	/* make socket for each socket info */
 	if (fly_wainting_for_connection_event(manager, ctx->listen_sock) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
-			"fail to register listen socket event."
+			"fail to register listen socket event. (%s: %s)",
+			__FILE__,
+			__LINE__
 		);
 
 	/* log event start here */
-	if (fly_event_handler(manager) == -1)
+	switch(fly_event_handler(manager)){
+	case FLY_EVENT_HANDLER_INVALID_MANAGER:
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
-			"event handle error."
+			"event handle error. \
+			event manager is invalid. (%s: %s)",
+			__FILE__,
+			__LINE__
 		);
+		break;
+	case FLY_EVENT_HANDLER_EPOLL_ERROR:
+		FLY_EMERGENCY_ERROR(
+			"event handle error. \
+			epoll was broken. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		break;
+	case FLY_EVENT_HANDLER_EXPIRED_EVENT_ERROR:
+		FLY_EMERGENCY_ERROR(
+			"event handle error. \
+			occurred error in expired event handler. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+		break;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* will not come here. */
 	FLY_NOT_COME_HERE
@@ -508,6 +641,7 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 	e->event_data = sockinfo;
 	e->expired = false;
 	e->available = false;
+	e->if_fail_term = true;
 	fly_event_socket(e);
 
 	return fly_event_register(e);
@@ -517,7 +651,7 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 {
 	if ((!ctx->mount || ctx->mount->mount_count == 0) && \
 			(!ctx->route_reg || ctx->route_reg->regcount == 0))
-		return -1;
+		return FLY_WORKER_OPEN_FILE_CTX_ERROR;
 
 	char rpath[FLY_PATH_MAX];
 	fly_mount_parts_t *__p;
@@ -545,7 +679,7 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 					fly_mount_index_parts_file(__pf);
 
 				if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
-					return -1;
+					return FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR;
 				/* pre encode */
 				if (fly_over_encoding_threshold(ctx, (size_t) __pf->fs.st_size)){
 					struct fly_de *__de;
@@ -572,21 +706,19 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 						switch(res){
 						case FLY_ENCODE_SUCCESS:
 							break;
-						case FLY_ENCODE_OVERFLOW:
-							FLY_NOT_COME_HERE
 						case FLY_ENCODE_ERROR:
-							return -1;
+							return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
 						case FLY_ENCODE_SEEK_ERROR:
-							return -1;
+							return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
 						case FLY_ENCODE_TYPE_ERROR:
-							return -1;
+							return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
 						case FLY_ENCODE_READ_ERROR:
-							return -1;
+							return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
 						case FLY_ENCODE_BUFFER_ERROR:
 							__de->overflow = true;
 							break;
 						default:
-							return -1;
+							return FLY_WORKER_OPEN_FILE_ENCODE_UNKNOWN_RETURN;
 						}
 					}else{
 						__de->overflow = true;
@@ -599,7 +731,7 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 			}
 		}
 	}
-	return 0;
+	return FLY_WORKER_OPEN_FILE_SUCCESS;
 }
 
 __fly_static void __fly_add_rcbs(fly_context_t *ctx, fly_rcbs_t *__r)
@@ -616,10 +748,10 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 
 	__defpath = fly_default_content_path();
 	if (__defpath == NULL)
-		return 0;
+		return FLY_WORKER_OPEN_DEFAULT_CONTENT_NOCONTENT;
 
 	if (stat(__defpath, &sb) == -1 || !S_ISDIR(sb.st_mode))
-		return 0;
+		return FLY_WORKER_OPEN_DEFAULT_CONTENT_NODIR;
 
 	for (fly_status_code *__res=responses; __res->status_code>0; __res++){
 		char __tmp[FLY_PATH_MAX], *__tmpptr;
@@ -627,7 +759,7 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 		__tmpptr = __tmp;
 		memset(__tmp, '\0', FLY_PATH_MAX);
 		if (realpath(__defpath, __tmp) == NULL)
-			return -1;
+			return FLY_WORKER_OPEN_DEFAULT_CONTENT_SOLVPATH_ERROR;
 
 		__tmpptr += strlen(__tmp);
 		*__tmpptr++ = '/';
@@ -640,7 +772,7 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 
 		__frc = fly_rcbs_init(ctx);
 		if (fly_unlikely_null(__frc))
-			return -1;
+			return FLY_WORKER_OPEN_DEFAULT_CONTENT_FRC_INIT_ERROR;
 
 		__frc->status_code = __res->type;
 		memcpy(__frc->content_path, __tmp, FLY_PATH_MAX);
@@ -650,7 +782,7 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 			continue;
 
 		if (fstat(__frc->fd, &__frc->fs) == -1)
-			return -1;
+			return FLY_WORKER_OPEN_DEFAULT_CONTENT_INVALID_FILE;
 
 		if (fly_over_encoding_threshold(ctx, (size_t) __frc->fs.st_size)){
 			struct fly_de *__de;
@@ -677,21 +809,19 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 				switch(res){
 				case FLY_ENCODE_SUCCESS:
 					break;
-				case FLY_ENCODE_OVERFLOW:
-					FLY_NOT_COME_HERE
 				case FLY_ENCODE_ERROR:
-					return -1;
+					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR;
 				case FLY_ENCODE_SEEK_ERROR:
-					return -1;
+					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR;
 				case FLY_ENCODE_TYPE_ERROR:
-					return -1;
+					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR;
 				case FLY_ENCODE_READ_ERROR:
-					return -1;
+					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR;
 				case FLY_ENCODE_BUFFER_ERROR:
 					__de->overflow = true;
 					break;
 				default:
-					return -1;
+					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_UNKNOWN_RETURN;
 				}
 			}else{
 				__de->overflow = true;
@@ -703,7 +833,7 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 
 		__fly_add_rcbs(ctx, __frc);
 	}
-	return 0;
+	return FLY_WORKER_OPEN_DEFAULT_CONTENT_SUCCESS;
 }
 
 const char *fly_default_content_path(void)

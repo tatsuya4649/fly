@@ -2,8 +2,8 @@
 #include "request.h"
 #include "header.h"
 
-__fly_static int __fly_accept_charset_init(fly_request_t *req);
-__fly_static int __fly_accept_add_asterisk(fly_request_t *req);
+static void __fly_accept_charset_init(fly_request_t *req);
+static void __fly_accept_add_asterisk(fly_request_t *req);
 __fly_static void __fly_accept_add(fly_charset_t *cs, struct __fly_charset *__nc);
 static inline bool __fly_digit(char c);
 static inline bool __fly_lalpha(char c);
@@ -59,41 +59,29 @@ __fly_static void __fly_accept_add(fly_charset_t *cs, struct __fly_charset *__nc
 	cs->charset_count++;
 }
 
-__fly_static int __fly_accept_add_asterisk(fly_request_t *req)
+static void __fly_accept_add_asterisk(fly_request_t *req)
 {
 	struct __fly_charset *__cs;
 
 	__cs = fly_pballoc(req->pool, sizeof(struct __fly_charset));
-	if (__cs == NULL)
-		return -1;
-
 	strcpy(__cs->cname, "*");
 	__cs->quality_value = FLY_CHARSET_QVALUE_MAX;
 	__cs->asterisk = true;
 
 	__fly_accept_add(req->charset, __cs);
-	return 0;
 }
 
-__fly_static int __fly_accept_charset_init(fly_request_t *req)
+static void __fly_accept_charset_init(fly_request_t *req)
 {
 	fly_charset_t *charset;
 	fly_pool_t *pool;
 
 	pool = req->pool;
-	if (!pool)
-		return -1;
-
 	charset = fly_pballoc(pool, sizeof(fly_charset_t));
-	if (charset == NULL)
-		return -1;
-
 	charset->charset_count = 0;
 	charset->request = req;
 	req->charset = charset;
 	fly_bllist_init(&charset->charsets);
-
-	return 0;
 }
 
 static inline bool __fly_digit(char c)
@@ -383,14 +371,13 @@ int fly_accept_charset(fly_request_t *req)
 		return -1;
 
 	accept_charset = NULL;
-	if (__fly_accept_charset_init(req) == -1)
-		return -1;
+	__fly_accept_charset_init(req);
+
 	switch(__fly_accept_charset(header, &accept_charset)){
 	case __FLY_ACCEPT_CHARSET_FOUND:
 		return __fly_accept_charset_parse(req, accept_charset);
 	case __FLY_ACCEPT_CHARSET_NOTFOUND:
-		if (__fly_accept_add_asterisk(req))
-			return -1;
+		__fly_accept_add_asterisk(req);
 		return 0;
 	case __FLY_ACCEPT_CHARSET_ERROR:
 		return -1;
