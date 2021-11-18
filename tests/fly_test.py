@@ -73,3 +73,7 @@ def set_cookie(request):
     res = Response(200)
     res.set_cookie("id", 100)
     return res
+
+@app.get("/raise_404")
+def raise_404(request):
+    raise HTTP404Exception
