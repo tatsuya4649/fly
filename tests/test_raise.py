@@ -17,8 +17,8 @@ def _get_base_route(app, uri, method):
         if i["uri"] == uri and i["method"] == method:
             return i["func"]
 
-def test_HTTPResponse(init_fly):
-    rr = HTTP400Response(
+def test_HTTPException(init_fly):
+    rr = HTTP400Exception(
         err_content="hello"
     )
     @init_fly.get("/")
