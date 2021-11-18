@@ -4,6 +4,7 @@
 #include "cache.h"
 #include "conf.h"
 #include <setjmp.h>
+#include "err.h"
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
 __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx);
@@ -15,6 +16,8 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 __fly_static int __fly_master_inotify_handler(fly_event_t *);
 __fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
 __fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
+__noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused);
+static int fly_master_default_fail_close(fly_event_t *e, int fd);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 #if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
 static sigjmp_buf env;
@@ -23,9 +26,9 @@ static jmp_buf env;
 #endif
 
 fly_signal_t fly_master_signals[] = {
-	{ SIGCHLD, __fly_sigchld, NULL },
-	{ SIGINT, NULL, NULL },
-	{ SIGTERM, NULL, NULL },
+	FLY_SIGNAL_SETTING(SIGCHLD,	__fly_sigchld),
+	FLY_SIGNAL_SETTING(SIGINT,	NULL),
+	FLY_SIGNAL_SETTING(SIGTERM, NULL),
 };
 
 int fly_master_daemon(fly_context_t *ctx)
@@ -48,7 +51,6 @@ int fly_master_daemon(fly_context_t *ctx)
 	/* child process only */
 	if (setsid() == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"Process(%d) must not be process group leader.",
 			getpid()
 		);
@@ -57,7 +59,6 @@ int fly_master_daemon(fly_context_t *ctx)
 	switch(fork()){
 	case -1:
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"failure to fork process from baemon source process."
 		);
 	case 0:
@@ -69,14 +70,12 @@ int fly_master_daemon(fly_context_t *ctx)
 	umask(0);
 	if (chdir(FLY_ROOT_DIR) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"can't change directory. path(%s).",
 			FLY_ROOT_DIR
 		);
 
 	if (getrlimit(RLIMIT_NOFILE, &fd_limit) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"can't get resource of RLIMIT_NOFILE."
 		);
 
@@ -88,7 +87,6 @@ int fly_master_daemon(fly_context_t *ctx)
 
 		if (close(i) == -1 && errno != EBADF)
 			FLY_EMERGENCY_ERROR(
-				FLY_EMERGENCY_STATUS_PROCS,
 				"can't close file (fd: %d)", i
 			);
 	}
@@ -96,18 +94,15 @@ int fly_master_daemon(fly_context_t *ctx)
 	nullfd = open(__FLY_DEVNULL, O_RDWR);
 	if (nullfd == -1 || nullfd != STDIN_FILENO)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"can't open file (fd: %d)", nullfd
 		);
 
 	if (dup2(nullfd, STDOUT_FILENO) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"can't duplicate file %d->%d", nullfd, STDOUT_FILENO
 		);
 	if (dup2(nullfd, STDERR_FILENO) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"can't duplicate file %d->%d", nullfd, STDERR_FILENO
 		);
 	return 0;
@@ -134,79 +129,67 @@ __fly_static void __fly_workers_rebalance(fly_master_t *master)
 
 __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *info)
 {
+	fly_master_t *master;
+
+	master = (fly_master_t *) ctx->data;
 	switch(info->ssi_code){
 	case CLD_CONTINUED:
 		printf("continued\n");
 		goto decrement;
 	case CLD_DUMPED:
-		printf("dumped\n");
+		FLY_NOTICE_DIRECT_LOG(
+			ctx->log,
+			"master process(%d) detected the dumped of worker process(%d).",
+			getpid(),
+			info->ssi_pid,
+			info->ssi_status
+		);
 		goto decrement;
 	case CLD_EXITED:
 		printf("exited\n");
-		/* end status of worker */
+		/* end status of worker(error level) */
 		switch(info->ssi_status){
 		case FLY_WORKER_SUCCESS_EXIT:
 			goto decrement;
-		case FLY_EMERGENCY_STATUS_NOMEM:
+		case FLY_ERR_EMERG:
 			FLY_NOTICE_DIRECT_LOG(
 				ctx->log,
-				"master process(%d) detect to end of worker process(%d).  because of no memory(exit status: %d)",
+				"master process(%d) detected the emergency termination of worker process(%d).",
 				getpid(),
 				info->ssi_pid,
 				info->ssi_status
 			);
-			break;
-		case FLY_EMERGENCY_STATUS_PROCS:
+			/* terminate fly processes. */
+			goto fly_terminate;
+		case FLY_ERR_CRIT:
 			FLY_NOTICE_DIRECT_LOG(
 				ctx->log,
-				"master process(%d) detect to end of worker process(%d). because of process error (exit status: %d)",
+				"master process(%d) detected the critical termination of worker process(%d).",
 				getpid(),
 				info->ssi_pid,
 				info->ssi_status
 			);
-			break;
-		case FLY_EMERGENCY_STATUS_READY:
+			/* terminate fly processes. */
+			goto fly_terminate;
+		case FLY_ERR_ERR:
 			FLY_NOTICE_DIRECT_LOG(
 				ctx->log,
-				"master process(%d) detect to end of worker process(%d). because of ready error (exit status: %d)",
+				"master process(%d) detected the error termination of worker process(%d).",
 				getpid(),
 				info->ssi_pid,
 				info->ssi_status
 			);
-			break;
-		case FLY_EMERGENCY_STATUS_ELOG:
-			FLY_NOTICE_DIRECT_LOG(
-				ctx->log,
-				"master process(%d) detect to end of worker process(%d). because of log error (exit status: %d)",
-				getpid(),
-				info->ssi_pid,
-				info->ssi_status
-			);
-			break;
-		case FLY_EMERGENCY_STATUS_NOMOUNT:
-			FLY_NOTICE_DIRECT_LOG(
-				ctx->log,
-				"master process(%d) detect to end of worker process(%d). because of mount error (exit status: %d)",
-				getpid(),
-				info->ssi_pid,
-				info->ssi_status
-			);
-			break;
-		case FLY_EMERGENCY_STATUS_MODF:
-			FLY_NOTICE_DIRECT_LOG(
-				ctx->log,
-				"master process(%d) detect to end of worker process(%d). because of modify file(hash update) error (exit status: %d)",
-				getpid(),
-				info->ssi_pid,
-				info->ssi_status
-			);
-			break;
+
+			goto decrement;
 		default:
+#ifndef DEBUG
+			assert(0);
+#endif
 			FLY_EMERGENCY_ERROR(
-				FLY_EMERGENCY_STATUS_PROCS,
 				"unknown worker exit status. (%d)",
 				info->ssi_status
 			);
+			goto decrement;
 		}
 		FLY_NOT_COME_HERE
 	case CLD_KILLED:
@@ -220,23 +203,21 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 		goto decrement;
 	default:
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"unknown signal code. (%d)",
 			info->ssi_code
 		);
 	}
 
 decrement:
-	/* worker process is gone */
-	FLY_NOTICE_DIRECT_LOG(
-		ctx->log,
-		"worker process(pid: %d) is gone by %d(si_code).\n",
-		info->ssi_pid,
-		info->ssi_code
-	);
-
 	fly_remove_worker((fly_master_t *) ctx->data, (pid_t) info->ssi_pid);
-	__fly_workers_rebalance((fly_master_t *) ctx->data);
+	__fly_workers_rebalance(master);
+	return;
+
+fly_terminate:
+	fly_remove_worker((fly_master_t *) ctx->data, (pid_t) info->ssi_pid);
+	/* fly all processes(workers/master) terminate */
+	fly_master_signal_default_handler(master, ctx, info);
+	return;
 }
 
 __noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
@@ -323,6 +304,8 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 	e->expired = false;
 	e->available = false;
 	e->event_data = (void *) master;
+	e->if_fail_term = true;
+	e->fail_close = fly_master_default_fail_close;
 	FLY_EVENT_HANDLER(e, __fly_master_signal_handler);
 
 	fly_time_null(e->timeout);
@@ -393,35 +376,42 @@ fly_master_t *fly_master_init(void)
 	return __m;
 }
 
+void fly_kill_workers(fly_context_t *ctx)
+{
+	fly_master_t *master;
+	fly_worker_t *__w;
+	struct fly_bllist *__b;
+
+	master = (fly_master_t *) ctx->data;
+	fly_for_each_bllist(__b, &master->workers){
+		__w = fly_bllist_data(__b, fly_worker_t, blelem);
+		fly_send_signal(__w->pid, SIGINT, 0);
+	}
+}
+
 __direct_log void fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
 
-//	/* destructor setting */
-//	if (atexit(fly_remove_pidfile) == -1)
-//		FLY_EMERGENCY_ERROR(
-//			FLY_EMERGENCY_STATUS_READY,
-//			"initialize worker inotify error."
-//		);
-
 	manager = fly_event_manager_init(master->context);
 	if (manager == NULL)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"master initialize event manager error."
+			"master initialize event manager error. %s",
+			strerror(errno)
 		);
+	fly_jbhandle_setting(manager, fly_kill_workers);
 
 	master->event_manager = manager;
 	/* initial event setting */
 	if (__fly_master_signal_event(master, manager, master->context) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"initialize worker signal error."
+			"initialize worker signal error. %s",
+			strerror(errno)
 		);
 	if (__fly_master_inotify_event(master, manager) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_READY,
-			"initialize worker inotify error."
+			"initialize worker inotify error. %s",
+			strerror(errno)
 		);
 
 #if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
@@ -430,11 +420,34 @@ __direct_log void fly_master_process(fly_master_t *master)
 	if (setjmp(env) == 0){
 #endif
 		/* event handler start here */
-		if (fly_event_handler(manager) == -1)
+		switch(fly_event_handler(manager)){
+		case FLY_EVENT_HANDLER_INVALID_MANAGER:
 			FLY_EMERGENCY_ERROR(
-				FLY_EMERGENCY_STATUS_PROCS,
-				"event handle error."
+				"event handle error. \
+				event manager is invalid. (%s: %s)",
+				__FILE__,
+				__LINE__
 			);
+			break;
+		case FLY_EVENT_HANDLER_EPOLL_ERROR:
+			FLY_EMERGENCY_ERROR(
+				"event handle error. \
+				epoll was broken. (%s: %s)",
+				__FILE__,
+				__LINE__
+			);
+			break;
+		case FLY_EVENT_HANDLER_EXPIRED_EVENT_ERROR:
+			FLY_EMERGENCY_ERROR(
+				"event handle error. \
+				occurred error in expired event handler. (%s: %s)",
+				__FILE__,
+				__LINE__
+			);
+			break;
+		default:
+			FLY_NOT_COME_HERE
+		}
 	}else{
 		/* signal return */
 		return;
@@ -535,7 +548,6 @@ __fly_static void __fly_master_worker_spawn(fly_master_t *master, void (*proc)(f
 
 	if (master->req_workers <= 0)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"invalid required workers %d",
 			master->req_workers
 		);
@@ -546,7 +558,6 @@ __fly_static void __fly_master_worker_spawn(fly_master_t *master, void (*proc)(f
 			i=master->now_workers){
 		if (__fly_master_fork(master, WORKER, proc, master->context) == -1)
 			FLY_EMERGENCY_ERROR(
-				FLY_EMERGENCY_STATUS_PROCS,
 				"spawn working process error."
 			);
 	}
@@ -556,7 +567,6 @@ void fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *,
 {
 	if (!master->context || !master->context->mount)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_PROCS,
 			"not found mounts info. need one or more mount points."
 		);
 	__fly_master_worker_spawn(master, proc);
@@ -657,12 +667,18 @@ child_register:
 error:
 	kill(pid, SIGTERM);
 	FLY_EMERGENCY_ERROR(
-		FLY_EMERGENCY_STATUS_PROCS,
 		"try to spawn invalid process type %d",
 		(int) type
 	);
 	return -1;
 
+}
+
+static int fly_master_default_fail_close(fly_event_t *e, int fd)
+{
+	fly_kill_workers(e->manager->ctx);
+	close(fd);
+	return 0;
 }
 
 __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, struct inotify_event *ie)
@@ -836,6 +852,8 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 	FLY_EVENT_HANDLER(e, __fly_master_inotify_handler);
 	e->expired = false;
 	e->available = false;
+	e->if_fail_term = true;
+	e->fail_close = fly_master_default_fail_close;
 	fly_event_inotify(e);
 
 	return fly_event_register(e);

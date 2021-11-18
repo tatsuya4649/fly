@@ -156,6 +156,7 @@ int fly_405_event(fly_event_t *e, fly_request_t *req);
 int fly_413_event(fly_event_t *e, fly_request_t *req);
 int fly_414_event(fly_event_t *e, fly_request_t *req);
 int fly_415_event(fly_event_t *e, fly_request_t *req);
+int fly_500_event(fly_event_t *e, fly_request_t *req);
 
 fly_response_t *fly_304_response(fly_request_t *req, struct fly_mount_parts_file *pf);
 fly_response_t *fly_400_response(fly_request_t *req);
@@ -166,7 +167,7 @@ fly_response_t *fly_414_response(fly_request_t *req);
 fly_response_t *fly_415_response(fly_request_t *req);
 fly_response_t *fly_500_response(fly_request_t *req);
 
-int __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf, int (*handler)(fly_event_t *e));
+void __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf, int (*handler)(fly_event_t *e));
 int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf);
 
 int fly_response_content_event_handler(fly_event_t *e);
@@ -214,6 +215,7 @@ static inline bool fly_encode_do(fly_response_t *res)
 #define FLY_MAX_RESPONSE_CONTENT_LENGTH	"FLY_MAX_RESPONSE_CONTENT_LENGTH"
 int fly_response_content_max_length(void);
 void fly_response_timeout_end_setting(fly_event_t *e, fly_response_t *res);
+int fly_response_fail_close_handler(fly_event_t *e, int fd __unused);
 
 #define FLY_RESPONSE_DECBUF_INIT_LEN		(1)
 #define FLY_RESPONSE_DECBUF_CHAIN_MAX		(1)

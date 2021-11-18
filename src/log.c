@@ -387,18 +387,15 @@ __fly_static int __fly_log_write_logcont(fly_logcont_t *lc)
 	return __fly_log_write(lc->__log->file, lc);
 }
 
-int fly_logcont_setting(fly_logcont_t *lc, size_t content_length)
+void fly_logcont_setting(fly_logcont_t *lc, size_t content_length)
 {
-	if (lc == NULL)
-		return -1;
+#ifdef DEBUG
+	assert(lc != NULL);
+#endif
 
 	lc->contlen = content_length;
 	lc->content = fly_pballoc(lc->log->pool, content_length);
-	if (lc->content == NULL)
-		return -1;
 	memset(lc->content, '\0', content_length);
-
-	return 0;
 }
 
 fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type)
@@ -408,9 +405,6 @@ fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type)
 
 	fly_logcont_t *cont;
 	cont = fly_pballoc(log->pool, sizeof(fly_logcont_t));
-	if (cont == NULL)
-		return NULL;
-
 	cont->log = log;
 	cont->__log = __fly_log_from_type(log, type);
 	cont->type = type;
@@ -463,7 +457,6 @@ __noreturn void __fly_log_error_handle(int res)
 
 	errno = __e;
 	FLY_EMERGENCY_ERROR(
-		FLY_EMERGENCY_STATUS_ELOG,
 		__logecont
 	);
 }
@@ -497,14 +490,9 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 	lc = fly_logcont_init(log, FLY_LOG_NOTICE);
 	if (lc == NULL)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_ELOG,
 			"can't ready log content init."
 		);
-	if (fly_logcont_setting(lc, FLY_NOTICE_DIRECT_LOG_MAXLENGTH) == -1)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_ELOG,
-			"can't ready setting log content."
-		);
+	fly_logcont_setting(lc, FLY_NOTICE_DIRECT_LOG_MAXLENGTH);
 
 	va_start(va, fmt);
 	vsnprintf(lc->content, lc->contlen, fmt, va);
@@ -513,11 +501,23 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 	lc->contlen = strlen(lc->content);
 	if (fly_log_now(&lc->when) == -1)
 		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_ELOG,
 			"can't set log time."
 		);
 
 	int res;
+
+	res = __fly_log_write_logcont(lc);
+	if (res < 0)
+		/* noreturn */
+		__fly_log_error_handle(res);
+
+	__fly_logcont_release(lc);
+}
+
+void fly_notice_direct_log_lc(fly_log_t *log, struct fly_logcont *lc)
+{
+	int res;
+	assert(lc->__log == log->notice);
 
 	res = __fly_log_write_logcont(lc);
 	if (res < 0)

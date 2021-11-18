@@ -3,14 +3,14 @@
 
 
 __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx);
-__fly_static int __fly_event_fd_init(void);
+static int __fly_event_fd_init(void);
 __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager);
 __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager);
 inline float fly_diff_time(fly_time_t new, fly_time_t old);
 int fly_milli_time(fly_time_t t);
 __fly_static int __fly_expired_event(fly_event_manager_t *manager);
-__fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manager);
-__fly_static int __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
+static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager);
+static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e);
 __fly_static int __fly_event_cmp(void *k1, void *k2, void *);
 static void fly_event_handle(fly_event_t *e);
@@ -19,21 +19,13 @@ __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx)
 {
 	fly_pool_t *__ep;
 	__ep = fly_create_pool(ctx->pool_manager, FLY_EVENT_POOL_SIZE);
-	if (!__ep)
-		return NULL;
-
 	ctx->event_pool = __ep;
 	return __ep;
 }
 
-__fly_static int __fly_event_fd_init(void)
+static int __fly_event_fd_init(void)
 {
-	int fd;
-	fd = epoll_create1(EPOLL_CLOEXEC);
-	if (fd == -1)
-		return -1;
-
-	return fd;
+	return epoll_create1(EPOLL_CLOEXEC);
 }
 
 /*
@@ -45,12 +37,8 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	fly_event_manager_t *manager;
 	int fd;
 
-	if ((__ep =__fly_event_pool_init(ctx)) == NULL)
-		return NULL;
-
+	__ep =__fly_event_pool_init(ctx);
 	manager = fly_pballoc(__ep , sizeof(fly_event_manager_t));
-	if (!manager)
-		goto error;
 
 	fd = __fly_event_fd_init();
 	if (fd == -1)
@@ -58,21 +46,22 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 
 	manager->pool = __ep;
 	manager->evlist = fly_pballoc(manager->pool, sizeof(struct epoll_event)*FLY_EVLIST_ELES);
-	if (fly_unlikely_null(manager->evlist))
-		return NULL;
 	fly_queue_init(&manager->monitorable);
 	fly_queue_init(&manager->unmonitorable);
 	manager->maxevents = FLY_EVLIST_ELES;
 	manager->ctx = ctx;
 	manager->efd = fd;
 	manager->rbtree = fly_rb_tree_init(__fly_event_cmp);
-	if (fly_unlikely_null(manager->rbtree))
-		return NULL;
-
+	manager->jbend_handle = NULL;
 	return manager;
 error:
 	fly_delete_pool(manager->pool);
 	return NULL;
+}
+
+void fly_jbhandle_setting(fly_event_manager_t *em, void (*handle)(fly_context_t *ctx))
+{
+	em->jbend_handle = handle;
 }
 
 __fly_static int __fly_event_cmp(void *k1, void *k2, void *data __unused)
@@ -143,13 +132,14 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 {
 	fly_event_t *event;
 
+#ifdef	 DEBUG
+	assert(manager);
+	assert(manager->pool);
+#endif
 	if (manager == NULL || manager->pool == NULL)
 		return NULL;
 
 	event = fly_pballoc(manager->pool, sizeof(fly_event_t));
-	if (!event)
-		return NULL;
-
 	event->manager = manager;
 	event->rbnode = NULL;
 	event->fd = -1;
@@ -172,6 +162,10 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	event->rbnode = NULL;
 	event->yetadd = true;
 	event->end_event_data = NULL;
+	fly_bllist_init(&event->errors);
+	event->err_count = 0;
+	event->emerge_ptr = manager->ctx->emerge_ptr;
+	event->if_fail_term = false;
 
 	FLY_EVENT_FOR_RBTREE_INIT(event);
 	return event;
@@ -216,7 +210,7 @@ void fly_event_debug_rbtree(fly_event_manager_t *manager)
 
 	fly_for_each_queue(__q, &manager->monitorable){
 		__e = (fly_event_t *) fly_queue_data(__q, fly_event_t, qelem);
-		if ((__e->flag & FLY_INFINITY))
+		if ((__e->tflag & FLY_INFINITY))
 			continue;
 
 		assert(__e->rbnode->data == __e);
@@ -231,10 +225,8 @@ int fly_event_register(fly_event_t *event)
 	int op;
 	epoll_data_t data;
 
-	if (fly_unlikely_null(event))
-		return -1;
-
 #ifdef DEBUG
+	assert(event);
 	fly_event_debug_rbtree(event->manager);
 #endif
 	op = fly_event_op(event);
@@ -313,16 +305,21 @@ int fly_event_register(fly_event_t *event)
 		assert(event->expired_handler != NULL);
 #endif
 
-	if (fly_event_monitorable(event) && epoll_ctl(event->manager->efd, op, event->fd, &ev) == -1)
-		return -1;
-
+	if (fly_event_monitorable(event) && epoll_ctl(event->manager->efd, op, event->fd, &ev) == -1){
+		struct fly_err *__err;
+		__err = fly_event_err_init(
+			event, errno, FLY_ERR_ERR,
+			"epoll_ctl error in event_register."
+		);
+		fly_event_error_add(event, __err);
+	}
 	return 0;
 }
 
 int fly_event_unregister(fly_event_t *event)
 {
-#ifdef DEBUG
 	fly_event_manager_t *__m=event->manager;
+#ifdef DEBUG
 	fly_event_debug_rbtree(__m);
 #endif
 	if (fly_event_unmonitorable(event)){
@@ -334,8 +331,15 @@ int fly_event_unregister(fly_event_t *event)
 		if (event->rbnode)
 			fly_rb_delete(event->manager->rbtree, event->rbnode);
 		if (!(event->flag & FLY_CLOSE_EV))
-			if (epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL) == -1)
+			if (epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL) == -1){
+				struct fly_err *__err;
+				__err = fly_err_init(
+					__m->ctx->pool, errno, FLY_ERR_ERR,
+					"epoll_ctl error in event_unregister."
+				);
+				fly_error_error(__err);
 				return -1;
+			}
 
 		fly_pbfree(event->manager->pool, event);
 		return 0;
@@ -343,6 +347,15 @@ int fly_event_unregister(fly_event_t *event)
 #ifdef DEBUG
 	fly_event_debug_rbtree(__m);
 #endif
+	struct fly_err *__err;
+	__err = fly_err_init(
+		__m->ctx->pool, errno, FLY_ERR_ALERT,
+		"not found event in unregistering event. (%s: %s)",
+		__FILE__,
+		__LINE__
+	);
+	fly_alert_error(__err);
+	/* not found */
 	return -1;
 }
 
@@ -401,7 +414,7 @@ __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager)
 {
 	fly_rb_node_t *node;
 
-	if (!manager->rbtree->node_count)
+	if (manager->rbtree->node_count == 0)
 		return NULL;
 
 	node = manager->rbtree->root->node;
@@ -423,7 +436,6 @@ __fly_static int __fly_expired_event(fly_event_manager_t *manager)
 			if (e->expired_handler(e) == -1)
 				if (__fly_event_handle_failure_log(e) == -1)
 					FLY_EMERGENCY_ERROR(
-						FLY_EMERGENCY_STATUS_ELOG,
 						"failure to log event handler failure."
 					);
 
@@ -565,10 +577,10 @@ int fly_milli_time(fly_time_t t)
 	return msec;
 }
 
-__fly_static int __fly_event_handle_nomonitorable(fly_event_manager_t *manager)
+__fly_static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager)
 {
 	if (manager->unmonitorable.count == 0)
-		return 0;
+		return;
 
 	struct fly_queue *__q;
 	fly_event_t *__e;
@@ -576,6 +588,9 @@ __fly_static int __fly_event_handle_nomonitorable(fly_event_manager_t *manager)
 	while(manager->unmonitorable.count>0){
 		__q = manager->unmonitorable.next;
 		__e = fly_queue_data(__q, struct fly_event, uqelem);
+#ifdef DEBUG
+	assert(__e->err_count == 0);
+#endif
 		fly_event_handle(__e);
 
 		if (!fly_nodelete(__e)){
@@ -586,11 +601,10 @@ __fly_static int __fly_event_handle_nomonitorable(fly_event_manager_t *manager)
 #endif
 		}
 	}
-
-	return 0;
+	return;
 }
 
-__fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
+static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 {
 	struct epoll_event *event;
 
@@ -603,14 +617,15 @@ __fly_static int __fly_event_handle(int epoll_events, fly_event_manager_t *manag
 		fly_event->available_row = event->events;
 		fly_event_handle(fly_event);
 
-		/* remove event if not persistent */
-		if (fly_unlikely_null(fly_event) && \
-				!fly_nodelete(fly_event) && \
-				(fly_event_unregister(fly_event) == -1))
-			return -1;
+#ifdef DEBUG
+		/* check whethere event is invalid. */
+		assert(fly_event);
+#endif
+		if (fly_event && !fly_nodelete(fly_event))
+			fly_event_unregister(fly_event);
 	}
 
-	return __fly_event_handle_nomonitorable(manager);
+	__fly_event_handle_nomonitorable(manager);
 }
 
 int fly_event_handler(fly_event_manager_t *manager)
@@ -618,7 +633,7 @@ int fly_event_handler(fly_event_manager_t *manager)
 	int epoll_events;
 	fly_event_t *near_timeout;
 	if (!manager || manager->efd < 0)
-		return -1;
+		return FLY_EVENT_HANDLER_INVALID_MANAGER;
 
 	for (;;){
 		int timeout_msec;
@@ -638,12 +653,12 @@ int fly_event_handler(fly_event_manager_t *manager)
 		case 0:
 			/* trigger expired event */
 			if (__fly_expired_event(manager) == -1)
-				return -1;
+				return FLY_EVENT_HANDLER_EXPIRED_EVENT_ERROR;
 
 			break;
 		case -1:
 			/* epoll error */
-			return -1;
+			return FLY_EVENT_HANDLER_EPOLL_ERROR;
 		default:
 			break;
 		}
@@ -699,14 +714,12 @@ __fly_static int __fly_event_handler_failure_logcontent(fly_logcont_t *lc, fly_e
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e)
 {
 	fly_logcont_t *lc;
-	fly_event_t *le;
 
 	lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_NOTICE);
 	if (lc == NULL)
 		return -1;
 
-	if (fly_logcont_setting(lc, FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN) == -1)
-		return -1;
+	fly_logcont_setting(lc, FLY_EVENT_HANDLE_FAILURE_LOG_MAXLEN);
 
 	if (__fly_event_handler_failure_logcontent(lc, e) == -1)
 		return -1;
@@ -714,33 +727,12 @@ __fly_static int __fly_event_handle_failure_log(fly_event_t *e)
 	if (fly_log_now(&lc->when) == -1)
 		return -1;
 
-	/* close failure fd*/
-	if ((e->fail_close != NULL ? e->fail_close(e->fd) : close(e->fd)) == -1)
+	fly_notice_direct_log_lc(fly_log_from_event(e), lc);
+	/* close failure fd */
+	if ((e->fail_close != NULL ? e->fail_close(e, e->fd) : close(e->fd)) == -1)
 		return -1;
 
 	e->flag = FLY_CLOSE_EV;
-	le = fly_event_init(e->manager);
-	if (fly_unlikely_null(le))
-		return -1;
-	FLY_EVENT_HANDLER(le, fly_log_event_handler);
-	le->fd = fly_log_from_event(e)->notice->file;
-	le->read_or_write = FLY_WRITE;
-	le->flag = FLY_MODIFY;
-	le->tflag = 0;
-	le->eflag = 0;
-	le->available = false;
-	le->expired = false;
-	le->event_data = (void *) lc;
-	le->end_handler = NULL;
-	le->end_event_data = NULL;
-	fly_time_zero(le->timeout);
-	fly_event_regular(le);
-
-	if (fly_event_register(le) == -1)
-		return -1;
-	if (fly_event_unregister(e) == -1)
-		return -1;
-
 	return 0;
 }
 
@@ -751,21 +743,104 @@ int fly_event_inherit_register(fly_event_t *e)
 	return fly_event_register(e);
 }
 
-static void fly_event_handle(fly_event_t *e)
+static void fly_em_jbhandle(fly_event_t *e)
+{
+	if (e->manager->jbend_handle)
+		e->manager->jbend_handle(e->manager->ctx);
+}
+
+__direct_log static void fly_event_handle(fly_event_t *e)
 {
 	int handle_result;
 
+#ifdef DEBUG
+	assert(e->err_count == 0);
+#endif
 	if (e->handler != NULL)
 		handle_result = e->handler(e);
 	else
 		return;
 
-	if (handle_result == FLY_EVENT_HANDLE_FAILURE)
+	if (handle_result == FLY_EVENT_HANDLE_FAILURE){
 		/* log error handle in notice log. */
 		if (__fly_event_handle_failure_log(e) == -1)
 			FLY_EMERGENCY_ERROR(
-				FLY_EMERGENCY_STATUS_ELOG,
 				"failure to log event handler failure."
 			);
+	}
+
+	struct fly_bllist *__b;
+	struct fly_err *__e;
+	fly_for_each_bllist(__b, &e->errors){
+		__e = (struct fly_err *) fly_bllist_data(__b, struct fly_err, blelem);
+		/* direct log here */
+		switch(fly_error_level(__e)){
+		case FLY_ERR_EMERG:
+			/* noreturn */
+			fly_em_jbhandle(e);
+			fly_emergency_error(__e);
+			break;
+		case FLY_ERR_CRIT:
+			/* noreturn */
+			fly_em_jbhandle(e);
+			fly_critical_error(__e);
+			break;
+		case FLY_ERR_ERR:
+			/* noreturn */
+			fly_em_jbhandle(e);
+			fly_error_error(__e);
+			break;
+		case FLY_ERR_ALERT:
+			/* return */
+			fly_alert_error(__e);
+			break;
+		case FLY_ERR_WARN:
+			/* return */
+			fly_warn_error(__e);
+			break;
+		case FLY_ERR_NOTICE:
+			/* return */
+			fly_notice_error(__e);
+			break;
+		case FLY_ERR_INFO:
+			/* return */
+			fly_info_error(__e);
+			break;
+		case FLY_ERR_DEBUG:
+			/* return */
+			fly_debug_error(__e);
+			break;
+		default:
+			FLY_NOT_COME_HERE
+		}
+	}
+
+retry:
+	fly_for_each_bllist(__b, &e->errors){
+		__e = (struct fly_err *) fly_bllist_data(__b, struct fly_err, blelem);
+		fly_err_release(__e);
+		e->err_count--;
+		goto retry;
+	}
+	if (e->if_fail_term && \
+			handle_result == FLY_EVENT_HANDLE_FAILURE){
+		fly_notice_direct_log(
+			e->manager->ctx->log,
+			"terminate worker. fail to handle event that if_fail_term flag is on."
+		);
+		exit(FLY_ERR_ERR);
+	}
 	return;
 }
+
+void fly_event_error_add(fly_event_t *e, struct fly_err *__err)
+{
+#ifdef DEBUG
+	assert(__err);
+	assert(e);
+#endif
+	fly_bllist_add_tail(&e->errors, &__err->blelem);
+	e->err_count++;
+	return;
+}
+

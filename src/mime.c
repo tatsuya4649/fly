@@ -31,7 +31,7 @@ bool fly_mime_invalid(fly_mime_type_t *type)
 	return (type==&unknown_mime || type==&noext_mime) ? true : false;
 }
 
-__fly_static int __fly_mime_init(fly_request_t *req);
+static void __fly_mime_init(fly_request_t *req);
 __fly_static int __fly_add_accept_mime(fly_mime_t *m, struct __fly_mime *nm);
 __fly_static int __fly_accept_parse(fly_mime_t *mime, fly_hdr_c *c);
 __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value);
@@ -87,19 +87,15 @@ fly_mime_type_t *fly_mime_from_type(fly_mime_e type)
 	return NULL;
 }
 
-__fly_static int __fly_mime_init(fly_request_t *req) {
+static void __fly_mime_init(fly_request_t *req) {
 	fly_mime_t *mime;
 
 	mime = fly_pballoc(req->pool, sizeof(fly_mime_t));
-	if (fly_unlikely_null(mime))
-		return -1;
 	mime->pool = req->pool;
 	mime->accept_count = 0;
 	fly_bllist_init(&mime->accepts);
 	mime->request = req;
 	req->mime = mime;
-
-	return 0;
 }
 
 __fly_static struct __fly_mime *__fly_mime_parts_init(struct fly_mime *__m)
@@ -172,8 +168,6 @@ __fly_static int __fly_add_accept_asterisk(fly_request_t *req)
 	struct __fly_mime *am;
 
 	am = fly_pballoc(req->pool, sizeof(struct __fly_mime));
-	if (am == NULL)
-		return -1;
 
 	FLY_MIME_ASTERISK(am, req->mime);
 	return __fly_add_accept_mime(req->mime, am);
@@ -188,9 +182,7 @@ int fly_accept_mime(__unused fly_request_t *request)
 	if (fly_unlikely_null(request) || fly_unlikely_null(request->pool) || fly_unlikely_null(request->header))
 		return -1;
 
-	if (__fly_mime_init(request) == -1)
-		return -1;
-
+	__fly_mime_init(request);
 	switch(__fly_accept_mime(header, &accept)){
 	case __FLY_ACCEPT_MIME_ERROR:
 		return -1;
@@ -201,7 +193,7 @@ int fly_accept_mime(__unused fly_request_t *request)
 	case __FLY_ACCEPT_MIME_FOUND:
 		return __fly_accept_parse(request->mime, accept);
 	default:
-		return -1;
+		FLY_NOT_COME_HERE
 	}
 	FLY_NOT_COME_HERE
 	return -1;

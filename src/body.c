@@ -8,9 +8,6 @@ fly_body_t *fly_body_init(fly_context_t *ctx)
 	fly_body_t *body;
 
 	pool = fly_create_pool(ctx->pool_manager, FLY_REQBODY_SIZE);
-	if (pool == NULL)
-		return NULL;
-
 	body = fly_pballoc(pool, sizeof(fly_body_t));
 
 	body->pool = pool;
@@ -89,15 +86,17 @@ fly_bodyc_t *fly_decode_body(fly_buffer_c *body_c, fly_encoding_type_t *t, fly_b
 	struct fly_de *de;
 
 	de = fly_de_init(body->pool);
-	if (fly_unlikely_null(de))
+	if (fly_unlikely_null(de)){
 		return NULL;
+	}
 
 	size_t __max;
 	__max = fly_max_request_length();
 	de->decbuf = fly_buffer_init(de->pool, FLY_BODY_DECBUF_INIT_LEN, FLY_BODY_DECBUF_CHAIN_MAX(__max), FLY_BODY_DECBUF_PER_LEN);
 	de->decbuflen = FLY_BODY_DECBUF_INIT_LEN;
-	if (!fly_e_buf_add(de))
+	if (de->decbuf == NULL){
 		return NULL;
+	}
 	if (!fly_d_buf_add(de))
 		return NULL;
 
@@ -109,8 +108,9 @@ fly_bodyc_t *fly_decode_body(fly_buffer_c *body_c, fly_encoding_type_t *t, fly_b
 		return NULL;
 
 	body->body = fly_pballoc(body->pool,de->decbuf->use_len);
-	if (fly_unlikely_null(body->body))
+	if (fly_unlikely_null(body->body)){
 		return NULL;
+	}
 	body->body_len = de->decbuf->use_len;
 
 	fly_buffer_memcpy_all(body->body, de->decbuf);

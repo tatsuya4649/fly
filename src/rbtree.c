@@ -41,9 +41,6 @@ struct fly_rb_tree *fly_rb_tree_init(fly_rb_cmp_t cmp)
     t->root = NULL;
     t->node_count = 0;
 	t->cmp = cmp;
-    if (fly_unlikely_null(t))
-        return NULL;
-
     return t;
 }
 

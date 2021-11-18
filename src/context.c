@@ -1,9 +1,9 @@
 #include "context.h"
 #include "response.h"
 #include "connect.h"
+#include "err.h"
 
 __fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool);
-int fly_errsys_init(fly_context_t *ctx);
 
 fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 {
@@ -45,13 +45,13 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 	ctx->log_stdout = fly_log_stdout();
 	ctx->log_stderr = fly_log_stderr();
 
+	ctx->emerge_ptr = fly_emerge_memory;
 	fly_bllist_init(&ctx->rcbs);
 
 	/* for SSL/TLS */
 	ctx->ssl_ctx = NULL;
 	/* ready for emergency error */
-	if (fly_errsys_init(ctx) == -1)
-		return NULL;
+	fly_errsys_init(ctx);
 
 	return ctx;
 }

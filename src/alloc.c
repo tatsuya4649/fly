@@ -35,11 +35,12 @@ __direct_log __fly_static void *__fly_malloc(size_t size)
 	void *res;
 	res =  malloc(size);
 	/* if failure to allocate memory, process is end. */
-	if (res == NULL)
-		FLY_EMERGENCY_ERROR(
-			FLY_EMERGENCY_STATUS_NOMEM,
-			"no memory"
+	if (res == NULL){
+		fly_nomem_verror(
+			errno,
+			"no memory."
 		);
+	}
 	return res;
 }
 
@@ -129,8 +130,6 @@ void fly_pool_manager_release(struct fly_pool_manager *__pm)
 static fly_pool_t *__fly_create_pool(struct fly_pool_manager *__pm, size_t size){
 	fly_pool_t *pool;
 	pool = __fly_malloc(sizeof(fly_pool_t));
-	if (pool == NULL)
-		return NULL;
 	pool->max = fly_max_size(size);
 	pool->manager = __pm;
 
@@ -138,8 +137,6 @@ static fly_pool_t *__fly_create_pool(struct fly_pool_manager *__pm, size_t size)
 	fly_bllist_init(&pool->pbelem);
 	pool->block_size = 0;
 	pool->rbtree = fly_rb_tree_init(__fly_rb_search_block);
-	if (fly_unlikely_null(pool->rbtree))
-		return NULL;
 	pool->self_delete = false;
 
 	fly_bllist_add_tail(&__pm->pools, &pool->pbelem);
@@ -182,6 +179,11 @@ void *fly_palloc(fly_pool_t *pool, fly_page_t psize)
 
 void *fly_pballoc(fly_pool_t *pool, size_t size)
 {
+	if (fly_unlikely_null(pool)){
+		FLY_EMERGENCY_ERROR(
+			"alloc without pool error."
+		);
+	}
 	return __fly_palloc(pool, size);
 }
 
