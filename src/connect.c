@@ -62,8 +62,9 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 
 int fly_connect_release(fly_connect_t *conn)
 {
-	if (conn == NULL)
-		return -1;
+#ifdef DEBUG
+	assert(conn);
+#endif
 
 	/* SSL/TLS release */
 	if (conn->flag & FLY_SSL_CONNECT)
@@ -115,10 +116,18 @@ int fly_listen_connected(fly_event_t *e)
 	switch(FLY_CONNECT_HTTP_VERSION(conn)){
 	case V1_1:
 		req = fly_request_init(conn);
-		if (fly_unlikely_null(req))
+		if (fly_unlikely_null(req)){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"request init error."
+			);
+			fly_event_error_add(e, __err);
 			return -1;
+		}
 		e->event_data = (void *) req;
 
+		e->fail_close = fly_request_fail_close_handler;
 		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
 		return fly_request_event_handler(e);
 	case V2:
@@ -129,6 +138,14 @@ int fly_listen_connected(fly_event_t *e)
 	default:
 		FLY_NOT_COME_HERE
 	}
+}
+
+int fly_fail_recognize_protocol(fly_event_t *e, int fd __unused)
+{
+	fly_connect_t *con;
+
+	con = (fly_connect_t *) e->expired_event_data;
+	return fly_connect_release(con);
 }
 
 static int fly_recognize_protocol_of_connected(fly_event_t *e);
@@ -145,15 +162,18 @@ static fly_connect_t *fly_http_connected(fly_sock_t fd, fly_sock_t cfd, fly_even
 
 int fly_accept_listen_socket_handler(struct fly_event *event)
 {
-	fly_connect_t *conn;
-	fly_context_t *ctx;
-	fly_sock_t conn_sock;
-	fly_sock_t listen_sock = event->fd;
+	fly_connect_t		*conn;
+	fly_context_t		*ctx;
+	fly_sock_t			conn_sock;
+	fly_sock_t			listen_sock = event->fd;
 	struct sockaddr_storage addr;
-	socklen_t addrlen;
-	int flag;
-	fly_event_t *ne;
+	socklen_t			addrlen;
+	int					flag;
+	fly_event_t			*ne;
 
+#ifdef DEBUG
+	assert(event->err_count == 0);
+#endif
 	ctx = fly_context_from_event(event);
 	addrlen = sizeof(struct sockaddr_storage);
 	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
@@ -164,14 +184,22 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 			goto read_blocking;
 		else if (conn_sock == EMFILE || conn_sock == ENFILE)
 			goto read_blocking;
-		else
-			return -1;
+		else{
+			struct fly_err	*error;
+			error = fly_event_err_init(event, errno, FLY_ERR_ERR, "an error occurred while accepting a listening socket(%s: %s)", __FILE__, __LINE__);
+			fly_event_error_add(event, error);
+			return FLY_EVENT_HANDLE_FAILURE;
+		}
 	}
 
 	/* create new connected socket event. */
 	ne = fly_event_init(event->manager);
-	if (ne == NULL)
-		return -1;
+	if (ne == NULL){
+		struct fly_err	*error;
+		error = fly_event_err_init(event, errno, FLY_ERR_EMERG, "an error occurred in event init (%s: %s)", __FILE__, __LINE__);
+		fly_event_error_add(event, error);
+		return FLY_EVENT_HANDLE_FAILURE;
+	}
 	ne->fd = conn_sock;
 	ne->read_or_write = FLY_READ;
 	FLY_EVENT_HANDLER(ne, fly_recognize_protocol_of_connected);
@@ -186,6 +214,8 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	FLY_EVENT_EXPIRED_HANDLER(ne, fly_listen_socket_end_handler, conn);
 	FLY_EVENT_END_HANDLER(ne, fly_listen_socket_end_handler, conn);
 	ne->event_data = conn;
+	ne->expired_event_data = conn;
+	ne->fail_close = fly_fail_recognize_protocol;
 	fly_event_socket(ne);
 
 	return fly_event_register(ne);
@@ -215,8 +245,12 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 			goto read_blocking;
 		else if (n == 0)
 			goto disconnect;
-		else
+		else{
+			struct fly_err *__err;
+			__err = fly_event_err_init(e, errno, FLY_ERR_ERR, "recv error in recognizeing protocol of connection(%s: %s)", __FILE__, __LINE__);
+			fly_event_error_add(e, __err);
 			return -1;
+		}
 	}
 
 	if (fly_tls_handshake_magic(buf)){
@@ -248,11 +282,15 @@ read_blocking:
 	return fly_event_register(e);
 
 disconnect:
-	if (fly_connect_release(conn) == -1)
+	if (fly_connect_release(conn) == -1){
+		struct fly_err *__err;
+		__err = fly_event_err_init(e, errno, FLY_ERR_ERR, "release resources of connection error in recognizeing protocol of connection(%s: %s)", __FILE__, __LINE__);
+		fly_event_error_add(e, __err);
 		return -1;
+	}
 
 	e->flag = FLY_CLOSE_EV;
-	return fly_event_unregister(e);
+	return 0;
 
 response_400:
 	return fly_400_event_norequest(e, conn);

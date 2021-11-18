@@ -26,7 +26,7 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame);
 void fly_settings_frame_ack(fly_hv2_stream_t *stream);
 void __fly_hv2_add_yet_ack_frame(struct fly_hv2_send_frame *frame);
 void fly_received_settings_frame_ack(fly_hv2_stream_t *stream);
-int fly_hv2_dynamic_table_init(struct fly_hv2_state *state);
+void fly_hv2_dynamic_table_init(struct fly_hv2_state *state);
 int fly_hv2_parse_headers(fly_hv2_stream_t *stream __unused, uint32_t length __unused, uint8_t *payload, fly_buffer_c *__c __unused);
 #define fly_hv2_send_no_error(__s, type)	\
 		__fly_hv2_send_error((__s), FLY_HV2_NO_ERROR, type)
@@ -235,13 +235,11 @@ int fly_hv2_stream_create_reserved(fly_hv2_state_t *state, fly_sid_t id, bool fr
 	return 0;
 }
 
-int fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length, uint8_t flags)
+void fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length, uint8_t flags)
 {
 	fly_hv2_frame_t *frame;
 
 	frame = fly_pballoc(stream->state->pool, sizeof(struct fly_hv2_frame));
-	if (fly_unlikely_null(frame))
-		return -1;
 	frame->stream = stream;
 	frame->type = type;
 	frame->length = length;
@@ -250,7 +248,6 @@ int fly_hv2_create_frame(fly_hv2_stream_t *stream, uint8_t type, uint32_t length
 	fly_queue_init(&frame->felem);
 	stream->frame_count++;
 	fly_queue_push(&stream->frames, &frame->felem);
-	return 0;
 }
 
 void fly_hv2_pop_frame(struct fly_hv2_stream *stream)
@@ -276,9 +273,6 @@ static fly_hv2_stream_t *__fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid
 {
 	fly_hv2_stream_t *__s;
 	__s = fly_pballoc(state->pool, sizeof(fly_hv2_stream_t));
-	if (fly_unlikely_null(__s))
-		return NULL;
-
 	__s->id = id;
 	__s->dependency_id = FLY_HV2_STREAM_ROOT_ID;
 	fly_bllist_init(&__s->blelem);
@@ -466,9 +460,6 @@ fly_hv2_state_t *fly_hv2_state_init(fly_connect_t *conn)
 
 	state = fly_pballoc(conn->pool, sizeof(fly_hv2_state_t));
 	state->pool = conn->pool;
-	if (fly_unlikely_null(state))
-		goto state_error;
-
 	fly_hv2_default_settings(state);
 
 	state->connect = conn;
@@ -494,22 +485,15 @@ fly_hv2_state_t *fly_hv2_state_init(fly_connect_t *conn)
 	state->goaway = false;
 	state->goaway_lsid = 0;
 	state->response_count = 0;
-	if (fly_hv2_dynamic_table_init(state) == -1)
-		goto dynamic_table_error;
+	fly_hv2_dynamic_table_init(state);
 	state->emergency_ptr = fly_pballoc(state->pool, FLY_HV2_STATE_EMEPTR_MIN);
-	if (fly_unlikely_null(state->emergency_ptr))
-		goto emergency_error;
 	state->first_send_settings = false;
 
 	conn->v2_state = state;
 	return state;
 
-emergency_error:
-	fly_hv2_dynamic_table_release(state);
-dynamic_table_error:
 streams_error:
 	fly_pbfree(conn->pool, state);
-state_error:
 	return NULL;
 }
 
@@ -536,8 +520,15 @@ int fly_receive_v2(fly_sock_t fd, fly_connect_t *connect)
 	fly_buffer_t *__buf;
 
 	__buf = connect->buffer;
-	if (fly_unlikely(__buf->chain_count == 0))
-		return -1;
+	if (fly_unlikely(__buf->chain_count == 0)){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			connect->pool, 0, FLY_ERR_ERR,
+			"http2 request receive no buffer chain error in receiving request . (%s: %s)",
+			__FILE__, __LINE__
+		);
+		fly_error_error(__err);
+	}
 
 	int recvlen=0, total=0;
 	if (FLY_CONNECT_ON_SSL(connect)){
@@ -576,8 +567,16 @@ retry:
 				goto read_blocking;
 			else if (errno == ECONNREFUSED)
 				goto end_of_connection;
-			else
-				goto error;
+			else{
+				struct fly_err *__err;
+				__err = fly_err_init(
+					connect->pool, errno, FLY_ERR_ERR,
+					"recv error in receiving request (HTTP2)."
+				);
+				fly_error_error(__err);
+
+				FLY_NOT_COME_HERE
+			}
 		default:
 			break;
 		}
@@ -634,8 +633,15 @@ int fly_hv2_init_handler(fly_event_t *e)
 	}
 
 	if (!conn->v2_state){
-		if (fly_unlikely_null(fly_hv2_state_init(conn)))
+		if (fly_unlikely_null(fly_hv2_state_init(conn))){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"state init error."
+			);
+			fly_event_error_add(e, __err);
 			goto error;
+		}
 	}
 
 	switch(fly_receive_v2(conn->c_sockfd, conn)){
@@ -661,6 +667,7 @@ connection_preface:
 	case FLY_HV2_INIT_CONNECTION_PREFACE_CONTINUATION:
 		goto read_continuation;
 	case FLY_HV2_INIT_CONNECTION_PREFACE_ERROR:
+		/* state->goaway is on */
 		fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(conn->v2_state), FLY_HV2_CONNECTION_ERROR);
 		break;
 	case FLY_HV2_INIT_CONNECTION_PREFACE_SUCCESS:
@@ -700,7 +707,7 @@ disconnect:
 
 	e->tflag = 0;
 	e->flag = FLY_CLOSE_EV;
-	return fly_event_unregister(e);
+	return 0;
 }
 
 struct fly_hv2_send_frame *fly_hv2_send_frame_init(fly_hv2_stream_t *stream)
@@ -1421,7 +1428,8 @@ close_connection:
 	/* close connection */
 	if (fly_hv2_close_handle(e, state) == -1)
 		return -1;
-	return fly_event_unregister(e);
+	e->flag = FLY_CLOSE_EV;
+	return 0;
 }
 
 int fly_hv2_goaway(fly_hv2_state_t *state, bool r, uint32_t last_stream_id, uint32_t error_code)
@@ -1585,13 +1593,16 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 				continue;
 		}
 
-		if (sid!=FLY_HV2_STREAM_ROOT_ID && fly_hv2_create_frame(__stream, type, length, flags) == -1)
-			goto emergency;
+		if (sid!=FLY_HV2_STREAM_ROOT_ID)
+			fly_hv2_create_frame(__stream, type, length, flags);
 
 		switch(state->connection_state){
 		case FLY_HV2_CONNECTION_STATE_INIT:
 		case FLY_HV2_CONNECTION_STATE_END:
 			/* error */
+#ifdef DEBUG
+			assert(0);
+#endif
 			return -1;
 		case FLY_HV2_CONNECTION_STATE_CONNECTION_PREFACE:
 			/* only SETTINGS Frame */
@@ -1605,8 +1616,16 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 		}
 
 		/* receive message from peer. extension */
-		if (fly_timeout_restart(event) == -1)
+		if (fly_timeout_restart(event) == -1){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				event, errno, FLY_ERR_CRIT,
+				"time handler is broken. (%s: %s)",
+				__FILE__, __LINE__
+			);
+			fly_event_error_add(event, __err);
 			return -1;
+		}
 
 		switch(type){
 		case FLY_HV2_FRAME_TYPE_DATA:
@@ -1947,9 +1966,21 @@ closed:
 		if (fly_hv2_close_handle(event, state) == -1)
 			return -1;
 
-		return fly_event_unregister(event);
+		event->flag = FLY_CLOSE_EV;
+		return 0;
 emergency:
+		;
 		fly_hv2_emergency(event, state);
+
+		struct fly_err *__err;
+		__err = fly_event_err_init(
+			event,
+			errno,
+			FLY_ERR_ERR,
+			"HTTP2 received emergency error. (%s: %s)",
+			__FILE__, __LINE__
+		);
+		fly_event_error_add(event, __err);
 		return -1;
 
 	} while (true);
@@ -2458,8 +2489,20 @@ send:
 						goto write_blocking;
 					else if (numsend == -1 && errno == EPIPE)
 						goto disconnect;
-					else if (numsend == -1)
-						return FLY_SEND_DATA_FH_ERROR;
+					else if (numsend == -1 && errno == EINTR)
+						continue;
+					else if (numsend == -1){
+						struct fly_err *__err;
+
+						__err = fly_err_init(
+							state->pool,
+							errno,
+							FLY_ERR_ERR,
+							"send frame error. (%s: %s)",
+							__FILE__, __LINE__
+						);
+						fly_error_error(__err);
+					}
 				}
 				res->byte_from_start += numsend;
 				total += numsend;
@@ -2506,8 +2549,20 @@ send:
 						goto write_blocking;
 					else if (numsend == -1 && errno == EPIPE)
 						goto disconnect;
-					else if (numsend == -1)
-						return FLY_RESPONSE_ERROR;
+					else if (numsend == -1 && errno == EINTR)
+						continue;
+					else if (numsend == -1){
+						struct fly_err *__err;
+
+						__err = fly_err_init(
+							state->pool,
+							errno,
+							FLY_ERR_ERR,
+							"send frame error. (%s: %s)",
+							__FILE__, __LINE__
+						);
+						fly_error_error(__err);
+					}
 				}
 				total += numsend;
 				res->byte_from_start += numsend;
@@ -2561,8 +2616,18 @@ send:
 					numsend = sendfile(c_sockfd, pf->fd, offset, res->count-total);
 					if (FLY_BLOCKING(numsend)){
 						goto write_blocking;
-					}else if (numsend == -1)
-						return FLY_SEND_DATA_FH_ERROR;
+					}else if (numsend == -1){
+						struct fly_err *__err;
+
+						__err = fly_err_init(
+							state->pool,
+							errno,
+							FLY_ERR_ERR,
+							"send frame error. (%s: %s)",
+							__FILE__, __LINE__
+						);
+						fly_error_error(__err);
+					}
 				}
 
 				total += numsend;
@@ -2619,8 +2684,18 @@ send:
 					numsend = sendfile(e->fd, __r->fd, offset, res->count-total);
 					if (FLY_BLOCKING(numsend)){
 						goto write_blocking;
-					}else if (numsend == -1)
-						return FLY_SEND_DATA_FH_ERROR;
+					}else if (numsend == -1){
+						struct fly_err *__err;
+
+						__err = fly_err_init(
+							state->pool,
+							errno,
+							FLY_ERR_ERR,
+							"send frame error. (%s: %s)",
+							__FILE__, __LINE__
+						);
+						fly_error_error(__err);
+					}
 				}
 
 				fly_hv2_peer_window_size_update(stream, numsend);
@@ -2676,6 +2751,8 @@ retry:
 			return FLY_SEND_FRAME_ERROR;
 		case __FLY_SEND_FRAME_SUCCESS:
 			break;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		if (__s->type == FLY_HV2_FRAME_TYPE_HEADERS && \
@@ -2925,7 +3002,7 @@ void __fly_hv2_add_yet_send_frame(struct fly_hv2_send_frame *frame)
 	state->send_count++;
 }
 
-int fly_send_headers_frame(fly_hv2_stream_t *stream, fly_response_t *res)
+void fly_send_headers_frame(fly_hv2_stream_t *stream, fly_response_t *res)
 {
 #define FLY_SEND_HEADERS_FRAME_BUFFER_INIT_LEN		1
 #define FLY_SEND_HEADERS_FRAME_BUFFER_CHAIN_MAX		100
@@ -2940,8 +3017,6 @@ int fly_send_headers_frame(fly_hv2_stream_t *stream, fly_response_t *res)
 
 	max_payload = stream->state->max_frame_size;
 	buf = fly_buffer_init(res->pool, FLY_SEND_HEADERS_FRAME_BUFFER_INIT_LEN, FLY_SEND_HEADERS_FRAME_BUFFER_CHAIN_MAX, FLY_SEND_HEADERS_FRAME_BUFFER_PER_LEN);
-	if (fly_unlikely_null(buf))
-		return -1;
 
 	total = 0;
 	struct fly_bllist *__b;
@@ -2969,7 +3044,6 @@ int fly_send_headers_frame(fly_hv2_stream_t *stream, fly_response_t *res)
 	__f = __fly_send_headers_frame(stream, res->pool, buf, total, over, flag);
 	__fly_hv2_add_yet_send_frame(__f);
 	fly_buffer_release(buf);
-	return 0;
 }
 
 void fly_send_settings_frame(fly_hv2_stream_t *stream, uint16_t *id, uint32_t *value, size_t count, bool ack)
@@ -3050,8 +3124,20 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame)
 				goto write_blocking;
 			else if (numsend == -1 && errno == EPIPE)
 				goto disconnect;
-			else if (numsend == -1)
-				return __FLY_SEND_FRAME_ERROR;
+			else if (numsend == -1 && errno == EINTR)
+				continue;
+			else if (numsend == -1){
+				struct fly_err *__err;
+
+				__err = fly_err_init(
+					frame->pool,
+					errno,
+					FLY_ERR_ERR,
+					"send frame error. (%s: %s)",
+					__FILE__, __LINE__
+				);
+				fly_error_error(__err);
+			}
 		}
 
 		if (frame->send_fase == FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER){
@@ -3330,13 +3416,11 @@ struct fly_hv2_static_table static_table[] = {
 	{61, "www-authenticate"					, NULL},
 };
 
-int fly_hv2_dynamic_table_init(struct fly_hv2_state *state)
+void fly_hv2_dynamic_table_init(struct fly_hv2_state *state)
 {
 	struct fly_hv2_dynamic_table *dt;
 
 	dt = fly_pballoc(state->pool, sizeof(struct fly_hv2_dynamic_table));
-	if (fly_unlikely_null(dt))
-		return -1;
 	dt->entry_size = 0;
 	dt->prev = dt->prev;
 	dt->next = dt->next;
@@ -3344,8 +3428,6 @@ int fly_hv2_dynamic_table_init(struct fly_hv2_state *state)
 	state->dtable_entry_count = 0;
 	state->dtable_size = 0;
 	state->dtable_max_index = FLY_HV2_STATIC_TABLE_LENGTH;
-
-	return 0;
 }
 
 void fly_hv2_dynamic_table_remove_entry(struct fly_hv2_state *state);
@@ -4316,8 +4398,7 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 
 	fly_hdr_ci *ci = req->header;
 
-	if (fly_request_line_init(req) == -1)
-		return -1;
+	fly_request_line_init(req);
 
 	req->request_line->version = fly_match_version_from_type(V2);
 	if (fly_unlikely_null(req->request_line->version))
@@ -4631,15 +4712,13 @@ int fly_hv2_response_event(fly_event_t *e)
 		goto response_500;
 
 	v2_res = fly_pballoc(stream->state->pool, sizeof(struct fly_hv2_response));
-	if (fly_unlikely_null(v2_res))
-		return -1;
 	v2_res->response = res;
 	fly_hv2_add_response(stream->state, v2_res);
 
 	res->fase = FLY_RESPONSE_HEADER;
 	/* response headers */
 	if (fly_status_code_pseudo_headers(res) == -1)
-		return -1;
+		goto response_500;
 
 	fly_rcbs_t *rcbs=NULL;
 	if (res->de != NULL)
@@ -4650,9 +4729,9 @@ int fly_hv2_response_event(fly_event_t *e)
 		res->rcbs = rcbs;
 		if (rcbs){
 			if (fly_add_content_length_from_fd(res->header, rcbs->fd, true) == -1)
-				return -1;
+				goto response_500;
 			if (fly_add_content_type(res->header, rcbs->mime, true) == -1)
-				return -1;
+				goto response_500;
 		}
 	}
 
@@ -4746,11 +4825,16 @@ int fly_hv2_response_event(fly_event_t *e)
 		__de->end = false;
 		res->de = __de;
 
-		if (fly_unlikely_null(__de->decbuf) || \
-				fly_unlikely_null(__de->encbuf))
+		if (res->encoding_type->encode(__de) == -1){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"response encoding error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
 			return -1;
-		if (res->encoding_type->encode(__de) == -1)
-			return -1;
+		}
 
 		res->encoded = true;
 		res->response_len = __de->contlen;
@@ -4765,8 +4849,7 @@ int fly_hv2_response_event(fly_event_t *e)
 	else
 		fly_add_content_length(res->header, res->response_len, true);
 send_header:
-	if (fly_send_headers_frame(stream, res))
-		return -1;
+	fly_send_headers_frame(stream, res);
 	e->read_or_write |= FLY_WRITE;
 	e->event_data = (void *) res->request->connect;
 	goto register_handler;

@@ -4,6 +4,7 @@ log/*			linguist-documentation
 m4/*			linguist-documentation
 tests/*			linguist-documentation
 static/*		linguist-documentation
+__pycache__/*	linguist-documentation
 install-sh  	linguist-documentation
 config.guess	linguist-documentation
 configure~		linguist-documentation
@@ -17,6 +18,11 @@ missing			linguist-documentation
 *.in			linguist-documentation
 *.am			linguist-documentation
 Makefile		linguist-documentation
+*.crt			linguist-documentation
+*.key			linguist-documentation
+*.j2			linguist-documentation
+*.conf			linguist-documentation
+*.init			linguist-documentation
 
 *.py			linguist-detectable=true
 *.c				linguist-detectable=true
