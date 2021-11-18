@@ -1,5 +1,5 @@
 
-class HTTPResponse(Exception):
+class HTTPException(Exception):
     _status=500
 
     def __init__(
@@ -14,7 +14,8 @@ class HTTPResponse(Exception):
             self._headers = list()
 
     def __str__(self):
-        return self._err_content if self._err_content else ""
+        return self._err_content \
+                if self._err_content is not None else ""
 
     @property
     def status_code(self):
@@ -25,84 +26,84 @@ class HTTPResponse(Exception):
         return self._headers
 
 # 4xx Error (Client error)
-class HTTP400Response(HTTPResponse):
+class HTTP400Exception(HTTPException):
     _status=400
-class HTTP401Response(HTTPResponse):
+class HTTP401Exception(HTTPException):
     _status=401
-class HTTP403Response(HTTPResponse):
+class HTTP403Exception(HTTPException):
     _status=403
-class HTTP404Response(HTTPResponse):
+class HTTP404Exception(HTTPException):
     _status=404
-class HTTP405Response(HTTPResponse):
+class HTTP405Exception(HTTPException):
     _status=405
-class HTTP406Response(HTTPResponse):
+class HTTP406Exception(HTTPException):
     _status=406
-class HTTP407Response(HTTPResponse):
+class HTTP407Exception(HTTPException):
     _status=407
-class HTTP408Response(HTTPResponse):
+class HTTP408Exception(HTTPException):
     _status=408
-class HTTP409Response(HTTPResponse):
+class HTTP409Exception(HTTPException):
     _status=409
-class HTTP410Response(HTTPResponse):
+class HTTP410Exception(HTTPException):
     _status=410
-class HTTP411Response(HTTPResponse):
+class HTTP411Exception(HTTPException):
     _status=411
-class HTTP412Response(HTTPResponse):
+class HTTP412Exception(HTTPException):
     _status=412
-class HTTP413Response(HTTPResponse):
+class HTTP413Exception(HTTPException):
     _status=413
-class HTTP414Response(HTTPResponse):
+class HTTP414Exception(HTTPException):
     _status=414
-class HTTP415Response(HTTPResponse):
+class HTTP415Exception(HTTPException):
     _status=415
-class HTTP416Response(HTTPResponse):
+class HTTP416Exception(HTTPException):
     _status=416
-class HTTP417Response(HTTPResponse):
+class HTTP417Exception(HTTPException):
     _status=417
-class HTTP418Response(HTTPResponse):
+class HTTP418Exception(HTTPException):
     _status=418
-class HTTP421Response(HTTPResponse):
+class HTTP421Exception(HTTPException):
     _status=421
-class HTTP422Response(HTTPResponse):
+class HTTP422Exception(HTTPException):
     _status=422
-class HTTP423Response(HTTPResponse):
+class HTTP423Exception(HTTPException):
     _status=423
-class HTTP424Response(HTTPResponse):
+class HTTP424Exception(HTTPException):
     _status=424
-class HTTP425Response(HTTPResponse):
+class HTTP425Exception(HTTPException):
     _status=425
-class HTTP426Response(HTTPResponse):
+class HTTP426Exception(HTTPException):
     _status=426
-class HTTP428Response(HTTPResponse):
+class HTTP428Exception(HTTPException):
     _status=428
-class HTTP429Response(HTTPResponse):
+class HTTP429Exception(HTTPException):
     _status=429
-class HTTP431Response(HTTPResponse):
+class HTTP431Exception(HTTPException):
     _status=431
-class HTTP451Response(HTTPResponse):
+class HTTP451Exception(HTTPException):
     _status=451
 
 # 5xx Error (Server error)
-class HTTP500Response(HTTPResponse):
+class HTTP500Exception(HTTPException):
     _status=500
-class HTTP501Response(HTTPResponse):
+class HTTP501Exception(HTTPException):
     _status=501
-class HTTP502Response(HTTPResponse):
+class HTTP502Exception(HTTPException):
     _status=502
-class HTTP503Response(HTTPResponse):
+class HTTP503Exception(HTTPException):
     _status=503
-class HTTP504Response(HTTPResponse):
+class HTTP504Exception(HTTPException):
     _status=504
-class HTTP505Response(HTTPResponse):
+class HTTP505Exception(HTTPException):
     _status=505
-class HTTP506Response(HTTPResponse):
+class HTTP506Exception(HTTPException):
     _status=506
-class HTTP507Response(HTTPResponse):
+class HTTP507Exception(HTTPException):
     _status=507
-class HTTP508Response(HTTPResponse):
+class HTTP508Exception(HTTPException):
     _status=508
-class HTTP510Response(HTTPResponse):
+class HTTP510Exception(HTTPException):
     _status=510
-class HTTP511Response(HTTPResponse):
+class HTTP511Exception(HTTPException):
     _status=511
 
