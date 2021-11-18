@@ -1,4 +1,5 @@
 pytest >= 6
+pytest-cov >= 3.0.0
 httpx
 click >= 7.1.0
 jinja2 >= 3.0.0

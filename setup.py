@@ -72,6 +72,11 @@ setup(
         "click>=7.1.0",
         "jinja2>=3.0.0",
     ],
+    test_require = [
+        "pytest >= 6",
+        "pytest-cov >= 3.0.0",
+        "httpx >= 0.20.0",
+    ],
     entry_points="""
     [console_scripts]
     fly=fly.main:fly_command_line

@@ -1,5 +1,5 @@
 import traceback
-import status
+import exceptions
 from .response import Response
 import sys
 
@@ -40,7 +40,7 @@ class _BaseRoute:
                             "response must be Response or None or str or bytes type."
                         )
 
-        except status.HTTPException as e:
+        except exceptions.HTTPException as e:
             res = Response(
                 status_code=e.status_code,
                 body=str(e).encode("utf-8") if len(str(e)) > 0 else None

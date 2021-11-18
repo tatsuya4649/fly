@@ -10,7 +10,7 @@ Released: 2021/11/18
 
 ### Python
 
-* HTTPException (fly/status.py). if error occurred or raise HTTPResponse, return it's status code and error content as response body.
+* HTTPException (fly/exceptions.py). if error occurred or raise HTTPExceptio return it's status code and error content as response body.
 
 * HTTP4xxException
 
@@ -48,7 +48,7 @@ Released: 2021/11/13
 
 * Templaets class with Jinja2 to support template response.  * Templates helper function.  * Route function(@app.get, @app.post, ...) cat receive return value of str type, bytes type.
 
-* set_cookie function in Response class.
+* set\_cookie function in Response class.
 
 * Route function can handle all HTTP method. (GET, POST, HEAD, PUT, DELETE, CONNECT, OPTIONS, TRACE, PATCH)
 
