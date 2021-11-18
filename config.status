@@ -814,7 +814,7 @@ cat >>"$ac_tmp/subs1.awk" <<\_ACAWK &&
 S["am__EXEEXT_FALSE"]=""
 S["am__EXEEXT_TRUE"]="#"
 S["LTLIBOBJS"]=""
-S["FLY_VERSION"]="1.1.0"
+S["FLY_VERSION"]="1.1.13"
 S["LIBOBJS"]=""
 S["AM_BACKSLASH"]="\\"
 S["AM_DEFAULT_VERBOSITY"]="1"
