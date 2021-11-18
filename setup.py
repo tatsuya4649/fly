@@ -57,7 +57,7 @@ server = Extension(
 )
 
 setup(
-	name="fly_server",
+	name="Fly",
 	version=version_from_init(),
 	description="lightweight web framework",
 	ext_modules = [
@@ -75,7 +75,9 @@ setup(
     test_require = [
         "pytest >= 6",
         "pytest-cov >= 3.0.0",
+        "pytest-asyncio >= 0.16.0"
         "httpx >= 0.20.0",
+        "httpx[http2]",
     ],
     entry_points="""
     [console_scripts]
