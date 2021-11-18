@@ -5,6 +5,7 @@ sys.path.append(
     os.path.dirname(__file__)
 )
 from fly import Fly, Response
+from fly.response import *
 
 app = Fly()
 

@@ -2,11 +2,25 @@
 
 ## 1.1.1
 
-Released: 2021/11/16
+Released: 2021/11/18
 
 ## Added
 
 * Added error handling test.
+
+### Python
+
+* HTTPResponse exceptions(fly/status.py). if error occurred or raise HTTPResponse, return it's status code and error content as response body.
+
+* HTTP4xxResponse
+
+* HTTP5xxResponse
+
+* debug mode and production mode in Fly (fly/app.py)
+
+* \_BaseResponse class (fly/\_base.py). this is wrapper function of route function.
+
+### C
 
 ## Changed
 
