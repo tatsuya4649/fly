@@ -1,6 +1,12 @@
 import sys
 import os
 import ctypes
+import inspect
+import importlib.machinery as imm
+import importlib.util as imu
+import asyncio
+import traceback
+import time
 
 ctypes.cdll.LoadLibrary(
     os.path.abspath(
@@ -23,6 +29,78 @@ class _Fly:
             cls._instance = super().__new__(cls)
         return cls._instance
 
+from watchdog.observers import Observer
+from watchdog.events import PatternMatchingEventHandler
+
+def _signal_interrupt():
+    print("\nReceive SIGINT. teminate fly server.", file=sys.stderr)
+    sys.exit(1)
+
+_gl = True
+class FlyWatchEventHandler(PatternMatchingEventHandler):
+    def __init__(
+        self,
+        fly,
+        patterns=['*.py', '*.conf'], ignore_patterns=None,
+        ignore_directories=True,
+        case_sensitive=False,
+    ):
+        super().__init__(patterns, ignore_patterns, ignore_directories, case_sensitive)
+        self._fly = fly
+
+    def on_any_event(self, event):
+        global _gl
+        _gl = False
+
+def _run_server(fly):
+    while(True):
+        app_filepath = fly._app_filepath
+
+        try:
+            fly._start_server(fly._daemon)
+        except Exception as e:
+            _t = traceback.format_exc()
+            print(_t)
+            _ev = FlyWatchEventHandler(fly)
+            _obs = Observer()
+            _obs.schedule(_ev, app_filepath, recursive=False)
+            _obs.start()
+            try:
+                global _gl
+                _gl = True
+                while _gl:
+                    try:
+                        time.sleep(1)
+                    except KeyboardInterrupt:
+                        break
+
+                if _gl:
+                    _signal_interrupt()
+                    sys.exit(1)
+                else:
+                    _obs.stop()
+            except KeyboardInterrupt:
+                _obs.stop()
+                break
+            _obs.join()
+
+        if fly.is_debug and not fly.is_daemon:
+            print("\n\n")
+            print("Uploading...")
+
+        _spec = imu.spec_from_file_location("_fly", app_filepath)
+        _mod = imu.module_from_spec(_spec)
+        _spec.loader.exec_module(_mod)
+        for _ele in dir(_mod):
+            _instance = getattr(_mod, _ele)
+            if _instance.__class__ == Fly:
+                fly = _instance
+
+    sys.exit(1)
+
+_FLY_SIGNAL_END = 1
+_FLY_RELOAD = 2
+
 class Fly(_Fly, Mount, Route, _fly_server):
     def __init__(
         self,
@@ -43,8 +121,8 @@ class Fly(_Fly, Mount, Route, _fly_server):
 
         self.config_path = config_path
         # for Singleton
-        if not hasattr(self, "_run_server"):
-            setattr(self, "_run_server", True)
+        if not hasattr(self, "_fly_server"):
+            setattr(self, "_fly_server", True)
             # socket make, bind, listen
             _fly_server.__init__(self)
 
@@ -55,6 +133,8 @@ class Fly(_Fly, Mount, Route, _fly_server):
             self._debug = True if kwargs.get("debug") is True else False
         else:
             self._debug = True
+
+        self._app_filepath = self._get_application_file_path()
 
     def route(self, path, method):
         if not isinstance(path, str) or not isinstance(method, Method):
@@ -109,7 +189,25 @@ class Fly(_Fly, Mount, Route, _fly_server):
     def patch(self, path):
         return self.route(path, Method.PATCH)
 
+    def _get_application_file_path(self):
+        stack = inspect.stack()
+        for s in stack[1:]:
+            m = inspect.getmodule(s[0])
+            if m and (__file__ != m.__file__):
+                return os.path.abspath(m.__file__)
+        return None
+
     def run(self, daemon=False):
+        self._daemon = daemon
+        self._loaded = True
+        self._run()
+
+    def _start_server(self, daemon=False):
+        if not isinstance(daemon, bool):
+            raise TypeError(
+                "daemon must be bool type."
+            )
+        self._daemon = daemon
         if self.mounts_count == 0 and len(self.routes) == 0:
             raise RuntimeError("fly must have one or more mount points.")
         if self.config_path is not None and not isinstance(self.config_path, str):
@@ -128,6 +226,8 @@ class Fly(_Fly, Mount, Route, _fly_server):
         print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
         print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m", file=sys.stderr)
+        if self._app_filepath:
+            print(f"    \033[1m*\033[0m SSL: \033[1m{self._app_filepath}\033[0m", file=sys.stderr)
         if self._ssl:
             print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m", file=sys.stderr)
             print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m", file=sys.stderr)
@@ -153,8 +253,31 @@ class Fly(_Fly, Mount, Route, _fly_server):
             print(f"    \033[1m*\033[0m Mount paths: \033[1m-\033[0m", file=sys.stderr)
 
         print("\n", file=sys.stderr)
-        super().run(daemon)
+        result = super().run(
+            self._app_filepath,
+            self.is_debug,
+            self.is_daemon,
+        )
+
+        if result == _FLY_RELOAD:
+            return
+        elif result == _FLY_SIGNAL_END:
+            if not self.is_daemon:
+                _signal_interrupt()
+            sys.exit(1)
+        else:
+            # not come here
+            sys.exit(1)
 
     @property
     def is_debug(self):
         return self._debug
+
+    @property
+    def is_daemon(self):
+        return self._daemon
+
+    def _run(self):
+        _run_server(self)
+
+
