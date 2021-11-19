@@ -71,6 +71,7 @@ setup(
     install_requires = [
         "click>=7.1.0",
         "jinja2>=3.0.0",
+        "watchdog >= 2.1.0",
     ],
     test_require = [
         "pytest >= 6",
