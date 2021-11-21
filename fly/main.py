@@ -80,7 +80,7 @@ class FlyNotFoundError(Exception):
     "-x",
     "--ssl-crt-path",
     "ssl_crt_path",
-    type=str,
+    type=click.Path(exists=True),
     default=None,
     help="SSL/TLS certificate file path",
     show_default=False
@@ -89,7 +89,7 @@ class FlyNotFoundError(Exception):
     "-k",
     "--ssl-key-path",
     "ssl_key_path",
-    type=str,
+    type=click.Path(exists=True),
     default=None,
     help="SSL/TLS key file path",
     show_default=False
@@ -114,7 +114,7 @@ class FlyNotFoundError(Exception):
     "-l",
     "--log_path",
     "log_path",
-    type=str,
+    type=click.Path(exists=True),
     default=None,
     help="Path os directory that is made log files",
     show_default=False
@@ -180,6 +180,13 @@ class FlyNotFoundError(Exception):
     help="Whether to treat daemon process.",
     show_default=False
 )
+@click.option(
+    "--test",
+    "test",
+    is_flag=True,
+    default=False,
+    show_default=False
+)
 def fly_command_line(
     app:                str,
     conf_path:          str,
@@ -201,6 +208,7 @@ def fly_command_line(
     max_request_len:    int,
     request_timeout:    int,
     daemon:             bool,
+    test:               bool,
 ):
     """This is fly operation script.\n
 
@@ -208,7 +216,8 @@ def fly_command_line(
     """
     kwargs = {
         'app':                  app,
-        "conf_path":            conf_path,
+        "conf_path":            os.path.abspath(conf_path) \
+                if conf_path is not None else None,
         "daemon":               daemon,
         "mount_max":            mount_max,
         "workers":              workers,
@@ -216,17 +225,21 @@ def fly_command_line(
         "host":                 host,
         "port":                 port,
         "ssl":                  ssl,
-        "ssl_crt_path":         ssl_crt_path,
-        "ssl_key_path":         ssl_key_path,
+        "ssl_crt_path":         os.path.abspath(ssl_crt_path) \
+                if ssl_crt_path is not None else None,
+        "ssl_key_path":         os.path.abspath(ssl_key_path) \
+                if ssl_key_path is not None else None,
         "pidfile_path":         pidfile_path,
         "index_path":           index_path,
-        "log_path":             log_path,
+        "log_path":             os.path.abspath(log_path) \
+                if log_path is not None else None,
         "log_stdout":           stdout,
         "log_stderr":           stderr,
         "backlog":              backlog,
         "max_response_len":     max_response_len,
         "max_request_len":      max_request_len,
         "request_timeout":      request_timeout,
+        "test":                 test,
     }
     run(**kwargs)
 
@@ -258,6 +271,7 @@ def run(**kwargs):
     daemon = kwargs.get("daemon")
     if daemon is None:
         raise KeyError("must have 'daemon' key.")
+    test = kwargs.get("test")
     config_path = kwargs.get("conf_path")
 
     _fp = tempfile.NamedTemporaryFile("w+", delete=True)
@@ -288,9 +302,7 @@ def run(**kwargs):
             "max_response_len",
             "max_request_len",
             "request_timeout"
-
         ]
-        _fp.write('\n')
         _fp.flush()
         for key in kwargs.keys():
             if key in CONF_PARAMETES and \
@@ -302,8 +314,13 @@ def run(**kwargs):
         for _ele in dir(_m):
             _instance = getattr(_m, _ele)
             if _instance.__class__ == Fly:
+                if config_path is not None and _instance.config_path is not None and \
+                        os.path.abspath(_instance.config_path) != os.path.abspath(config_path):
+                    raise ValueError(
+                        f"ambiguous config_path. Fly instance config_path({os.path.abspath(_instance.config_path)}) or command line config_path({os.path.abspath(config_path)})."
+                    )
                 _instance.config_path = os.path.abspath(_fp.name)
-                _instance.run(daemon=daemon)
+                _instance.run(daemon=daemon, test=test)
                 sys.exit(1)
 
         display_help(fly_command_line, f"\"{app}\" can't find Fly instance.")

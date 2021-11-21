@@ -7,6 +7,7 @@ import importlib.util as imu
 import asyncio
 import traceback
 import time
+import signal
 
 ctypes.cdll.LoadLibrary(
     os.path.abspath(
@@ -29,77 +30,85 @@ class _Fly:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-from watchdog.observers import Observer
-from watchdog.events import PatternMatchingEventHandler
 
 def _signal_interrupt():
-    print("\nReceive SIGINT. teminate fly server.", file=sys.stderr)
+    print("\nReceive SIGINT. teminate fly server.", file=sys.stderr, flush=True)
     sys.exit(1)
 
-_gl = True
-class FlyWatchEventHandler(PatternMatchingEventHandler):
-    def __init__(
-        self,
-        fly,
-        patterns=['*.py', '*.conf'], ignore_patterns=None,
-        ignore_directories=True,
-        case_sensitive=False,
-    ):
-        super().__init__(patterns, ignore_patterns, ignore_directories, case_sensitive)
-        self._fly = fly
+#import pdb
+#pdb.set_trace()
+def _watch_dog(fly):
+    _f = os.stat(fly._app_filepath)
+    try:
+        while True:
+            __pen = signal.sigpending()
+            for i in __pen:
+                if i == signal.SIGINT:
+                    raise KeyboardInterrupt
+                else:
+                    signal.raise_signal(i)
 
-    def on_any_event(self, event):
-        global _gl
-        _gl = False
+            _nf = os.stat(fly._app_filepath)
+            if _nf.st_mtime != _f.st_mtime:
+                return
+
+            time.sleep(1)
+    except KeyboardInterrupt:
+        _nf = os.stat(fly._app_filepath)
+        if _nf.st_mtime != _f.st_mtime:
+            return
+        else:
+            _signal_interrupt()
+    except Exception as e:
+        _t = traceback.format_exc()
+        print(_t)
+        sys.exit(1)
+
+def _run(fly):
+    app_filepath = fly._app_filepath
+
+    if not fly.is_test:
+        os.system('clear')
+    err = False
+    try:
+        fly._start_server(fly._daemon)
+    except _FLY_MASTER_CONFIGURE_ERROR as e:
+        _t = traceback.format_exc()
+        print(_t)
+        sys.exit(1)
+    except Exception as e:
+        _t = traceback.format_exc()
+        print(_t)
+        err = True
+
+    if err:
+        _watch_dog(fly)
+
+    if fly.is_debug and not fly.is_daemon:
+        print("\n")
+        print("Uploading...")
+
+    _spec = imu.spec_from_file_location("_fly", app_filepath)
+    _mod = imu.module_from_spec(_spec)
+    _spec.loader.exec_module(_mod)
+    for _ele in dir(_mod):
+        _instance = getattr(_mod, _ele)
+        if _instance.__class__ == Fly:
+            fly = _instance
+    yield fly
 
 def _run_server(fly):
-    while(True):
-        app_filepath = fly._app_filepath
-
-        try:
-            fly._start_server(fly._daemon)
-        except Exception as e:
-            _t = traceback.format_exc()
-            print(_t)
-            _ev = FlyWatchEventHandler(fly)
-            _obs = Observer()
-            _obs.schedule(_ev, app_filepath, recursive=False)
-            _obs.start()
-            try:
-                global _gl
-                _gl = True
-                while _gl:
-                    try:
-                        time.sleep(1)
-                    except KeyboardInterrupt:
-                        break
-
-                if _gl:
-                    _signal_interrupt()
-                    sys.exit(1)
-                else:
-                    _obs.stop()
-            except KeyboardInterrupt:
-                _obs.stop()
-                break
-            _obs.join()
-
-        if fly.is_debug and not fly.is_daemon:
-            print("\n\n")
-            print("Uploading...")
-
-        _spec = imu.spec_from_file_location("_fly", app_filepath)
-        _mod = imu.module_from_spec(_spec)
-        _spec.loader.exec_module(_mod)
-        for _ele in dir(_mod):
-            _instance = getattr(_mod, _ele)
-            if _instance.__class__ == Fly:
-                fly = _instance
+    for i in _run(fly):
+        if i._ran is False:
+            i.run()
 
     sys.exit(1)
 
 _FLY_SIGNAL_END = 1
 _FLY_RELOAD = 2
+
+class _FLY_MASTER_CONFIGURE_ERROR(Exception):
+    pass
 
 class Fly(_Fly, Mount, Route, _fly_server):
     def __init__(
@@ -123,7 +132,6 @@ class Fly(_Fly, Mount, Route, _fly_server):
         # for Singleton
         if not hasattr(self, "_fly_server"):
             setattr(self, "_fly_server", True)
-            # socket make, bind, listen
             _fly_server.__init__(self)
 
         if kwargs.get("debug") is not None:
@@ -135,6 +143,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
             self._debug = True
 
         self._app_filepath = self._get_application_file_path()
+        self._ran = False
 
     def route(self, path, method):
         if not isinstance(path, str) or not isinstance(method, Method):
@@ -197,9 +206,12 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 return os.path.abspath(m.__file__)
         return None
 
-    def run(self, daemon=False):
+    # XXX: require debug
+    def run(self, daemon=False, test=False):
         self._daemon = daemon
+        self._test = test
         self._loaded = True
+        self._ran = True
         self._run()
 
     def _start_server(self, daemon=False):
@@ -216,12 +228,47 @@ class Fly(_Fly, Mount, Route, _fly_server):
         try:
             super()._configure(self.config_path, self.routes)
         except Exception as e:
-            print(e)
-            return
+            raise _FLY_MASTER_CONFIGURE_ERROR from e
 
         for __p in self.mounts:
             self._mount(__p)
 
+        self._display_explain()
+        result = super().run(
+            self._app_filepath,
+            self.is_debug,
+            self.is_daemon,
+        )
+
+        if self.is_daemon:
+            sys.exit(result)
+
+        if result == _FLY_RELOAD:
+            return
+            sys.exit(result)
+        elif result == _FLY_SIGNAL_END:
+            sys.exit(result)
+        else:
+            # not come here
+            print(result)
+            sys.exit(result)
+
+    @property
+    def is_debug(self):
+        return self._debug
+
+    @property
+    def is_daemon(self):
+        return self._daemon
+
+    @property
+    def is_test(self):
+        return self._test
+
+    def _run(self):
+        _run_server(self)
+
+    def _display_explain(self):
         print("\n", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
@@ -245,39 +292,9 @@ class Fly(_Fly, Mount, Route, _fly_server):
             for mount in self.mounts:
                 max_len = len(mount) if max_len < len(mount) else max_len
 
-            for mount in self.mounts:
-                __mn = self._mount_number(mount)
                 __mfc = self._mount_files(__mn)
                 print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, __mfc, width=max_len, mn=__mn), file=sys.stderr)
         else:
             print(f"    \033[1m*\033[0m Mount paths: \033[1m-\033[0m", file=sys.stderr)
 
         print("\n", file=sys.stderr)
-        result = super().run(
-            self._app_filepath,
-            self.is_debug,
-            self.is_daemon,
-        )
-
-        if result == _FLY_RELOAD:
-            return
-        elif result == _FLY_SIGNAL_END:
-            if not self.is_daemon:
-                _signal_interrupt()
-            sys.exit(1)
-        else:
-            # not come here
-            sys.exit(1)
-
-    @property
-    def is_debug(self):
-        return self._debug
-
-    @property
-    def is_daemon(self):
-        return self._daemon
-
-    def _run(self):
-        _run_server(self)
-
-

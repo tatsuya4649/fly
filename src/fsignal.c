@@ -78,7 +78,6 @@ int fly_signal_register(sigset_t *mask)
 
 	if (sigprocmask(SIG_BLOCK, mask, NULL) == -1)
 		return -1;
-
 	sigfd = signalfd(-1, mask, SFD_CLOEXEC|SFD_NONBLOCK);
 	return sigfd;
 }

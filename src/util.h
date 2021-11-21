@@ -58,4 +58,22 @@ int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr
 #undef FLY_BIG_ENDIAN
 #endif
 
+#define FLY_DEVNULL		("/dev/null")
+#define FLY_DAEMON_STDOUT	FLY_DEVNULL
+#define FLY_DAEMON_STDERR	FLY_DEVNULL
+#define FLY_DAEMON_STDIN	FLY_DEVNULL
+
+#define FLY_ROOT_DIR						"/"
+#define FLY_PATH_FROM_ROOT(__p)			FLY_ROOT_DIR "/" # __p
+struct fly_context;
+#define FLY_DAEMON_SUCCESS					0
+#define FLY_DAEMON_FORK_ERROR				-1
+#define FLY_DAEMON_SETSID_ERROR				-2
+#define FLY_DAEMON_CHDIR_ERROR				-3
+#define FLY_DAEMON_GETRLIMIT_ERROR			-4
+#define FLY_DAEMON_CLOSE_ERROR				-5
+#define FLY_DAEMON_OPEN_ERROR				-6
+#define FLY_DAEMON_DUP_ERROR				-7
+int fly_daemon(struct fly_context *ctx);
+
 #endif

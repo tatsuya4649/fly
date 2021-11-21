@@ -1,6 +1,9 @@
 
 #define _GNU_SOURCE
 #include <unistd.h>
+#include <signal.h>
+#include "util.h"
+#include "master.h"
 #include "worker.h"
 #include "fsignal.h"
 #include "cache.h"
@@ -20,7 +23,7 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 #define FLY_WORKER_SIGNAL_EVENT_SIGNAL_REGISTER_ERROR	-7
 __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
-__fly_static void __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler);
+__fly_static void fly_add_worker_sig(fly_context_t *ctx, int num, fly_sighand_t *handler);
 __fly_static void FLY_SIGNAL_MODF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_ADDF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
 __fly_static void FLY_SIGNAL_DELF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
@@ -48,7 +51,7 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx);
  *  worker process signal info.
  */
 static fly_signal_t fly_worker_signals[] = {
-	FLY_SIGNAL_SETTING(SIGINT,	NULL),
+	FLY_SIGNAL_SETTING(SIGINT,	FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(SIGTERM, NULL),
 	FLY_SIGNAL_SETTING(SIGPIPE, FLY_SIG_IGN),
 };
@@ -80,7 +83,8 @@ struct fly_worker *fly_worker_init(fly_context_t *mcontext)
 	fly_bllist_add_tail(&__pm->pools, &__w->context->pool->pbelem);
 	fly_bllist_add_tail(&__pm->pools, &__w->context->misc_pool->pbelem);
 	__w->pid = getpid();
-	__w->ppid = getppid();
+	__w->orig_pid = __w->pid;
+	__w->master_pid = getppid();
 	__w->master = NULL;
 	__w->start = time(NULL);
 	__w->pool_manager = __pm;
@@ -109,7 +113,7 @@ void fly_worker_release(fly_worker_t *worker)
 	fly_free(worker);
 }
 
-__fly_static void __fly_add_worker_sigs(fly_context_t *ctx, int num, fly_sighand_t *handler)
+__fly_static void fly_add_worker_sig(fly_context_t *ctx, int num, fly_sighand_t *handler)
 {
 	fly_worker_t *__w;
 	fly_signal_t *__nf;
@@ -331,6 +335,13 @@ __fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused 
 
 __noreturn void fly_worker_signal_default_handler(fly_worker_t *worker, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
 {
+	fly_notice_direct_log(
+		ctx->log,
+		"worker process(%d) is received signal(%s) and terminated. goodbye.\n",
+		worker->pid,
+		strsignal(si->ssi_signo)
+	);
+
 	fly_worker_release(worker);
 	exit(0);
 }
@@ -340,6 +351,9 @@ __fly_static int __fly_wsignal_handle(fly_worker_t *worker, fly_context_t *ctx, 
 	struct fly_signal *__s;
 	struct fly_bllist *__b;
 
+#ifdef DEBUG
+	printf("WORKER SIGNAL RECEIVED\n");
+#endif
 	fly_for_each_bllist(__b, &worker->signals){
 		__s = fly_bllist_data(__b, struct fly_signal, blelem);
 		if (__s->number == (fly_signum_t) info->ssi_signo){
@@ -351,6 +365,8 @@ __fly_static int __fly_wsignal_handle(fly_worker_t *worker, fly_context_t *ctx, 
 			return 0;
 		}
 	}
+
+	fly_worker_signal_default_handler(worker, ctx, info);
 	return 0;
 }
 
@@ -359,6 +375,9 @@ __fly_static int __fly_worker_signal_handler(fly_event_t *e)
 	struct signalfd_siginfo info;
 	ssize_t res;
 
+#ifdef DEBUG
+	printf("WORKER SIGNAL DEFAULT HANDLER\n");
+#endif
 	while(true){
 		res = read(e->fd, (void *) &info,sizeof(struct signalfd_siginfo));
 		if (res == -1){
@@ -374,13 +393,30 @@ __fly_static int __fly_worker_signal_handler(fly_event_t *e)
 	return 0;
 }
 
-__fly_static int __fly_worker_rtsig_added(fly_context_t *ctx, sigset_t *sset)
+static int __fly_notice_master_now_pid(fly_worker_t *__w)
 {
-	FLY_RTSIGSET(MODF, sset);
-	FLY_RTSIGSET(ADDF, sset);
-	FLY_RTSIGSET(DELF, sset);
-	FLY_RTSIGSET(UMOU, sset);
-	return 0;
+	union sigval sv;
+
+	memset(&sv, '\0', sizeof(union sigval));
+	sv.sival_int = (int) __w->orig_pid;
+	return sigqueue(
+		__w->master_pid,
+		FLY_NOTICE_WORKER_DAEMON_PID,
+		sv
+	);
+}
+
+static void fly_worker_rtsig_added(fly_context_t *ctx)
+{
+	fly_add_worker_sig(ctx, FLY_SIGNAL_MODF, FLY_SIGNAL_MODF_HANDLER);
+	fly_add_worker_sig(ctx, FLY_SIGNAL_ADDF, FLY_SIGNAL_ADDF_HANDLER);
+	fly_add_worker_sig(ctx, FLY_SIGNAL_DELF, FLY_SIGNAL_DELF_HANDLER);
+	fly_add_worker_sig(ctx, FLY_SIGNAL_UMOU, FLY_SIGNAL_UMOU_HANDLER);
+}
+
+static int __fly_worker_signal_end_handler(fly_event_t *__e)
+{
+	return close(__e->fd);
 }
 
 __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx)
@@ -397,21 +433,9 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 	if (sigfillset(&sset) == -1)
 		return FLY_WORKER_SIGNAL_EVENT_SIGNAL_FILLSET_ERROR;
 
-	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++){
-		if (fly_worker_signals[i].handler == FLY_SIG_IGN){
-			if (signal(fly_worker_signals[i].number, SIG_IGN) == SIG_ERR)
-				return FLY_WORKER_SIGNAL_EVENT_SIGNAL_ERROR;
-			continue;
-		}
-
-		if (sigaddset(&sset, fly_worker_signals[i].number) == -1)
-			return FLY_WORKER_SIGNAL_EVENT_SIGADDSET_ERROR;
-
-		__fly_add_worker_sigs(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler);
-	}
-
-	if (__fly_worker_rtsig_added(ctx, &sset) == -1)
-		return -1;
+	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++)
+		fly_add_worker_sig(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler);
+	fly_worker_rtsig_added(ctx);
 
 	sigfd = fly_signal_register(&sset);
 	if (sigfd == -1)
@@ -431,6 +455,7 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 	e->expired = false;
 	e->available = false;
 	e->handler = __fly_worker_signal_handler;
+	e->end_handler = __fly_worker_signal_end_handler;
 	e->if_fail_term = true;
 	e->event_data = (void *) worker;
 
@@ -441,6 +466,7 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 
 /*
  * this function is called after fork from master process.
+ * daemon process.
  * @params:
  *		ctx:  passed from master process. include fly context info.
  *		data: custom data.
@@ -458,45 +484,65 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 	ctx->data = (void *) worker;
 	fly_errsys_init(ctx);
 
+	worker->pid = getpid();
+
+	/* prevent from keyboard interrupts */
+	int __ifd;
+	if ((__ifd = open(FLY_DEVNULL, O_RDWR)) == -1)
+		FLY_EMERGENCY_ERROR(
+			"worker open %s error. (%s: %s)",
+			FLY_ROOT_DIR,
+			__FILE__,
+			__LINE__
+		);
+	if (dup2(__ifd, STDIN_FILENO) == -1)
+		FLY_EMERGENCY_ERROR(
+			"worker dup error. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+
+	if (__fly_notice_master_now_pid(worker) == -1)
+		FLY_EMERGENCY_ERROR(
+			"worker notice daemon pid error. (%s: %s)",
+			__FILE__,
+			__LINE__
+		);
+
 	switch (__fly_worker_open_file(ctx)){
 	case FLY_WORKER_OPEN_FILE_SUCCESS:
 		break;
 	case FLY_WORKER_OPEN_FILE_CTX_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. \
-			worker context is invalid. (%s: %s)",
+			"worker opening file error. worker context is invalid. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. \
-			occurred error when solving time. (%s: %s)",
+			"worker opening file error. occurred error when solving time. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_FILE_ENCODE_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. \
-			occurred error when encoding opening file. (%s: %s)",
+			"worker opening file error. occurred error when encoding opening file. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_FILE_ENCODE_UNKNOWN_RETURN:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. \
-			unknown return value in encoding opening file. (%s: %s)",
+			"worker opening file error. unknown return value in encoding opening file. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	default:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. \
-			unknown return value. (%s: %s)",
+			"worker opening file error. unknown return value. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
@@ -511,48 +557,42 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_SOLVPATH_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error.	\
-			solving path error in opening worker default content.",
+			"worker opening default content error. solving path error in opening worker default content.",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_FRC_INIT_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error.	\
-			frc init error in opening worker default content.",
+			"worker opening default content error. frc init error in opening worker default content.",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_INVALID_FILE:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error.	\
-			found invalid file in opening worker default content.",
+			"worker opening default content error. found invalid file in opening worker default content.",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error.	\
-			occurred error when encoding default content. (%s: %s)",
+			"worker opening default content error. occurred error when encoding default content. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_UNKNOWN_RETURN:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error.	\
-			unknown return value in encoding default content. (%s: %s)",
+			"worker opening default content error. unknown return value in encoding default content. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	default:
 		FLY_EMERGENCY_ERROR(
-			"worker open default content error.	\
-			unknown return value in opening default content. (%s: %s)",
+			"worker open default content error.	unknown return value in opening default content. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
@@ -589,24 +629,21 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 	switch(fly_event_handler(manager)){
 	case FLY_EVENT_HANDLER_INVALID_MANAGER:
 		FLY_EMERGENCY_ERROR(
-			"event handle error. \
-			event manager is invalid. (%s: %s)",
+			"event handle error. event manager is invalid. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	case FLY_EVENT_HANDLER_EPOLL_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"event handle error. \
-			epoll was broken. (%s: %s)",
+			"event handle error. epoll was broken. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
 		break;
 	case FLY_EVENT_HANDLER_EXPIRED_EVENT_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"event handle error. \
-			occurred error in expired event handler. (%s: %s)",
+			"event handle error. occurred error in expired event handler. (%s: %s)",
 			__FILE__,
 			__LINE__
 		);
@@ -617,6 +654,11 @@ __direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused voi
 
 	/* will not come here. */
 	FLY_NOT_COME_HERE
+}
+
+static int __fly_waiting_for_connection_end_handler(fly_event_t *__e)
+{
+	return close(__e->fd);
 }
 
 __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager, fly_sockinfo_t *sockinfo)
@@ -642,6 +684,7 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 	e->expired = false;
 	e->available = false;
 	e->if_fail_term = true;
+	e->end_handler = __fly_waiting_for_connection_end_handler;
 	fly_event_socket(e);
 
 	return fly_event_register(e);

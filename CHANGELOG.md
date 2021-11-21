@@ -1,5 +1,35 @@
 # Change Log
 
+## 1.1.2
+
+Released: 2021/11/21
+
+## Added
+
+* Debug mode (realtime automatic update)
+
+* Detection of master process app file updates
+
+## Changed
+
+
+## Fixed
+
+* Tests code.
+
+* Dockerfile update.
+
+* github action udpate.
+
+### C
+
+* Fixed signal handler.
+
+* Fixed mount handle bug.
+
+
+* etc...
+
 ## 1.1.1
 
 Released: 2021/11/18
