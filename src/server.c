@@ -36,7 +36,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
     int option = FLY_SOCKET_OPTION;
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
-	char port_str[FLY_PORTSTR_LEN];
+	char port_str[FLY_PORTSTR_LEN], *char host;
 
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
@@ -48,7 +48,8 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	if (res <= 0 || res >= FLY_PORTSTR_LEN)
 		return -1;
 
-	if (getaddrinfo(NULL, port_str, &hints, &result) != 0)
+	host = fly_server_host();
+	if (getaddrinfo(host, port_str, &hints, &result) != 0)
 		return -1;
 
 	for (rp=result; rp!=NULL; rp=rp->ai_next){
@@ -71,8 +72,18 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	if (rp == NULL)
 		return -1;
 
-	if (getnameinfo((const struct sockaddr *) rp->ai_addr, (socklen_t) rp->ai_addrlen, info->hostname, NI_MAXHOST, info->servname, NI_MAXSERV, FLY_LISTEN_SOCKINFO_FLAG) != 0)
-		goto error;
+	res = getnameinfo((const struct sockaddr *) rp->ai_addr, (socklen_t) rp->ai_addrlen, info->hostname, NI_MAXHOST, info->servname, NI_MAXSERV, FLY_LISTEN_SOCKINFO_FLAG);
+	if (res != 0){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			frame->pool,
+			errno,
+			FLY_ERR_ERR,
+			"getnameinfo error in master init[%s] (%s: %s)",
+			gai_strerror(res), __FILE__, __LINE__
+		);
+		fly_error_error(__err);
+	}
 	if (listen(sockfd, fly_backlog()) == -1)
 		goto error;
 
