@@ -24,7 +24,7 @@ RUN make
 RUN make install
 RUN python3 setup.py build
 # copy extension module(fly module) from build directory to fly directory
-RUN cp -f build/lib.linux*/fly/_fly_server.cpython* fly/
+RUN cp -rf build/lib.linux*/fly/_fly_server.cpython* fly/
 # make key file
 RUN openssl req \
 	-subj '/CN=localhost' \
