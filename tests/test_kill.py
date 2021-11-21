@@ -4,25 +4,7 @@ import signal
 import pytest
 import asyncio
 from fly import Fly
-
-
-def get_master_pid(pid_list):
-    if not isinstance(pid_list, list):
-        raise TypeError
-    if len(pid_list) <= 1:
-        raise ValueError
-
-    min_pid=0
-    pids = []
-    for i in pid_list:
-        if isinstance(i, str) and len(i) > 0:
-            pids.append(int(i))
-        elif isinstance(i, int):
-            pids.append(int(i))
-        else:
-            raise TypeError
-
-    return min(pids)
+from conftest import get_master_pid
 
 def get_worker_pids(pid_list):
     mid = get_master_pid(pid_list)
@@ -35,7 +17,7 @@ def get_worker_pids(pid_list):
 
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
-async def test_spawn_processes(fly_servers):
+async def test_spawn_processes(fly_servers_onlyspawn):
     prc = await asyncio.create_subprocess_shell(
         "lsof -i:1234 -t",
         stdout=asyncio.subprocess.PIPE
@@ -80,8 +62,8 @@ async def test_worker_kill(test_spawn_processes):
     kill_wid = wids[0]
     print(f"kill worker: {kill_wid}")
     # kill worker
-    os.kill(kill_wid, signal.SIGKILL)
-    await asyncio.sleep(0.1)
+    os.kill(kill_wid, signal.SIGTERM)
+    await asyncio.sleep(0.3)
 
     prcs = await check_workers_processes()
     nmid = get_master_pid(prcs)

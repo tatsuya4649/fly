@@ -995,9 +995,42 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 	self->worker = (long) master->now_workers;
 	self->reqworker = (long) master->req_workers;
 	self->ssl = (bool) fly_ssl();
-	self->ssl_crt_path = (const char *) fly_ssl_crt_path();
-	self->ssl_key_path = (const char *) fly_ssl_key_path();
-	self->log = (const char *) fly_log_path();
+
+#ifdef DEBUG
+	printf("%d\n", self->ssl);
+	if (fly_ssl_crt_path())
+		printf("%s\n", fly_ssl_crt_path());
+	if (fly_ssl_key_path())
+		printf("%s\n", fly_ssl_key_path());
+	if (fly_log_path())
+		printf("%s\n", fly_log_path());
+#endif
+	if (self->ssl && fly_ssl_crt_path() != NULL){
+		self->ssl_crt_path = realpath((const char *) fly_ssl_crt_path(), NULL);
+		if (self->ssl_crt_path == NULL){
+			PyErr_Format(PyExc_ValueError, "SSL certificate path: %s", strerror(errno));
+			goto error;
+		}
+	}else
+		self->ssl_crt_path = NULL;
+
+	if (self->ssl && fly_ssl_key_path() != NULL){
+		self->ssl_key_path = realpath((const char *) fly_ssl_key_path(), NULL);
+		if (self->ssl_key_path == NULL){
+			PyErr_Format(PyExc_ValueError, "SSL key path:%s", strerror(errno));
+			goto error;
+		}
+	}else
+		self->ssl_key_path = NULL;
+
+	if (fly_log_path() != NULL){
+		self->log = realpath((const char *) fly_log_path(), NULL);
+		if (self->log == NULL){
+			PyErr_Format(PyExc_ValueError, "Log path: %s", strerror(errno));
+			goto error;
+		}
+	}else
+		self->log = NULL;
 
 	Py_RETURN_NONE;
 
@@ -1017,7 +1050,7 @@ static PyObject *__pyfly_run(__pyfly_server_t *self, PyObject *args)
 
 	if (daemon){
 		fprintf(stderr, "To be daemon process...");
-		if (fly_master_daemon(self->master->context) == -1){
+		if (fly_daemon(self->master->context) == -1){
 			PyErr_SetString(PyExc_RuntimeError, "to be daemon process error.");
 			return NULL;
 		}

@@ -3,7 +3,6 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <errno.h>
-#include "fly.h"
 #include "server.h"
 #include "err.h"
 #include "ssl.h"
@@ -87,16 +86,14 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 		if (!crt_path_env || !key_path_env)
 			return -1;
 
-		info->crt_path = crt_path_env ? fly_pballoc(ctx->pool, sizeof(char)*(strlen(crt_path_env)+1)) : NULL;
-		info->key_path = key_path_env ? fly_pballoc(ctx->pool, sizeof(char)*(strlen(key_path_env)+1)) : NULL;
-		if (info->crt_path){
-			memset(info->crt_path, '\0', sizeof(char)*(strlen(crt_path_env)+1));
-			memcpy(info->crt_path, crt_path_env, sizeof(char)*strlen(crt_path_env));
-		}
-		if (info->key_path){
-			memset(info->key_path, '\0', sizeof(char)*(strlen(key_path_env)+1));
-			memcpy(info->key_path, key_path_env, sizeof(char)*strlen(key_path_env));
-		}
+		info->crt_path = fly_pballoc(ctx->pool, sizeof(char)*FLY_PATH_MAX);
+		info->key_path = fly_pballoc(ctx->pool, sizeof(char)*FLY_PATH_MAX);
+		memset(info->crt_path, '\0', sizeof(char)*(strlen(crt_path_env)+1));
+		if (realpath((const char *) crt_path_env, info->crt_path) == NULL)
+			return -1;
+		memset(info->key_path, '\0', sizeof(char)*(strlen(key_path_env)+1));
+		if (realpath((const char *) key_path_env, info->key_path) == NULL)
+			return -1;
 	}
 	freeaddrinfo(result);
 	fly_add_sockinfo(ctx, info);
