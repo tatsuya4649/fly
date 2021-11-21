@@ -27,6 +27,10 @@ __fly_static int __fly_md5_from_hash(struct fly_file_hash *hash)
 	mtime_len = __fly_number_of_digits_time(hash->mtime);
 	ctime_len = __fly_number_of_digits_time(hash->ctime);
 
+#ifdef DEBUG
+	assert(hash != NULL);
+	assert(hash->pf != NULL);
+#endif
 	md5_len = strlen(hash->pf->filename) + mtime_len + ctime_len + 1;
 
 	__pool = hash->pf->parts->mount->ctx->pool;
@@ -59,10 +63,10 @@ __fly_static int __fly_hash_from_parts_file(struct stat *statbuf, struct fly_mou
 {
 	struct fly_file_hash *hash;
 
+#ifdef DEBUG
+	assert(pf != NULL);
+#endif
 	hash = fly_pballoc(pf->parts->mount->ctx->pool, sizeof(struct fly_file_hash));
-	if (fly_unlikely_null(hash))
-		return -1;
-
 	hash->mtime = statbuf->st_mtime;
 	hash->ctime = statbuf->st_ctime;
 	hash->pf = pf;

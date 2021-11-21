@@ -27,8 +27,7 @@ struct fly_mount_parts_file{
 	int 					wd;
 	int 					infd;
 	struct stat				fs;
-//	struct fly_string		filename;
-	char					filename[FLY_PATHNAME_MAX];
+	char					filename[FLY_PATH_MAX];
 	size_t					filename_len;
 	char 					last_modified[FLY_DATE_LENGTH];
 	struct fly_mount_parts	*parts;

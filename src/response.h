@@ -8,7 +8,6 @@
 #include "util.h"
 #include "event.h"
 #include "log.h"
-#include "fly.h"
 
 #define RESPONSE_LENGTH_PER		1024
 #define FLY_RESPONSE_POOL_PAGE		100
@@ -60,7 +59,7 @@ enum status_code_type{
 	INVALID_STATUS_CODE,
 };
 typedef enum status_code_type fly_stcode_t;
-#define FLY_PATH_FROM_STATIC(p)			(__FLY_PATH_FROM_ROOT(static) "/" # p)
+#define FLY_PATH_FROM_STATIC(p)			(FLY_PATH_FROM_ROOT(static) "/" # p)
 
 #include "mount.h"
 struct fly_response_content_by_stcode;

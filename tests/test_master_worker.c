@@ -17,7 +17,7 @@ int main()
 
 	/* mount setting */
 	assert(fly_mount_init(master->context) != -1);
-	assert(fly_mount(master->context, "./mnt") != -1);
+	assert(fly_mount(master->context, "./tests") != -1);
 
 	/* master fork process */
 	fly_master_worker_spawn(master, fly_worker_process);
