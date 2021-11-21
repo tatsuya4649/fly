@@ -36,7 +36,8 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
     int option = FLY_SOCKET_OPTION;
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
-	char port_str[FLY_PORTSTR_LEN], *char host;
+	char port_str[FLY_PORTSTR_LEN];
+	char *host;
 
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
@@ -76,7 +77,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	if (res != 0){
 		struct fly_err *__err;
 		__err = fly_err_init(
-			frame->pool,
+			ctx->pool,
 			errno,
 			FLY_ERR_ERR,
 			"getnameinfo error in master init[%s] (%s: %s)",
