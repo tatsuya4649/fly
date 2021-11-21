@@ -38,6 +38,11 @@ void fly_listen_socket_ssl_setting(fly_context_t *ctx, fly_sockinfo_t *sockinfo)
 		return;
 	}
 
+#ifdef DEBUG
+	printf("SSL CRT PATH: %s\n", sockinfo->crt_path);
+	printf("SSL KEY PATH: %s\n", sockinfo->key_path);
+#endif
+
 	SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2);
     SSL_CTX_set_alpn_select_cb(ssl_ctx, __fly_ssl_alpn, NULL);
 	return;
@@ -230,6 +235,11 @@ blocking:
 connect_error:
 	/* connect error log */
 	fly_ssl_error_log(e->manager);
+	fly_connect_release(__ac->connect);
+	fly_pbfree(__ac->pool, __ac);
+	e->flag = FLY_CLOSE_EV;
+	return 0;
+
 disconnect:
 	fly_ssl_accept_free(__ac->ssl);
 	fly_pbfree(__ac->pool, __ac);

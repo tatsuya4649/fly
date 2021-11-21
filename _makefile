@@ -90,10 +90,12 @@ b$(TESTPRE)%.c:
 clean_lib:
 	@rm -f $(LIBDIR)/lib$(TARGET).so*
 	@rm -f $(LIBDIR)/_fly_server*
+	@rm -rf $(LIBDIR)/__pycache__
 
 clean: clean_lib
 	rm -f src/*.o
 	rm -f src/*.lo
 	rm -f .*.swp
 	rm -f fly/_fly_server.*
+	rm -rf build
 	rm -f $(TESTDIR)/__fly_*

@@ -12,7 +12,7 @@
 #include "response.h"
 #include "rbtree.h"
 
-__fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point);
+__fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point, size_t dist_len);
 static int fly_mount_max_limit(void);
 static int fly_file_max_limit(void);
 static int __fly_mount_search_cmp(void *k1, void *k2, void *data);
@@ -122,8 +122,9 @@ void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file
 	parts->file_count--;
 }
 
-__fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point)
+__fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point, size_t dist_len)
 {
+	char *__d=dist;
 	/* ignore up to mount point */
 	while (*src++ == *mount_point++)
 		;
@@ -131,6 +132,8 @@ __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *moun
 	if (*src == '/')	src++;
 	while (*src)
 		*dist++ = *src++;
+
+	__d[dist_len-1] = '\0';
 }
 
 struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *sb)
@@ -140,14 +143,12 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 
 	pool = parts->mount->ctx->pool;
 	pfile = fly_pballoc(pool, sizeof(struct fly_mount_parts_file));
-	if (fly_unlikely_null(pfile))
-		return NULL;
 	pfile->fd = -1;
 	pfile->wd = -1;
 	memset(pfile->filename, '\0', FLY_PATHNAME_MAX);
+	pfile->filename_len = 0;
 	memcpy(&pfile->fs, sb, sizeof(struct stat));
 	pfile->parts = parts;
-	pfile->filename_len = 0;
 	pfile->mime_type = NULL;
 	pfile->infd = parts->infd;
 	pfile->de = NULL;
@@ -198,10 +199,14 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 		pfile = fly_pf_init(parts, &sb);
 		if (S_ISDIR(sb.st_mode))
 			pfile->dir = true;
-		if (fly_unlikely_null(pfile))
-			goto error;
-		__fly_path_cpy_with_mp(pfile->filename, __path, mount_point);
+
+		memset(pfile->filename, '\0', FLY_PATH_MAX);
+		__fly_path_cpy_with_mp(pfile->filename, __path, mount_point, FLY_PATH_MAX);
 		pfile->filename_len = strlen(pfile->filename);
+		pfile->filename[pfile->filename_len] = '\0';
+#ifdef DEBUG
+		printf("%s: %s\n", pfile->dir ? "DIR": "FILE", pfile->filename);
+#endif
 		pfile->mime_type = fly_mime_type_from_path_name(__path);
 		if (infd >= 0){
 			if (strcmp(path, mount_point) == 0)

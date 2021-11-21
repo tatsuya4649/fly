@@ -17,17 +17,18 @@ async def test_http_get_index(fly_servers):
         res = await client.get("http://localhost:1234/")
 
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_get_index(fly_servers_ssl):
-    async with httpx.AsyncClient(verify=False, timeout=1) as client:
+    async with httpx.AsyncClient(
+        verify=False,
+        timeout=1
+    ) as client:
         res = await client.get("https://localhost:1234/")
 
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
