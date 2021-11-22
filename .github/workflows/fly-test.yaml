@@ -8,13 +8,13 @@ env:
     LC_ALL: C.UTF-8
     LANG: C.UTF-8
 jobs:
-    fly-test-python3_6:
+    fly-test:
         runs-on: ubuntu-latest
         continue-on-error: false
         strategy:
             max-parallel: 1
             matrix:
-                python-version: ['3.6']
+                python-version: ['3.6', '3.7', '3.8', '3.9', '3.10-dev']
         steps:
             - uses: actions/checkout@v2
             - name: Setup Python
