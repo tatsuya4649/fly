@@ -517,6 +517,16 @@ __noreturn void fly_error_error(struct fly_err *err)
 	exit((int) FLY_ERR_ERR);
 }
 
+void fly_error_error_noexit(struct fly_err *err)
+{
+	assert(err != NULL);
+#ifdef DEBUG
+	assert(err->level == FLY_ERR_ERR);
+#endif
+	/* write error content in log */
+	__fly_write_to_log_err(err->content, err->content_len, FLY_ERR_ERR);
+}
+
 void fly_alert_error(struct fly_err *err)
 {
 	assert(err != NULL);
