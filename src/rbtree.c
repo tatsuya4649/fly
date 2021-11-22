@@ -1,4 +1,7 @@
 #include "rbtree.h"
+#ifdef DEBUG
+#include <stdio.h>
+#endif
 
 #define nil_node_ptr		&nil_node
 struct fly_rb_node nil_node = {
@@ -523,6 +526,9 @@ recursion:
 		if (fly_rb_node_is_root(tree, node))
 			return;
 
+#ifdef DEBUG
+		printf("RTREE REBALANCE\n");
+#endif
 		/* node and child is black. */
 		/* sibling is red */
 		if (fly_is_red(__s->color)){

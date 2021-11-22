@@ -951,6 +951,7 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 			}
 		}
 		total += recvlen;
+		/* goto continuation */
 		bool __gc = false;
 		/**/
 		if (!req->receive_status_line){

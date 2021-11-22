@@ -14,7 +14,7 @@ jobs:
         strategy:
             max-parallel: 1
             matrix:
-                python-version: ['3.6', '3.7', '3.8', '3.9', '3.10-dev']
+                python-version: ['3.6']
         steps:
             - uses: actions/checkout@v2
             - name: Setup Python
@@ -61,6 +61,6 @@ jobs:
                   -keyout tests/fly_test.key \
                   -out tests/fly_test.crt
             - name: Setup tmate session
-              uses: mxschmitt/action-tmate@v3
-            - name: Run Python
+              #              uses: mxschmitt/action-tmate@v3
+              #            - name: Run Python
               run: python3 -m pytest tests -v
