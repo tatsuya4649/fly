@@ -33,10 +33,8 @@ void fly_listen_socket_ssl_setting(fly_context_t *ctx, fly_sockinfo_t *sockinfo)
 	ctx->ssl_ctx = ssl_ctx;
 	SSL_CTX_use_certificate_file(ssl_ctx, sockinfo->crt_path, SSL_FILETYPE_PEM);
 	SSL_CTX_use_PrivateKey_file(ssl_ctx, sockinfo->key_path, SSL_FILETYPE_PEM);
-	if (SSL_CTX_check_private_key(ssl_ctx) != 1){
-		/* TODO: Emerge log and end process */
-		return;
-	}
+	if (SSL_CTX_check_private_key(ssl_ctx) != 1)
+		FLY_SSL_EMERGENCY_ERROR(ctx);
 
 #ifdef DEBUG
 	printf("SSL CRT PATH: %s\n", sockinfo->crt_path);
@@ -253,6 +251,25 @@ __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e)
 
 	__ac = (struct fly_ssl_accept *) e->event_data;
 	return __fly_ssl_accept_event_handler(e, __ac);
+}
+
+__noreturn void FLY_SSL_EMERGENCY_ERROR(fly_context_t *ctx)
+{
+	unsigned long err_code;
+
+	while((err_code = ERR_peek_error())){
+		struct fly_err *__err;
+
+		char *err_content;
+		err_content = ERR_error_string(err_code, NULL);
+
+		__err = fly_err_init(ctx->pool, 0, FLY_ERR_ERR, "SSL error: %s", err_content);
+		fly_error_error_noexit(__err);
+
+		/* remove error entry from queue */
+		ERR_get_error();
+	}
+	exit(1);
 }
 
 #define FLY_SSL_ERROR_LOG_TYPE				FLY_LOG_ERROR

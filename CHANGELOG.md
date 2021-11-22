@@ -10,6 +10,8 @@ Released: 2021/11/21
 
 * Detection of master process app file updates
 
+* configure.ac test update
+
 ## Changed
 
 * Change SIGWINCH signal handler.
