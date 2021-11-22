@@ -12,6 +12,8 @@ Released: 2021/11/21
 
 ## Changed
 
+* Change SIGWINCH signal handler.
+
 
 ## Fixed
 
@@ -26,6 +28,8 @@ Released: 2021/11/21
 * Fixed signal handler.
 
 * Fixed mount handle bug.
+
+* Fixed buffer bug.
 
 
 * etc...
