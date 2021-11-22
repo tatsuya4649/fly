@@ -36,6 +36,8 @@ fly_signal_t fly_master_signals[] = {
 	FLY_SIGNAL_SETTING(SIGCHLD,	__fly_sigchld),
 	FLY_SIGNAL_SETTING(SIGINT,	NULL),
 	FLY_SIGNAL_SETTING(SIGTERM, NULL),
+	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
+
 };
 
 

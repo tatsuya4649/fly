@@ -11,10 +11,14 @@ from conftest import *
 """
 GET method test
 """
+_HOST="localhost"
+_PORT=1234
+_HTTP="http"
+_HTTPS="https"
 @pytest.mark.asyncio
 async def test_http_get_index(fly_servers):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
-        res = await client.get("http://localhost:1234/")
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/")
 
     assert(res.status_code == 200)
     assert(res.http_version == http_scheme())
@@ -26,7 +30,7 @@ async def test_https_get_index(fly_servers_ssl):
         verify=False,
         timeout=1
     ) as client:
-        res = await client.get("https://localhost:1234/")
+        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/")
 
     assert(res.status_code == 200)
     assert(res.http_version == http_scheme())
@@ -40,7 +44,7 @@ async def test_https2_get_index(fly_servers_ssl):
         http2  = True,
         timeout=1
     ) as client:
-        res = await client.get("https://localhost:1234/")
+        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/")
 
     assert(res.status_code == 200)
     assert(res.is_error is False)
@@ -53,7 +57,7 @@ POST method test
 async def test_http_post_data_index(fly_servers):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.post(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}/",
             data = {"key": "value"},
         )
     print(res.content)
@@ -71,7 +75,7 @@ async def test_https_post_data_index(fly_servers_ssl):
         timeout=1
     ) as client:
         res = await client.post(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}/",
             data = {"key": "value"},
         )
     print(res.content)
@@ -90,7 +94,7 @@ async def test_https2_post_data_index(fly_servers_ssl):
         timeout=1
     ) as client:
         res = await client.post(
-            "https://localhost:1234/",
+            f"{_HTTPS}://{_HOST}:{_PORT}/",
             data = {"key": "value"},
         )
     print(res.content)
@@ -108,7 +112,7 @@ async def test_http_post_file_index(fly_servers):
         timeout=60
     ) as client:
         res = await client.post(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}/",
             files = files,
         )
     print(res.content)
@@ -128,7 +132,7 @@ async def test_https_post_file_index(fly_servers_ssl):
         timeout=60
     ) as client:
         res = await client.post(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}/",
             files = files,
         )
     print(res.content)
@@ -149,7 +153,7 @@ async def test_https2_post_file_index(fly_servers_ssl):
         timeout=60
     ) as client:
         res = await client.post(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}/",
             files = files,
         )
     print(res.content)
@@ -172,7 +176,7 @@ async def test_http_post_files_index(fly_servers):
         timeout=60
     ) as client:
         res = await client.post(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}/",
             files = files,
         )
     print(res.content)
@@ -197,7 +201,7 @@ async def test_https_post_files_index(fly_servers_ssl):
         timeout=60,
     ) as client:
         res = await client.post(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}/",
             files = files,
         )
     print(res.content)
@@ -223,7 +227,7 @@ async def test_https2_post_files_index(fly_servers_ssl):
         timeout=60
     ) as client:
         res = await client.post(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}/",
             files = files,
         )
     print(res.content)
@@ -235,7 +239,7 @@ async def test_https2_post_files_index(fly_servers_ssl):
 @pytest.mark.asyncio
 async def test_http_get_empty(fly_servers):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
-        res = await client.get("http://localhost:1234/empty")
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/empty")
 
     print(res)
     assert(res.status_code == 200)
@@ -251,7 +255,7 @@ async def test_https_get_empty(fly_servers_ssl):
         verify = False,
         timeout=1,
     ) as client:
-        res = await client.get("https://localhost:1234/empty")
+        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/empty")
 
     print(res)
     assert(res.status_code == 200)
@@ -268,7 +272,7 @@ async def test_https2_get_empty(fly_servers_ssl):
         verify = False,
         timeout=1,
     ) as client:
-        res = await client.get("https://localhost:1234/empty")
+        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/empty")
 
     print(res)
     assert(res.status_code == 200)
@@ -279,7 +283,7 @@ async def test_https2_get_empty(fly_servers_ssl):
 @pytest.mark.asyncio
 async def test_http_head_index(fly_servers):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
-        res = await client.head("http://localhost:1234")
+        res = await client.head(f"{_HTTP}://{_HOST}:{_PORT}")
 
     print(res)
     assert(res.status_code == 200)
@@ -295,7 +299,7 @@ async def test_https_head_index(fly_servers_ssl):
         verify = False,
         timeout=1
     ) as client:
-        res = await client.head("https://localhost:1234")
+        res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}")
 
     print(res)
     assert(res.status_code == 200)
@@ -312,7 +316,7 @@ async def test_https2_head_index(fly_servers_ssl):
         verify = False,
         timeout=1
     ) as client:
-        res = await client.head("https://localhost:1234")
+        res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}")
 
     print(res)
     assert(res.status_code == 200)
@@ -323,7 +327,7 @@ async def test_https2_head_index(fly_servers_ssl):
 @pytest.mark.asyncio
 async def test_http_head_500(fly_servers):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
-        res = await client.head("http://localhost:1234/head_body")
+        res = await client.head(f"{_HTTP}://{_HOST}:{_PORT}/head_body")
 
     print(res)
     assert(res.status_code == 500)
@@ -339,7 +343,7 @@ async def test_https_head_500(fly_servers_ssl):
         verify = False,
         timeout=1
     ) as client:
-        res = await client.head("https://localhost:1234/head_body")
+        res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}/head_body")
 
     print(res)
     assert(res.status_code == 500)
@@ -356,7 +360,7 @@ async def test_https2_head_500(fly_servers_ssl):
         verify = False,
         timeout=1
     ) as client:
-        res = await client.head("https://localhost:1234/head_body")
+        res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}/head_body")
 
     print(res)
     assert(res.status_code == 500)
@@ -368,7 +372,7 @@ async def test_https2_head_500(fly_servers_ssl):
 async def test_http_put_index_data(fly_servers):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.put(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}",
             data = {"key": "value"},
         )
 
@@ -387,7 +391,7 @@ async def test_https_put_index_data(fly_servers_ssl):
         timeout=1
     ) as client:
         res = await client.put(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
             data = {"key": "value"},
         )
 
@@ -407,7 +411,7 @@ async def test_https2_put_index_data(fly_servers_ssl):
         timeout=1
     ) as client:
         res = await client.put(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
             data = {"key": "value"},
         )
 
@@ -430,7 +434,7 @@ async def test_http_put_index_files(fly_servers):
         timeout=60,
     ) as client:
         res = await client.put(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}",
             files = files,
         )
 
@@ -455,7 +459,7 @@ async def test_https_put_index_files(fly_servers_ssl):
         timeout=60
     ) as client:
         res = await client.put(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
             files = files,
         )
 
@@ -481,7 +485,7 @@ async def test_https2_put_index_files(fly_servers_ssl):
         timeout=60
     ) as client:
         res = await client.put(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
             files = files,
         )
 
@@ -498,7 +502,7 @@ async def test_http_delete_index(fly_servers):
         timeout=1,
     ) as client:
         res = await client.delete(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}",
         )
 
     print(res.content)
@@ -516,7 +520,7 @@ async def test_https_delete_index(fly_servers_ssl):
         timeout=1,
     ) as client:
         res = await client.delete(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
         )
 
     print(res.content)
@@ -535,7 +539,7 @@ async def test_https2_delete_index(fly_servers_ssl):
         timeout=1,
     ) as client:
         res = await client.delete(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
         )
 
     print(res.content)
@@ -551,7 +555,7 @@ async def test_http_patch_index(fly_servers):
         timeout=1,
     ) as client:
         res = await client.patch(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}",
         )
 
     print(res.content)
@@ -569,7 +573,7 @@ async def test_https_patch_index(fly_servers_ssl):
         timeout=1,
     ) as client:
         res = await client.patch(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
         )
 
     print(res.content)
@@ -588,7 +592,7 @@ async def test_https2_patch_index(fly_servers_ssl):
         timeout=1,
     ) as client:
         res = await client.patch(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
         )
 
     print(res.content)
@@ -604,7 +608,7 @@ async def test_http_options_index(fly_servers):
         timeout=1,
     ) as client:
         res = await client.options(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}",
         )
 
     print(res.content)
@@ -622,7 +626,7 @@ async def test_https_options_index(fly_servers_ssl):
         timeout=1,
     ) as client:
         res = await client.options(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
         )
 
     print(res.content)
@@ -641,7 +645,7 @@ async def test_https2_options_index(fly_servers_ssl):
         timeout=1,
     ) as client:
         res = await client.options(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
         )
 
     print(res.content)
@@ -658,7 +662,7 @@ async def test_http_return_query(fly_servers):
         timeout=60
     ) as client:
         res = await client.get(
-            "http://localhost:1234/query",
+            f"{_HTTP}://{_HOST}:{_PORT}/query",
         )
 
     print(res.content)
@@ -676,7 +680,7 @@ async def test_https_return_query(fly_servers_ssl):
         timeout=60
     ) as client:
         res = await client.get(
-            "https://localhost:1234/query",
+            f"{_HTTPS}://{_HOST}:{_PORT}/query",
         )
 
     print(res.content)
@@ -695,7 +699,7 @@ async def test_https2_return_query(fly_servers_ssl):
         timeout=60
     ) as client:
         res = await client.get(
-            "https://localhost:1234/query",
+            f"{_HTTPS}://{_HOST}:{_PORT}/query",
         )
 
     print(res.content)
@@ -713,7 +717,7 @@ async def test_illegal_http(fly_servers_ssl):
         timeout=1,
     ) as client:
         res = await client.get(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}",
         )
 
     assert(res.status_code == 400)
@@ -732,7 +736,7 @@ async def test_illegal_https(fly_servers):
             httpx.ConnectError
         ) as e:
             res = await client.get(
-                "https://localhost:1234",
+                f"{_HTTPS}://{_HOST}:{_PORT}",
             )
 
 @pytest.mark.asyncio
@@ -743,7 +747,7 @@ async def test_request_over(fly_mini_servers):
         timeout=60
     ) as client:
         res = await client.post(
-            "http://localhost:1234",
+            f"{_HTTP}://{_HOST}:{_PORT}",
             files = files,
         )
 
@@ -760,7 +764,7 @@ async def test_ssl_request_over(fly_mini_servers_ssl):
         timeout=60
     ) as client:
         res = await client.post(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
             files = files,
         )
 
@@ -778,7 +782,7 @@ async def test_http2_ssl_request_over(fly_mini_servers_ssl):
         timeout=60
     ) as client:
         res = await client.post(
-            "https://localhost:1234",
+            f"{_HTTPS}://{_HOST}:{_PORT}",
             files = files,
         )
 
