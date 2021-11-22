@@ -271,6 +271,10 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 
 	fly_request_release(req);
 	fly_response_release(res);
+
+	/* connection buffer release and init */
+	fly_connect_buffer_refresh(con);
+
 	req = fly_request_init(con);
 	if (fly_unlikely_null(req))
 		return -1;
@@ -488,6 +492,9 @@ int fly_response_fail_close_handler(fly_event_t *e, int fd __unused)
 int fly_response_send(fly_event_t *e, fly_response_t *res);
 int fly_response_event(fly_event_t *e)
 {
+#ifdef DEBUG
+	printf("START RESPONSE\n");
+#endif
 	fly_response_t *res;
 	fly_request_t *req;
 	fly_rcbs_t *rcbs=NULL;
@@ -621,6 +628,9 @@ int fly_response_event(fly_event_t *e)
 		fly_add_content_length(res->header, res->response_len, false);
 
 end_of_encoding:
+#ifdef DEBUG
+	printf("SEND RESPONSE\n");
+#endif
 	if (fly_response_set_send_ptr(res) == -1)
 		goto response_500;
 
