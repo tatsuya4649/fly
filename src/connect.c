@@ -60,6 +60,20 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	return conn;
 }
 
+void fly_connect_buffer_refresh(fly_connect_t *conn)
+{
+	fly_buffer_release(conn->buffer);
+
+	conn->buffer = fly_buffer_init(conn->pool, conn->buffer_init_len, FLY_CONNECT_BUFFER_CHAIN_MAX(conn->event->manager->ctx, conn->buffer_per_len), conn->buffer_per_len);
+	if (fly_unlikely_null(conn->buffer))
+		FLY_EXIT_ERROR(
+			"connection buffer refresh error. (%s: %s)",
+			__FILE__, __LINE__
+		);
+
+	return;
+}
+
 int fly_connect_release(fly_connect_t *conn)
 {
 #ifdef DEBUG

@@ -319,7 +319,7 @@ int fly_event_register(fly_event_t *event)
 	}
 
 #ifdef DEBUG
-	printf("END OF REGISTERING EVENT");
+	printf("END OF REGISTERING EVENT\n");
 #endif
 	return 0;
 }
@@ -658,6 +658,9 @@ int fly_event_handler(fly_event_manager_t *manager)
 		}else
 			timeout_msec = -1;
 
+#ifdef DEBUG
+		printf("WAITING FOR EVENT...\n");
+#endif
 		/* the event with closest timeout */
 		epoll_events = epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
 		switch(epoll_events){
