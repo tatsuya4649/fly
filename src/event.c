@@ -191,6 +191,7 @@ void fly_event_debug_rbtree_delete_node(fly_event_manager_t *manager, fly_event_
 	fly_event_t *__e;
 
 	fly_for_each_queue(__q, &manager->monitorable){
+		printf("DEBUG_RBTREE_DELETE_NODE_EACH\n");
 		__e = (fly_event_t *) fly_queue_data(__q, fly_event_t, qelem);
 		if ((__e->flag & FLY_INFINITY))
 			continue;
@@ -202,6 +203,7 @@ void fly_event_debug_rbtree_delete_node(fly_event_manager_t *manager, fly_event_
 			assert((*__e->rbnode->node_data)->data == __e);
 		}
 	}
+	printf("DEBUG_RBTREE_DELETE_NODE\n");
 }
 void fly_event_debug_rbtree(fly_event_manager_t *manager)
 {
@@ -209,6 +211,7 @@ void fly_event_debug_rbtree(fly_event_manager_t *manager)
 	fly_event_t *__e;
 
 	fly_for_each_queue(__q, &manager->monitorable){
+		printf("EVENT_DEBUG_RBTREE\n");
 		__e = (fly_event_t *) fly_queue_data(__q, fly_event_t, qelem);
 		if ((__e->tflag & FLY_INFINITY))
 			continue;
@@ -273,7 +276,9 @@ int fly_event_register(fly_event_t *event)
 #endif
 				fly_rb_delete(event->manager->rbtree, event->rbnode);
 #ifdef DEBUG
-				//fly_queue_remove(&event->qelem);
+				printf("RBTREE DELETE OF EVENT in register\n");
+#endif
+#ifdef DEBUG
 				fly_event_debug_rbtree_delete_node(event->manager, event);
 #endif
 			}
@@ -282,7 +287,6 @@ int fly_event_register(fly_event_t *event)
 			if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event)){
 				event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->rbtree_elem, &event->rbnode, NULL);
 #ifdef DEBUG
-				//fly_queue_push(&event->manager->monitorable, &event->qelem);
 				int ret;
 				ret = (event->rbnode == (*event->rbnode->node_data));
 				assert(ret);
@@ -313,6 +317,10 @@ int fly_event_register(fly_event_t *event)
 		);
 		fly_event_error_add(event, __err);
 	}
+
+#ifdef DEBUG
+	printf("END OF REGISTERING EVENT");
+#endif
 	return 0;
 }
 
@@ -329,6 +337,9 @@ int fly_event_unregister(fly_event_t *event)
 	}else{
 		fly_queue_remove(&event->qelem);
 		if (event->rbnode)
+#ifdef DEBUG
+				printf("RBTREE DELETE OF EVENT in unregister\n");
+#endif
 			fly_rb_delete(event->manager->rbtree, event->rbnode);
 		if (!(event->flag & FLY_CLOSE_EV))
 			if (epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL) == -1){

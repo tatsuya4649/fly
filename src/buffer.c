@@ -166,6 +166,9 @@ __fly_static fly_buf_p *__fly_bufp_inc(fly_buffer_c **__c, fly_buf_p *ptr)
 	fly_buf_p res = *ptr;
 	if ((*__c)->lptr < *ptr+1){
 		fly_buffer_c *__nc = fly_buffer_next_chain((*__c));
+		if (__nc == NULL){
+			return NULL;
+		}
 		*ptr = __nc->use_ptr;
 		*__c = __nc;
 	}else
@@ -191,7 +194,13 @@ __fly_static char *__fly_buffer_strstr(fly_buffer_c *__c, const char *str, int f
 	n = __c->use_ptr;
 	for (;;){
 		const char *s = str;
-		while (*(char *) __fly_bufp_inc(&__c , &n) == *s++){
+		char *res;
+		while ((res = (char *) __fly_bufp_inc(&__c , &n)) != NULL && \
+				*((const char *) res) == *s++){
+
+#ifdef DEBUG
+			printf("BUFFER STRSTR: %s\n", res);
+#endif
 			if (!*s){
 				if (flag & FLY_BUFFER_STRSTR_AFTER){
 					return n;
@@ -200,8 +209,16 @@ __fly_static char *__fly_buffer_strstr(fly_buffer_c *__c, const char *str, int f
 			}
 		}
 
-		if (__fly_bufp_end(__c, n))
+		if (__fly_bufp_end(__c, n)){
 			break;
+#ifdef DEBUG
+			printf("LAST BUFFER buffer strstr\n");
+		}else{
+			printf("NOT BUFFER END buffer strstr\n");
+		}
+#else
+		}
+#endif
 	}
 
 	return NULL;
