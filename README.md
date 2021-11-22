@@ -75,7 +75,7 @@ $ fly app.py
 
 ## Why fly ?
 
-Interface of fly is as simple as possible. Extracted only the necessary parts as Web framework by referring to variout Python web frameworks.
+Interface of fly is as simple as possible. Extracted only the necessary parts as Web framework by referring to various Python web frameworks.
 
 But, a core part of fly is implemented by C language, you can't think of it as Python Web framework.
 
