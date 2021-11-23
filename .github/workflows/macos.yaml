@@ -1,0 +1,28 @@
+name: macOS
+on:
+    push:
+        branches:
+            - master
+            - develop
+
+env:
+    LC_ALL: C.UTF-8
+    LANG: C.UTF-8
+jobs:
+    fly-test:
+        runs-on: [macos-latest]
+        continue-on-error: false
+        strategy:
+            max-parallel: 1
+            matrix:
+                python-version: ['3.6']
+        steps:
+        - uses: actions/checkout@v2
+        - name: Setup Python
+          uses: actions/setup-python@v2
+          with:
+              python-version: ${{ matrix.python-version }}
+        - name: Get Python version
+          run: python -V
+        - name: Setup tmate session
+          uses: mxschmitt/action-tmate@v3
