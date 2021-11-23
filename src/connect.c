@@ -154,7 +154,7 @@ int fly_listen_connected(fly_event_t *e)
 	}
 }
 
-int fly_fail_recognize_protocol(fly_event_t *e, int fd __unused)
+int fly_fail_recognize_protocol(fly_event_t *e, int fd __fly_unused)
 {
 	fly_connect_t *con;
 

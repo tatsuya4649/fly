@@ -41,7 +41,7 @@ struct fly_buffer{
 	#define FLY_BUFFER_DEBUG_CHAIN_COUNT(__b)		\
 			assert((__b)->chain_count > 0)
 
-__unused static struct fly_buffer_chain *fly_buffer_chain_debug(struct fly_bllist *__b)
+__fly_unused static struct fly_buffer_chain *fly_buffer_chain_debug(struct fly_bllist *__b)
 {
 	return (struct fly_buffer_chain *) fly_bllist_data(__b, struct fly_buffer_chain, blelem);
 }

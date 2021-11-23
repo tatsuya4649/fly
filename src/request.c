@@ -244,7 +244,7 @@ parse_method:
 __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request_line, ssize_t len)
 {
 	fly_reqlinec_t *ptr=NULL, *method=NULL, *http_version=NULL, *request_target=NULL, *query=NULL;
-	__unused size_t method_len, version_len, target_len, query_len;
+	__fly_unused size_t method_len, version_len, target_len, query_len;
 	enum method_type method_type;
 	enum {
 		INIT,
@@ -1041,7 +1041,7 @@ overflow:
 
 int fly_request_disconnect_handler(fly_event_t *event)
 {
-	__unused fly_request_t *req;
+	__fly_unused fly_request_t *req;
 
 	event->flag = FLY_CLOSE_EV;
 
@@ -1071,7 +1071,7 @@ int fly_request_timeout_handler(fly_event_t *event)
 	return 0;
 }
 
-int fly_request_fail_close_handler(fly_event_t *event, int fd __unused)
+int fly_request_fail_close_handler(fly_event_t *event, int fd __fly_unused)
 {
 	return fly_request_timeout_handler(event);
 }
@@ -1087,7 +1087,7 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_route_t						*route;
 	fly_mount_t						*mount;
 	struct fly_mount_parts_file		*pf;
-	__unused fly_request_state_t	state;
+	__fly_unused fly_request_state_t	state;
 	fly_request_fase_t				fase;
 	fly_connect_t					*conn;
 

@@ -334,7 +334,7 @@ __fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused 
 	__fly_signal_handler(ctx, mount_number, __fly_unmount_by_signal);
 }
 
-__noreturn void fly_worker_signal_default_handler(fly_worker_t *worker, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
+__fly_noreturn void fly_worker_signal_default_handler(fly_worker_t *worker, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
 {
 	fly_notice_direct_log(
 		ctx->log,
@@ -472,7 +472,7 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
  *		ctx:  passed from master process. include fly context info.
  *		data: custom data.
  */
-__direct_log __noreturn void fly_worker_process(fly_context_t *ctx, __unused void *data)
+__fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __unused void *data)
 {
 	fly_worker_t *worker;
 	fly_event_manager_t *manager;

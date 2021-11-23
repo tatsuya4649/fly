@@ -15,6 +15,21 @@ AC_CANONICAL_BUILD
 AC_CANONICAL_HOST
 AC_CANONICAL_TARGET
 
+build_linux=no
+build_mac=no
+
+case "${host_os}" in
+        linux*)
+                build_linux=yes
+                ;;
+        darwin*)
+                build_mac=yes
+                ;;
+        *)
+                AC_MSG_ERROR(OS $host_os is not supported. sorry.)
+                ;;
+esac
+
 LT_INIT()
 AM_INIT_AUTOMAKE([foreign])
 
@@ -26,6 +41,13 @@ AC_PROG_CC([gcc])
 # FIXME: Replace 'main' with a function in '-lbrotlienc':
 OLD_LIBS="$LIBS"
 AC_MSG_CHECKING(for brotlidec&brotlienc library works in -lbrotlidec & -lbrotlienc)
+if test "$build_mac"="yes"; then
+        OLD_LDFLAGS="$LDFLAGS"
+        OLD_CFLAGS="$CFLAGS"
+        BROTLIDIR='/usr/local/opt/brotli'
+        LDFLAGS="$LDFLAGS -L$BROTLIDIR/lib"
+        CFLAGS="$CFLAGS -I$BROTLIDIR/include"
+fi
 AC_COMPILE_IFELSE([
 	AC_LANG_PROGRAM(
 		[[
@@ -111,15 +133,28 @@ AC_COMPILE_IFELSE([
 				], [
 			AC_MSG_RESULT(no)
 			LIBS="$OLD_LIBS"
+			if test "$build_mac"="yes"; then
+				LDFLAGS="$OLD_LDFLAGS"
+				CFLAGS="$OLD_CFLAGS"
+			fi
 			])
 	 ], [
 	 AC_MSG_RESULT(no)
 	 LIBS="$OLD_LIBS"
+	if test "$build_mac"="yes"; then
+		LDFLAGS="$OLD_LDFLAGS"
+		CFLAGS="$OLD_CFLAGS"
+	fi
 	])
 
 # FIXME: Replace 'main' with a function in '-lcrypto':
 LIBS="-lcrypto $LIBS"
 AC_MSG_CHECKING(for md5 works in -lcrypto)
+if test "$build_mac"="yes"; then
+        OPENSSLDIR='/usr/local/opt/openssl'
+        LDFLAGS="$LDFLAGS -L$OPENSSLDIR/lib"
+        CFLAGS="$CFLAGS -I$OPENSSLDIR/include"
+fi
 AC_LINK_IFELSE([
 	AC_LANG_PROGRAM(
 		[[
@@ -207,6 +242,11 @@ fi
 #AC_CHECK_LIB([z], [inflateInit, inflateEnd, inflateInit2, deflateInit, deflateEnd, deflateInit2], [ have_z=yes ], [ have_z=no ])
 LIBS="-lz $LIBS"
 AC_MSG_CHECKING(for Zlib works[deflate] decoding in -lz)
+if test "$build_mac"="yes"; then
+        ZLIBDIR='/usr/local/opt/zlib'
+        LDFLAGS="$LDFLAGS -L$ZLIBDIR/lib"
+        CFLAGS="$CFLAGS -I$ZLIBDIR/include"
+fi
 AC_LINK_IFELSE([
 	AC_LANG_PROGRAM([[
 		#include <zlib.h>
