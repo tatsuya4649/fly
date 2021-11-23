@@ -17,6 +17,7 @@ __pycache__/
 /server
 /fly/_fly_server.*
 .deps/
+.eggs/
 .libs/
 GPATH
 GRTAGS

@@ -24,9 +24,7 @@ AC_PROG_CC([gcc])
 # Checks for libraries.
 # FIXME: Replace 'main' with a function in '-lbrotlidec':
 # FIXME: Replace 'main' with a function in '-lbrotlienc':
-OLD_LIBS=LIBS
-AC_CHECK_LIB([brotlienc], [main])
-AC_CHECK_LIB([brotlidec], [main])
+OLD_LIBS="$LIBS"
 AC_MSG_CHECKING(for brotlidec&brotlienc library works in -lbrotlidec & -lbrotlienc)
 AC_COMPILE_IFELSE([
 	AC_LANG_PROGRAM(
@@ -104,19 +102,25 @@ AC_COMPILE_IFELSE([
 			break;
 	}
 	BrotliEncoderDestroyInstance(state);
-		 ]])], [AC_MSG_RESULT(yes)], [
+		 ]])], [
+				AC_MSG_RESULT(yes)
+				LIBS="-lbrotlidec -lbrotlienc $LIBS"
+				AC_DEFINE([HAVE_LIBBROTLIDEC], [1], ["Define to 1 if you have the `brotlidec` library (-lbrotlidec)."])
+				AC_DEFINE([HAVE_LIBBROTLIENC], [1], ["Define to 1 if you have the `brotlienc` library (-lbrotlienc)."])
+
+				], [
 			AC_MSG_RESULT(no)
-			LIBS=OLD_LIBS
+			LIBS="$OLD_LIBS"
 			])
 	 ], [
 	 AC_MSG_RESULT(no)
-	 LIBS=OLD_LIBS
+	 LIBS="$OLD_LIBS"
 	])
 
 # FIXME: Replace 'main' with a function in '-lcrypto':
-AC_CHECK_LIB([crypto], [main], [ have_crypto=yes ], [ have_crypto=no ])
+LIBS="-lcrypto $LIBS"
 AC_MSG_CHECKING(for md5 works in -lcrypto)
-AC_COMPILE_IFELSE([
+AC_LINK_IFELSE([
 	AC_LANG_PROGRAM(
 		[[
 #include <openssl/md5.h>
@@ -135,55 +139,61 @@ AC_COMPILE_IFELSE([
 		return -1;
 		]]
 	)
-], [AC_MSG_RESULT(yes)],[
+], [
+	AC_MSG_RESULT(yes)
+	LIBS="-lcrypto $LIBS"
+	],[
 	AC_MSG_ERROR(compile error. MD5 hashing in -lcrypto can't use on your system.)
 	])
-if test "$have_crypto" = "yes"; then
-	AC_DEFINE([HAVE_LIBCRYPTO], [1],
-		Define to 1 if you have the ssl library (-lssl).)
-	LIBS="-lcrypto $LIBS"
-else
-	AC_MSG_ERROR(could not find crypto on your system)
-fi
 
 # FIXME: Replace 'main' with a function in '-lpthread':
 AC_CHECK_LIB([pthread], [main])
 # FIXME: Replace 'main' with a function in '-lssl':
-AC_CHECK_LIB([ssl], [main], [ have_ssl=yes ], [ have_ssl=no ])
-AC_MSG_CHECKING(for SSL library works in -lssl)
-AC_COMPILE_IFELSE([
-	AC_LANG_PROGRAM(
-		[[
-		 #include <openssl/ssl.h>
-		 #include <openssl/err.h>
+AC_CHECK_LIB([ssl], [
+	SSL_CTX_new, SSL_CTX_use_certificate_file, SSL_library_init, SSL_load_error_strings, SSL_CTX_use_PrivateKey_file, SSL_CTX_check_private_key, SSL_CTX_set_options, SSL_CTX_set_alpn_select_cb
+], [
+	LIBS="-lssl $LIBS"
+	have_ssl=yes
+], [ have_ssl=no ])
+if test "$have_ssl" = "no"; then
+	AC_MSG_CHECKING(for SSL library works in -lssl)
+	LIBS="-lssl $LIBS"
+	AC_LINK_IFELSE([
+		AC_LANG_PROGRAM(
+			[[
+			 #include <openssl/ssl.h>
+			 #include <openssl/err.h>
 
-		 int __alpn(
-			SSL *ssl,
-			const unsigned char **out,
-			unsigned char *outlen,
-			const unsigned char *in,
-			unsigned int inlen, void *arg)
-		{
-			return 0;
-		}
-		]],
-		[[
-		 SSL_CTX *ssl_ctx;
+			 int __alpn(
+				SSL *ssl,
+				const unsigned char **out,
+				unsigned char *outlen,
+				const unsigned char *in,
+				unsigned int inlen, void *arg)
+			{
+				return 0;
+			}
+			]],
+			[[
+			 SSL_CTX *ssl_ctx;
 
-		 SSL_library_init();
-		 SSL_load_error_strings();
+			 SSL_library_init();
+			 SSL_load_error_strings();
 
-		 ssl_ctx = SSL_CTX_new(SSLv23_server_method());
-		 SSL_CTX_use_certificate_file(ssl_ctx, "test.crt", SSL_FILETYPE_PEM);
-		 SSL_CTX_use_PrivateKey_file(ssl_ctx, "test.key", SSL_FILETYPE_PEM);
-		SSL_CTX_check_private_key(ssl_ctx);
-		SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2);
-		SSL_CTX_set_alpn_select_cb(ssl_ctx, __alpn, NULL);
-		 ]]
-)], [AC_MSG_RESULT(yes)], [
-	 AC_MSG_ERROR(cmopile error. -lssl can't use on your system.)
-	])
-
+			 ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+			 SSL_CTX_use_certificate_file(ssl_ctx, "test.crt", SSL_FILETYPE_PEM);
+			 SSL_CTX_use_PrivateKey_file(ssl_ctx, "test.key", SSL_FILETYPE_PEM);
+			SSL_CTX_check_private_key(ssl_ctx);
+			SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2);
+			SSL_CTX_set_alpn_select_cb(ssl_ctx, __alpn, NULL);
+			 ]]
+	)], [
+		 AC_MSG_RESULT(yes)
+		 have_ssl=yes
+		 ], [
+		 AC_MSG_ERROR(cmopile error. -lssl can't use on your system.)
+		])
+fi
 if test "$have_ssl" = "yes"; then
 	AC_DEFINE([HAVE_LIBSSL], [1],
 		Define to 1 if you have the ssl library (-lssl).)
@@ -191,10 +201,13 @@ if test "$have_ssl" = "yes"; then
 else
 	AC_MSG_ERROR(could not find ssl on your system)
 fi
+
+
 # FIXME: Replace 'main' with a function in '-lz':
-AC_CHECK_LIB([z], [main], [ have_z=yes ], [ have_z=no ])
+#AC_CHECK_LIB([z], [inflateInit, inflateEnd, inflateInit2, deflateInit, deflateEnd, deflateInit2], [ have_z=yes ], [ have_z=no ])
+LIBS="-lz $LIBS"
 AC_MSG_CHECKING(for Zlib works[deflate] decoding in -lz)
-AC_COMPILE_IFELSE([
+AC_LINK_IFELSE([
 	AC_LANG_PROGRAM([[
 		#include <zlib.h>
 	]], [[
@@ -234,7 +247,7 @@ AC_COMPILE_IFELSE([
 	AC_MSG_ERROR(compile error. -lz can't use on your system.)
 ])
 AC_MSG_CHECKING(for Zlib works[gzip] decoding in -lz)
-AC_COMPILE_IFELSE([
+AC_LINK_IFELSE([
 	AC_LANG_PROGRAM([[
 		#include <zlib.h>
 	]], [[
@@ -274,7 +287,7 @@ AC_COMPILE_IFELSE([
 	AC_MSG_ERROR(compile error. -lz can't use on your system.)
 ])
 AC_MSG_CHECKING(for Zlib works[deflate] encoding in -lz)
-AC_COMPILE_IFELSE([
+AC_LINK_IFELSE([
 	AC_LANG_PROGRAM([[
 		#include <zlib.h>
 	]], [[
@@ -315,7 +328,7 @@ AC_COMPILE_IFELSE([
 	AC_MSG_ERROR(compile error. -lz can't use on your system.)
 ])
 AC_MSG_CHECKING(for Zlib works[gzip] encoding in -lz)
-AC_COMPILE_IFELSE([
+AC_LINK_IFELSE([
 	AC_LANG_PROGRAM([[
 		#include <zlib.h>
 	]], [[
@@ -355,16 +368,19 @@ AC_COMPILE_IFELSE([
 ], [AC_MSG_RESULT(yes)], [
 	AC_MSG_ERROR(compile error. -lz can't use on your system.)
 ])
-if test "$have_z" = "yes"; then
-	AC_DEFINE([HAVE_LIBZ], [1],
-		Define to 1 if you have the ssl library (-lssl).)
-	LIBS="-lz $LIBS"
-else
-	AC_MSG_ERROR(could not find zlib on your system)
-fi
 
 # Checks for header files.
-AC_CHECK_HEADERS([arpa/inet.h fcntl.h inttypes.h netdb.h netinet/in.h stdint.h sys/ioctl.h sys/socket.h sys/time.h unistd.h setjmp.h])
+AC_CHECK_HEADERS([openssl/ssl.h openssl/md5.h zlib.h arpa/inet.h fcntl.h inttypes.h netdb.h netinet/in.h stdint.h sys/ioctl.h sys/socket.h sys/time.h unistd.h setjmp.h])
+
+if test "$ac_cv_header_openssl_ssl_h" = "no"; then
+	AC_MSG_ERROR(not found openssl/ssl.h on your system.)
+fi
+if test "$ac_cv_header_oepnssl_md5_h" = "no"; then
+	AC_MSG_ERROR(not found openssl/md5.h on your system.)
+fi
+if test "$ac_cv_header_zlib" = "no"; then
+	AC_MSG_ERROR(not found zlib.h on your system.)
+fi
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
