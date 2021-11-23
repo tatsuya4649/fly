@@ -5,6 +5,7 @@
 #include "conf.h"
 #include <setjmp.h>
 #include "err.h"
+#include <sys/wait.h>
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
 __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx);
@@ -17,6 +18,12 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *);
 __fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
 __fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
 __noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused);
+static int __fly_reload(fly_master_t *__m, struct inotify_event *__ie);
+static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_t *manager);
+static int __fly_master_reload_filepath_handler(fly_event_t *e);
+static struct fly_watch_path *__fly_search_wp(fly_master_t *__m, int wd);
+static void __fly_master_set_orig_sighandler(fly_master_t *__m);
+static int __fly_master_get_now_sighandler(fly_master_t *__m);
 static int fly_master_default_fail_close(fly_event_t *e, int fd);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 #if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
@@ -29,84 +36,9 @@ fly_signal_t fly_master_signals[] = {
 	FLY_SIGNAL_SETTING(SIGCHLD,	__fly_sigchld),
 	FLY_SIGNAL_SETTING(SIGINT,	NULL),
 	FLY_SIGNAL_SETTING(SIGTERM, NULL),
+	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
+
 };
-
-int fly_master_daemon(fly_context_t *ctx)
-{
-	struct rlimit fd_limit;
-	int nullfd;
-
-	ctx->daemon = true;
-	switch(fork()){
-	case -1:
-		FLY_STDERR_ERROR(
-			"failure to fork process from baemon source process."
-		);
-	case 0:
-		break;
-	default:
-		exit(0);
-	}
-
-	/* child process only */
-	if (setsid() == -1)
-		FLY_EMERGENCY_ERROR(
-			"Process(%d) must not be process group leader.",
-			getpid()
-		);
-
-	/* for can't access tty */
-	switch(fork()){
-	case -1:
-		FLY_EMERGENCY_ERROR(
-			"failure to fork process from baemon source process."
-		);
-	case 0:
-		break;
-	default:
-		exit(0);
-	}
-	/* grandchild process only */
-	umask(0);
-	if (chdir(FLY_ROOT_DIR) == -1)
-		FLY_EMERGENCY_ERROR(
-			"can't change directory. path(%s).",
-			FLY_ROOT_DIR
-		);
-
-	if (getrlimit(RLIMIT_NOFILE, &fd_limit) == -1)
-		FLY_EMERGENCY_ERROR(
-			"can't get resource of RLIMIT_NOFILE."
-		);
-
-	for (int i=0; i<(int) fd_limit.rlim_cur; i++){
-		if (is_fly_log_fd(i, ctx))
-			continue;
-		if (is_fly_listen_socket(i, ctx))
-			continue;
-
-		if (close(i) == -1 && errno != EBADF)
-			FLY_EMERGENCY_ERROR(
-				"can't close file (fd: %d)", i
-			);
-	}
-
-	nullfd = open(__FLY_DEVNULL, O_RDWR);
-	if (nullfd == -1 || nullfd != STDIN_FILENO)
-		FLY_EMERGENCY_ERROR(
-			"can't open file (fd: %d)", nullfd
-		);
-
-	if (dup2(nullfd, STDOUT_FILENO) == -1)
-		FLY_EMERGENCY_ERROR(
-			"can't duplicate file %d->%d", nullfd, STDOUT_FILENO
-		);
-	if (dup2(nullfd, STDERR_FILENO) == -1)
-		FLY_EMERGENCY_ERROR(
-			"can't duplicate file %d->%d", nullfd, STDERR_FILENO
-		);
-	return 0;
-}
 
 
 static int fly_worker_max_limit(void)
@@ -132,6 +64,14 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 	fly_master_t *master;
 
 	master = (fly_master_t *) ctx->data;
+
+	/* receive */
+	if (waitpid(info->ssi_pid, NULL, WNOHANG) == -1)
+		FLY_EMERGENCY_ERROR(
+			"master waitpid error. (%s: %s)",
+			__FILE__, __LINE__
+		);
+
 	switch(info->ssi_code){
 	case CLD_CONTINUED:
 		printf("continued\n");
@@ -146,7 +86,6 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 		);
 		goto decrement;
 	case CLD_EXITED:
-		printf("exited\n");
 		/* end status of worker(error level) */
 		switch(info->ssi_status){
 		case FLY_WORKER_SUCCESS_EXIT:
@@ -210,11 +149,17 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *inf
 
 decrement:
 	fly_remove_worker((fly_master_t *) ctx->data, (pid_t) info->ssi_pid);
+	fly_notice_direct_log(
+		ctx->log,
+		"Detected the terminated of Worker(%d) in Master(%d). Create a new worker.\n",
+		info->ssi_pid,
+		master->pid
+	);
+
 	__fly_workers_rebalance(master);
 	return;
 
 fly_terminate:
-	fly_remove_worker((fly_master_t *) ctx->data, (pid_t) info->ssi_pid);
 	/* fly all processes(workers/master) terminate */
 	fly_master_signal_default_handler(master, ctx, info);
 	return;
@@ -225,34 +170,88 @@ __noreturn static void fly_master_signal_default_handler(fly_master_t *master, f
 	struct fly_bllist *__b;
 	fly_worker_t *__w;
 
+#ifdef DEBUG
+	printf("MASTER SIGNAL DEFAULT HANDLER\n");
+#endif
+retry:
 	fly_for_each_bllist(__b, &master->workers){
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
-		fly_send_signal(__w->pid, si->ssi_signo, 0);
+		fly_send_signal(__w->pid, SIGTERM, 0);
+
+		fly_remove_worker(master, __w->pid);
+		goto retry;
 	}
 
 	fly_master_release(master);
 
 	/* jump to master process */
 #if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
-	siglongjmp(env, 1);
+	siglongjmp(env, FLY_MASTER_SIGNAL_END);
 #else
-	longjmp(env, 1);
+	longjmp(env, FLY_MASTER_SIGNAL_END);
 #endif
 }
 
 __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info)
 {
+	struct fly_signal *__s;
+	struct fly_bllist *__b;
 
-	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++){
-		fly_signal_t *__s = &fly_master_signals[i];
+#ifdef DEBUG
+	printf("MASTER SIGNAL RECEIVED\n");
+#endif
+	fly_for_each_bllist(__b, &master->signals){
+		__s = fly_bllist_data(__b, struct fly_signal, blelem);
 		if (__s->number == (fly_signum_t) info->ssi_signo){
 			if (__s->handler)
 				__s->handler(ctx, info);
 			else
 				fly_master_signal_default_handler(master, ctx, info);
+
+			return 0;
 		}
 	}
+
+	fly_master_signal_default_handler(master, ctx, info);
 	return 0;
+}
+
+static void fly_add_master_sig(fly_context_t *ctx, int num, fly_sighand_t *handler)
+{
+	fly_master_t *__m;
+	fly_signal_t *__nf;
+
+	__m = (fly_master_t *) ctx->data;
+	__nf = fly_pballoc(ctx->pool, sizeof(struct fly_signal));
+	__nf->number = num;
+	__nf->handler = handler;
+	fly_bllist_add_tail(&__m->signals, &__nf->blelem);
+}
+
+void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, struct signalfd_siginfo *info)
+{
+	fly_master_t *__m;
+	fly_worker_t *__w;
+	struct fly_bllist *__b;
+	pid_t orig_worker_pid;
+
+	__m = (fly_master_t *) ctx->data;
+	orig_worker_pid = info->ssi_int;
+
+	fly_for_each_bllist(__b, &__m->workers){
+		__w = fly_bllist_data(__b, fly_worker_t, blelem);
+		if (__w->pid == orig_worker_pid){
+			/* update worker daemon process id */
+			__w->pid = info->ssi_pid;
+			break;
+		}else
+			continue;
+	}
+}
+
+static void fly_master_rtsignal_added(fly_context_t *ctx)
+{
+	fly_add_master_sig(ctx, FLY_NOTICE_WORKER_DAEMON_PID, fly_master_notice_worker_daemon_pid);
 }
 
 __fly_static int __fly_master_signal_handler(fly_event_t *e)
@@ -275,6 +274,11 @@ __fly_static int __fly_master_signal_handler(fly_event_t *e)
 	return 0;
 }
 
+static int __fly_master_signal_end_handler(fly_event_t *__e)
+{
+	return close(__e->fd);
+}
+
 __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx)
 {
 	sigset_t master_set;
@@ -283,9 +287,13 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 
 	if (fly_refresh_signal() == -1)
 		return -1;
+
+	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++)
+		fly_add_master_sig(ctx, fly_master_signals[i].number, fly_master_signals[i].handler);
+	fly_master_rtsignal_added(ctx);
+
 	if (sigfillset(&master_set) == -1)
 		return -1;
-
 	sigfd = fly_signal_register(&master_set);
 	if (sigfd == -1)
 		return -1;
@@ -306,10 +314,11 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 	e->event_data = (void *) master;
 	e->if_fail_term = true;
 	e->fail_close = fly_master_default_fail_close;
+	e->end_handler = __fly_master_signal_end_handler;
 	FLY_EVENT_HANDLER(e, __fly_master_signal_handler);
-
 	fly_time_null(e->timeout);
 	fly_event_signal(e);
+
 	return fly_event_register(e);
 }
 
@@ -327,6 +336,17 @@ void fly_master_release(fly_master_t *master)
 
 	fly_context_release(master->context);
 	fly_pool_manager_release(master->pool_manager);
+
+	if (master->reload_pathcount > 0){
+		struct fly_bllist *__b;
+		struct fly_watch_path *__p;
+		fly_for_each_bllist(__b, &master->reload_filepath){
+			__p = (struct fly_watch_path *) fly_bllist_data(__b, struct fly_watch_path, blelem);
+			fly_free(__p);
+			master->reload_pathcount--;
+		}
+	}
+	__fly_master_set_orig_sighandler(master);
 	fly_free(master);
 }
 
@@ -343,6 +363,68 @@ fly_context_t *fly_master_release_except_context(fly_master_t *master)
 	fly_free(master);
 
 	return ctx;
+}
+
+static int __fly_master_get_now_sighandler(fly_master_t *__m)
+{
+	for (fly_signum_t *__a=fly_signals; *__a!=-1; __a++){
+		struct sigaction __osa;
+		struct fly_orig_signal *__s;
+		if (sigaction(*__a, NULL, &__osa) == -1)
+			return -1;
+
+		__s = fly_malloc(sizeof(struct fly_orig_signal));
+		if (__s == NULL)
+			return -1;
+
+		__s->number = *__a;
+		memcpy(&__s->sa, &__osa, sizeof(struct sigaction));
+		fly_bllist_add_tail(&__m->orig_sighandler, &__s->blelem);
+		__m->sigcount++;
+	}
+	return 0;
+}
+
+static void __fly_master_set_orig_sighandler(fly_master_t *__m)
+{
+	struct fly_bllist *__b;
+	struct fly_orig_signal *__s;
+
+retry:
+	fly_for_each_bllist(__b, &__m->orig_sighandler)
+	{
+		__s = (struct fly_orig_signal *) fly_bllist_data(__b, struct fly_orig_signal, blelem);
+		if (__s->number != SIGKILL && __s->number != SIGSTOP){
+			if (sigaction(__s->number, &__s->sa, NULL) == -1)
+				FLY_EMERGENCY_ERROR(
+					"master setting original signal handler error. (%s: %s)",
+					__FILE__, __LINE__
+				);
+		}
+
+		fly_bllist_remove(&__s->blelem);
+		fly_free(__s);
+		__m->sigcount--;
+
+		goto retry;
+	}
+#ifdef DEBUG
+	assert(__m->sigcount == 0);
+#endif
+	sigset_t set;
+
+	if (sigfillset(&set) == -1)
+		FLY_EMERGENCY_ERROR(
+			"master release sigfillset error. (%s: %s)",
+			__FILE__, __LINE__
+		);
+	if (sigprocmask(SIG_UNBLOCK, &set, NULL) == -1)
+		FLY_EMERGENCY_ERROR(
+			"master release sigprocmask error. (%s: %s)",
+			__FILE__, __LINE__
+		);
+
+	return;
 }
 
 fly_master_t *fly_master_init(void)
@@ -372,6 +454,15 @@ fly_master_t *fly_master_init(void)
 	fly_bllist_init(&__m->workers);
 	__m->context = __ctx;
 	__m->context->data = __m;
+	fly_bllist_init(&__m->reload_filepath);
+	__m->reload_pathcount = 0;
+	__m->detect_reload = false;
+	__m->sigcount = 0;
+	fly_bllist_init(&__m->signals);
+
+	fly_bllist_init(&__m->orig_sighandler);
+	if (__fly_master_get_now_sighandler(__m) == -1)
+		return NULL;
 
 	return __m;
 }
@@ -383,15 +474,28 @@ void fly_kill_workers(fly_context_t *ctx)
 	struct fly_bllist *__b;
 
 	master = (fly_master_t *) ctx->data;
+retry:
 	fly_for_each_bllist(__b, &master->workers){
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
-		fly_send_signal(__w->pid, SIGINT, 0);
+		/* kill worker */
+		fly_send_signal(__w->pid, SIGTERM, 0);
+
+		if (wait(NULL) == -1)
+			FLY_EMERGENCY_ERROR(
+				"master process wait error. (%s: %s)",
+				__FILE__, __LINE__
+			);
+
+		fly_remove_worker(master, __w->pid);
+		goto retry;
 	}
+	master->now_workers = 0;
 }
 
-__direct_log void fly_master_process(fly_master_t *master)
+__direct_log int fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
+	int res;
 
 	manager = fly_event_manager_init(master->context);
 	if (manager == NULL)
@@ -413,12 +517,17 @@ __direct_log void fly_master_process(fly_master_t *master)
 			"initialize worker inotify error. %s",
 			strerror(errno)
 		);
-
+	if (__fly_master_reload_filepath(master, manager) == -1)
+		FLY_EMERGENCY_ERROR(
+			"setting master reload file error. %s",
+			strerror(errno)
+		);
 #if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
-	if (sigsetjmp(env, 1) == 0){
+	res = sigsetjmp(env, 1);
 #else
-	if (setjmp(env) == 0){
+	res = setjmp(env);
 #endif
+	if (res == FLY_MASTER_CONTINUE){
 		/* event handler start here */
 		switch(fly_event_handler(manager)){
 		case FLY_EVENT_HANDLER_INVALID_MANAGER:
@@ -448,9 +557,11 @@ __direct_log void fly_master_process(fly_master_t *master)
 		default:
 			FLY_NOT_COME_HERE
 		}
-	}else{
-		/* signal return */
-		return;
+	}else if (res == FLY_MASTER_SIGNAL_END){
+		/* signal or reload file return */
+		return res;
+	}else if (res == FLY_MASTER_RELOAD){
+		return res;
 	}
 
 	/* will not come here. */
@@ -610,6 +721,13 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 {
 	pid_t pid;
 	fly_worker_t *worker;
+	sigset_t __s;
+
+	/* block signals */
+	if (sigfillset(&__s) == -1)
+		return -1;
+	if (sigprocmask(SIG_BLOCK, &__s, NULL) == -1)
+		return -1;
 
 	switch((pid=fork())){
 	case -1:
@@ -628,6 +746,8 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 
 			/* set master context */
 			ctx = worker->context;
+			if (sigprocmask(SIG_UNBLOCK, &__s, NULL) == -1)
+				return -1;
 		}
 		break;
 	default:
@@ -646,7 +766,8 @@ child_register:
 			if (worker == NULL)
 				goto error;
 			worker->pid = pid;
-			worker->ppid = getppid();
+			worker->orig_pid = pid;
+			worker->master_pid = getpid();
 			fly_add_worker(master, worker);
 			if (time(&worker->start) == (time_t) -1)
 				goto error;
@@ -822,6 +943,11 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 	return 0;
 }
 
+static int __fly_master_inotify_end_handler(fly_event_t *__e)
+{
+	return close(__e->fd);
+}
+
 __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_manager_t *manager)
 {
 	fly_event_t *e;
@@ -854,6 +980,7 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 	e->available = false;
 	e->if_fail_term = true;
 	e->fail_close = fly_master_default_fail_close;
+	e->end_handler = __fly_master_inotify_end_handler;
 	fly_event_inotify(e);
 
 	return fly_event_register(e);
@@ -864,3 +991,152 @@ bool fly_is_create_pidfile(void)
 	return fly_config_value_bool(FLY_CREATE_PIDFILE);
 }
 
+void fly_master_setreload(fly_master_t *master, const char *reload_filepath, bool configure)
+{
+	struct fly_watch_path *__wp;
+
+	__wp = fly_malloc(sizeof(struct fly_watch_path));
+	__wp->path = reload_filepath;
+	__wp->configure = configure;
+	fly_bllist_add_tail(&master->reload_filepath, &__wp->blelem);
+	master->reload_pathcount++;
+	master->detect_reload = true;
+}
+
+
+static struct fly_watch_path *__fly_search_wp(fly_master_t *__m, int wd)
+{
+	struct fly_bllist *__b;
+	struct fly_watch_path *__wp;
+
+	fly_for_each_bllist(__b, &__m->reload_filepath){
+		__wp = (struct fly_watch_path *) fly_bllist_data(__b, struct fly_watch_path, blelem);
+		if (__wp->wd == wd)
+			return __wp;
+	}
+	return NULL;
+}
+
+/* reload fly server */
+static int __fly_reload(fly_master_t *__m, struct inotify_event *__ie)
+{
+	int wd;
+	struct fly_watch_path *__wp;
+
+	wd = __ie->wd;
+	__wp = __fly_search_wp(__m, wd);
+	if (__wp == NULL)
+		return -1;
+
+	switch(__ie->mask){
+	case IN_ATTRIB:
+		break;
+	case IN_MODIFY:
+		break;
+	case IN_MOVE_SELF:
+		break;
+	case IN_DELETE_SELF:
+		break;
+	default:
+		FLY_NOT_COME_HERE
+	}
+	fly_kill_workers(__m->context);
+	fly_notice_direct_log(
+		__m->context->log,
+		"Detected fly application update. Restart fly server.\n"
+	);
+
+	fly_master_release(__m);
+
+	/* jump to master process */
+#if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
+	siglongjmp(env, FLY_MASTER_RELOAD);
+#else
+	longjmp(env, FLY_MASTER_RELOAD);
+#endif
+}
+
+static int __fly_master_reload_filepath_handler(fly_event_t *e)
+{
+#define FLY_INOTIFY_BUFSIZE(__c)			((__c)*sizeof(struct inotify_event)+NAME_MAX+1)
+
+	fly_master_t *__m;
+	char buf[FLY_INOTIFY_BUFSIZE(1)];
+	ssize_t numread;
+	struct inotify_event *__ie;
+
+	__m = (fly_master_t *) e->event_data;
+	/* e->fd is inotify descriptor */
+	numread = read(e->fd, buf, FLY_INOTIFY_BUFSIZE(1));
+	if (numread == -1){
+		if (FLY_BLOCKING(numread))
+			return 0;
+		else{
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_EMERG,
+				"reload file reading error."
+			);
+			fly_event_error_add(e, __err);
+			return -1;
+		}
+	}
+
+	__ie = (struct inotify_event *) buf;
+	return __fly_reload(__m, __ie);
+}
+
+static int __fly_master_reload_filepath_end_handler(fly_event_t *__e)
+{
+	return close(__e->fd);
+}
+
+static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_t *manager)
+{
+	if (master->reload_pathcount == 0 || !master->detect_reload)
+		return 0;
+
+	int fd;
+	int wd;
+	fly_event_t *e;
+
+	fd = inotify_init1(IN_CLOEXEC|IN_NONBLOCK);
+	if (fd == -1)
+		return -1;
+
+	struct fly_bllist *__b;
+	struct fly_watch_path *__wp;
+
+	fly_for_each_bllist(__b, &master->reload_filepath){
+		__wp = (struct fly_watch_path *) fly_bllist_data(__b, struct fly_watch_path, blelem);
+		wd = inotify_add_watch(fd, __wp->path,
+			IN_CLOSE_WRITE|IN_DELETE_SELF|IN_MOVE_SELF|IN_ATTRIB|IN_IGNORED);
+		if (wd == -1)
+			return -1;
+
+		__wp->wd = wd;
+	}
+
+	e = fly_event_init(manager);
+	if (e == NULL)
+		return -1;
+
+	e->fd = fd;
+	e->read_or_write = FLY_READ;
+	e->tflag = FLY_INFINITY;
+	e->eflag = 0;
+	e->flag = FLY_PERSISTENT;
+	e->event_fase = NULL;
+	e->event_state = NULL;
+	e->expired = false;
+	e->available = false;
+	e->event_data = (void *) master;
+	e->if_fail_term = true;
+	e->fail_close = fly_master_default_fail_close;
+	e->end_handler = __fly_master_reload_filepath_end_handler;
+	FLY_EVENT_HANDLER(e, __fly_master_reload_filepath_handler);
+
+	fly_time_null(e->timeout);
+	fly_event_inotify(e);
+	return fly_event_register(e);
+}

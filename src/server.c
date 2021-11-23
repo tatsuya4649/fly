@@ -3,7 +3,6 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <errno.h>
-#include "fly.h"
 #include "server.h"
 #include "err.h"
 #include "ssl.h"
@@ -38,6 +37,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
 	char port_str[FLY_PORTSTR_LEN];
+	char *host;
 
 	memset(&hints, 0, sizeof(struct addrinfo));
 	hints.ai_family = AF_UNSPEC;
@@ -49,7 +49,8 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	if (res <= 0 || res >= FLY_PORTSTR_LEN)
 		return -1;
 
-	if (getaddrinfo(NULL, port_str, &hints, &result) != 0)
+	host = fly_server_host();
+	if (getaddrinfo(host, port_str, &hints, &result) != 0)
 		return -1;
 
 	for (rp=result; rp!=NULL; rp=rp->ai_next){
@@ -72,8 +73,18 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	if (rp == NULL)
 		return -1;
 
-	if (getnameinfo((const struct sockaddr *) rp->ai_addr, (socklen_t) rp->ai_addrlen, info->hostname, NI_MAXHOST, info->servname, NI_MAXSERV, FLY_LISTEN_SOCKINFO_FLAG) != 0)
-		goto error;
+	res = getnameinfo((const struct sockaddr *) rp->ai_addr, (socklen_t) rp->ai_addrlen, info->hostname, NI_MAXHOST, info->servname, NI_MAXSERV, FLY_LISTEN_SOCKINFO_FLAG);
+	if (res != 0){
+		struct fly_err *__err;
+		__err = fly_err_init(
+			ctx->pool,
+			errno,
+			FLY_ERR_ERR,
+			"getnameinfo error in master init[%s] (%s: %s)",
+			gai_strerror(res), __FILE__, __LINE__
+		);
+		fly_error_error(__err);
+	}
 	if (listen(sockfd, fly_backlog()) == -1)
 		goto error;
 
@@ -87,16 +98,14 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 		if (!crt_path_env || !key_path_env)
 			return -1;
 
-		info->crt_path = crt_path_env ? fly_pballoc(ctx->pool, sizeof(char)*(strlen(crt_path_env)+1)) : NULL;
-		info->key_path = key_path_env ? fly_pballoc(ctx->pool, sizeof(char)*(strlen(key_path_env)+1)) : NULL;
-		if (info->crt_path){
-			memset(info->crt_path, '\0', sizeof(char)*(strlen(crt_path_env)+1));
-			memcpy(info->crt_path, crt_path_env, sizeof(char)*strlen(crt_path_env));
-		}
-		if (info->key_path){
-			memset(info->key_path, '\0', sizeof(char)*(strlen(key_path_env)+1));
-			memcpy(info->key_path, key_path_env, sizeof(char)*strlen(key_path_env));
-		}
+		info->crt_path = fly_pballoc(ctx->pool, sizeof(char)*FLY_PATH_MAX);
+		info->key_path = fly_pballoc(ctx->pool, sizeof(char)*FLY_PATH_MAX);
+		memset(info->crt_path, '\0', sizeof(char)*(strlen(crt_path_env)+1));
+		if (realpath((const char *) crt_path_env, info->crt_path) == NULL)
+			return -1;
+		memset(info->key_path, '\0', sizeof(char)*(strlen(key_path_env)+1));
+		if (realpath((const char *) key_path_env, info->key_path) == NULL)
+			return -1;
 	}
 	freeaddrinfo(result);
 	fly_add_sockinfo(ctx, info);

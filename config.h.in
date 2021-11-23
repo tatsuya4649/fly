@@ -30,23 +30,17 @@
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
-/* Define to 1 if you have the `brotlidec' library (-lbrotlidec). */
+/* "Define to 1 if you have the `brotlidec` library (-lbrotlidec)." */
 #undef HAVE_LIBBROTLIDEC
 
-/* Define to 1 if you have the `brotlienc' library (-lbrotlienc). */
+/* "Define to 1 if you have the `brotlienc` library (-lbrotlienc)." */
 #undef HAVE_LIBBROTLIENC
-
-/* Define to 1 if you have the ssl library (-lssl). */
-#undef HAVE_LIBCRYPTO
 
 /* Define to 1 if you have the `pthread' library (-lpthread). */
 #undef HAVE_LIBPTHREAD
 
 /* Define to 1 if you have the ssl library (-lssl). */
 #undef HAVE_LIBSSL
-
-/* Define to 1 if you have the ssl library (-lssl). */
-#undef HAVE_LIBZ
 
 /* Define to 1 if you have the `localtime_r' function. */
 #undef HAVE_LOCALTIME_R
@@ -66,6 +60,12 @@
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
 #undef HAVE_NETINET_IN_H
+
+/* Define to 1 if you have the <openssl/md5.h> header file. */
+#undef HAVE_OPENSSL_MD5_H
+
+/* Define to 1 if you have the <openssl/ssl.h> header file. */
+#undef HAVE_OPENSSL_SSL_H
 
 /* Define to 1 if you have the `realpath' function. */
 #undef HAVE_REALPATH
@@ -144,6 +144,9 @@
 
 /* Define to 1 if `vfork' works. */
 #undef HAVE_WORKING_VFORK
+
+/* Define to 1 if you have the <zlib.h> header file. */
+#undef HAVE_ZLIB_H
 
 /* Define to 1 if the system has the type `_Bool'. */
 #undef HAVE__BOOL
