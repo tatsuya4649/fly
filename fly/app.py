@@ -41,8 +41,8 @@ def _watch_dog(fly):
     _f = os.stat(fly._app_filepath)
     try:
         while True:
-            __pen = signal.sigpending()
-            for i in __pen:
+            _pen = signal.sigpending()
+            for i in _pen:
                 if i == signal.SIGINT:
                     raise KeyboardInterrupt
                 else:
@@ -151,7 +151,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 "path must be str type and Method."
             )
 
-        def __route(func):
+        def _route(func):
             if not callable(func):
                 raise TypeError(
                     "func must be function object."
@@ -169,7 +169,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 debug=self.is_debug
             )
             return func
-        return __route
+        return _route
 
     def get(self, path):
         return self.route(path, Method.GET)
@@ -230,8 +230,8 @@ class Fly(_Fly, Mount, Route, _fly_server):
         except Exception as e:
             raise _FLY_MASTER_CONFIGURE_ERROR from e
 
-        for __p in self.mounts:
-            self._mount(__p)
+        for _p in self.mounts:
+            self._mount(_p)
 
         self._display_explain()
         result = super().run(
@@ -292,8 +292,9 @@ class Fly(_Fly, Mount, Route, _fly_server):
             for mount in self.mounts:
                 max_len = len(mount) if max_len < len(mount) else max_len
 
-                __mfc = self._mount_files(__mn)
-                print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, __mfc, width=max_len, mn=__mn), file=sys.stderr)
+                _mn = self._mount_number(mount)
+                _mfc = self._mount_files(_mn)
+                print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, _mfc, width=max_len, mn=_mn), file=sys.stderr)
         else:
             print(f"    \033[1m*\033[0m Mount paths: \033[1m-\033[0m", file=sys.stderr)
 
