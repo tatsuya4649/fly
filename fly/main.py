@@ -307,8 +307,8 @@ def run(**kwargs):
         for key in kwargs.keys():
             if key in CONF_PARAMETES and \
                     kwargs.get(key) is not None:
-                __par = f"{key} = {kwargs.get(key)}\n"
-                _fp.write(__par)
+                _par = f"{key} = {kwargs.get(key)}\n"
+                _fp.write(_par)
                 _fp.flush()
 
         for _ele in dir(_m):
