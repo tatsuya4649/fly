@@ -204,15 +204,15 @@ typedef struct fly_hv2_stream fly_hv2_stream_t;
 		((struct fly_hv2_stream *) fly_bllist_data((__state)->streams.next, struct fly_hv2_stream, blelem))
 
 #ifdef DEBUG
-__unused static struct fly_hv2_stream *fly_stream_debug(struct fly_bllist *__b)
+__fly_unused static struct fly_hv2_stream *fly_stream_debug(struct fly_bllist *__b)
 {
 	return fly_bllist_data(__b, struct fly_hv2_stream, blelem);
 }
-__unused static struct fly_hv2_send_frame *fly_send_frame_debug(struct fly_queue *__q)
+__fly_unused static struct fly_hv2_send_frame *fly_send_frame_debug(struct fly_queue *__q)
 {
 	return fly_queue_data(__q, struct fly_hv2_send_frame, qelem);
 }
-__unused static struct fly_hv2_send_frame *fly_send_frame_state_debug(struct fly_queue *__q)
+__fly_unused static struct fly_hv2_send_frame *fly_send_frame_state_debug(struct fly_queue *__q)
 {
 	return fly_queue_data(__q, struct fly_hv2_send_frame, sqelem);
 }

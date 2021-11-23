@@ -925,7 +925,7 @@ __fly_unused __fly_static int __fly_copy_type(char *dist, char *src)
 	return 0;
 }
 
-__unused __fly_static int __fly_copy_subtype(char *dist, char *src)
+__fly_unused __fly_static int __fly_copy_subtype(char *dist, char *src)
 {
 	int i=0;
 	while(__fly_subtype(*src)){

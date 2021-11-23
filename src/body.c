@@ -273,7 +273,7 @@ void fly_body_parse_multipart(fly_request_t *req)
 	fly_body_t *body;
 	fly_hdr_ci *ci;
 	fly_hdr_c *__c;
-	__unused char *boundary;
+	__fly_unused char *boundary;
 	struct fly_bllist *__b;
 
 	body = req->body;
@@ -300,7 +300,7 @@ body_parse:
 
 	char *__p=__c->value;
 	char *body_ptr;
-	__unused size_t boundary_len;
+	__fly_unused size_t boundary_len;
 	while(!fly_semicolon(*__p)){
 		__p++;
 		if (__p >= (__c->value+__c->value_len-1))
