@@ -18,11 +18,31 @@ jobs:
                 python-version: ['3.6']
         steps:
         - uses: actions/checkout@v2
+        - name: Setup bash
+          run: source ~/.bash_profile
         - name: Setup Python
           uses: actions/setup-python@v2
           with:
               python-version: ${{ matrix.python-version }}
         - name: Get Python version
           run: python -V
+        - name: Homebrew update
+          run: brew update
+        - name: Install dependencies
+          run: |
+              brew install openssl zlib brotli
+              brew install automake autoconf
+              python -m pip install --upgrade pip
+              python -m pip install -r requirements.txt
         - name: Setup tmate session
           uses: mxschmitt/action-tmate@v3
+        - name: Make fly library
+          run: |
+              autoreconf
+              ./configure
+              cat config.h
+              make
+              make install
+        - name: Update resolv.conf file
+          run: |
+              echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf

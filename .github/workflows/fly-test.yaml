@@ -31,13 +31,6 @@ jobs:
                   sudo apt install -y libssl-dev zlib1g-dev libbrotli-dev
                   python -m pip install --upgrade pip
                   python -m pip install -r requirements.txt
-            - name: Get tools version
-              run: |
-                  gcc --version
-                  autoconf --version
-                  automake --version
-                  libtool --version
-                  aclocal --version
             - name: Make fly library
               run: |
                   autoreconf
