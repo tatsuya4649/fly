@@ -41,4 +41,5 @@ static inline bool fly_tls_handshake_magic(char *b)
 	return *b == FLY_TLS_HANDSHAKE_MAGIC ? true : false;
 }
 
+__noreturn void FLY_SSL_EMERGENCY_ERROR(fly_context_t *ctx);
 #endif

@@ -995,9 +995,42 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 	self->worker = (long) master->now_workers;
 	self->reqworker = (long) master->req_workers;
 	self->ssl = (bool) fly_ssl();
-	self->ssl_crt_path = (const char *) fly_ssl_crt_path();
-	self->ssl_key_path = (const char *) fly_ssl_key_path();
-	self->log = (const char *) fly_log_path();
+
+#ifdef DEBUG
+	printf("%d\n", self->ssl);
+	if (fly_ssl_crt_path())
+		printf("%s\n", fly_ssl_crt_path());
+	if (fly_ssl_key_path())
+		printf("%s\n", fly_ssl_key_path());
+	if (fly_log_path())
+		printf("%s\n", fly_log_path());
+#endif
+	if (self->ssl && fly_ssl_crt_path() != NULL){
+		self->ssl_crt_path = realpath((const char *) fly_ssl_crt_path(), NULL);
+		if (self->ssl_crt_path == NULL){
+			PyErr_Format(PyExc_ValueError, "SSL certificate path: %s", strerror(errno));
+			goto error;
+		}
+	}else
+		self->ssl_crt_path = NULL;
+
+	if (self->ssl && fly_ssl_key_path() != NULL){
+		self->ssl_key_path = realpath((const char *) fly_ssl_key_path(), NULL);
+		if (self->ssl_key_path == NULL){
+			PyErr_Format(PyExc_ValueError, "SSL key path:%s", strerror(errno));
+			goto error;
+		}
+	}else
+		self->ssl_key_path = NULL;
+
+	if (fly_log_path() != NULL){
+		self->log = realpath((const char *) fly_log_path(), NULL);
+		if (self->log == NULL){
+			PyErr_Format(PyExc_ValueError, "Log path: %s", strerror(errno));
+			goto error;
+		}
+	}else
+		self->log = NULL;
 
 	Py_RETURN_NONE;
 
@@ -1009,15 +1042,15 @@ error:
 
 static PyObject *__pyfly_run(__pyfly_server_t *self, PyObject *args)
 {
-	int daemon;
+	const char *reload_filepath;
+	int daemon, reload;
 
-	if (!PyArg_ParseTuple(args, "p", &daemon))
+	if (!PyArg_ParseTuple(args, "zpp", &reload_filepath, &reload, &daemon))
 		return NULL;
-
 
 	if (daemon){
 		fprintf(stderr, "To be daemon process...");
-		if (fly_master_daemon(self->master->context) == -1){
+		if (fly_daemon(self->master->context) == -1){
 			PyErr_SetString(PyExc_RuntimeError, "to be daemon process error.");
 			return NULL;
 		}
@@ -1025,17 +1058,17 @@ static PyObject *__pyfly_run(__pyfly_server_t *self, PyObject *args)
 #ifdef DEBUG
 	__log_test(self->master->context);
 #endif
-
+	fly_master_setreload(self->master, reload_filepath, (bool) reload);
 	fly_master_worker_spawn(self->master, fly_worker_process);
-	fly_master_process(self->master);
 
-	Py_RETURN_NONE;
-}
-
-static PyObject *__pyfly__debug_run(__pyfly_server_t *self, PyObject *args)
-{
-	fly_master_worker_spawn(self->master, fly_worker_process);
-	fly_master_process(self->master);
+	switch(fly_master_process(self->master)){
+	case  FLY_MASTER_SIGNAL_END:
+		return PyLong_FromLong((long) FLY_MASTER_SIGNAL_END);
+	case  FLY_MASTER_RELOAD:
+		return PyLong_FromLong((long) FLY_MASTER_RELOAD);
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	Py_RETURN_NONE;
 }
@@ -1062,7 +1095,6 @@ static PyMethodDef __pyfly_server_methods[] = {
 	{"_mount", (PyCFunction) __pyfly_mount, METH_VARARGS, ""},
 	{"_configure", (PyCFunction) __pyfly_configure, METH_VARARGS, ""},
 	{"run", (PyCFunction) __pyfly_run, METH_VARARGS, ""},
-	{"_debug_run", (PyCFunction) __pyfly__debug_run, METH_NOARGS, ""},
 	{"_mount_files", (PyCFunction) __pyfly_mount_files, METH_VARARGS, ""},
 	{NULL}
 };

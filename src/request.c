@@ -536,6 +536,9 @@ error:
 
 __fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reqline_bufc)
 {
+#ifdef DEBUG
+	printf("PARSE REQUEST LINE\n");
+#endif
 	/* get request */
 	size_t request_line_length;
 	fly_buf_p rptr;
@@ -827,6 +830,9 @@ in_the_middle:
 
 int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain)
 {
+#ifdef DEBUG
+	printf("PARSE HEADERS\n");
+#endif
 	fly_hdr_ci *rchain_info;
 	rchain_info = fly_header_init(req->ctx);
 	req->header = rchain_info;
@@ -926,6 +932,9 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 			}
 		}else{
 			recvlen = recv(fd, fly_buffer_lunuse_ptr(__buf), fly_buffer_lunuse_len(__buf), MSG_DONTWAIT);
+#ifdef DEBUG
+			printf("RECV[%d]:\n%.*s----end----\n", recvlen, recvlen, (char *) fly_buffer_lunuse_ptr(__buf));
+#endif
 			switch(recvlen){
 			case 0:
 				goto end_of_connection;
@@ -951,22 +960,39 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 			}
 		}
 		total += recvlen;
+		/* goto continuation */
 		bool __gc = false;
 		/**/
 		if (!req->receive_status_line){
 			/* CRLF in buffer */
+#ifdef DEBUG
+			printf("RECV STATUS_LINE[\\r\\n]: %s\n", (char *) fly_buffer_first_useptr(__buf));
+#endif
 			if(fly_buffer_strstr(fly_buffer_first_chain(__buf), FLY_CRLF)){
 				req->receive_status_line = true;
 				__gc = true;
+#ifdef DEBUG
+				printf("RECEIVED STATUS LINE\n");
+			}else{
+				printf("NOT RECEIVED STATUS LINE\n");
+#endif
 			}
 		}
 
 		if (!req->receive_header){
 			/* CRLF in buffer */
 #define FLY_END_OF_HEADER				("\r\n\r\n")
-			if(fly_buffer_strstr(fly_buffer_first_chain(__buf), FLY_END_OF_HEADER)){
+#ifdef DEBUG
+			printf("RECV HEADER[\\r\\n\\r\\n]:\n%s\n", (char *) fly_buffer_first_useptr(__buf));
+#endif
+			if(fly_buffer_strstr(fly_buffer_first_chain(__buf), FLY_END_OF_HEADER) != NULL){
 				req->receive_header = true;
 				__gc = true;
+#ifdef DEBUG
+				printf("RECEIVED HEADER\n");
+			}else{
+				printf("NOT RECEIVED HEADER\n");
+#endif
 			}
 		}
 
@@ -1073,8 +1099,14 @@ int fly_request_event_handler(fly_event_t *event)
 	if (request->discard_body)
 		goto __fase_body;
 
+#ifdef DEBUG
+	printf("START REQUEST PARSE\n");
+#endif
 	fly_event_fase(event, REQUEST_LINE);
 	fly_event_state(event, RECEIVE);
+#ifdef DEBUG
+	printf("REQUEST RECEIVE\n");
+#endif
 	switch (fly_request_receive(event->fd, conn, request)){
 	case FLY_REQUEST_RECEIVE_ERROR:
 		goto error;
@@ -1122,7 +1154,7 @@ __fase_request_line:
 		break;
 	}
 #ifdef DEBUG
-	printf("%s\n", request->request_line->request_line);
+	printf("REQUEST LINE: %s", request->request_line->request_line);
 #endif
 
 	/* parse header */
@@ -1131,13 +1163,20 @@ __fase_header:
 	fly_buffer_c *hdr_buf;
 
 	fly_event_fase(event, HEADER);
-	if (!request->receive_header)
+	if (!request->receive_header){
+#ifdef DEBUG
+		printf("don't have a pointer to the header yet\n");
+#endif
 		goto read_continuation;
+	}
 
 	hdr_buf = fly_get_header_lines_buf(conn->buffer);
 	if (hdr_buf == NULL)
 		goto read_continuation;
 
+#ifdef DEBUG
+	printf("GET HEADER POINTER\n");
+#endif
 	switch (fly_reqheader_operation(request, hdr_buf)){
 	case __REQUEST_HEADER_ERROR:
 		goto response_400;
@@ -1233,6 +1272,9 @@ __fase_body:
 		fly_body_parse_multipart(request);
 
 __fase_end_of_parse:
+#ifdef DEBUG
+	printf("END OF PARSE REQUEST\n");
+#endif
 	fly_event_fase(event, RESPONSE);
 	/* Success parse request */
 	enum method_type __mtype;
@@ -1289,9 +1331,15 @@ response_500:
 
 /* continuation event publish. */
 write_continuation:
+#ifdef DEBUG
+	printf("WRITE CONTINUATION\n");
+#endif
 	event->read_or_write = FLY_WRITE;
 	goto continuation;
 read_continuation:
+#ifdef DEBUG
+	printf("READ CONTINUATION\n");
+#endif
 	event->read_or_write = FLY_READ;
 	goto continuation;
 continuation:

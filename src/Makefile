@@ -272,7 +272,7 @@ EGREP = /usr/bin/grep -E
 ETAGS = etags
 EXEEXT = 
 FGREP = /usr/bin/grep -F
-FLY_VERSION = 0.1.0
+FLY_VERSION = 1.1.2
 GREP = /usr/bin/grep
 INSTALL = /usr/bin/install -c
 INSTALL_DATA = ${INSTALL} -m 644
@@ -282,7 +282,7 @@ INSTALL_STRIP_PROGRAM = $(install_sh) -c -s
 LD = /usr/bin/ld -m elf_x86_64
 LDFLAGS = 
 LIBOBJS = 
-LIBS = -lz -lssl -lpthread -lcrypto -lbrotlienc -lbrotlidec 
+LIBS = -lz -lssl -lssl -lpthread -lcrypto -lcrypto -lbrotlidec -lbrotlienc 
 LIBTOOL = $(SHELL) $(top_builddir)/libtool
 LIPO = 
 LN_S = ln -s
@@ -370,7 +370,7 @@ top_builddir = ..
 top_srcdir = ..
 lib_LTLIBRARIES = libfly.la
 SOURCE_FILES := server.c response.c header.c alloc.c mount.c method.c version.c math.c request.c util.c connect.c body.c route.c fsignal.c mime.c encode.c log.c worker.c master.c ftime.c event.c context.c err.c charset.c lang.c cache.c scheme.c buffer.c rbtree.c ssl.c v2.c queue.c bllist.c conf.c uri.c
-SOURCE_INCLUDE_FILES := $(SOURCE_FILES:%.c=%.h) char.h fly.h
+SOURCE_INCLUDE_FILES := $(SOURCE_FILES:%.c=%.h) char.h
 libfly_la_SOURCES = $(SOURCE_FILES)
 libfly_la_CFLAGS = $(CFLAGS)
 noinst_HEADERS = $(SOURCE_INCLUDE_FILES)

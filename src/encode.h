@@ -7,7 +7,7 @@
 #include "util.h"
 
 /* compress/decompress libraries */
-#if defined HAVE_LIBZ
+#ifdef HAVE_ZLIB_H
 #include <zlib.h>
 #else
 #error ZLIB NO_ERROR
@@ -29,7 +29,7 @@
 #define FLY_ACCEPT_ENCODING_HEADER				"Accept-Encoding"
 #define FLY_ACCEPT_ENCODING_HEADER_SMALL		"accept-encoding"
 enum __fly_encoding_type{
-#ifdef HAVE_LIBZ
+#ifdef HAVE_ZLIB_H
 	fly_gzip,
 	fly_deflate,
 #endif
@@ -42,7 +42,7 @@ enum __fly_encoding_type{
 };
 typedef enum __fly_encoding_type fly_encoding_e;
 typedef char fly_encname_t;
-#if defined HAVE_LIBZ
+#ifdef HAVE_ZLIB_H
 typedef Bytef fly_encbuf_t;
 #endif
 
@@ -153,7 +153,7 @@ int fly_br_decode(fly_de_t *de);
 int fly_br_encode(fly_de_t *de);
 #endif
 
-#if defined HAVE_LIBZ
+#ifdef HAVE_ZLIB_H
 /* gzip encode/decode */
 int fly_gzip_decode(fly_de_t *de);
 int fly_gzip_encode(fly_de_t *de);

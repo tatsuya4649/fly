@@ -42,6 +42,7 @@ struct fly_connect{
 typedef struct fly_connect fly_connect_t;
 
 fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, struct sockaddr *addr, socklen_t addrlen);
+void fly_connect_buffer_refresh(fly_connect_t *conn);
 int fly_connect_release(fly_connect_t *conn);
 int fly_info_of_connect(fly_connect_t *conn);
 int fly_connect_recv(fly_connect_t *conn);
