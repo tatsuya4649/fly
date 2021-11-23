@@ -1,5 +1,8 @@
 TODO list:
 
+v 1.2
+===
+
 * add test script(client session)
 
 * error handle(show errors in more detail)
@@ -8,4 +11,4 @@ TODO list:
 
 * added auto reload fly server
 
-* configure.ac update
+* supports macOS
