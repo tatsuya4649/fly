@@ -4107,6 +4107,21 @@ test -n "$target_alias" &&
     NONENONEs,x,x, &&
   program_prefix=${target_alias}-
 
+build_linux=no
+build_mac=no
+
+case "${host_os}" in
+        linux*)
+                build_linux=yes
+                ;;
+        darwin*)
+                build_mac=yes
+                ;;
+        *)
+                as_fn_error $? "OS $host_os is not supported. sorry." "$LINENO" 5
+                ;;
+esac
+
 case `pwd` in
   *\ * | *\	*)
     { printf "%s\n" "$as_me:${as_lineno-$LINENO}: WARNING: Libtool does not cope well with whitespace in \`pwd\`" >&5
@@ -13354,6 +13369,13 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 OLD_LIBS="$LIBS"
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for brotlidec&brotlienc library works in -lbrotlidec & -lbrotlienc" >&5
 printf %s "checking for brotlidec&brotlienc library works in -lbrotlidec & -lbrotlienc... " >&6; }
+if test "$build_mac" = "yes"; then
+        OLD_LDFLAGS="$LDFLAGS"
+        OLD_CFLAGS="$CFLAGS"
+        BROTLIDIR='/usr/local/opt/brotli'
+        LDFLAGS="$LDFLAGS -L$BROTLIDIR/lib"
+        CFLAGS="$CFLAGS -I$BROTLIDIR/include"
+fi
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -13471,6 +13493,10 @@ else $as_nop
 			{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
 printf "%s\n" "no" >&6; }
 			LIBS="$OLD_LIBS"
+			if test "$build_mac" = "yes"; then
+				LDFLAGS="$OLD_LDFLAGS"
+				CFLAGS="$OLD_CFLAGS"
+			fi
 
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
@@ -13480,6 +13506,10 @@ else $as_nop
 	 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
 printf "%s\n" "no" >&6; }
 	 LIBS="$OLD_LIBS"
+	if test "$build_mac" = "yes"; then
+		LDFLAGS="$OLD_LDFLAGS"
+		CFLAGS="$OLD_CFLAGS"
+	fi
 
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
@@ -13488,6 +13518,11 @@ rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 LIBS="-lcrypto $LIBS"
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for md5 works in -lcrypto" >&5
 printf %s "checking for md5 works in -lcrypto... " >&6; }
+if test "$build_mac" = "yes"; then
+        OPENSSLDIR='/usr/local/opt/openssl'
+        LDFLAGS="$LDFLAGS -L$OPENSSLDIR/lib"
+        CFLAGS="$CFLAGS -I$OPENSSLDIR/include"
+fi
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -13699,6 +13734,11 @@ fi
 LIBS="-lz $LIBS"
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for Zlib worksdeflate decoding in -lz" >&5
 printf %s "checking for Zlib worksdeflate decoding in -lz... " >&6; }
+if test "$build_mac" = "yes"; then
+        ZLIBDIR='/usr/local/opt/zlib'
+        LDFLAGS="$LDFLAGS -L$ZLIBDIR/lib"
+        CFLAGS="$CFLAGS -I$ZLIBDIR/include"
+fi
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
@@ -15183,6 +15223,101 @@ then :
 
 fi
 
+
+
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for epoll on your system." >&5
+printf %s "checking for epoll on your system.... " >&6; }
+ac_fn_c_check_header_compile "$LINENO" "sys/epoll.h" "ac_cv_header_sys_epoll_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_epoll_h" = xyes
+then :
+
+
+  for ac_func in epoll_create epoll_wait epoll_ctl
+do :
+  as_ac_var=`printf "%s\n" "ac_cv_func_$ac_func" | $as_tr_sh`
+ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+if eval test \"x\$"$as_ac_var"\" = x"yes"
+then :
+  cat >>confdefs.h <<_ACEOF
+#define `printf "%s\n" "HAVE_$ac_func" | $as_tr_cpp` 1
+_ACEOF
+
+
+printf "%s\n" "#define HAVE_EPOLL 1" >>confdefs.h
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
+		have_epoll=yes
+
+else $as_nop
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+		have_epoll=no
+
+fi
+
+done
+
+else $as_nop
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+		have_epoll=no
+
+fi
+
+
+# TODO: libevent
+if test "$have_epoll" = "no"; then
+	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for kqueue on your system." >&5
+printf %s "checking for kqueue on your system.... " >&6; }
+	# check libevent
+	ac_fn_c_check_header_compile "$LINENO" "sys/event.h" "ac_cv_header_sys_event_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_event_h" = xyes
+then :
+
+
+  for ac_func in kqueue kevent
+do :
+  as_ac_var=`printf "%s\n" "ac_cv_func_$ac_func" | $as_tr_sh`
+ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
+if eval test \"x\$"$as_ac_var"\" = x"yes"
+then :
+  cat >>confdefs.h <<_ACEOF
+#define `printf "%s\n" "HAVE_$ac_func" | $as_tr_cpp` 1
+_ACEOF
+
+
+printf "%s\n" "#define HAVE_KQUEUE 1" >>confdefs.h
+
+			{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
+			have_kqueue=yes
+
+else $as_nop
+
+			{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+			have_kqueue=no
+
+fi
+
+done
+
+else $as_nop
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+		have_kqueue=no
+
+fi
+
+fi
+
+if test "$have_epoll" = "no" -a "$have_kqueue" = "no"; then
+	as_fn_error $? "epoll or kqueue can't found on your system." "$LINENO" 5
+fi
 
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for sigsetjmp" >&5
 printf %s "checking for sigsetjmp... " >&6; }

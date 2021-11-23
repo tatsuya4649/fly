@@ -131,7 +131,7 @@ int fly_server_port(void)
 	return fly_config_value_int(FLY_PORT);
 }
 
-int fly_socket_close(int fd, int how __unused)
+int fly_socket_close(int fd, int how __fly_unused)
 {
 retry:
 	if (close(fd) == -1){

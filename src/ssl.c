@@ -9,7 +9,7 @@
 #include "version.h"
 
 __fly_static int __fly_ssl_alpn(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg);
-__fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e __unused);
+__fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e __fly_unused);
 
 struct fly_ssl_accept{
 	fly_pool_t				*pool;
@@ -131,7 +131,7 @@ __fly_static int __fly_ssl_alpn_cmp(fly_http_version_t *__v, const unsigned char
 	}
 }
 
-__fly_static int __fly_ssl_alpn(SSL *ssl __unused, const unsigned char **out __unused, unsigned char *outlen __unused, const unsigned char *in __unused, unsigned int inlen __unused, void *arg __unused)
+__fly_static int __fly_ssl_alpn(SSL *ssl __fly_unused, const unsigned char **out __fly_unused, unsigned char *outlen __fly_unused, const unsigned char *in __fly_unused, unsigned int inlen __fly_unused, void *arg __fly_unused)
 {
 	for (fly_http_version_t *__v=versions; __v->full; __v++){
 		if (!__v->alpn)

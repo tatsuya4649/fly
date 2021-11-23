@@ -148,7 +148,7 @@ found:
 	#undef __FLY_NOT_FOUND
 }
 
-__unused __fly_static int __fly_response_required_header(fly_response_t *response)
+__fly_unused __fly_static int __fly_response_required_header(fly_response_t *response)
 {
 	fly_stcode_t status_code = response->status_code;
 
@@ -484,7 +484,7 @@ int fly_response_send_blocking(fly_event_t *e, fly_response_t *res, int read_or_
 	return fly_event_register(e);
 }
 
-int fly_response_fail_close_handler(fly_event_t *e, int fd __unused)
+int fly_response_fail_close_handler(fly_event_t *e, int fd __fly_unused)
 {
 	return fly_response_timeout_release_handler(e);
 }

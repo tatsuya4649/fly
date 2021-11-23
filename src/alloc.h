@@ -70,7 +70,7 @@ struct fly_pool{
 };
 
 #ifdef DEBUG
-__unused static struct fly_pool *fly_pool_debug(struct fly_bllist *__b)
+__fly_unused static struct fly_pool *fly_pool_debug(struct fly_bllist *__b)
 {
 	return (struct fly_pool *) fly_bllist_data(__b, struct fly_pool, pbelem);
 }

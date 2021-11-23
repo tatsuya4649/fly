@@ -27,7 +27,7 @@ void fly_settings_frame_ack(fly_hv2_stream_t *stream);
 void __fly_hv2_add_yet_ack_frame(struct fly_hv2_send_frame *frame);
 void fly_received_settings_frame_ack(fly_hv2_stream_t *stream);
 void fly_hv2_dynamic_table_init(struct fly_hv2_state *state);
-int fly_hv2_parse_headers(fly_hv2_stream_t *stream __unused, uint32_t length __unused, uint8_t *payload, fly_buffer_c *__c __unused);
+int fly_hv2_parse_headers(fly_hv2_stream_t *stream __fly_unused, uint32_t length __fly_unused, uint8_t *payload, fly_buffer_c *__c __fly_unused);
 #define fly_hv2_send_no_error(__s, type)	\
 		__fly_hv2_send_error((__s), FLY_HV2_NO_ERROR, type)
 #define fly_hv2_send_protocol_error(__s, type)	\
@@ -1057,7 +1057,7 @@ static inline uint16_t fly_hv2_settings_id_nb(uint8_t **pl)
 	return id;
 }
 
-static inline uint32_t fly_hv2_settings_value(__unused uint8_t **pl, fly_buffer_c **__c)
+static inline uint32_t fly_hv2_settings_value(__fly_unused uint8_t **pl, fly_buffer_c **__c)
 {
 	uint32_t value = 0;
 
@@ -1120,7 +1120,7 @@ static inline uint16_t fly_hv2_settings_value_nb(uint8_t **pl)
 }
 
 #define FLY_HV2_SETTINGS_SUCCESS				(0)
-int fly_hv2_peer_settings(fly_hv2_state_t *state, __unused fly_sid_t sid, uint8_t *payload, uint32_t len, fly_buffer_c *__c)
+int fly_hv2_peer_settings(fly_hv2_state_t *state, __fly_unused fly_sid_t sid, uint8_t *payload, uint32_t len, fly_buffer_c *__c)
 {
 	uint32_t total=0;
 
@@ -1434,7 +1434,7 @@ close_connection:
 
 int fly_hv2_goaway(fly_hv2_state_t *state, bool r, uint32_t last_stream_id, uint32_t error_code)
 {
-	__unused uint32_t max_handled_sid;
+	__fly_unused uint32_t max_handled_sid;
 	max_handled_sid = state->max_handled_sid;
 
 	state->goaway = true;
@@ -1531,7 +1531,7 @@ static inline bool fly_hv2_settings_frame_ack_from_flags(uint8_t flags)
 }
 
 int fly_send_frame(fly_event_t *e, fly_hv2_stream_t *stream);
-int fly_hv2_responses(fly_event_t *e, fly_hv2_state_t *state __unused);
+int fly_hv2_responses(fly_event_t *e, fly_hv2_state_t *state __fly_unused);
 int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream);
 int fly_state_send_frame(fly_event_t *e, fly_hv2_state_t *state);
 
@@ -1575,7 +1575,7 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 		uint32_t length = fly_hv2_length_from_frame_header(__fh, bufc);
 		uint8_t type = fly_hv2_type_from_frame_header(__fh, bufc);
 		uint8_t flags = fly_hv2_flags_from_frame_header(__fh, bufc);
-		__unused bool r = fly_hv2_r_from_frame_header(__fh, bufc);
+		__fly_unused bool r = fly_hv2_r_from_frame_header(__fh, bufc);
 		uint32_t sid = fly_hv2_sid_from_frame_header(__fh, bufc);
 
 		plbufc = bufc;
@@ -1640,7 +1640,7 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			}
 
 			{
-				__unused uint8_t pad_length;
+				__fly_unused uint8_t pad_length;
 				int res;
 
 				if (flags & FLY_HV2_FRAME_TYPE_DATA_PADDED){
@@ -1698,11 +1698,11 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			}
 
 			{
-				__unused uint32_t hlen=length;
-				__unused uint8_t pad_length;
-				__unused bool e;
-				__unused uint32_t stream_dependency;
-				__unused uint8_t weight;
+				__fly_unused uint32_t hlen=length;
+				__fly_unused uint8_t pad_length;
+				__fly_unused bool e;
+				__fly_unused uint32_t stream_dependency;
+				__fly_unused uint8_t weight;
 
 				if (flags & FLY_HV2_FRAME_TYPE_HEADERS_PADDED){
 					pad_length = fly_hv2_pad_length(&pl, &plbufc);
@@ -1868,9 +1868,9 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
 			{
-				__unused bool r;
-				__unused uint32_t last_stream_id;
-				__unused uint32_t error_code;
+				__fly_unused bool r;
+				__fly_unused uint32_t last_stream_id;
+				__fly_unused uint32_t error_code;
 
 				r = fly_hv2_flag(&pl);
 				last_stream_id = fly_hv2_last_sid(&pl, &plbufc);
@@ -1890,7 +1890,7 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 				fly_hv2_send_frame_size_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
 			{
-				__unused bool r;
+				__fly_unused bool r;
 				uint32_t p_window_size;
 
 				r = fly_hv2_flag(&pl);
@@ -2098,7 +2098,7 @@ void fly_hv2_set_index_bit(enum fly_hv2_index_type iu, uint8_t *pl, size_t *bit_
 	return;
 }
 
-void fly_hv2_set_integer(uint32_t integer, uint8_t **pl, fly_buffer_c **__c, __unused uint32_t *update, uint8_t prefix_bit);
+void fly_hv2_set_integer(uint32_t integer, uint8_t **pl, fly_buffer_c **__c, __fly_unused uint32_t *update, uint8_t prefix_bit);
 
 void fly_hv2_set_index(uint32_t index, enum fly_hv2_index_type iu, uint8_t **pl, fly_buffer_c **__c, uint32_t *update)
 {
@@ -2160,7 +2160,7 @@ uint32_t __fly_payload_from_headers(fly_buffer_t *buf, fly_hdr_c *c)
 		printf("\tname_index");
 #endif
 		size_t value_len;
-		__unused char *value;
+		__fly_unused char *value;
 #ifdef DEBUG
 		printf("(%d)\n", FLY_HEADERS_INDEX(c->index));
 #endif
@@ -3008,7 +3008,7 @@ void fly_send_headers_frame(fly_hv2_stream_t *stream, fly_response_t *res)
 #define FLY_SEND_HEADERS_FRAME_BUFFER_CHAIN_MAX		100
 #define FLY_SEND_HEADERS_FRAME_BUFFER_PER_LEN		10
 	struct fly_hv2_send_frame *__f;
-	__unused size_t max_payload;
+	__fly_unused size_t max_payload;
 	size_t total;
 	bool over=false;
 	int flag = 0;
@@ -3349,7 +3349,7 @@ void fly_hv2_emergency(fly_event_t *event, fly_hv2_state_t *state)
 }
 
 int fly_hv2_add_header_by_index(struct fly_hv2_stream *stream, uint32_t index);
-int fly_hv2_add_header_by_indexname(struct fly_hv2_stream *stream, __unused uint32_t index, __unused uint8_t *value, __unused uint32_t value_len, __unused bool huffman_value, fly_buffer_c *__c, enum fly_hv2_index_type index_type);
+int fly_hv2_add_header_by_indexname(struct fly_hv2_stream *stream, __fly_unused uint32_t index, __fly_unused uint8_t *value, __fly_unused uint32_t value_len, __fly_unused bool huffman_value, fly_buffer_c *__c, enum fly_hv2_index_type index_type);
 int fly_hv2_add_header_by_name(struct fly_hv2_stream *stream, uint8_t *name, uint32_t name_len, bool huffman_name, uint8_t *value, uint32_t value_len, bool huffman_value, fly_buffer_c *__nc, fly_buffer_c *__vc, enum fly_hv2_index_type index_type);
 
 struct fly_hv2_static_table static_table[] = {
@@ -3591,7 +3591,7 @@ static inline bool fly_hv2_is_index_hedaer_noindex(uint8_t *pl)
 #define FLY_HV2_INT_CONTFLAG(p)			(1<<(7))
 #define FLY_HV2_INT_BIT_PREFIX(p)		((1<<(p)) - 1)
 #define FLY_HV2_INT_BIT_VALUE(p)			((1<<(7)) - 1)
-void fly_hv2_set_integer(uint32_t integer, uint8_t **pl, fly_buffer_c **__c, __unused uint32_t *update, uint8_t prefix_bit)
+void fly_hv2_set_integer(uint32_t integer, uint8_t **pl, fly_buffer_c **__c, __fly_unused uint32_t *update, uint8_t prefix_bit)
 {
 	fly_buffer_t *__b;
 	**pl &= (~FLY_HV2_INT_BIT_PREFIX(prefix_bit));
@@ -3636,7 +3636,7 @@ void fly_hv2_set_integer(uint32_t integer, uint8_t **pl, fly_buffer_c **__c, __u
 	return;
 }
 
-uint32_t fly_hv2_integer(uint8_t **pl, fly_buffer_c **__c, __unused uint32_t *update, uint8_t prefix_bit)
+uint32_t fly_hv2_integer(uint8_t **pl, fly_buffer_c **__c, __fly_unused uint32_t *update, uint8_t prefix_bit)
 {
 	if (((*pl)[0]&FLY_HV2_INT_BIT_PREFIX(prefix_bit)) == FLY_HV2_INT_BIT_PREFIX(prefix_bit)){
 		bool cont = true;
@@ -4455,7 +4455,7 @@ next_header:
 
 int fly_hv2_response_event(fly_event_t *e);
 
-int fly_hv2_responses(fly_event_t *e, fly_hv2_state_t *state __unused)
+int fly_hv2_responses(fly_event_t *e, fly_hv2_state_t *state __fly_unused)
 {
 	struct fly_hv2_response *res;
 	struct fly_queue *__q;
