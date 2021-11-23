@@ -8,7 +8,6 @@
 #include "util.h"
 #include "event.h"
 #include "log.h"
-#include "fly.h"
 
 #define RESPONSE_LENGTH_PER		1024
 #define FLY_RESPONSE_POOL_PAGE		100
@@ -60,7 +59,7 @@ enum status_code_type{
 	INVALID_STATUS_CODE,
 };
 typedef enum status_code_type fly_stcode_t;
-#define FLY_PATH_FROM_STATIC(p)			(__FLY_PATH_FROM_ROOT(static) "/" # p)
+#define FLY_PATH_FROM_STATIC(p)			(FLY_PATH_FROM_ROOT(static) "/" # p)
 
 #include "mount.h"
 struct fly_response_content_by_stcode;
@@ -194,10 +193,10 @@ struct fly_response_content_by_stcode{
 	struct fly_bllist			blelem;
 	fly_bit_t					encoded: 1;
 };
-#if defined HAVE_LIBZ
+#ifdef HAVE_ZLIB_H
 #define FLY_RCBS_DEFAULT_ENCODE_TYPE		fly_gzip
 #else
-#define FLY_RCBS_DEFAULT_ENCODE_TYPE		fly_identify
+#define FLY_RCBS_DEFAULT_ENCODE_TYPE		fly_identity
 #endif
 struct fly_response_content_by_stcode *fly_rcbs_init(fly_context_t *ctx);
 typedef struct fly_response_content_by_stcode fly_rcbs_t;

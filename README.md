@@ -13,6 +13,8 @@ Python lightweight web application framework.
 
 * Lightweight and fast.
 
+* Since fly as a server by itself, there is no need to prepare a WSGI server or ASGI server.
+
 ## Install
 
 ```
@@ -45,19 +47,19 @@ $ fly app.py
 ```
 
 <details>
-<summary>result</summary>
+<summary>Result</summary>
 <div>
 
 ```
-    * fly Running on 0.0.0.0:1234 (Press CTRL+C to quit)
-    * fly 5 workers
-    * SSL: False
-    * SSL certificate path: conf/server.crt
-    * SSL key path: conf/server.key
-    * Log directory path: ~/log
-    * Mount paths ()
-```
 
+    * fly Running on 0.0.0.0:1234 (Press CTRL+C to quit)
+    * fly 1 workers
+    * Application file: app.py
+    * SSL: False
+    * Log directory path: -
+    * Mount paths: -
+
+```
 
 </div>
 </details>
@@ -75,7 +77,7 @@ $ fly app.py
 
 ## Why fly ?
 
-Interface of fly is as simple as possible. Extracted only the necessary parts as Web framework by referring to variout Python web frameworks.
+Interface of fly is as simple as possible. Extracted only the necessary parts as Web framework by referring to various Python web frameworks.
 
 But, a core part of fly is implemented by C language, you can't think of it as Python Web framework.
 
@@ -98,9 +100,13 @@ Let's coding.
 4. Push to the bench. (git push origin my-new-feature)
 5. Create new pull request.
 
-## Running tests
+## Dependencies
 
-```
-# move to fly project directory and run following command.
-$ python3 -m pytest
-```
+* Python >= 3.6
+
+* Openssl >= 1.1.11
+
+* Zlib >= 1.2.11
+
+* libbrotli(Optional) >= 1.0.9
+
