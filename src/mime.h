@@ -184,23 +184,23 @@ struct __fly_mime{
 	struct fly_bllist			blelem;
 };
 #ifdef DEBUG
-__unused static struct __fly_mime *fly_mime_debug(struct fly_bllist *__b)
+__fly_unused static struct __fly_mime *fly_mime_debug(struct fly_bllist *__b)
 {
 	return (struct __fly_mime *) fly_bllist_data(__b, struct __fly_mime, blelem);
 }
 #endif
 
-__unused static inline bool is_fly_mime_asterisk(struct __fly_mime *__m)
+__fly_unused static inline bool is_fly_mime_asterisk(struct __fly_mime *__m)
 {
 	return __m->type.type == FLY_MIME_TYPE(asterisk) ? true : false;
 }
 
-__unused static inline const char *fly_mime_type(struct __fly_mime *__m)
+__fly_unused static inline const char *fly_mime_type(struct __fly_mime *__m)
 {
 	return __m->type.type_name;
 }
 
-__unused static inline const char *fly_mime_subtype(struct __fly_mime *__m)
+__fly_unused static inline const char *fly_mime_subtype(struct __fly_mime *__m)
 {
 	if (__m->subtype.asterisk)
 		return FLY_MIME_SUBTYPE_ASTERISK;

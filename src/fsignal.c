@@ -51,14 +51,14 @@ int fly_signal_init(void)
 	return FLY_SUCCESS;
 }
 
-__attribute__((noreturn)) void fly_sigint_handler(__unused int signo)
+__attribute__((noreturn)) void fly_sigint_handler(__fly_unused int signo)
 {
     fprintf(stderr, "Interrupt now (Ctrl+C)...\n");
     exit(0);
 }
 
 
-void __fly_only_recv(fly_context_t *ctx __unused, struct signalfd_siginfo *info __unused)
+void __fly_only_recv(fly_context_t *ctx __fly_unused, struct signalfd_siginfo *info __fly_unused)
 {
 	return;
 }
@@ -82,7 +82,7 @@ int fly_signal_register(sigset_t *mask)
 	return sigfd;
 }
 
-__noreturn int fly_signal_default_handler(fly_context_t *ctx __unused, struct signalfd_siginfo *info __unused)
+__fly_noreturn int fly_signal_default_handler(fly_context_t *ctx __fly_unused, struct signalfd_siginfo *info __fly_unused)
 {
 	exit(0);
 }

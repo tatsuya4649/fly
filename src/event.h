@@ -103,7 +103,7 @@ struct fly_event{
 };
 
 #ifdef DEBUG
-__unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
+__fly_unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
 {
 	return (struct fly_event *) fly_queue_data(__q, struct fly_event, qelem);
 }

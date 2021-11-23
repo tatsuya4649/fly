@@ -685,7 +685,7 @@ void fly_response_release(fly_response_t *response)
 	fly_delete_pool(response->pool);
 }
 
-//__noreturn void fly_response_init_errorp(fly_pool_t *pool)
+//__fly_noreturn void fly_response_init_errorp(fly_pool_t *pool)
 //{
 //	struct fly_err *__err;
 //	__err = fly_err_init(
@@ -696,7 +696,7 @@ void fly_response_release(fly_response_t *response)
 //	);
 //	fly_error_error(__err);
 //}
-//__noreturn void fly_response_init_error(fly_request_t *req)
+//__fly_noreturn void fly_response_init_error(fly_request_t *req)
 //{
 //	fly_response_init_errorp(req->connect->pool);
 //}
