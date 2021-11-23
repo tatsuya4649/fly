@@ -24,10 +24,10 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
 __fly_static void fly_add_worker_sig(fly_context_t *ctx, int num, fly_sighand_t *handler);
-__fly_static void FLY_SIGNAL_MODF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
-__fly_static void FLY_SIGNAL_ADDF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
-__fly_static void FLY_SIGNAL_DELF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
-__fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info);
+__fly_static void FLY_SIGNAL_MODF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused struct signalfd_siginfo *info);
+__fly_static void FLY_SIGNAL_ADDF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused struct signalfd_siginfo *info);
+__fly_static void FLY_SIGNAL_DELF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused struct signalfd_siginfo *info);
+__fly_static void FLY_SIGNAL_UMOU_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused struct signalfd_siginfo *info);
 #define FLY_WORKER_OPEN_FILE_SUCCESS				0
 #define FLY_WORKER_OPEN_FILE_CTX_ERROR				-2
 #define FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR		-3
@@ -219,7 +219,7 @@ error:
 	return -1;
 }
 
-__fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __unused char *path, const char *mount_point)
+__fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __fly_unused char *path, const char *mount_point)
 {
 	if (parts->file_count == 0)
 		return -1;
@@ -291,7 +291,7 @@ __fly_static int __fly_signal_handler(fly_context_t *ctx, int mount_number, void
 	return 0;
 }
 
-__fly_static void FLY_SIGNAL_MODF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info)
+__fly_static void FLY_SIGNAL_MODF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused struct signalfd_siginfo *info)
 {
 	int mount_number;
 	if (!ctx->mount)
@@ -301,7 +301,7 @@ __fly_static void FLY_SIGNAL_MODF_HANDLER(__unused fly_context_t *ctx, __unused 
 	__fly_signal_handler(ctx, mount_number, __fly_modupdate);
 }
 
-__fly_static void FLY_SIGNAL_ADDF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info)
+__fly_static void FLY_SIGNAL_ADDF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused struct signalfd_siginfo *info)
 {
 	int mount_number;
 
@@ -312,7 +312,7 @@ __fly_static void FLY_SIGNAL_ADDF_HANDLER(__unused fly_context_t *ctx, __unused 
 	__fly_signal_handler(ctx, mount_number, __fly_add_file_by_signal);
 }
 
-__fly_static void FLY_SIGNAL_DELF_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info)
+__fly_static void FLY_SIGNAL_DELF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused struct signalfd_siginfo *info)
 {
 	int mount_number;
 
@@ -323,7 +323,7 @@ __fly_static void FLY_SIGNAL_DELF_HANDLER(__unused fly_context_t *ctx, __unused 
 	__fly_signal_handler(ctx, mount_number, __fly_del_file_by_signal);
 }
 
-__fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused struct signalfd_siginfo *info)
+__fly_static void FLY_SIGNAL_UMOU_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused struct signalfd_siginfo *info)
 {
 	int mount_number;
 
@@ -334,7 +334,7 @@ __fly_static void FLY_SIGNAL_UMOU_HANDLER(__unused fly_context_t *ctx, __unused 
 	__fly_signal_handler(ctx, mount_number, __fly_unmount_by_signal);
 }
 
-__fly_noreturn void fly_worker_signal_default_handler(fly_worker_t *worker, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
+__fly_noreturn void fly_worker_signal_default_handler(fly_worker_t *worker, fly_context_t *ctx __fly_unused, struct signalfd_siginfo *si __fly_unused)
 {
 	fly_notice_direct_log(
 		ctx->log,
@@ -472,7 +472,7 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
  *		ctx:  passed from master process. include fly context info.
  *		data: custom data.
  */
-__fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __unused void *data)
+__fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fly_unused void *data)
 {
 	fly_worker_t *worker;
 	fly_event_manager_t *manager;

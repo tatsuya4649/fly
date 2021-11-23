@@ -16,7 +16,7 @@ struct __fly_charset{
 	fly_bit_t			asterisk: 1;
 };
 
-__unused static inline const char *fly_charset_name(struct __fly_charset *__c)
+__fly_unused static inline const char *fly_charset_name(struct __fly_charset *__c)
 {
 	return __c->asterisk ? FLY_CHARSET_ASTERISK	: __c->cname;
 }

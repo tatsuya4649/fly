@@ -714,8 +714,8 @@ error:
 }
 #endif
 
-__unused int fly_identity_decode(__unused fly_de_t *de){ return 0; }
-__unused int fly_identity_encode(__unused fly_de_t *de){ return 0; }
+__fly_unused int fly_identity_decode(__fly_unused fly_de_t *de){ return 0; }
+__fly_unused int fly_identity_encode(__fly_unused fly_de_t *de){ return 0; }
 
 
 __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encoding)
