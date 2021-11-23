@@ -6,7 +6,7 @@ Released: 2021/11/21
 
 ## Added
 
-* Debug mode (realtime automatic update)
+* Debug mode (realtime automatic reload)
 
 * Detection of master process app file updates
 
