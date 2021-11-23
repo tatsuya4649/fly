@@ -25,7 +25,7 @@ struct fly_signal{
 typedef void (fly_sighand_t)(fly_context_t *ctx, struct signalfd_siginfo *);
 typedef struct fly_signal fly_signal_t;
 
-void fly_sigint_handler(__unused int signo);
+void fly_sigint_handler(__fly_unused int signo);
 int fly_signal_init(void);
 
 void __fly_only_recv(fly_context_t *ctx, struct signalfd_siginfo *);
@@ -33,8 +33,8 @@ int fly_refresh_signal(void);
 
 extern fly_signum_t fly_signals[];
 int fly_signal_register(sigset_t *mask);
-__noreturn int fly_signal_default_handler(fly_context_t *, struct signalfd_siginfo *);
+__fly_noreturn int fly_signal_default_handler(fly_context_t *, struct signalfd_siginfo *);
 int fly_send_signal(pid_t pid, int signumber, int value);
 
-static inline void FLY_SIG_IGN(fly_context_t *ctx __unused, struct signalfd_siginfo *__info __unused){}
+static inline void FLY_SIG_IGN(fly_context_t *ctx __fly_unused, struct signalfd_siginfo *__info __fly_unused){}
 #endif

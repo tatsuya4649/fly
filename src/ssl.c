@@ -253,7 +253,7 @@ __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e)
 	return __fly_ssl_accept_event_handler(e, __ac);
 }
 
-__noreturn void FLY_SSL_EMERGENCY_ERROR(fly_context_t *ctx)
+__fly_noreturn void FLY_SSL_EMERGENCY_ERROR(fly_context_t *ctx)
 {
 	unsigned long err_code;
 
