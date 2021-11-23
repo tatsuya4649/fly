@@ -181,6 +181,7 @@ __noreturn void fly_emergency_verror(int __errno, const char *format, ...);
 
 __noreturn void fly_critical_error(struct fly_err *err);
 __noreturn void fly_error_error(struct fly_err *err);
+void fly_error_error_noexit(struct fly_err *err);
 __noreturn void fly_emergency_error(struct fly_err *err);
 __noreturn void fly_nomem_verror(__unused int __errno, const char *format, ...);
 void fly_alert_error(struct fly_err *err);

@@ -3,7 +3,7 @@
 #include "conf.h"
 
 __fly_static fly_encoding_type_t __fly_encodes[] = {
-#if defined HAVE_LIBZ
+#ifdef HAVE_ZLIB_H
 	FLY_ENCODE_TYPE(gzip, 100),
 	{ fly_gzip, "x-gzip", 90, fly_gzip_encode, fly_gzip_decode },
 	FLY_ENCODE_TYPE(deflate, 75),
@@ -103,7 +103,7 @@ fly_encoding_type_t *fly_encoding_from_name(fly_encname_t *name)
 	#undef FLY_ENCODE_NAME_LENGTH
 }
 
-#if defined HAVE_LIBZ
+#ifdef HAVE_ZLIB_H
 int fly_gzip_decode(fly_de_t *de)
 {
 	int status;
@@ -508,7 +508,7 @@ buffer_error:
 }
 #endif
 
-#if defined HAVE_LIBZ
+#ifdef HAVE_ZLIB_H
 int fly_deflate_decode(fly_de_t *de)
 {
 	switch (de->type){

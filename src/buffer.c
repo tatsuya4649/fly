@@ -163,15 +163,17 @@ int fly_update_buffer(fly_buffer_t *buf, size_t len)
 
 __fly_static fly_buf_p *__fly_bufp_inc(fly_buffer_c **__c, fly_buf_p *ptr)
 {
-	fly_buf_p res = *ptr;
 	if ((*__c)->lptr < *ptr+1){
 		fly_buffer_c *__nc = fly_buffer_next_chain((*__c));
+		if (__nc == NULL){
+			return NULL;
+		}
 		*ptr = __nc->use_ptr;
 		*__c = __nc;
 	}else
 		*ptr = *ptr+1;
 
-	return res;
+	return *ptr;
 }
 
 static inline bool __fly_bufp_end(fly_buffer_c *__c, fly_buf_p ptr)
@@ -186,24 +188,50 @@ static inline bool __fly_bufp_end(fly_buffer_c *__c, fly_buf_p ptr)
 #define FLY_BUFFER_STRSTR_AFTER			(1<<0)
 __fly_static char *__fly_buffer_strstr(fly_buffer_c *__c, const char *str, int flag)
 {
-	fly_buf_p n;
+	char *n;
 
-	n = __c->use_ptr;
-	for (;;){
-		const char *s = str;
-		while (*(char *) __fly_bufp_inc(&__c , &n) == *s++){
-			if (!*s){
+	n = (char *) __c->use_ptr;
+#ifdef DEBUG
+	printf("%s", n);
+#endif
+	while(true){
+		char *__s = (char *) str;
+#ifdef DEBUG
+		printf("%c", *n);
+		fflush(stdout);
+#endif
+		while(*n == *__s++){
+#ifdef DEBUG
+			assert(__fly_bufp_inc(&__c, (fly_buf_p *) &n) != NULL);
+#else
+			__fly_bufp_inc(&__c, (fly_buf_p *) &n);
+#endif
+			if (*__s == '\0'){
 				if (flag & FLY_BUFFER_STRSTR_AFTER){
-					return n;
-				}else
-					return n-strlen(str);
+#ifdef DEBUG
+					printf("STRSTR After: %s\n", (char *) n);
+#endif
+					return (char *) n;
+				}else{
+#ifdef DEBUG
+					printf("STRSTR: %s\n", (char *) (n-strlen(str)));
+#endif
+					return (char *) (n - strlen(str));
+				}
+			}
+
+			if (__fly_bufp_end(__c, n)){
+				return NULL;
 			}
 		}
-
+#ifdef DEBUG
+		assert(__fly_bufp_inc(&__c, (fly_buf_p *) &n) != NULL);
+#else
+		__fly_bufp_inc(&__c, (fly_buf_p *) &n);
+#endif
 		if (__fly_bufp_end(__c, n))
 			break;
 	}
-
 	return NULL;
 }
 

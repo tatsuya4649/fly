@@ -7,3 +7,5 @@ TODO list:
 * error handle test(with gdb)
 
 * added auto reload fly server
+
+* configure.ac update

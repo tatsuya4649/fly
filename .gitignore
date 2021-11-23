@@ -11,11 +11,13 @@ lib/
 /debug/*
 /autom4te.cache/
 /fly_server.egg-info/
+/*.egg-info/
 __pycache__/
 /.pytest_cache/
 /server
 /fly/_fly_server.*
 .deps/
+.eggs/
 .libs/
 GPATH
 GRTAGS
