@@ -148,10 +148,8 @@ typedef struct __pyfly_server __pyfly_server_t;
 
 static void __pyfly_server_dealloc(__pyfly_server_t *self)
 {
-	if (self->master)
-		fly_master_release(self->master);
-
-//	fly_remove_pidfile();
+//	if (self->master)
+//		fly_master_release(self->master);
 	Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
