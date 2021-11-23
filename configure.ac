@@ -442,6 +442,45 @@ AC_FUNC_MALLOC
 AC_FUNC_MKTIME
 AC_CHECK_FUNCS([atexit dup2 gettimeofday localtime_r memset realpath setenv socket strchr strerror sigsetjmp siglongjmp strerrorname_np strerrordesc_np realpath])
 
+
+AC_MSG_CHECKING([for epoll on your system.])
+AC_CHECK_HEADER([sys/epoll.h], [
+	AC_CHECK_FUNCS([epoll_create epoll_wait epoll_ctl], [
+		AC_DEFINE([HAVE_EPOLL], [1], ["Define to 1 if you have the all `epoll' function."])
+		AC_MSG_RESULT(yes)
+		have_epoll=yes
+	], [
+		AC_MSG_RESULT(no)
+		have_epoll=no
+	])
+], [
+		AC_MSG_RESULT(no)
+		have_epoll=no
+])
+
+# TODO: libevent
+if test "$have_epoll"="no"; then
+	AC_MSG_CHECKING([for libevent on your system.])
+	# check libevent
+	AC_CHECK_HEADER([event2/event.h], [
+		AC_CHECK_FUNCS([event_base_new event_new], [
+			AC_DEFINE([HAVE_LIBEVENT], [1], ["Define to 1 if you have the all `libevent' function."])
+			AC_MSG_RESULT(yes)
+			have_libevent=yes
+		], [
+			AC_MSG_RESULT(no)
+			have_libevent=no
+		])
+	], [
+		AC_MSG_RESULT(no)
+		have_libevent=no
+	])
+fi
+
+if test "$have_epoll"="no" -a "$have_libevent"="no"; then
+	AC_MSG_ERROR(epoll or libevent can't found on your system.)
+fi
+
 AC_MSG_CHECKING(for sigsetjmp)
 AC_COMPILE_IFELSE(
 	[AC_LANG_PROGRAM(
