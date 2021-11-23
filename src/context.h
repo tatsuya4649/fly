@@ -53,7 +53,7 @@ struct fly_response_content_by_stcode *fly_default_content_by_stcode_from_event(
 //int fly_send_default_content(fly_event_t *e, struct fly_response_content_by_stcode *__r);
 #define FLY_SEND_BUF_LENGTH			(4096)
 
-__unused static inline bool is_fly_log_fd(int i, fly_context_t *ctx){
+__fly_unused static inline bool is_fly_log_fd(int i, fly_context_t *ctx){
 	if (i == ctx->log->access->file)
 		return true;
 	else if (i == ctx->log->error->file)
@@ -66,7 +66,7 @@ __unused static inline bool is_fly_log_fd(int i, fly_context_t *ctx){
 	FLY_NOT_COME_HERE
 }
 
-__unused static inline bool is_fly_listen_socket(int i, fly_context_t *ctx){
+__fly_unused static inline bool is_fly_listen_socket(int i, fly_context_t *ctx){
 	if (i == ctx->listen_sock->fd)
 		return true;
 	else

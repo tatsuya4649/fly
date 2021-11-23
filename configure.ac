@@ -41,7 +41,7 @@ AC_PROG_CC([gcc])
 # FIXME: Replace 'main' with a function in '-lbrotlienc':
 OLD_LIBS="$LIBS"
 AC_MSG_CHECKING(for brotlidec&brotlienc library works in -lbrotlidec & -lbrotlienc)
-if test "$build_mac"="yes"; then
+if test "$build_mac" = "yes"; then
         OLD_LDFLAGS="$LDFLAGS"
         OLD_CFLAGS="$CFLAGS"
         BROTLIDIR='/usr/local/opt/brotli'
@@ -133,7 +133,7 @@ AC_COMPILE_IFELSE([
 				], [
 			AC_MSG_RESULT(no)
 			LIBS="$OLD_LIBS"
-			if test "$build_mac"="yes"; then
+			if test "$build_mac" = "yes"; then
 				LDFLAGS="$OLD_LDFLAGS"
 				CFLAGS="$OLD_CFLAGS"
 			fi
@@ -141,7 +141,7 @@ AC_COMPILE_IFELSE([
 	 ], [
 	 AC_MSG_RESULT(no)
 	 LIBS="$OLD_LIBS"
-	if test "$build_mac"="yes"; then
+	if test "$build_mac" = "yes"; then
 		LDFLAGS="$OLD_LDFLAGS"
 		CFLAGS="$OLD_CFLAGS"
 	fi
@@ -150,7 +150,7 @@ AC_COMPILE_IFELSE([
 # FIXME: Replace 'main' with a function in '-lcrypto':
 LIBS="-lcrypto $LIBS"
 AC_MSG_CHECKING(for md5 works in -lcrypto)
-if test "$build_mac"="yes"; then
+if test "$build_mac" = "yes"; then
         OPENSSLDIR='/usr/local/opt/openssl'
         LDFLAGS="$LDFLAGS -L$OPENSSLDIR/lib"
         CFLAGS="$CFLAGS -I$OPENSSLDIR/include"
@@ -242,7 +242,7 @@ fi
 #AC_CHECK_LIB([z], [inflateInit, inflateEnd, inflateInit2, deflateInit, deflateEnd, deflateInit2], [ have_z=yes ], [ have_z=no ])
 LIBS="-lz $LIBS"
 AC_MSG_CHECKING(for Zlib works[deflate] decoding in -lz)
-if test "$build_mac"="yes"; then
+if test "$build_mac" = "yes"; then
         ZLIBDIR='/usr/local/opt/zlib'
         LDFLAGS="$LDFLAGS -L$ZLIBDIR/lib"
         CFLAGS="$CFLAGS -I$ZLIBDIR/include"
@@ -459,26 +459,26 @@ AC_CHECK_HEADER([sys/epoll.h], [
 ])
 
 # TODO: libevent
-if test "$have_epoll"="no"; then
-	AC_MSG_CHECKING([for libevent on your system.])
+if test "$have_epoll" = "no"; then
+	AC_MSG_CHECKING([for kqueue on your system.])
 	# check libevent
-	AC_CHECK_HEADER([event2/event.h], [
-		AC_CHECK_FUNCS([event_base_new event_new], [
-			AC_DEFINE([HAVE_LIBEVENT], [1], ["Define to 1 if you have the all `libevent' function."])
+	AC_CHECK_HEADER([sys/event.h], [
+		AC_CHECK_FUNCS([kqueue kevent], [
+			AC_DEFINE([HAVE_KQUEUE], [1], ["Define to 1 if you have the all some `kqueue' function."])
 			AC_MSG_RESULT(yes)
-			have_libevent=yes
+			have_kqueue=yes
 		], [
 			AC_MSG_RESULT(no)
-			have_libevent=no
+			have_kqueue=no
 		])
 	], [
 		AC_MSG_RESULT(no)
-		have_libevent=no
+		have_kqueue=no
 	])
 fi
 
-if test "$have_epoll"="no" -a "$have_libevent"="no"; then
-	AC_MSG_ERROR(epoll or libevent can't found on your system.)
+if test "$have_epoll" = "no" -a "$have_kqueue" = "no"; then
+	AC_MSG_ERROR(epoll or kqueue can't found on your system.)
 fi
 
 AC_MSG_CHECKING(for sigsetjmp)

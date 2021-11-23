@@ -8,6 +8,7 @@ from fly import Fly, Response
 from fly.response import *
 
 app = Fly()
+app.mount("tests/mnt")
 
 @app.get("/")
 def index(request):

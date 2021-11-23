@@ -133,7 +133,7 @@ int fly_hv2_request_target_parse(fly_request_t *req);
 int fly_if_none_match(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_if_modified_since(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_request_timeout(void);
-int fly_request_fail_close_handler(fly_event_t *event, int fd __unused);
+int fly_request_fail_close_handler(fly_event_t *event, int fd __fly_unused);
 
 static inline void fly_query_set(fly_request_t *req, fly_reqlinec_t *c, size_t len)
 {

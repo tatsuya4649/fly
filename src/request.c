@@ -1392,7 +1392,7 @@ error:
 }
 
 
-int fly_create_response_from_request(fly_request_t *req __unused, fly_response_t **res __unused)
+int fly_create_response_from_request(fly_request_t *req __fly_unused, fly_response_t **res __fly_unused)
 {
 	return 0;
 }

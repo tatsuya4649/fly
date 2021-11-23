@@ -24,7 +24,7 @@ struct fly_body_parts{
 };
 
 #ifdef DEBUG
-__unused static inline struct fly_body_parts *fly_body_parts_debug(struct fly_bllist *__b)
+__fly_unused static inline struct fly_body_parts *fly_body_parts_debug(struct fly_bllist *__b)
 {
 	return (struct fly_body_parts *) fly_bllist_data(__b, struct fly_body_parts, blelem);
 }
