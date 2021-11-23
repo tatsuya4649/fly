@@ -16,7 +16,6 @@ Released: 2021/11/21
 
 * Change SIGWINCH signal handler.
 
-
 ## Fixed
 
 * Tests code.
