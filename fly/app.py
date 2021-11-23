@@ -272,9 +272,9 @@ class Fly(_Fly, Mount, Route, _fly_server):
         print("\n", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
-        print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m", file=sys.stderr)
         if self._app_filepath:
-            print(f"    \033[1m*\033[0m SSL: \033[1m{self._app_filepath}\033[0m", file=sys.stderr)
+            print(f"    \033[1m*\033[0m Application file: \033[1m{self._app_filepath}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m", file=sys.stderr)
         if self._ssl:
             print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m", file=sys.stderr)
             print(f"    \033[1m*\033[0m SSL key path: \033[1m{self._ssl_key_path}\033[0m", file=sys.stderr)
