@@ -15,6 +15,10 @@ Python lightweight web application framework.
 
 * Since fly as a server by itself, there is no need to prepare a WSGI server or ASGI server.
 
+fly currently supports the following platforms.
+
+* Linux
+
 ## Install
 
 ```
@@ -84,7 +88,7 @@ But, a core part of fly is implemented by C language, you can't think of it as P
 So, if you're looking for **flexible** and **fast** Web framework, should use fly.
 ## How fast ?
 
-look at [benchmark](https://github.com/tatsuya4649/fly/blob/develop/bench/README.md).
+look at the result of [benchmark](https://github.com/tatsuya4649/fly/blob/develop/bench/README.md).
 
 ## HTTP version
 
