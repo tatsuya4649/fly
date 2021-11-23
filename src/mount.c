@@ -43,6 +43,8 @@ int fly_mount_init(fly_context_t *ctx)
 
 void fly_mount_release(fly_context_t *ctx)
 {
+	if (ctx == NULL || ctx->mount == NULL)
+		return;
 	fly_rb_tree_release(ctx->mount->rbtree);
 	fly_pbfree(ctx->pool, ctx->mount);
 }

@@ -63,7 +63,7 @@ void fly_context_release(fly_context_t *ctx)
 	if (ctx->ssl_ctx)
 		SSL_CTX_free(ctx->ssl_ctx);
 
-	if (ctx->mount)
+	if (ctx->mount != NULL)
 		fly_mount_release(ctx);
 
 	fly_delete_pool(ctx->misc_pool);
