@@ -18,6 +18,14 @@ include config.h
 include config.h.in
 include missing
 graft m4
-graft docs
 graft src
 graft fly
+
+global-exclude GPATH
+global-exclude GRTAGS
+global-exclude GTAGS
+global-exclude __pycache__
+global-exclude *.o
+global-exclude *.lo
+global-exclude *.a
+global-exclude *.la

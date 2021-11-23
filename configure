@@ -13351,87 +13351,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 # Checks for libraries.
 # FIXME: Replace 'main' with a function in '-lbrotlidec':
 # FIXME: Replace 'main' with a function in '-lbrotlienc':
-OLD_LIBS=LIBS
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for main in -lbrotlienc" >&5
-printf %s "checking for main in -lbrotlienc... " >&6; }
-if test ${ac_cv_lib_brotlienc_main+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lbrotlienc  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-
-int
-main (void)
-{
-return main ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  ac_cv_lib_brotlienc_main=yes
-else $as_nop
-  ac_cv_lib_brotlienc_main=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_brotlienc_main" >&5
-printf "%s\n" "$ac_cv_lib_brotlienc_main" >&6; }
-if test "x$ac_cv_lib_brotlienc_main" = xyes
-then :
-  printf "%s\n" "#define HAVE_LIBBROTLIENC 1" >>confdefs.h
-
-  LIBS="-lbrotlienc $LIBS"
-
-fi
-
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for main in -lbrotlidec" >&5
-printf %s "checking for main in -lbrotlidec... " >&6; }
-if test ${ac_cv_lib_brotlidec_main+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lbrotlidec  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-
-int
-main (void)
-{
-return main ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  ac_cv_lib_brotlidec_main=yes
-else $as_nop
-  ac_cv_lib_brotlidec_main=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_brotlidec_main" >&5
-printf "%s\n" "$ac_cv_lib_brotlidec_main" >&6; }
-if test "x$ac_cv_lib_brotlidec_main" = xyes
-then :
-  printf "%s\n" "#define HAVE_LIBBROTLIDEC 1" >>confdefs.h
-
-  LIBS="-lbrotlidec $LIBS"
-
-fi
-
+OLD_LIBS="$LIBS"
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for brotlidec&brotlienc library works in -lbrotlidec & -lbrotlienc" >&5
 printf %s "checking for brotlidec&brotlienc library works in -lbrotlidec & -lbrotlienc... " >&6; }
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -13534,13 +13454,23 @@ main (void)
 _ACEOF
 if ac_fn_c_try_compile "$LINENO"
 then :
-  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+
+				{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 printf "%s\n" "yes" >&6; }
+				LIBS="-lbrotlidec -lbrotlienc $LIBS"
+
+printf "%s\n" "#define HAVE_LIBBROTLIDEC 1" >>confdefs.h
+
+
+printf "%s\n" "#define HAVE_LIBBROTLIENC 1" >>confdefs.h
+
+
+
 else $as_nop
 
 			{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
 printf "%s\n" "no" >&6; }
-			LIBS=OLD_LIBS
+			LIBS="$OLD_LIBS"
 
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
@@ -13549,51 +13479,13 @@ else $as_nop
 
 	 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
 printf "%s\n" "no" >&6; }
-	 LIBS=OLD_LIBS
+	 LIBS="$OLD_LIBS"
 
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
 
 # FIXME: Replace 'main' with a function in '-lcrypto':
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for main in -lcrypto" >&5
-printf %s "checking for main in -lcrypto... " >&6; }
-if test ${ac_cv_lib_crypto_main+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lcrypto  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-
-int
-main (void)
-{
-return main ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  ac_cv_lib_crypto_main=yes
-else $as_nop
-  ac_cv_lib_crypto_main=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_crypto_main" >&5
-printf "%s\n" "$ac_cv_lib_crypto_main" >&6; }
-if test "x$ac_cv_lib_crypto_main" = xyes
-then :
-   have_crypto=yes
-else $as_nop
-   have_crypto=no
-fi
-
+LIBS="-lcrypto $LIBS"
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for md5 works in -lcrypto" >&5
 printf %s "checking for md5 works in -lcrypto... " >&6; }
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -13625,24 +13517,20 @@ main (void)
 }
 
 _ACEOF
-if ac_fn_c_try_compile "$LINENO"
+if ac_fn_c_try_link "$LINENO"
 then :
-  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+
+	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 printf "%s\n" "yes" >&6; }
+	LIBS="-lcrypto $LIBS"
+
 else $as_nop
 
 	as_fn_error $? "compile error. MD5 hashing in -lcrypto can't use on your system." "$LINENO" 5
 
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-if test "$have_crypto" = "yes"; then
-
-printf "%s\n" "#define HAVE_LIBCRYPTO 1" >>confdefs.h
-
-	LIBS="-lcrypto $LIBS"
-else
-	as_fn_error $? "could not find crypto on your system" "$LINENO" 5
-fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
 
 # FIXME: Replace 'main' with a function in '-lpthread':
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for main in -lpthread" >&5
@@ -13686,9 +13574,13 @@ then :
 fi
 
 # FIXME: Replace 'main' with a function in '-lssl':
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for main in -lssl" >&5
-printf %s "checking for main in -lssl... " >&6; }
-if test ${ac_cv_lib_ssl_main+y}
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for
+	SSL_CTX_new, SSL_CTX_use_certificate_file, SSL_library_init, SSL_load_error_strings, SSL_CTX_use_PrivateKey_file, SSL_CTX_check_private_key, SSL_CTX_set_options, SSL_CTX_set_alpn_select_cb
+ in -lssl" >&5
+printf %s "checking for
+	SSL_CTX_new, SSL_CTX_use_certificate_file, SSL_library_init, SSL_load_error_strings, SSL_CTX_use_PrivateKey_file, SSL_CTX_check_private_key, SSL_CTX_set_options, SSL_CTX_set_alpn_select_cb
+ in -lssl... " >&6; }
+if test ${ac_cv_lib_ssl___SSL_CTX_new__SSL_CTX_use_certificate_file__SSL_library_init__SSL_load_error_strings__SSL_CTX_use_PrivateKey_file__SSL_CTX_check_private_key__SSL_CTX_set_options__SSL_CTX_set_alpn_select_cb_+y}
 then :
   printf %s "(cached) " >&6
 else $as_nop
@@ -13697,85 +13589,101 @@ LIBS="-lssl  $LIBS"
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
-
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+char
+	SSL_CTX_new, SSL_CTX_use_certificate_file, SSL_library_init, SSL_load_error_strings, SSL_CTX_use_PrivateKey_file, SSL_CTX_check_private_key, SSL_CTX_set_options, SSL_CTX_set_alpn_select_cb
+ ();
 int
 main (void)
 {
-return main ();
+return
+	SSL_CTX_new, SSL_CTX_use_certificate_file, SSL_library_init, SSL_load_error_strings, SSL_CTX_use_PrivateKey_file, SSL_CTX_check_private_key, SSL_CTX_set_options, SSL_CTX_set_alpn_select_cb
+ ();
   ;
   return 0;
 }
 _ACEOF
 if ac_fn_c_try_link "$LINENO"
 then :
-  ac_cv_lib_ssl_main=yes
+  ac_cv_lib_ssl___SSL_CTX_new__SSL_CTX_use_certificate_file__SSL_library_init__SSL_load_error_strings__SSL_CTX_use_PrivateKey_file__SSL_CTX_check_private_key__SSL_CTX_set_options__SSL_CTX_set_alpn_select_cb_=yes
 else $as_nop
-  ac_cv_lib_ssl_main=no
+  ac_cv_lib_ssl___SSL_CTX_new__SSL_CTX_use_certificate_file__SSL_library_init__SSL_load_error_strings__SSL_CTX_use_PrivateKey_file__SSL_CTX_check_private_key__SSL_CTX_set_options__SSL_CTX_set_alpn_select_cb_=no
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam \
     conftest$ac_exeext conftest.$ac_ext
 LIBS=$ac_check_lib_save_LIBS
 fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_ssl_main" >&5
-printf "%s\n" "$ac_cv_lib_ssl_main" >&6; }
-if test "x$ac_cv_lib_ssl_main" = xyes
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_ssl___SSL_CTX_new__SSL_CTX_use_certificate_file__SSL_library_init__SSL_load_error_strings__SSL_CTX_use_PrivateKey_file__SSL_CTX_check_private_key__SSL_CTX_set_options__SSL_CTX_set_alpn_select_cb_" >&5
+printf "%s\n" "$ac_cv_lib_ssl___SSL_CTX_new__SSL_CTX_use_certificate_file__SSL_library_init__SSL_load_error_strings__SSL_CTX_use_PrivateKey_file__SSL_CTX_check_private_key__SSL_CTX_set_options__SSL_CTX_set_alpn_select_cb_" >&6; }
+if test "x$ac_cv_lib_ssl___SSL_CTX_new__SSL_CTX_use_certificate_file__SSL_library_init__SSL_load_error_strings__SSL_CTX_use_PrivateKey_file__SSL_CTX_check_private_key__SSL_CTX_set_options__SSL_CTX_set_alpn_select_cb_" = xyes
 then :
-   have_ssl=yes
+
+	LIBS="-lssl $LIBS"
+	have_ssl=yes
+
 else $as_nop
    have_ssl=no
 fi
 
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for SSL library works in -lssl" >&5
+if test "$have_ssl" = "no"; then
+	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for SSL library works in -lssl" >&5
 printf %s "checking for SSL library works in -lssl... " >&6; }
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+	LIBS="-lssl $LIBS"
+	cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 
-		 #include <openssl/ssl.h>
-		 #include <openssl/err.h>
+			 #include <openssl/ssl.h>
+			 #include <openssl/err.h>
 
-		 int __alpn(
-			SSL *ssl,
-			const unsigned char **out,
-			unsigned char *outlen,
-			const unsigned char *in,
-			unsigned int inlen, void *arg)
-		{
-			return 0;
-		}
+			 int __alpn(
+				SSL *ssl,
+				const unsigned char **out,
+				unsigned char *outlen,
+				const unsigned char *in,
+				unsigned int inlen, void *arg)
+			{
+				return 0;
+			}
 
 int
 main (void)
 {
 
-		 SSL_CTX *ssl_ctx;
+			 SSL_CTX *ssl_ctx;
 
-		 SSL_library_init();
-		 SSL_load_error_strings();
+			 SSL_library_init();
+			 SSL_load_error_strings();
 
-		 ssl_ctx = SSL_CTX_new(SSLv23_server_method());
-		 SSL_CTX_use_certificate_file(ssl_ctx, "test.crt", SSL_FILETYPE_PEM);
-		 SSL_CTX_use_PrivateKey_file(ssl_ctx, "test.key", SSL_FILETYPE_PEM);
-		SSL_CTX_check_private_key(ssl_ctx);
-		SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2);
-		SSL_CTX_set_alpn_select_cb(ssl_ctx, __alpn, NULL);
+			 ssl_ctx = SSL_CTX_new(SSLv23_server_method());
+			 SSL_CTX_use_certificate_file(ssl_ctx, "test.crt", SSL_FILETYPE_PEM);
+			 SSL_CTX_use_PrivateKey_file(ssl_ctx, "test.key", SSL_FILETYPE_PEM);
+			SSL_CTX_check_private_key(ssl_ctx);
+			SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2);
+			SSL_CTX_set_alpn_select_cb(ssl_ctx, __alpn, NULL);
 
 
   ;
   return 0;
 }
 _ACEOF
-if ac_fn_c_try_compile "$LINENO"
+if ac_fn_c_try_link "$LINENO"
 then :
-  { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+
+		 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 printf "%s\n" "yes" >&6; }
+		 have_ssl=yes
+
 else $as_nop
 
-	 as_fn_error $? "cmopile error. -lssl can't use on your system." "$LINENO" 5
+		 as_fn_error $? "cmopile error. -lssl can't use on your system." "$LINENO" 5
 
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+fi
 if test "$have_ssl" = "yes"; then
 
 printf "%s\n" "#define HAVE_LIBSSL 1" >>confdefs.h
@@ -13784,46 +13692,11 @@ printf "%s\n" "#define HAVE_LIBSSL 1" >>confdefs.h
 else
 	as_fn_error $? "could not find ssl on your system" "$LINENO" 5
 fi
+
+
 # FIXME: Replace 'main' with a function in '-lz':
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for main in -lz" >&5
-printf %s "checking for main in -lz... " >&6; }
-if test ${ac_cv_lib_z_main+y}
-then :
-  printf %s "(cached) " >&6
-else $as_nop
-  ac_check_lib_save_LIBS=$LIBS
-LIBS="-lz  $LIBS"
-cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-/* end confdefs.h.  */
-
-
-int
-main (void)
-{
-return main ();
-  ;
-  return 0;
-}
-_ACEOF
-if ac_fn_c_try_link "$LINENO"
-then :
-  ac_cv_lib_z_main=yes
-else $as_nop
-  ac_cv_lib_z_main=no
-fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam \
-    conftest$ac_exeext conftest.$ac_ext
-LIBS=$ac_check_lib_save_LIBS
-fi
-{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_z_main" >&5
-printf "%s\n" "$ac_cv_lib_z_main" >&6; }
-if test "x$ac_cv_lib_z_main" = xyes
-then :
-   have_z=yes
-else $as_nop
-   have_z=no
-fi
-
+#AC_CHECK_LIB([z], [inflateInit, inflateEnd, inflateInit2, deflateInit, deflateEnd, deflateInit2], [ have_z=yes ], [ have_z=no ])
+LIBS="-lz $LIBS"
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for Zlib worksdeflate decoding in -lz" >&5
 printf %s "checking for Zlib worksdeflate decoding in -lz... " >&6; }
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -13873,7 +13746,7 @@ main (void)
 }
 
 _ACEOF
-if ac_fn_c_try_compile "$LINENO"
+if ac_fn_c_try_link "$LINENO"
 then :
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 printf "%s\n" "yes" >&6; }
@@ -13882,7 +13755,8 @@ else $as_nop
 	as_fn_error $? "compile error. -lz can't use on your system." "$LINENO" 5
 
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for Zlib worksgzip decoding in -lz" >&5
 printf %s "checking for Zlib worksgzip decoding in -lz... " >&6; }
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -13932,7 +13806,7 @@ main (void)
 }
 
 _ACEOF
-if ac_fn_c_try_compile "$LINENO"
+if ac_fn_c_try_link "$LINENO"
 then :
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 printf "%s\n" "yes" >&6; }
@@ -13941,7 +13815,8 @@ else $as_nop
 	as_fn_error $? "compile error. -lz can't use on your system." "$LINENO" 5
 
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for Zlib worksdeflate encoding in -lz" >&5
 printf %s "checking for Zlib worksdeflate encoding in -lz... " >&6; }
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -13992,7 +13867,7 @@ main (void)
 }
 
 _ACEOF
-if ac_fn_c_try_compile "$LINENO"
+if ac_fn_c_try_link "$LINENO"
 then :
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 printf "%s\n" "yes" >&6; }
@@ -14001,7 +13876,8 @@ else $as_nop
 	as_fn_error $? "compile error. -lz can't use on your system." "$LINENO" 5
 
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for Zlib worksgzip encoding in -lz" >&5
 printf %s "checking for Zlib worksgzip encoding in -lz... " >&6; }
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
@@ -14052,7 +13928,7 @@ main (void)
 }
 
 _ACEOF
-if ac_fn_c_try_compile "$LINENO"
+if ac_fn_c_try_link "$LINENO"
 then :
   { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 printf "%s\n" "yes" >&6; }
@@ -14061,17 +13937,28 @@ else $as_nop
 	as_fn_error $? "compile error. -lz can't use on your system." "$LINENO" 5
 
 fi
-rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-if test "$have_z" = "yes"; then
-
-printf "%s\n" "#define HAVE_LIBZ 1" >>confdefs.h
-
-	LIBS="-lz $LIBS"
-else
-	as_fn_error $? "could not find zlib on your system" "$LINENO" 5
-fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
 
 # Checks for header files.
+ac_fn_c_check_header_compile "$LINENO" "openssl/ssl.h" "ac_cv_header_openssl_ssl_h" "$ac_includes_default"
+if test "x$ac_cv_header_openssl_ssl_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_OPENSSL_SSL_H 1" >>confdefs.h
+
+fi
+ac_fn_c_check_header_compile "$LINENO" "openssl/md5.h" "ac_cv_header_openssl_md5_h" "$ac_includes_default"
+if test "x$ac_cv_header_openssl_md5_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_OPENSSL_MD5_H 1" >>confdefs.h
+
+fi
+ac_fn_c_check_header_compile "$LINENO" "zlib.h" "ac_cv_header_zlib_h" "$ac_includes_default"
+if test "x$ac_cv_header_zlib_h" = xyes
+then :
+  printf "%s\n" "#define HAVE_ZLIB_H 1" >>confdefs.h
+
+fi
 ac_fn_c_check_header_compile "$LINENO" "arpa/inet.h" "ac_cv_header_arpa_inet_h" "$ac_includes_default"
 if test "x$ac_cv_header_arpa_inet_h" = xyes
 then :
@@ -14139,6 +14026,16 @@ then :
 
 fi
 
+
+if test "$ac_cv_header_openssl_ssl_h" = "no"; then
+	as_fn_error $? "not found openssl/ssl.h on your system." "$LINENO" 5
+fi
+if test "$ac_cv_header_oepnssl_md5_h" = "no"; then
+	as_fn_error $? "not found openssl/md5.h on your system." "$LINENO" 5
+fi
+if test "$ac_cv_header_zlib" = "no"; then
+	as_fn_error $? "not found zlib.h on your system." "$LINENO" 5
+fi
 
 # Checks for typedefs, structures, and compiler characteristics.
 ac_fn_c_check_type "$LINENO" "_Bool" "ac_cv_type__Bool" "$ac_includes_default"
@@ -15531,7 +15428,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
 ac_config_files="$ac_config_files Makefile src/Makefile fly/__init__.py"
 
 
-FLY_VERSION="0.1.0"
+FLY_VERSION="1.1.2"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure

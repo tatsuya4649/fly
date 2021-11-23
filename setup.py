@@ -50,14 +50,13 @@ server = Extension(
 	sources=["src/pyserver.c"],
     language='c',
 	libraries=["fly"],
-	library_dirs=["fly/lib"],
-	runtime_library_dirs=["lib"],
+	library_dirs=[f"{ os.path.abspath(os.path.dirname(__file__)) }/fly/lib"],
     extra_compile_args = extra_compile_args,
     define_macros = macros,
 )
 
 setup(
-	name="Fly",
+	name="fly-server",
 	version=version_from_init(),
 	description="lightweight web framework",
 	ext_modules = [
@@ -72,10 +71,10 @@ setup(
         "click>=7.1.0",
         "jinja2>=3.0.0",
     ],
-    test_require = [
+    tests_require = [
         "pytest >= 6",
         "pytest-cov >= 3.0.0",
-        "pytest-asyncio >= 0.16.0"
+        "pytest-asyncio >= 0.16.0",
         "httpx >= 0.20.0",
         "httpx[http2]",
     ],
