@@ -170,6 +170,12 @@ __noreturn static void fly_master_signal_default_handler(fly_master_t *master, f
 	struct fly_bllist *__b;
 	fly_worker_t *__w;
 
+	fly_notice_direct_log(
+		ctx->log,
+		"master process(%d) is received signal(%s). kill workers.\n",
+		master->pid,
+		strsignal(si->ssi_signo)
+	);
 #ifdef DEBUG
 	printf("MASTER SIGNAL DEFAULT HANDLER\n");
 #endif
