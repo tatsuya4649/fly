@@ -38,7 +38,7 @@ typedef int fly_worker_id;
 
 typedef struct fly_worker fly_worker_t;
 
-__direct_log __noreturn void fly_worker_process(fly_context_t *ctx, void *data);
+__fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, void *data);
 struct fly_worker *fly_worker_init(fly_context_t *mcontext);
 void fly_worker_release(fly_worker_t *worker);
 

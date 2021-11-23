@@ -64,7 +64,7 @@ void fly_jbhandle_setting(fly_event_manager_t *em, void (*handle)(fly_context_t 
 	em->jbend_handle = handle;
 }
 
-__fly_static int __fly_event_cmp(void *k1, void *k2, void *data __unused)
+__fly_static int __fly_event_cmp(void *k1, void *k2, void *data __fly_unused)
 {
 	struct __fly_event_for_rbtree *__e1, *__e2;
 	__e1 = (struct __fly_event_for_rbtree *) k1;
@@ -763,7 +763,7 @@ static void fly_em_jbhandle(fly_event_t *e)
 		e->manager->jbend_handle(e->manager->ctx);
 }
 
-__direct_log static void fly_event_handle(fly_event_t *e)
+__fly_direct_log static void fly_event_handle(fly_event_t *e)
 {
 	int handle_result;
 

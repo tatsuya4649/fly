@@ -27,12 +27,12 @@ enum __fly_rbtree_debug_type{
 	__FLY_RBTREE_DEBUG_TWOCHILD
 };
 
-void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __unused);
-void __fly_rbtree_node_debug(fly_rb_tree_t *tree __unused, fly_rb_node_t *node, int *black_count);
+void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __fly_unused);
+void __fly_rbtree_node_debug(fly_rb_tree_t *tree __fly_unused, fly_rb_node_t *node, int *black_count);
 #define FLY_RBTREE_NODE_FOUND			1
 #define FLY_RBTREE_NODE_NOTFOUND		0
 int __fly_rbtree_node_in_tree(fly_rb_node_t *node, fly_rb_node_t *target);
-void __fly_rbtree_free_node_in_node_data(fly_rb_node_t *node, fly_rb_node_t *freed, enum __fly_rbtree_debug_type type __unused);
+void __fly_rbtree_free_node_in_node_data(fly_rb_node_t *node, fly_rb_node_t *freed, enum __fly_rbtree_debug_type type __fly_unused);
 void __fly_rbtree_node_in_node_data(fly_rb_node_t *node);
 #endif
 
@@ -174,12 +174,12 @@ static inline bool fly_is_black(fly_rb_color_t __c)
 	return !fly_is_red(__c);
 }
 
-__unused static bool fly_rb_uncle_is_red(struct fly_rb_node *node)
+__fly_unused static bool fly_rb_uncle_is_red(struct fly_rb_node *node)
 {
     return fly_is_red(fly_rb_get_uncle(node)->color);
 }
 
-__unused static bool fly_rb_uncle_is_black(struct fly_rb_node *node)
+__fly_unused static bool fly_rb_uncle_is_black(struct fly_rb_node *node)
 {
     return fly_is_black(fly_rb_get_uncle(node)->color);
 }
@@ -816,7 +816,7 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
  */
 #ifdef DEBUG
 #include <stdio.h>
-void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __unused)
+void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __fly_unused)
 {
 	fly_rb_node_t *node;
 	int black_count=0;
@@ -940,7 +940,7 @@ void __fly_rbtree_node_in_node_data(fly_rb_node_t *node)
 		__fly_rbtree_node_in_node_data(node->c_right);
 }
 
-void __fly_rbtree_free_node_in_node_data(fly_rb_node_t *node, fly_rb_node_t *freed, enum __fly_rbtree_debug_type type __unused)
+void __fly_rbtree_free_node_in_node_data(fly_rb_node_t *node, fly_rb_node_t *freed, enum __fly_rbtree_debug_type type __fly_unused)
 {
 	if (node->node_data != NULL)
 		assert(*node->node_data != freed);

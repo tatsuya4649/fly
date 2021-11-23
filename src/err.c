@@ -101,7 +101,7 @@ static inline const char *__fly_level_str(fly_err_t *err)
 	}
 }
 
-__fly_static int __fly_err_logcont(__unused fly_err_t *err, fly_logcont_t *lc)
+__fly_static int __fly_err_logcont(__fly_unused fly_err_t *err, fly_logcont_t *lc)
 {
 #define __FLY_ERROR_LOGCONTENT_SUCCESS			1
 #define __FLY_ERROR_LOGCONTENT_ERROR			-1
@@ -126,8 +126,8 @@ __fly_static int __fly_err_logcont(__unused fly_err_t *err, fly_logcont_t *lc)
 
 int fly_errlog_event_handler(fly_event_t *e)
 {
-	__unused fly_err_t *err;
-	__unused fly_logcont_t *lc;
+	__fly_unused fly_err_t *err;
+	__fly_unused fly_logcont_t *lc;
 
 	lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_ERROR);
 
@@ -179,7 +179,7 @@ int fly_errlog_event(fly_event_manager_t *manager, fly_err_t *err)
 }
 
 #include <string.h>
-__unused __fly_static void __fly_printf_error(fly_errp_t *errp, FILE *fp)
+__fly_unused __fly_static void __fly_printf_error(fly_errp_t *errp, FILE *fp)
 {
 	fprintf(
 		fp,
@@ -446,7 +446,7 @@ void fly_emerge_memory_zero(void)
 	memset(fly_emerge_memory, '\0', FLY_EMERGE_MEMORY_SIZE);
 }
 
-__noreturn __attribute__ ((format (printf, 2, 3)))
+__fly_noreturn __attribute__ ((format (printf, 2, 3)))
 void fly_emergency_verror(int __errno, const char *format, ...)
 {
 	va_list va;
@@ -477,7 +477,7 @@ void fly_emergency_error(struct fly_err *err)
 	exit((int) FLY_ERR_EMERG);
 }
 
-__noreturn void fly_critical_error(struct fly_err *err)
+__fly_noreturn void fly_critical_error(struct fly_err *err)
 {
 	assert(err != NULL);
 #ifdef DEBUG
@@ -488,8 +488,8 @@ __noreturn void fly_critical_error(struct fly_err *err)
 	exit((int) FLY_ERR_CRIT);
 }
 
-__noreturn __attribute__ ((format (printf, 2, 3)))
-void fly_nomem_verror(__unused int __errno, const char *format, ...)
+__fly_noreturn __attribute__ ((format (printf, 2, 3)))
+void fly_nomem_verror(__fly_unused int __errno, const char *format, ...)
 {
 	va_list va;
 	char *err_content;
@@ -506,7 +506,7 @@ void fly_nomem_verror(__unused int __errno, const char *format, ...)
 	exit((int) FLY_ERR_ERR);
 }
 
-__noreturn void fly_error_error(struct fly_err *err)
+__fly_noreturn void fly_error_error(struct fly_err *err)
 {
 	assert(err != NULL);
 #ifdef DEBUG

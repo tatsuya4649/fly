@@ -12,7 +12,7 @@ struct fly_size_bytes fly_sizes[] = {
 	{-1, 0},
 };
 
-__direct_log __fly_static void *__fly_malloc(size_t size);
+__fly_direct_log __fly_static void *__fly_malloc(size_t size);
 __fly_static void __fly_free(void *ptr);
 
 ssize_t fly_bytes_from_size(fly_pool_s size)
@@ -25,12 +25,12 @@ ssize_t fly_bytes_from_size(fly_pool_s size)
 	return -1;
 }
 
-__direct_log void *fly_malloc(size_t size)
+__fly_direct_log void *fly_malloc(size_t size)
 {
 	return __fly_malloc(size);
 }
 
-__direct_log __fly_static void *__fly_malloc(size_t size)
+__fly_direct_log __fly_static void *__fly_malloc(size_t size)
 {
 	void *res;
 	res =  malloc(size);
@@ -56,7 +56,7 @@ void fly_free(void *ptr)
 }
 
 /* for red black tree */
-__fly_static int __fly_rb_search_block(void *k1, void *k2, void * data __unused)
+__fly_static int __fly_rb_search_block(void *k1, void *k2, void * data __fly_unused)
 {
 	if (k1 > k2)
 		return FLY_RB_CMP_BIG;

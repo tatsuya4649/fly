@@ -65,7 +65,7 @@ fly_context_t *fly_master_release_except_context(fly_master_t *master);
 #define FLY_MASTER_CONTINUE				0
 #define FLY_MASTER_SIGNAL_END			1
 #define FLY_MASTER_RELOAD				2
-__direct_log int fly_master_process(fly_master_t *master);
+__fly_direct_log int fly_master_process(fly_master_t *master);
 void fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *, void *));
 
 #define fly_master_pid		getpid

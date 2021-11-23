@@ -349,7 +349,7 @@ int fly_join_path(char *buffer, char *join1, char *join2)
 #define FLY_FOUND_CONTENT_FROM_PATH_FOUND		1
 #define FLY_FOUND_CONTENT_FROM_PATH_NOTFOUND	0
 #define FLY_FOUND_CONTENT_FROM_PATH_ERROR		-1
-__unused __fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
+__fly_unused __fly_static int __fly_uri_matching(char *filename, fly_uri_t *uri)
 {
 	size_t i=0, j=0, uri_len;
 	char *uri_str;
@@ -465,7 +465,7 @@ struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount
 	char __path[FLY_PATH_MAX];
 	char *mnt_path;
 	size_t path_len;
-	__unused fly_mount_t *mnt;
+	__fly_unused fly_mount_t *mnt;
 
 	if (parts->file_count == 0)
 		return NULL;
@@ -573,7 +573,7 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
 	return 0;
 }
 
-__unused static int __fly_samedir_cmp(char *s1, char *s2)
+__fly_unused static int __fly_samedir_cmp(char *s1, char *s2)
 {
 	bool slash = false;
 	while(*s1 == *s2 && *s1 != '\0'){

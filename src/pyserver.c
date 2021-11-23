@@ -156,7 +156,7 @@ static void __pyfly_server_dealloc(__pyfly_server_t *self)
 }
 
 
-__unused static PyObject *__pyfly_server_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+__fly_unused static PyObject *__pyfly_server_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
 	__pyfly_server_t *self;
 	self = (__pyfly_server_t *) type->tp_alloc(type, 0);

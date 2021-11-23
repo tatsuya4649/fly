@@ -10,7 +10,7 @@ __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type);
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc);
 __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc);
 __fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t);
-__noreturn void __fly_log_error_handle(int res);
+__fly_noreturn void __fly_log_error_handle(int res);
 
 __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 {
@@ -423,7 +423,7 @@ void __fly_logcont_release(fly_logcont_t *logcont)
 	fly_pbfree(logcont->log->pool, logcont);
 }
 
-__noreturn void __fly_log_error_handle(int res)
+__fly_noreturn void __fly_log_error_handle(int res)
 {
 	char __logecont[FLY_LOGECONT_LENGTH];
 	char __filepath[FLY_PATH_MAX], devname[FLY_PATH_MAX];
@@ -463,7 +463,7 @@ __noreturn void __fly_log_error_handle(int res)
 
 int fly_log_event_handler(fly_event_t *e)
 {
-	__unused fly_logcont_t *content;
+	__fly_unused fly_logcont_t *content;
 	int res;
 
 	content = (fly_logcont_t *) e->event_data;
@@ -572,7 +572,7 @@ void __log_test(struct fly_context *ctx)
 {
 	fly_log_t *log;
 	__fly_log_t *__n;
-	__unused int res;
+	__fly_unused int res;
 	char *buf;
 
 	log = ctx->log;

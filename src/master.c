@@ -8,7 +8,7 @@
 #include <sys/wait.h>
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
-__fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx);
+__fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __fly_unused fly_context_t *ctx);
 __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info);
 __fly_static int __fly_master_signal_handler(fly_event_t *);
 __fly_static void __fly_workers_rebalance(fly_master_t *master);
@@ -17,7 +17,7 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 __fly_static int __fly_master_inotify_handler(fly_event_t *);
 __fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
 __fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
-__noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused);
+__fly_noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __fly_unused, struct signalfd_siginfo *si __fly_unused);
 static int __fly_reload(fly_master_t *__m, struct inotify_event *__ie);
 static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_t *manager);
 static int __fly_master_reload_filepath_handler(fly_event_t *e);
@@ -165,7 +165,7 @@ fly_terminate:
 	return;
 }
 
-__noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __unused, struct signalfd_siginfo *si __unused)
+__fly_noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __fly_unused, struct signalfd_siginfo *si __fly_unused)
 {
 	struct fly_bllist *__b;
 	fly_worker_t *__w;
@@ -279,7 +279,7 @@ static int __fly_master_signal_end_handler(fly_event_t *__e)
 	return close(__e->fd);
 }
 
-__fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __unused fly_context_t *ctx)
+__fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __fly_unused fly_context_t *ctx)
 {
 	sigset_t master_set;
 	fly_event_t *e;
@@ -492,7 +492,7 @@ retry:
 	master->now_workers = 0;
 }
 
-__direct_log int fly_master_process(fly_master_t *master)
+__fly_direct_log int fly_master_process(fly_master_t *master)
 {
 	fly_event_manager_t *manager;
 	int res;
@@ -882,7 +882,7 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 	return 0;
 }
 
-__fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, __unused struct inotify_event *ie)
+__fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, __fly_unused struct inotify_event *ie)
 {
 	int wd;
 	fly_mount_parts_t *parts = NULL;

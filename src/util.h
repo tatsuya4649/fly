@@ -12,10 +12,10 @@
 #define __attribute__((x))		/* NOTHING */
 #endif
 
-#define __unused			__attribute__((unused))
-#define __noreturn			__attribute__((noreturn))
-#define __destructor		__attribute__((destructor))
-#define __direct_log
+#define __fly_unused			__attribute__((unused))
+#define __fly_noreturn			__attribute__((noreturn))
+#define __fly_destructor		__attribute__((destructor))
+#define __fly_direct_log
 
 #ifdef DEBUG
 #define __fly_static
