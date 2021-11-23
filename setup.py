@@ -17,7 +17,7 @@ def version_from_init():
     with open("./fly/__init__.py", "r") as f:
         lines = f.readlines()
         for line in lines:
-            result = re.match('\s*__version__\s*=\s*"(\d+.\d+.\d+)"', line)
+            result = re.match('\s*__version__\s*=\s*"(\d+.\d+.\d+(.\d+)*)"', line)
             if result is not None:
                 return result.group(1)
     raise RuntimeError("not found version in fly/__init__.py")
