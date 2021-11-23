@@ -1,5 +1,19 @@
 # Change Log
 
+## 1.1.3
+
+Released: 2021/11/22
+
+## Added
+
+## Changed
+
+## Fixed
+
+* Fixed mount bug.
+
+* Fixed deallocate memory bug of master process.
+
 ## 1.1.2
 
 Released: 2021/11/21
