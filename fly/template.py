@@ -10,8 +10,8 @@ def text_render(text, **data):
             "text must be str type."
         )
 
-    __tmp = j2.Template(text)
-    return __tmp.render(data)
+    _tmp = j2.Template(text)
+    return _tmp.render(data)
 
 def file_render(file_path, **data):
     if file_path is None or not os.path.isfile(file_path):
@@ -19,11 +19,11 @@ def file_render(file_path, **data):
             "file_path must exist."
         )
 
-    __env = j2.Environment(loader=j2.FileSystemLoader(
+    _env = j2.Environment(loader=j2.FileSystemLoader(
             os.path.dirname(file_path)
     ))
-    __tmp = __env.get_template(os.path.basename(file_path))
-    return __tmp.render(data)
+    _tmp = _env.get_template(os.path.basename(file_path))
+    return _tmp.render(data)
 
 
 """
