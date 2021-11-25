@@ -6,7 +6,16 @@
 #endif
 #include <stdio.h>
 #include <stdbool.h>
+#ifdef HAVE_EPOLL
+/* for linux */
 #include <sys/epoll.h>
+#elif defined HAVE_KQUEUE
+/* for macos */
+#include <sys/event.h>
+/* other system */
+#else
+#error not found C header for "event"on your system.
+#endif
 #include <sys/signalfd.h>
 #include <sys/timerfd.h>
 #include <sys/time.h>
@@ -17,8 +26,13 @@
 
 extern fly_pool_t *fly_event_pool;
 #define FLY_EVENT_POOL_SIZE			100
+#ifdef HAVE_EPOLL
 #define FLY_READ		EPOLLIN
 #define FLY_WRITE		EPOLLOUT
+#elif defined HAVE_KQUEUE
+#define FLY_READ		EVFILT_READ
+#define FLY_WRITE		EVFILT_WRITE
+#endif
 #define FLY_EVLIST_ELES			1000
 
 typedef struct fly_context fly_context_t;
@@ -26,7 +40,11 @@ struct fly_event_manager{
 	fly_pool_t					*pool;
 	fly_context_t				*ctx;
 	int							efd;
+#ifdef HAVE_EPOLL
 	struct epoll_event			*evlist;
+#elif defined HAVE_KQUEUE
+	struct kevent				*evlist;
+#endif
 	int							maxevents;
 
 	struct fly_rb_tree			*rbtree;
@@ -49,6 +67,12 @@ struct __fly_event_for_rbtree{
 		(__e)->rbtree_elem.ptr = (__e);		\
 	} while(0)
 
+typedef fly_event_data_t \
+#ifdef HAVE_EPOLL
+		epoll_data_t;
+#elif defined HAVE_KQUEUE
+		void *;
+#endif
 struct fly_err;
 struct fly_event{
 	fly_event_manager_t				*manager;
@@ -219,8 +243,16 @@ int fly_event_inherit_register(fly_event_t *e);
 	(!fly_event_is_regular((e)) && !fly_event_is_dir((e)))
 #define fly_event_unmonitorable(e)	(!(fly_event_monitorable((e))))
 
+#ifdef HAVE_EPOLL
+#define FLY_EVENT_CTL_ADD			EPOLL_CTL_ADD
+#define FLY_EVENT_CTL_MOD			EPOLL_CTL_MOD
+#elif defined HAVE_KQUEUE
+#define FLY_EVENT_CTL_ADD			0
+#define FLY_EVENT_CTL_MOD			1
+#endif
+
 #define fly_event_op(__e)			\
-	((__e)->flag&FLY_MODIFY) ? EPOLL_CTL_MOD: EPOLL_CTL_ADD
+	((__e)->flag&FLY_MODIFY) ? FLY_EVENT_CTL_MOD: FLY_EVENT_CTL_ADD
 #define fly_event_already_added(__e)	\
 	(!(__e)->yetadd)
 

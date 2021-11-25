@@ -45,7 +45,14 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 		goto error;
 
 	manager->pool = __ep;
-	manager->evlist = fly_pballoc(manager->pool, sizeof(struct epoll_event)*FLY_EVLIST_ELES);
+	manager->evlist = fly_pballoc( manager->pool, sizeof(
+#ifdef HAVE_EPOLL
+				struct epoll_event
+#elif defined HAVE_KQUEUE
+				struct kevet
+#endif
+			) \
+			* FLY_EVLIST_ELES);
 	fly_queue_init(&manager->monitorable);
 	fly_queue_init(&manager->unmonitorable);
 	manager->maxevents = FLY_EVLIST_ELES;
@@ -224,16 +231,20 @@ void fly_event_debug_rbtree(fly_event_manager_t *manager)
 
 int fly_event_register(fly_event_t *event)
 {
+#ifdef HAVE_EPOLL
 	struct epoll_event ev;
+#elif defined HAVE_KQUEUE
+	struct kevent ev;
+#endif
 	int op;
-	epoll_data_t data;
+	fly_event_data_t data;
 
 #ifdef DEBUG
 	assert(event);
 	fly_event_debug_rbtree(event->manager);
 #endif
 	op = fly_event_op(event);
-	if (op == EPOLL_CTL_ADD){
+	if (op == FLY_EVENT_CTL_ADD){
 		/* add to red black tree */
 		if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event)){
 			__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
@@ -299,9 +310,13 @@ int fly_event_register(fly_event_t *event)
 			}
 		}
 	}
+#ifdef HAVE_EPOLL
 	data.ptr = event;
 	ev.data = data;
 	ev.events = event->read_or_write | event->eflag;
+#elif defined HAVE_KQUEUE
+	data = event;
+#endif
 
 #ifdef DEBUG
 	if (!(event->tflag&FLY_INFINITY) && \
@@ -309,7 +324,9 @@ int fly_event_register(fly_event_t *event)
 		assert(event->expired_handler != NULL);
 #endif
 
-	if (fly_event_monitorable(event) && epoll_ctl(event->manager->efd, op, event->fd, &ev) == -1){
+	if (fly_event_monitorable(event) \
+#ifdef HAVE_EPOLL
+			&& epoll_ctl(event->manager->efd, op, event->fd, &ev) == -1){
 		struct fly_err *__err;
 		__err = fly_event_err_init(
 			event, errno, FLY_ERR_ERR,
@@ -317,6 +334,19 @@ int fly_event_register(fly_event_t *event)
 		);
 		fly_event_error_add(event, __err);
 	}
+#elif defined HAVE_KQUEUE
+	{
+		EV_SET(&ev, event->fd, event->read_or_write, EV_ADD, event->eflag, 0, data);
+		if (kevent(event->manager->efd, &ev, 1, NULL, 0, NULL) == -1){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				event, errno, FLY_ERR_ERR,
+				"kevent error in event_register."
+			);
+			fly_event_error_add(event, __err);
+		}
+	}
+#endif
 
 #ifdef DEBUG
 	printf("END OF REGISTERING EVENT\n");
@@ -341,16 +371,23 @@ int fly_event_unregister(fly_event_t *event)
 				printf("RBTREE DELETE OF EVENT in unregister\n");
 #endif
 			fly_rb_delete(event->manager->rbtree, event->rbnode);
-		if (!(event->flag & FLY_CLOSE_EV))
+		if (!(event->flag & FLY_CLOSE_EV)){
+#ifdef HAVE_EPOLL
 			if (epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL) == -1){
+#elif defined HAVE_KQUEUE
+			struct kevent __kev;
+			EV_SET(&__kev, event->fd, event->read_or_write, EV_DELETE, 0, 0, NULL);
+			if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1){
+#endif
 				struct fly_err *__err;
 				__err = fly_err_init(
 					__m->ctx->pool, errno, FLY_ERR_ERR,
-					"epoll_ctl error in event_unregister."
+					"unregister event error in event_unregister."
 				);
 				fly_error_error(__err);
 				return -1;
 			}
+		}
 
 		fly_pbfree(event->manager->pool, event);
 		return 0;
@@ -461,185 +498,185 @@ __fly_static int __fly_expired_event(fly_event_manager_t *manager)
 void fly_sub_time(fly_time_t *t1, fly_time_t *t2)
 {
 	t1->tv_sec = (int) t1->tv_sec - (int) t2->tv_sec;
-	t1->tv_usec = (long) t1->tv_usec - (long) t2->tv_usec;
+		t1->tv_usec = (long) t1->tv_usec - (long) t2->tv_usec;
 
-	if (t1->tv_usec < 0){
-		t1->tv_sec--;
-		t1->tv_usec += 1000*1000;
-	}
-	return;
-}
-
-void fly_sub_time_from_base(fly_time_t *dist, fly_time_t *__sub, fly_time_t *base)
-{
-	dist->tv_sec = (int) __sub->tv_sec - (int) base->tv_sec;
-	dist->tv_usec = (long) __sub->tv_usec - (long) base->tv_usec;
-
-	if (dist->tv_usec < 0){
-		dist->tv_sec--;
-		dist->tv_usec += 1000*1000;
-	}
-	return;
-}
-
-void fly_sub_time_from_sec(fly_time_t *t1, float delta)
-{
-	t1->tv_sec = (int) t1->tv_sec - (int) delta;
-	t1->tv_usec = (int) t1->tv_usec - (1000*1000*(delta - (float)((int) delta)));
-
-	if (t1->tv_usec < 0){
-		t1->tv_sec--;
-		t1->tv_usec += 1000*1000;
-	}
-	return;
-}
-
-__fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_tree_t *tree, fly_rb_node_t *node, fly_time_t *__t)
-{
-	fly_event_t *__e;
-	if (node == nil_node_ptr)
-		return 0;
-
-	while(node!=nil_node_ptr){
-		struct __fly_event_for_rbtree *__er;
-
-		__er = (struct __fly_event_for_rbtree *) node->key;
-		fly_time_t *__et = __er->abs_timeout;
-
-#ifdef DEBUG
-		assert(__er != NULL);
-		assert(__er->abs_timeout != NULL);
-		assert(__er->ptr != NULL);
-#endif
-		if (__et->tv_sec > __t->tv_sec)
-			node = node->c_left;
-		else{
-			__e = (fly_event_t *) node->data;
-			__e->expired = true;
-
-			__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
-			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
-			return 0;
+		if (t1->tv_usec < 0){
+			t1->tv_sec--;
+			t1->tv_usec += 1000*1000;
 		}
-//		switch(tree->cmp(node->key, __t, NULL)){
-//		case FLY_RB_CMP_BIG:
-//			node = node->c_left;
-//			break;
-//		case FLY_RB_CMP_SMALL:
-//		case FLY_RB_CMP_EQUAL:
-//			/* __n right partial tree is expired */
-//			__e = (fly_event_t *) node->data;
-//			__e->expired = true;
-//			__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
-//			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
-//			return 0;
-//		default:
-//			FLY_NOT_COME_HERE
-//		}
-	}
-	return 0;
-}
-
-__fly_static int __fly_update_event_timeout(fly_event_manager_t *manager)
-{
-	if (manager == NULL)
-		return -1;
-
-	fly_time_t now;
-	if (fly_time(&now) == -1)
-		return -1;
-
-	if (manager->rbtree->node_count == 0)
-		return 0;
-	else{
-		struct fly_rb_tree *tree;
-		struct fly_rb_node *__n;
-
-		tree = manager->rbtree;
-		__n = tree->root->node;
-
-		return __fly_expired_from_rbtree(manager, tree, __n, &now);
-	}
-}
-
-int fly_milli_diff_time_from_now(fly_time_t *t)
-{
-	int res;
-	fly_time_t now;
-
-	if (fly_time(&now) == -1)
-		return -1;
-
-	res = 1000*(t->tv_sec-now.tv_sec);
-	res += (t->tv_usec-now.tv_usec)/1000;
-
-	return res;
-}
-
-int fly_milli_time(fly_time_t t)
-{
-	int msec = 0;
-	msec += (int) 1000*((int) t.tv_sec);
-
-	if (msec < 0)
-		return msec;
-
-	msec += (int) ((int) t.tv_usec/1000);
-	return msec;
-}
-
-__fly_static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager)
-{
-	if (manager->unmonitorable.count == 0)
 		return;
+	}
 
-	struct fly_queue *__q;
-	fly_event_t *__e;
+	void fly_sub_time_from_base(fly_time_t *dist, fly_time_t *__sub, fly_time_t *base)
+	{
+		dist->tv_sec = (int) __sub->tv_sec - (int) base->tv_sec;
+		dist->tv_usec = (long) __sub->tv_usec - (long) base->tv_usec;
 
-	while(manager->unmonitorable.count>0){
-		__q = manager->unmonitorable.next;
-		__e = fly_queue_data(__q, struct fly_event, uqelem);
+		if (dist->tv_usec < 0){
+			dist->tv_sec--;
+			dist->tv_usec += 1000*1000;
+		}
+		return;
+	}
+
+	void fly_sub_time_from_sec(fly_time_t *t1, float delta)
+	{
+		t1->tv_sec = (int) t1->tv_sec - (int) delta;
+		t1->tv_usec = (int) t1->tv_usec - (1000*1000*(delta - (float)((int) delta)));
+
+		if (t1->tv_usec < 0){
+			t1->tv_sec--;
+			t1->tv_usec += 1000*1000;
+		}
+		return;
+	}
+
+	__fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_tree_t *tree, fly_rb_node_t *node, fly_time_t *__t)
+	{
+		fly_event_t *__e;
+		if (node == nil_node_ptr)
+			return 0;
+
+		while(node!=nil_node_ptr){
+			struct __fly_event_for_rbtree *__er;
+
+			__er = (struct __fly_event_for_rbtree *) node->key;
+			fly_time_t *__et = __er->abs_timeout;
+
 #ifdef DEBUG
-	assert(__e->err_count == 0);
+			assert(__er != NULL);
+			assert(__er->abs_timeout != NULL);
+			assert(__er->ptr != NULL);
 #endif
-		fly_event_handle(__e);
+			if (__et->tv_sec > __t->tv_sec)
+				node = node->c_left;
+			else{
+				__e = (fly_event_t *) node->data;
+				__e->expired = true;
 
-		if (!fly_nodelete(__e)){
-#ifdef DEBUG
-			assert(fly_event_unregister(__e) != -1);
-#else
-			fly_event_unregister(__e);
-#endif
+				__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
+				__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
+				return 0;
+			}
+	//		switch(tree->cmp(node->key, __t, NULL)){
+	//		case FLY_RB_CMP_BIG:
+	//			node = node->c_left;
+	//			break;
+	//		case FLY_RB_CMP_SMALL:
+	//		case FLY_RB_CMP_EQUAL:
+	//			/* __n right partial tree is expired */
+	//			__e = (fly_event_t *) node->data;
+	//			__e->expired = true;
+	//			__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
+	//			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
+	//			return 0;
+	//		default:
+	//			FLY_NOT_COME_HERE
+	//		}
+		}
+		return 0;
+	}
+
+	__fly_static int __fly_update_event_timeout(fly_event_manager_t *manager)
+	{
+		if (manager == NULL)
+			return -1;
+
+		fly_time_t now;
+		if (fly_time(&now) == -1)
+			return -1;
+
+		if (manager->rbtree->node_count == 0)
+			return 0;
+		else{
+			struct fly_rb_tree *tree;
+			struct fly_rb_node *__n;
+
+			tree = manager->rbtree;
+			__n = tree->root->node;
+
+			return __fly_expired_from_rbtree(manager, tree, __n, &now);
 		}
 	}
-	return;
-}
 
-static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
-{
-	struct epoll_event *event;
+	int fly_milli_diff_time_from_now(fly_time_t *t)
+	{
+		int res;
+		fly_time_t now;
 
-	for (int i=0; i<epoll_events; i++){
-		fly_event_t *fly_event;
-		event = manager->evlist + i;
+		if (fly_time(&now) == -1)
+			return -1;
 
-		fly_event = (fly_event_t *) event->data.ptr;
-		fly_event->available = true;
-		fly_event->available_row = event->events;
-		fly_event_handle(fly_event);
+		res = 1000*(t->tv_sec-now.tv_sec);
+		res += (t->tv_usec-now.tv_usec)/1000;
 
-#ifdef DEBUG
-		/* check whethere event is invalid. */
-		assert(fly_event);
-#endif
-		if (fly_event && !fly_nodelete(fly_event))
-			fly_event_unregister(fly_event);
+		return res;
 	}
 
-	__fly_event_handle_nomonitorable(manager);
-}
+	int fly_milli_time(fly_time_t t)
+	{
+		int msec = 0;
+		msec += (int) 1000*((int) t.tv_sec);
 
-int fly_event_handler(fly_event_manager_t *manager)
+		if (msec < 0)
+			return msec;
+
+		msec += (int) ((int) t.tv_usec/1000);
+		return msec;
+	}
+
+	__fly_static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager)
+	{
+		if (manager->unmonitorable.count == 0)
+			return;
+
+		struct fly_queue *__q;
+		fly_event_t *__e;
+
+		while(manager->unmonitorable.count>0){
+			__q = manager->unmonitorable.next;
+			__e = fly_queue_data(__q, struct fly_event, uqelem);
+#ifdef DEBUG
+		assert(__e->err_count == 0);
+#endif
+			fly_event_handle(__e);
+
+			if (!fly_nodelete(__e)){
+#ifdef DEBUG
+				assert(fly_event_unregister(__e) != -1);
+#else
+				fly_event_unregister(__e);
+#endif
+			}
+		}
+		return;
+	}
+
+	static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
+	{
+		struct epoll_event *event;
+
+		for (int i=0; i<epoll_events; i++){
+			fly_event_t *fly_event;
+			event = manager->evlist + i;
+
+			fly_event = (fly_event_t *) event->data.ptr;
+			fly_event->available = true;
+			fly_event->available_row = event->events;
+			fly_event_handle(fly_event);
+
+#ifdef DEBUG
+			/* check whethere event is invalid. */
+			assert(fly_event);
+#endif
+			if (fly_event && !fly_nodelete(fly_event))
+				fly_event_unregister(fly_event);
+		}
+
+		__fly_event_handle_nomonitorable(manager);
+	}
+
+	int fly_event_handler(fly_event_manager_t *manager)
 {
 	int epoll_events;
 	fly_event_t *near_timeout;
@@ -662,7 +699,14 @@ int fly_event_handler(fly_event_manager_t *manager)
 		printf("WAITING FOR EVENT...\n");
 #endif
 		/* the event with closest timeout */
-		epoll_events = epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
+#ifdef HAVE_EPOLL
+		epoll_events = \
+				epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
+#elif defined HAVE_KQUEUE
+				struct timespce timeout;
+		epoll_events = \
+				kevent(manager->efd, NULL, 0, manager->evlist, manager->maxevents, &timeout);
+#endif
 		switch(epoll_events){
 		case 0:
 			/* trigger expired event */
