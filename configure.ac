@@ -18,7 +18,7 @@ AC_CANONICAL_TARGET
 build_linux=no
 build_mac=no
 
-case "${host_os}" in
+case "$host_os" in
         linux*)
                 build_linux=yes
                 ;;
@@ -30,6 +30,7 @@ case "${host_os}" in
                 ;;
 esac
 
+AC_MSG_NOTICE(your sysytem is $host_os)
 LT_INIT()
 AM_INIT_AUTOMAKE([foreign])
 
