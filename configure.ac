@@ -25,22 +25,16 @@ case "$host_os" in
         darwin*)
                 build_mac=yes
                 ;;
+	freebsd*)
+		build_freebsd=yes
+		;;
         *)
                 AC_MSG_ERROR(OS $host_os is not supported. sorry.)
                 ;;
 esac
 
 AC_MSG_NOTICE(your sysytem is $host_os)
-LT_INIT()
-AM_INIT_AUTOMAKE([foreign])
-
-# Checks for programs.
-AC_PROG_CC([gcc])
-
-# Checks for libraries.
-# FIXME: Replace 'main' with a function in '-lbrotlidec':
-# FIXME: Replace 'main' with a function in '-lbrotlienc':
-OLD_LIBS="$LIBS"
+LT_INIT() AM_INIT_AUTOMAKE([foreign]) # Checks for programs.  AC_PROG_CC([gcc]) # Checks for libraries.  # FIXME: Replace 'main' with a function in '-lbrotlidec': # FIXME: Replace 'main' with a function in '-lbrotlienc': OLD_LIBS="$LIBS"
 AC_MSG_CHECKING(for brotlidec&brotlienc library works in -lbrotlidec & -lbrotlienc)
 if test "$build_mac" = "yes"; then
         OLD_LDFLAGS="$LDFLAGS"
@@ -551,6 +545,7 @@ AC_CHECK_HEADER([sys/inotify.h], [
 	]
 )
 
+# check for sigsetjmp
 AC_MSG_CHECKING(for sigsetjmp)
 AC_COMPILE_IFELSE(
 	[AC_LANG_PROGRAM(
@@ -570,8 +565,7 @@ if test "$ac_cv_func_sigsetjmp" = "yes"; then
 	AC_DEFINE(HAVE_SIGSETJMP, 1, [Define to 1 if you have the `sigsetjmp` function. ])
 fi
 
-AX_GCC_VAR_ATTRIBUTE(weak)
-AC_MSG_ERROR(error)
+AX_GCC_FUNC_ATTRIBUTE(weak)
 AC_LANG_PUSH(C)
 AX_CHECK_COMPILE_FLAG([-O0], [CFLAGS="$CFLAGS -O0"])
 AX_CHECK_COMPILE_FLAG([-W], [CFLAGS="$CFLAGS -W"])
