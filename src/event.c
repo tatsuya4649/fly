@@ -703,7 +703,7 @@ void fly_sub_time(fly_time_t *t1, fly_time_t *t2)
 		epoll_events = \
 				epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
 #elif defined HAVE_KQUEUE
-				struct timespce timeout;
+		struct timespce timeout;
 		epoll_events = \
 				kevent(manager->efd, NULL, 0, manager->evlist, manager->maxevents, &timeout);
 #endif

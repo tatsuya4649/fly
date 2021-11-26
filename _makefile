@@ -19,6 +19,7 @@ RELEA_VERSION:=0
 
 DEPEND_LIBS := -lz -lbrotlienc -lcrypto -lbrotlidec -lssl
 
+SRCDIR := src
 LIBDIR := fly/lib
 LIBNAME := lib$(TARGET).so.$(MAJOR_VERSION)
 BUILDDIR := build
@@ -91,6 +92,7 @@ clean_lib:
 	@rm -f $(LIBDIR)/lib$(TARGET).so*
 	@rm -f $(LIBDIR)/_fly_server*
 	@rm -rf $(LIBDIR)/__pycache__
+	@rm -f $(SRCDIR)/*.o
 
 clean: clean_lib
 	rm -f src/*.o

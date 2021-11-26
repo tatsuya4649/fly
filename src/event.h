@@ -6,6 +6,8 @@
 #endif
 #include <stdio.h>
 #include <stdbool.h>
+#include "../config.h"
+
 #ifdef HAVE_EPOLL
 /* for linux */
 #include <sys/epoll.h>
@@ -16,8 +18,10 @@
 #else
 #error not found C header for "event"on your system.
 #endif
-#include <sys/signalfd.h>
-#include <sys/timerfd.h>
+
+//#ifdef HAVE_SIGNALFD
+//#include <sys/signalfd.h>
+//#endif
 #include <sys/time.h>
 #include "alloc.h"
 #include "util.h"
@@ -26,6 +30,7 @@
 
 extern fly_pool_t *fly_event_pool;
 #define FLY_EVENT_POOL_SIZE			100
+
 #ifdef HAVE_EPOLL
 #define FLY_READ		EPOLLIN
 #define FLY_WRITE		EPOLLOUT
@@ -33,6 +38,7 @@ extern fly_pool_t *fly_event_pool;
 #define FLY_READ		EVFILT_READ
 #define FLY_WRITE		EVFILT_WRITE
 #endif
+
 #define FLY_EVLIST_ELES			1000
 
 typedef struct fly_context fly_context_t;
@@ -67,12 +73,14 @@ struct __fly_event_for_rbtree{
 		(__e)->rbtree_elem.ptr = (__e);		\
 	} while(0)
 
-typedef fly_event_data_t \
 #ifdef HAVE_EPOLL
-		epoll_data_t;
+	typedef  epoll_data_t	fly_event_data_t;
 #elif defined HAVE_KQUEUE
-		void *;
+	typedef  void			*fly_event_data_t;
+#else
+#error not defined HAVE_EPOLL AND HAVE_KQUEUE
 #endif
+
 struct fly_err;
 struct fly_event{
 	fly_event_manager_t				*manager;
