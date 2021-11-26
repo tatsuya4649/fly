@@ -4,7 +4,9 @@
 #include <dirent.h>
 #include <limits.h>
 #include <sys/stat.h>
+#ifdef HAVE_INOTIFY
 #include <sys/inotify.h>
+#endif
 #include "alloc.h"
 #include "header.h"
 #include "mime.h"
