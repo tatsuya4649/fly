@@ -39,6 +39,9 @@
 /* Define to 1 if you have the `gettimeofday' function. */
 #undef HAVE_GETTIMEOFDAY
 
+/* Define to 1 if you have the inotify. */
+#undef HAVE_INOTIFY
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
 
@@ -97,6 +100,9 @@
 /* Define to 1 if you have the `siglongjmp' function. */
 #undef HAVE_SIGLONGJMP
 
+/* Define to 1 if you have the signalfd. */
+#undef HAVE_SIGNALFD
+
 /* Define to 1 if you have the `sigsetjmp` function. */
 #undef HAVE_SIGSETJMP
 
@@ -147,6 +153,9 @@
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
+
+/* Define to 1 if the system has the `weak' variable attribute */
+#undef HAVE_VAR_ATTRIBUTE_WEAK
 
 /* Define to 1 if you have the `vfork' function. */
 #undef HAVE_VFORK
