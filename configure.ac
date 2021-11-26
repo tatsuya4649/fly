@@ -443,7 +443,7 @@ AC_FUNC_MALLOC
 AC_FUNC_MKTIME
 AC_CHECK_FUNCS([atexit dup2 gettimeofday localtime_r memset realpath setenv socket strchr strerror sigsetjmp siglongjmp strerrorname_np strerrordesc_np realpath])
 
-
+# Check for epoll or kqueue
 AC_MSG_CHECKING([for epoll on your system.])
 AC_CHECK_HEADER([sys/epoll.h], [
 	AC_CHECK_FUNCS([epoll_create epoll_wait epoll_ctl], [
@@ -459,7 +459,6 @@ AC_CHECK_HEADER([sys/epoll.h], [
 		have_epoll=no
 ])
 
-# TODO: libevent
 if test "$have_epoll" = "no"; then
 	AC_MSG_CHECKING([for kqueue on your system.])
 	# check libevent
@@ -477,10 +476,80 @@ if test "$have_epoll" = "no"; then
 		have_kqueue=no
 	])
 fi
-
 if test "$have_epoll" = "no" -a "$have_kqueue" = "no"; then
 	AC_MSG_ERROR(epoll or kqueue can't found on your system.)
 fi
+
+
+# Check for signalfd
+AC_CHECK_HEADER([sys/signalfd.h], [
+	AC_MSG_CHECKING([ for checking if `signalfd` can be used. ])
+	AC_LINK_IFELSE([
+		AC_LANG_PROGRAM([
+#include <sys/signalfd.h>
+#include <signal.h>
+		], [
+			int fd;
+			sigset_t fill;
+
+			sigfillset(&fill);
+			fd = signalfd(-1, fill, SFD_NONBLOCK|SFD_CLOEXEC);
+		])
+	], [
+		# usable signalfd
+		AC_DEFINE([HAVE_SIGNALFD], [1], [Define to 1 if you have the signalfd. ])
+		AC_MSG_RESULT([yes])
+		have_signalfd="yes"
+	], [
+		AC_MSG_RESULT([no])
+		# unusable signalfd
+		if test have_kqueue = "no"; then
+			AC_MSG_ERROR([not found signalfd or kqueue on your system.])
+		fi
+	])], [
+		AC_MSG_RESULT([no])
+		# unusable signalfd
+		if test have_kqueue = "no"; then
+			AC_MSG_ERROR([not found signalfd or kqueue on your system.])
+		fi
+	]
+)
+
+# Check for inotify
+AC_CHECK_HEADER([sys/inotify.h], [
+	AC_MSG_CHECKING([ for checking if `inotify` can be used. ])
+	AC_LINK_IFELSE([
+		AC_LANG_PROGRAM([
+#include <sys/inotify.h>
+#include <unistd.h>
+		], [
+			int fd, wd;
+
+			fd = inotify_init();
+			wd = inotify_add_watch(fd, "test_file",
+				IN_ACCESS|IN_ATTRIB|IN_CLOSE_WRITE|IN_CLOSE_NOWRITE| \
+					IN_CREATE|IN_DELETE|IN_DELETE_SELF|IN_MODIFY| \
+					IN_MOVE_SELF|IN_MOVED_FROM|IN_MOVED_TO|IN_OPEN \
+			);
+			inotify_rm_watch(fd, wd);
+			close(fd);
+		])
+	], [
+		AC_DEFINE([HAVE_INOTIFY], [1], [Define to 1 if you have the inotify. ])
+		AC_MSG_RESULT([yes])
+		have_inotify="yes"
+	], [
+		AC_MSG_RESULT([no])
+		if test have_kqueue = "no"; then
+			AC_MSG_ERROR([not found inotfy or kqueue on your system.])
+		fi
+	])], [
+		AC_MSG_RESULT([no])
+		if test have_kqueue = "no"; then
+			AC_MSG_ERROR([not found inotify or kqueue on your system.])
+		fi
+	]
+)
 
 AC_MSG_CHECKING(for sigsetjmp)
 AC_COMPILE_IFELSE(
@@ -495,13 +564,14 @@ while(sigsetjmp(senv, 1) == 0)
 	  ]])],
 	  [ ac_cv_func_sigsetjmp=yes ],[ ac_cv_func_sigsetjmp=no ]
 )
-
 AC_MSG_RESULT($ac_cv_func_sigsetjmp)
 
 if test "$ac_cv_func_sigsetjmp" = "yes"; then
 	AC_DEFINE(HAVE_SIGSETJMP, 1, [Define to 1 if you have the `sigsetjmp` function. ])
 fi
 
+AX_GCC_VAR_ATTRIBUTE(weak)
+AC_MSG_ERROR(error)
 AC_LANG_PUSH(C)
 AX_CHECK_COMPILE_FLAG([-O0], [CFLAGS="$CFLAGS -O0"])
 AX_CHECK_COMPILE_FLAG([-W], [CFLAGS="$CFLAGS -W"])

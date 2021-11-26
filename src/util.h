@@ -76,4 +76,10 @@ struct fly_context;
 #define FLY_DAEMON_DUP_ERROR				-7
 int fly_daemon(struct fly_context *ctx);
 
+#if defined(__GNUC__) && !defined(__clang__)
+#define FLY_GCC_COMPILER		1
+#else
+#undef FLY_GCC_COMPILER
+#endif
+
 #endif

@@ -66,7 +66,12 @@ void __fly_only_recv(fly_context_t *ctx __fly_unused, struct signalfd_siginfo *i
 int fly_refresh_signal(void)
 {
 	for (fly_signum_t *__sig=fly_signals; *__sig>0; __sig++){
-		if (*__sig!=SIGKILL && *__sig!=SIGSTOP && signal(*__sig, SIG_DFL) == SIG_ERR)
+		if (*__sig!=SIGKILL && *__sig!=SIGSTOP && \
+#ifdef HAVE_KQUEUE
+				signal(*__sig, SIG_IGN) == SIG_ERR)
+#else
+				signal(*__sig, SIG_DFL) == SIG_ERR)
+#endif
 			return -1;
 	}
 	return 0;

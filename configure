@@ -15226,7 +15226,7 @@ then :
 fi
 
 
-
+# Check for epoll or kqueue
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for epoll on your system." >&5
 printf %s "checking for epoll on your system.... " >&6; }
 ac_fn_c_check_header_compile "$LINENO" "sys/epoll.h" "ac_cv_header_sys_epoll_h" "$ac_includes_default"
@@ -15270,7 +15270,6 @@ printf "%s\n" "no" >&6; }
 fi
 
 
-# TODO: libevent
 if test "$have_epoll" = "no"; then
 	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for kqueue on your system." >&5
 printf %s "checking for kqueue on your system.... " >&6; }
@@ -15316,10 +15315,142 @@ printf "%s\n" "no" >&6; }
 fi
 
 fi
-
 if test "$have_epoll" = "no" -a "$have_kqueue" = "no"; then
 	as_fn_error $? "epoll or kqueue can't found on your system." "$LINENO" 5
 fi
+
+
+# Check for signalfd
+ac_fn_c_check_header_compile "$LINENO" "sys/signalfd.h" "ac_cv_header_sys_signalfd_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_signalfd_h" = xyes
+then :
+
+	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking  for checking if \`signalfd\` can be used. " >&5
+printf %s "checking  for checking if \`signalfd\` can be used. ... " >&6; }
+	cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+#include <sys/signalfd.h>
+#include <signal.h>
+
+int
+main (void)
+{
+
+			int fd;
+			sigset_t fill;
+
+			sigfillset(&fill);
+			fd = signalfd(-1, fill, SFD_NONBLOCK|SFD_CLOEXEC);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+
+		# usable signalfd
+
+printf "%s\n" "#define HAVE_SIGNALFD 1" >>confdefs.h
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
+		have_signalfd="yes"
+
+else $as_nop
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+		# unusable signalfd
+		if test have_kqueue = "no"; then
+			as_fn_error $? "not found signalfd or kqueue on your system." "$LINENO" 5
+		fi
+
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+else $as_nop
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+		# unusable signalfd
+		if test have_kqueue = "no"; then
+			as_fn_error $? "not found signalfd or kqueue on your system." "$LINENO" 5
+		fi
+
+
+fi
+
+
+# Check for inotify
+ac_fn_c_check_header_compile "$LINENO" "sys/inotify.h" "ac_cv_header_sys_inotify_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_inotify_h" = xyes
+then :
+
+	{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking  for checking if \`inotify\` can be used. " >&5
+printf %s "checking  for checking if \`inotify\` can be used. ... " >&6; }
+	cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+#include <sys/inotify.h>
+#include <unistd.h>
+
+int
+main (void)
+{
+
+			int fd, wd;
+
+			fd = inotify_init();
+			wd = inotify_add_watch(fd, "test_file",
+				IN_ACCESS|IN_ATTRIB|IN_CLOSE_WRITE|IN_CLOSE_NOWRITE| \
+					IN_CREATE|IN_DELETE|IN_DELETE_SELF|IN_MODIFY| \
+					IN_MOVE_SELF|IN_MOVED_FROM|IN_MOVED_TO|IN_OPEN \
+			);
+			inotify_rm_watch(fd, wd);
+			close(fd);
+
+  ;
+  return 0;
+}
+
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+
+
+printf "%s\n" "#define HAVE_INOTIFY 1" >>confdefs.h
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+printf "%s\n" "yes" >&6; }
+		have_inotify="yes"
+
+else $as_nop
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+		if test have_kqueue = "no"; then
+			as_fn_error $? "not found inotfy or kqueue on your system." "$LINENO" 5
+		fi
+
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+else $as_nop
+
+		{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: no" >&5
+printf "%s\n" "no" >&6; }
+		if test have_kqueue = "no"; then
+			as_fn_error $? "not found inotify or kqueue on your system." "$LINENO" 5
+		fi
+
+
+fi
+
 
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for sigsetjmp" >&5
 printf %s "checking for sigsetjmp... " >&6; }
@@ -15348,7 +15479,6 @@ else $as_nop
 
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.beam conftest.$ac_ext
-
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ac_cv_func_sigsetjmp" >&5
 printf "%s\n" "$ac_cv_func_sigsetjmp" >&6; }
 
@@ -15358,6 +15488,61 @@ printf "%s\n" "#define HAVE_SIGSETJMP 1" >>confdefs.h
 
 fi
 
+
+
+
+    { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for __attribute__((weak))" >&5
+printf %s "checking for __attribute__((weak))... " >&6; }
+if test ${ax_cv_have_var_attribute_weak+y}
+then :
+  printf %s "(cached) " >&6
+else $as_nop
+
+        cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+
+                    int foo __attribute__((weak));
+
+int
+main (void)
+{
+
+
+
+  ;
+  return 0;
+}
+
+_ACEOF
+if ac_fn_c_try_link "$LINENO"
+then :
+                                      if test -s conftest.err
+then :
+  ax_cv_have_var_attribute_weak=no
+else $as_nop
+  ax_cv_have_var_attribute_weak=yes
+fi
+else $as_nop
+  ax_cv_have_var_attribute_weak=no
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.beam \
+    conftest$ac_exeext conftest.$ac_ext
+
+fi
+{ printf "%s\n" "$as_me:${as_lineno-$LINENO}: result: $ax_cv_have_var_attribute_weak" >&5
+printf "%s\n" "$ax_cv_have_var_attribute_weak" >&6; }
+
+    if test yes = $ax_cv_have_var_attribute_weak
+then :
+
+printf "%s\n" "#define HAVE_VAR_ATTRIBUTE_WEAK 1" >>confdefs.h
+
+fi
+
+
+
+as_fn_error $? "error" "$LINENO" 5
 ac_ext=c
 ac_cpp='$CPP $CPPFLAGS'
 ac_compile='$CC -c $CFLAGS $CPPFLAGS conftest.$ac_ext >&5'
