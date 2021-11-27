@@ -2,7 +2,6 @@
 #include "request.h"
 #include "response.h"
 #include "connect.h"
-#include <sys/sendfile.h>
 #include <openssl/err.h>
 #include "mime.h"
 
@@ -2613,7 +2612,7 @@ send:
 						return FLY_SEND_DATA_FH_ERROR;
 					}
 				}else{
-					numsend = sendfile(c_sockfd, pf->fd, offset, res->count-total);
+					numsend = fly_sendfile(c_sockfd, pf->fd, offset, res->count-total);
 					if (FLY_BLOCKING(numsend)){
 						goto write_blocking;
 					}else if (numsend == -1){
@@ -2681,7 +2680,7 @@ send:
 					}
 					*offset += numsend;
 				}else{
-					numsend = sendfile(e->fd, __r->fd, offset, res->count-total);
+					numsend = fly_sendfile(e->fd, __r->fd, offset, res->count-total);
 					if (FLY_BLOCKING(numsend)){
 						goto write_blocking;
 					}else if (numsend == -1){

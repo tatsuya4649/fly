@@ -19,9 +19,6 @@
 #error not found C header for "event"on your system.
 #endif
 
-//#ifdef HAVE_SIGNALFD
-//#include <sys/signalfd.h>
-//#endif
 #include <sys/time.h>
 #include "alloc.h"
 #include "util.h"
@@ -37,6 +34,8 @@ extern fly_pool_t *fly_event_pool;
 #elif defined HAVE_KQUEUE
 #define FLY_READ		EVFILT_READ
 #define FLY_WRITE		EVFILT_WRITE
+#define FLY_KQ_SIGNAL	(1<<3)
+#define FLY_KQ_INOTIFY	(1<<4)
 #endif
 
 #define FLY_EVLIST_ELES			1000
@@ -57,7 +56,7 @@ struct fly_event_manager{
 	struct fly_queue			monitorable;
 	struct fly_queue			unmonitorable;
 
-	/* if event occurred error termination the process, called*/
+	/* if event occurred error termination the process, called */
 	void (*jbend_handle)(fly_context_t *ctx);
 };
 typedef struct fly_event_manager fly_event_manager_t;
@@ -126,6 +125,10 @@ struct fly_event{
 	struct fly_bllist				errors;
 	size_t							err_count;
 
+#ifdef HAVE_KQUEUE
+	sigset_t						sigset;
+#endif
+
 	/* event bit fields */
 	fly_bit_t						file_type: 4;
 	fly_bit_t 						expired: 1;
@@ -134,6 +137,7 @@ struct fly_event{
 	fly_bit_t						if_fail_term: 1;
 };
 
+typedef int (fly_event_handler_t)(struct fly_event *);
 #ifdef DEBUG
 __fly_unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
 {
@@ -235,7 +239,7 @@ int fly_event_inherit_register(fly_event_t *e);
 #define fly_event_is_symlink(e)		fly_event_is_file_type((e), SLINK)
 #define fly_event_is_epoll(e)		fly_event_is_file_type((e), EPOLL)
 #define fly_event_is_signal(e)		fly_event_is_file_type((e), SIGNAL)
-#define fly_evnet_is_inotify(e)		fly_event_is_file_type((e), INOTIFY)
+#define fly_event_is_inotify(e)		fly_event_is_file_type((e), INOTIFY)
 
 #define fly_event_regular(e)		fly_event_file_type((e), REGULAR)
 #define fly_event_dir(e)			fly_event_file_type((e), DIRECTORY)
