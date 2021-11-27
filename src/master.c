@@ -1,9 +1,13 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include "master.h"
 #include "alloc.h"
 #include "util.h"
 #include "cache.h"
 #include "conf.h"
 #include <setjmp.h>
+#include <signal.h>
 #include "err.h"
 #include <sys/wait.h>
 
@@ -14,7 +18,7 @@ __fly_static int __fly_master_signal_handler(fly_event_t *);
 __fly_static void __fly_workers_rebalance(fly_master_t *master);
 __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info);
 __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_manager_t *manager);
-__fly_static int __fly_master_inotify_handler(fly_event_t *);
+static int __fly_master_inotify_handler(fly_event_t *);
 __fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
 __fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
 __fly_noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __fly_unused, fly_siginfo_t *si __fly_unused);
@@ -70,13 +74,21 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 	master = (fly_master_t *) ctx->data;
 
 	/* receive */
+#ifdef HAVE_SIGNALFD
 	if (waitpid(info->ssi_pid, NULL, WNOHANG) == -1)
+#else
+	if (waitpid(info->si_pid, NULL, WNOHANG) == -1)
+#endif
 		FLY_EMERGENCY_ERROR(
 			"master waitpid error. (%s: %s)",
 			__FILE__, __LINE__
 		);
 
+#ifdef HAVE_SIGNALFD
 	switch(info->ssi_code){
+#else
+	switch(info->si_code){
+#endif
 	case CLD_CONTINUED:
 		printf("continued\n");
 		goto decrement;
@@ -85,13 +97,22 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 			ctx->log,
 			"master process(%d) detected the dumped of worker process(%d).",
 			getpid(),
+#ifdef HAVE_SIGNALFD
 			info->ssi_pid,
 			info->ssi_status
+#else
+			info->si_pid,
+			info->si_status
+#endif
 		);
 		goto decrement;
 	case CLD_EXITED:
 		/* end status of worker(error level) */
+#ifdef HAVE_SIGNALFD
 		switch(info->ssi_status){
+#else
+		switch(info->si_status){
+#endif
 		case FLY_WORKER_SUCCESS_EXIT:
 			goto decrement;
 		case FLY_ERR_EMERG:
@@ -99,8 +120,13 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 				ctx->log,
 				"master process(%d) detected the emergency termination of worker process(%d).",
 				getpid(),
+#ifdef HAVE_SIGNALFD
 				info->ssi_pid,
 				info->ssi_status
+#else
+				info->si_pid,
+				info->si_status
+#endif
 			);
 			/* terminate fly processes. */
 			goto fly_terminate;
@@ -109,8 +135,13 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 				ctx->log,
 				"master process(%d) detected the critical termination of worker process(%d).",
 				getpid(),
+#ifdef HAVE_SIGNALFD
 				info->ssi_pid,
 				info->ssi_status
+#else
+				info->si_pid,
+				info->si_status
+#endif
 			);
 			/* terminate fly processes. */
 			goto fly_terminate;
@@ -119,8 +150,13 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 				ctx->log,
 				"master process(%d) detected the error termination of worker process(%d).",
 				getpid(),
+#ifdef HAVE_SIGNALFD
 				info->ssi_pid,
 				info->ssi_status
+#else
+				info->si_pid,
+				info->si_status
+#endif
 			);
 
 			goto decrement;
@@ -130,7 +166,11 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 #endif
 			FLY_EMERGENCY_ERROR(
 				"unknown worker exit status. (%d)",
+#ifdef HAVE_SIGNALFD
 				info->ssi_status
+#else
+				info->si_status
+#endif
 			);
 			goto decrement;
 		}
@@ -147,16 +187,28 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 	default:
 		FLY_EMERGENCY_ERROR(
 			"unknown signal code. (%d)",
+#ifdef HAVE_SIGNALFD
 			info->ssi_code
+#else
+			info->si_code
+#endif
 		);
 	}
 
 decrement:
+#ifdef HAVE_SIGNALFD
 	fly_remove_worker((fly_master_t *) ctx->data, (pid_t) info->ssi_pid);
+#else
+	fly_remove_worker((fly_master_t *) ctx->data, (pid_t) info->si_pid);
+#endif
 	fly_notice_direct_log(
 		ctx->log,
 		"Detected the terminated of Worker(%d) in Master(%d). Create a new worker.\n",
+#ifdef HAVE_SIGNALFD
 		info->ssi_pid,
+#else
+		info->si_pid,
+#endif
 		master->pid
 	);
 
@@ -178,7 +230,11 @@ __fly_noreturn static void fly_master_signal_default_handler(fly_master_t *maste
 		ctx->log,
 		"master process(%d) is received signal(%s). kill workers.\n",
 		master->pid,
+#ifdef HAVE_SIGNALFD
 		strsignal(si->ssi_signo)
+#else
+		strsignal(si->si_signo)
+#endif
 	);
 #ifdef DEBUG
 	printf("MASTER SIGNAL DEFAULT HANDLER\n");
@@ -212,7 +268,11 @@ __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, 
 #endif
 	fly_for_each_bllist(__b, &master->signals){
 		__s = fly_bllist_data(__b, struct fly_signal, blelem);
+#ifdef HAVE_SIGNALFD
 		if (__s->number == (fly_signum_t) info->ssi_signo){
+#else
+		if (__s->number == (fly_signum_t) info->si_signo){
+#endif
 			if (__s->handler)
 				__s->handler(ctx, info);
 			else
@@ -246,13 +306,21 @@ void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info
 	pid_t orig_worker_pid;
 
 	__m = (fly_master_t *) ctx->data;
+#ifdef HAVE_SIGNALFD
 	orig_worker_pid = info->ssi_int;
+#else
+	orig_worker_pid = info->si_value.sival_int;
+#endif
 
 	fly_for_each_bllist(__b, &__m->workers){
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
 		if (__w->pid == orig_worker_pid){
 			/* update worker daemon process id */
+#ifdef HAVE_SIGNALFD
 			__w->pid = info->ssi_pid;
+#else
+			__w->pid = info->si_pid;
+#endif
 			break;
 		}else
 			continue;
@@ -267,8 +335,8 @@ static void fly_master_rtsignal_added(fly_context_t *ctx)
 __fly_static int __fly_master_signal_handler(fly_event_t *e)
 {
 	fly_siginfo_t info;
-	ssize_t res;
 
+	ssize_t res;
 	while(true){
 		res = read(e->fd, (void *) &info,sizeof(fly_siginfo_t));
 		if (res == -1){
@@ -283,6 +351,8 @@ __fly_static int __fly_master_signal_handler(fly_event_t *e)
 
 	return 0;
 }
+
+#ifdef HAVE_SIGNALFD
 
 static int __fly_master_signal_end_handler(fly_event_t *__e)
 {
@@ -303,22 +373,16 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 
 	if (sigfillset(&master_set) == -1)
 		return -1;
-#ifdef HAVE_SIGNALFD
 	int sigfd;
 	sigfd = fly_signal_register(&master_set);
 	if (sigfd == -1)
 		return -1;
-#endif
 
 	e = fly_event_init(manager);
 	if (e == NULL)
 		return -1;
 
-#ifdef HAVE_SIGNALFD
 	e->fd = sigfd;
-#else
-	e->fd = -1;
-#endif
 	e->read_or_write = FLY_READ;
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
@@ -334,12 +398,82 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 	FLY_EVENT_HANDLER(e, __fly_master_signal_handler);
 	fly_time_null(e->timeout);
 	fly_event_signal(e);
-#ifdef HAVE_KQUEUE
-	memcpy(&e->sigset, &master_set, sizeof(sigset_t));
-#endif
 
 	return fly_event_register(e);
 }
+#else
+static fly_master_t *__mptr;
+
+static void __fly_master_sigaction(int signum __unused, fly_siginfo_t *info, void *ucontext __unused)
+{
+	__fly_msignal_handle(__mptr, __mptr->context, info);
+}
+
+__fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *manager __unused, __fly_unused fly_context_t *ctx)
+{
+#define FLY_KQUEUE_MASTER_SIGNALSET(signum)						\
+		do{													\
+			struct sigaction __sa;							\
+			memset(&__sa, '\0', sizeof(struct sigaction));	\
+			if (sigfillset(&__sa.sa_mask) == -1)			\
+				return -1;									\
+			__sa.sa_sigaction = __fly_master_sigaction;		\
+			__sa.sa_flags = SA_SIGINFO;						\
+			if (sigaction((signum), &__sa, NULL) == -1)		\
+				return -1;									\
+		} while(0)
+
+	if (fly_refresh_signal() == -1)
+		return -1;
+
+	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++)
+		fly_add_master_sig(ctx, fly_master_signals[i].number, fly_master_signals[i].handler);
+	fly_master_rtsignal_added(ctx);
+
+	__mptr = master;
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGABRT);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGALRM);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGBUS);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGCHLD);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGCONT);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGFPE);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGHUP);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGILL);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGINFO);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGINT);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGPIPE);
+#ifdef SIGPOLL
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGPOLL);
+#endif
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGPROF);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGQUIT);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGSEGV);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGTSTP);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGSYS);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGTERM);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGTRAP);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGTTIN);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGTTOU);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGURG); 
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGUSR1);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGUSR2);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGVTALRM);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGXCPU);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGXFSZ);
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGWINCH);
+
+	for (int i=SIGRTMIN; i<SIGRTMAX; i++)
+		FLY_KQUEUE_MASTER_SIGNALSET(i);
+
+	sigset_t sset;
+	if (sigfillset(&sset) == -1)
+		return -1;
+	if (sigprocmask(SIG_UNBLOCK, &sset, NULL) == -1)
+		return -1;
+
+	return 0;
+}
+#endif
 
 static int fly_workers_count(void)
 {
@@ -526,11 +660,19 @@ __fly_direct_log int fly_master_process(fly_master_t *master)
 
 	master->event_manager = manager;
 	/* initial event setting */
+#ifdef HAVE_SIGNALFD
 	if (__fly_master_signal_event(master, manager, master->context) == -1)
 		FLY_EMERGENCY_ERROR(
-			"initialize worker signal error. %s",
+			"initialize master signal error. %s",
 			strerror(errno)
 		);
+#else
+	if (__fly_master_signal(master, manager, master->context) == -1)
+		FLY_EMERGENCY_ERROR(
+			"initialize master signal error. %s",
+			strerror(errno)
+		);
+#endif
 	if (__fly_master_inotify_event(master, manager) == -1)
 		FLY_EMERGENCY_ERROR(
 			"initialize worker inotify error. %s",
@@ -765,8 +907,10 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 
 			/* set master context */
 			ctx = worker->context;
+#ifdef HAVE_SIGNALFD
 			if (sigprocmask(SIG_UNBLOCK, &__s, NULL) == -1)
 				return -1;
+#endif
 		}
 		break;
 	default:
