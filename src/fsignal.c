@@ -33,7 +33,9 @@ fly_signum_t fly_signals[] = {
 	SIGPROF,
 	SIGWINCH,
 	SIGIO,
+#ifdef SIGPWR
 	SIGPWR,
+#endif
 	SIGSYS,
 	-1
 };
@@ -58,7 +60,7 @@ __attribute__((noreturn)) void fly_sigint_handler(__fly_unused int signo)
 }
 
 
-void __fly_only_recv(fly_context_t *ctx __fly_unused, struct signalfd_siginfo *info __fly_unused)
+void __fly_only_recv(fly_context_t *ctx __fly_unused, fly_siginfo_t *info __fly_unused)
 {
 	return;
 }
@@ -66,17 +68,17 @@ void __fly_only_recv(fly_context_t *ctx __fly_unused, struct signalfd_siginfo *i
 int fly_refresh_signal(void)
 {
 	for (fly_signum_t *__sig=fly_signals; *__sig>0; __sig++){
-		if (*__sig!=SIGKILL && *__sig!=SIGSTOP && \
 #ifdef HAVE_KQUEUE
-				signal(*__sig, SIG_IGN) == SIG_ERR)
+		if (*__sig!=SIGKILL && *__sig!=SIGSTOP &&  signal(*__sig, SIG_IGN) == SIG_ERR)
 #else
-				signal(*__sig, SIG_DFL) == SIG_ERR)
+		if (*__sig!=SIGKILL && *__sig!=SIGSTOP &&  signal(*__sig, SIG_DFL) == SIG_ERR)
 #endif
 			return -1;
 	}
 	return 0;
 }
 
+#ifdef HAVE_SIGNALFD
 int fly_signal_register(sigset_t *mask)
 {
 	int sigfd;
@@ -86,8 +88,9 @@ int fly_signal_register(sigset_t *mask)
 	sigfd = signalfd(-1, mask, SFD_CLOEXEC|SFD_NONBLOCK);
 	return sigfd;
 }
+#endif
 
-__fly_noreturn int fly_signal_default_handler(fly_context_t *ctx __fly_unused, struct signalfd_siginfo *info __fly_unused)
+__fly_noreturn int fly_signal_default_handler(fly_context_t *ctx __fly_unused, fly_siginfo_t *info __fly_unused)
 {
 	exit(0);
 }

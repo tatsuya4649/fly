@@ -9,16 +9,20 @@
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
 __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __fly_unused fly_context_t *ctx);
-__fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info);
+__fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, fly_siginfo_t *info);
 __fly_static int __fly_master_signal_handler(fly_event_t *);
 __fly_static void __fly_workers_rebalance(fly_master_t *master);
-__fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *info);
+__fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info);
 __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_manager_t *manager);
 __fly_static int __fly_master_inotify_handler(fly_event_t *);
 __fly_static void fly_add_worker(fly_master_t *m, fly_worker_t *w);
 __fly_static void fly_remove_worker(fly_master_t *m, pid_t cpid);
-__fly_noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __fly_unused, struct signalfd_siginfo *si __fly_unused);
+__fly_noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __fly_unused, fly_siginfo_t *si __fly_unused);
+#ifdef HAVE_INOTIFY
 static int __fly_reload(fly_master_t *__m, struct inotify_event *__ie);
+#elif defined HAVE_KQUEUE
+static int __fly_reload(fly_master_t *__m, int fd, int mask);
+#endif
 static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_t *manager);
 static int __fly_master_reload_filepath_handler(fly_event_t *e);
 static struct fly_watch_path *__fly_search_wp(fly_master_t *__m, int wd);
@@ -59,7 +63,7 @@ __fly_static void __fly_workers_rebalance(fly_master_t *master)
 	}
 }
 
-__fly_static void __fly_sigchld(fly_context_t *ctx, struct signalfd_siginfo *info)
+__fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 {
 	fly_master_t *master;
 
@@ -165,7 +169,7 @@ fly_terminate:
 	return;
 }
 
-__fly_noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __fly_unused, struct signalfd_siginfo *si __fly_unused)
+__fly_noreturn static void fly_master_signal_default_handler(fly_master_t *master, fly_context_t *ctx __fly_unused, fly_siginfo_t *si __fly_unused)
 {
 	struct fly_bllist *__b;
 	fly_worker_t *__w;
@@ -198,7 +202,7 @@ retry:
 #endif
 }
 
-__fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, struct signalfd_siginfo *info)
+__fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, fly_siginfo_t *info)
 {
 	struct fly_signal *__s;
 	struct fly_bllist *__b;
@@ -234,7 +238,7 @@ static void fly_add_master_sig(fly_context_t *ctx, int num, fly_sighand_t *handl
 	fly_bllist_add_tail(&__m->signals, &__nf->blelem);
 }
 
-void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, struct signalfd_siginfo *info)
+void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info)
 {
 	fly_master_t *__m;
 	fly_worker_t *__w;
@@ -262,11 +266,11 @@ static void fly_master_rtsignal_added(fly_context_t *ctx)
 
 __fly_static int __fly_master_signal_handler(fly_event_t *e)
 {
-	struct signalfd_siginfo info;
+	fly_siginfo_t info;
 	ssize_t res;
 
 	while(true){
-		res = read(e->fd, (void *) &info,sizeof(struct signalfd_siginfo));
+		res = read(e->fd, (void *) &info,sizeof(fly_siginfo_t));
 		if (res == -1){
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				break;
@@ -289,7 +293,6 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 {
 	sigset_t master_set;
 	fly_event_t *e;
-	int sigfd;
 
 	if (fly_refresh_signal() == -1)
 		return -1;
@@ -300,15 +303,22 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 
 	if (sigfillset(&master_set) == -1)
 		return -1;
+#ifdef HAVE_SIGNALFD
+	int sigfd;
 	sigfd = fly_signal_register(&master_set);
 	if (sigfd == -1)
 		return -1;
+#endif
 
 	e = fly_event_init(manager);
 	if (e == NULL)
 		return -1;
 
+#ifdef HAVE_SIGNALFD
 	e->fd = sigfd;
+#else
+	e->fd = -1;
+#endif
 	e->read_or_write = FLY_READ;
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
@@ -324,6 +334,9 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 	FLY_EVENT_HANDLER(e, __fly_master_signal_handler);
 	fly_time_null(e->timeout);
 	fly_event_signal(e);
+#ifdef HAVE_KQUEUE
+	memcpy(&e->sigset, &master_set, sizeof(sigset_t));
+#endif
 
 	return fly_event_register(e);
 }
@@ -808,6 +821,7 @@ static int fly_master_default_fail_close(fly_event_t *e, int fd)
 	return 0;
 }
 
+#ifdef HAVE_INOTIFY
 __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, struct inotify_event *ie)
 {
 	/* ie->len includes null terminate */
@@ -856,7 +870,33 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 
 	return 0;
 }
+#elif defined HAVE_KQUEUE
+__fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, fly_event_t *__e)
+{
+	int signum = 0;
+	fly_worker_t *__w;
+	struct fly_bllist *__b;
+	int mask;
 
+	mask = __e->eflag;
+	/* create new file */
+	if (mask & NOTE_EXTEND){
+		signum |= FLY_SIGNAL_ADDF;
+		if (fly_inotify_add_watch(parts, __e) == -1)
+			return -1;
+	}
+
+	fly_for_each_bllist(__b, &master->workers){
+		__w = fly_bllist_data(__b, fly_worker_t, blelem);
+		if (fly_send_signal(__w->pid, signum, parts->mount_number) == -1)
+			return -1;
+	}
+
+	return 0;
+}
+#endif
+
+#ifdef HAVE_INOTIFY
 __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, struct inotify_event *ie)
 {
 	int mask;
@@ -887,7 +927,55 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 	}
 	return 0;
 }
+#elif defined HAVE_KQUEUE
+__fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, int flag)
+{
+	int mask;
+	char rpath[FLY_PATH_MAX];
+	fly_worker_t *__w;
+	int signum = 0;
 
+	if (fly_join_path(rpath, pf->parts->mount_path, pf->filename) == -1)
+		return -1;
+
+	mask = flag;
+	if (mask & NOTE_DELETE){
+		signum |= FLY_SIGNAL_DELF;
+		if (fly_inotify_rm_watch(pf, mask) == -1)
+			return -1;
+	}
+	if ((mask & NOTE_CLOSE_WRITE)){
+		signum |= FLY_SIGNAL_MODF;
+		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+			return -1;
+	}
+	if (mask & NOTE_ATTRIB){
+		signum |= FLY_SIGNAL_MODF;
+		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+			return -1;
+	}
+	if (mask & NOTE_EXTEND){
+		signum |= FLY_SIGNAL_MODF;
+		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+			return -1;
+	}
+	if (mask & NOTE_RENAME){
+		signum |= FLY_SIGNAL_MODF;
+		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+			return -1;
+	}
+
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &master->workers){
+		__w = fly_bllist_data(__b, struct fly_worker, blelem);
+		if (fly_send_signal(__w->pid, signum, pf->parts->mount_number) == -1)
+			return -1;
+	}
+	return 0;
+}
+#endif
+
+#ifdef HAVE_INOTIFY
 __fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, __fly_unused struct inotify_event *ie)
 {
 	int wd;
@@ -896,17 +984,39 @@ __fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, 
 
 	wd = ie->wd;
 	/* occurred in mount point directory */
-	parts = fly_wd_from_parts(wd, ctx->mount);
+	parts = fly_parts_from_wd(wd, ctx->mount);
 	if (parts)
 		return __fly_inotify_in_mp(master, parts, ie);
 
-	pf = fly_wd_from_mount(wd, ctx->mount);
+	pf = fly_pf_from_mount(wd, ctx->mount);
 	if (pf)
 		return __fly_inotify_in_pf(master, pf, ie);
 
 	return 0;
 }
+#elif defined HAVE_KQUEUE
+__fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, fly_event_t *__e)
+{
+	int fd;
 
+	fd = __e->fd;
+	fly_mount_parts_t *parts = NULL;
+	struct fly_mount_parts_file *pf = NULL;
+
+	/* occurred in mount point directory */
+	parts = fly_parts_from_fd(fd, ctx->mount);
+	if (parts)
+		return __fly_inotify_in_mp(master, parts, __e);
+
+	pf = fly_pf_from_mount(fd, ctx->mount);
+	if (pf)
+		return __fly_inotify_in_pf(master, pf, __e->eflag);
+
+	return 0;
+}
+#endif
+
+#ifdef HAVE_INOTIFY
 __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 {
 	int inofd, num_read;
@@ -949,15 +1059,29 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 	return 0;
 }
 
+#elif defined HAVE_KQUEUE
+
+static int __fly_master_inotify_handler(fly_event_t *e)
+{
+	fly_master_t *master;
+	fly_context_t *ctx;
+
+	master = (fly_master_t *) e->event_data;
+	ctx = master->context;
+	return __fly_inotify_handle(master, ctx, e);
+}
+
+#endif
+
 static int __fly_master_inotify_end_handler(fly_event_t *__e)
 {
 	return close(__e->fd);
 }
 
+
 __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_manager_t *manager)
 {
 	fly_event_t *e;
-	int inofd;
 	fly_context_t *ctx = master->context;
 
 	e = fly_event_init(manager);
@@ -967,10 +1091,11 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 	if (!ctx || !ctx->mount)
 		return -1;
 
+#ifdef HAVE_INOTIFY
+	int inofd;
 	inofd = inotify_init1(IN_CLOEXEC|IN_NONBLOCK);
 	if (inofd == -1)
 		return -1;
-
 	if (fly_mount_inotify(ctx->mount, inofd) == -1)
 		return -1;
 
@@ -990,6 +1115,15 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 	fly_event_inotify(e);
 
 	return fly_event_register(e);
+#else
+	if (fly_mount_inotify_kevent(
+			manager, ctx->mount, (void *) master, \
+			__fly_master_inotify_handler, \
+			__fly_master_inotify_end_handler
+		) == -1)
+		return -1;
+	return 0;
+#endif
 }
 
 bool fly_is_create_pidfile(void)
@@ -1010,20 +1144,29 @@ void fly_master_setreload(fly_master_t *master, const char *reload_filepath, boo
 }
 
 
+#ifdef HAVE_INOTIFY
 static struct fly_watch_path *__fly_search_wp(fly_master_t *__m, int wd)
+#else
+static struct fly_watch_path *__fly_search_wp(fly_master_t *__m, int fd)
+#endif
 {
 	struct fly_bllist *__b;
 	struct fly_watch_path *__wp;
 
 	fly_for_each_bllist(__b, &__m->reload_filepath){
 		__wp = (struct fly_watch_path *) fly_bllist_data(__b, struct fly_watch_path, blelem);
+#ifdef HAVE_INOTIFY
 		if (__wp->wd == wd)
+#else
+		if (__wp->fd == fd)
+#endif
 			return __wp;
 	}
 	return NULL;
 }
 
 /* reload fly server */
+#ifdef HAVE_INOTIFY
 static int __fly_reload(fly_master_t *__m, struct inotify_event *__ie)
 {
 	int wd;
@@ -1062,6 +1205,48 @@ static int __fly_reload(fly_master_t *__m, struct inotify_event *__ie)
 #endif
 }
 
+#elif HAVE_KQUEUE
+
+static int __fly_reload(fly_master_t *__m, int fd, int mask)
+{
+	struct fly_watch_path *__wp;
+
+	__wp = __fly_search_wp(__m, fd);
+	if (__wp == NULL)
+		return -1;
+
+	switch(mask){
+	case NOTE_DELETE:
+		break;
+	case NOTE_EXTEND:
+		break;
+	case NOTE_ATTRIB:
+		break;
+	case NOTE_CLOSE_WRITE:
+		break;
+	case NOTE_RENAME:
+		break;
+	default:
+		FLY_NOT_COME_HERE
+	}
+	fly_kill_workers(__m->context);
+	fly_notice_direct_log(
+		__m->context->log,
+		"Detected fly application update. Restart fly server.\n"
+	);
+
+	fly_master_release(__m);
+
+	/* jump to master process */
+#if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
+	siglongjmp(env, FLY_MASTER_RELOAD);
+#else
+	longjmp(env, FLY_MASTER_RELOAD);
+#endif
+}
+#endif
+
+#ifdef HAVE_INOTIFY
 static int __fly_master_reload_filepath_handler(fly_event_t *e)
 {
 #define FLY_INOTIFY_BUFSIZE(__c)			((__c)*sizeof(struct inotify_event)+NAME_MAX+1)
@@ -1092,11 +1277,28 @@ static int __fly_master_reload_filepath_handler(fly_event_t *e)
 	return __fly_reload(__m, __ie);
 }
 
+#elif defined HAVE_KQUEUE
+
+static int __fly_master_reload_filepath_handler(fly_event_t *e)
+{
+	fly_master_t *__m;
+	int fflags;
+
+	__m = (fly_master_t *) e->event_data;
+
+	/* trigger flag of event(ex. NOTE_EXTEND ) */
+	fflags = e->eflag;
+	return __fly_reload(__m, e->fd, fflags);
+}
+
+#endif
+
 static int __fly_master_reload_filepath_end_handler(fly_event_t *__e)
 {
 	return close(__e->fd);
 }
 
+#ifdef HAVE_INOTIFY
 static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_t *manager)
 {
 	if (master->reload_pathcount == 0 || !master->detect_reload)
@@ -1146,3 +1348,53 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 	fly_event_inotify(e);
 	return fly_event_register(e);
 }
+
+#elif defined HAVE_KQUEUE
+
+static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_t *manager)
+{
+	if (master->reload_pathcount == 0 || !master->detect_reload)
+		return 0;
+
+	int fd;
+	struct fly_bllist *__b;
+	struct fly_watch_path *__wp;
+	fly_event_t *e;
+
+	fly_for_each_bllist(__b, &master->reload_filepath){
+		__wp = (struct fly_watch_path *) fly_bllist_data(__b, struct fly_watch_path, blelem);
+		fd = open(__wp->path, O_RDONLY);
+		if (fd == -1)
+			return -1;
+		__wp->fd = fd;
+
+		e = fly_event_init(manager);
+		if (e == NULL)
+			return -1;
+
+		e->fd = fd;
+		e->read_or_write = FLY_KQ_INOTIFY;
+		e->flag = FLY_PERSISTENT;
+		e->tflag = FLY_INFINITY;
+		e->eflag = (NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_CLOSE_WRITE|NOTE_RENAME);
+		e->event_fase = NULL;
+		e->event_state = NULL;
+		e->expired = false;
+		e->available = false;
+		e->event_data = (void *) master;
+		e->if_fail_term = true;
+		e->fail_close = fly_master_default_fail_close;
+		e->end_handler = __fly_master_reload_filepath_end_handler;
+		FLY_EVENT_HANDLER(e, __fly_master_reload_filepath_handler);
+
+		fly_time_null(e->timeout);
+		fly_event_inotify(e);
+
+		if (fly_event_register(e) == -1)
+			return -1;
+	}
+
+	return 0;
+}
+
+#endif
