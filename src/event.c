@@ -19,8 +19,10 @@ static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e);
 __fly_static int __fly_event_cmp(void *k1, void *k2, void *);
 static void fly_event_handle(fly_event_t *e);
-static int __fly_event_kevent_signal(fly_event_t *__e);
 static int __fly_event_kevent_inotify(fly_event_t *__e);
+#ifdef HAVE_KQUEUE
+static void fly_timeout_spec_from_msec(struct timespec *spec, long msec);
+#endif
 
 __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx)
 {
@@ -185,6 +187,8 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	event->if_fail_term = false;
 
 #ifdef HAVE_KQUEUE
+	event->id = 0;
+	event->post_row = FLY_NO_POST_ROW;
 	if (sigemptyset(&event->sigset) == -1)
 		return NULL;
 #endif
@@ -287,6 +291,14 @@ int fly_event_register(fly_event_t *event)
 	}else{
 		/* delete & add (for changing timeout) */
 		if (fly_event_monitorable(event)){
+#ifdef HAVE_KQUEUE
+			if (event->post_row != FLY_NO_POST_ROW){
+				struct kevent __kev;
+				EV_SET(&__kev, event->fd, event->post_row, EV_DELETE, 0, 0, NULL);
+				if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
+					return -1;
+			}
+#endif
 			if (event->rbnode){
 #ifdef DEBUG
 				int ret;
@@ -350,19 +362,13 @@ int fly_event_register(fly_event_t *event)
 		fly_event_error_add(event, __err);
 	}
 #elif defined HAVE_KQUEUE
+	event->post_row = event->read_or_write;
 	if (fly_event_monitorable(event))
 	{
-
-		if (fly_event_is_signal(event)){
-			if (__fly_event_kevent_signal(event) == -1){
-				struct fly_err *__err;
-				__err = fly_event_err_init(
-					event, errno, FLY_ERR_ERR,
-					"signal kevent error in event_register."
-				);
-				fly_event_error_add(event, __err);
-			}
-		}else if (fly_event_is_inotify(event)){
+#ifdef DEBUG
+		assert(!fly_event_is_signal(event));
+#endif
+		if (fly_event_is_inotify(event)){
 			if (__fly_event_kevent_inotify(event) == -1){
 				struct fly_err *__err;
 				__err = fly_event_err_init(
@@ -595,21 +601,6 @@ __fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_
 			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
 			return 0;
 		}
-//		switch(tree->cmp(node->key, __t, NULL)){
-//		case FLY_RB_CMP_BIG:
-//			node = node->c_left;
-//			break;
-//		case FLY_RB_CMP_SMALL:
-//		case FLY_RB_CMP_EQUAL:
-//			/* __n right partial tree is expired */
-//			__e = (fly_event_t *) node->data;
-//			__e->expired = true;
-//			__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
-//			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
-//			return 0;
-//		default:
-//			FLY_NOT_COME_HERE
-//		}
 	}
 	return 0;
 }
@@ -706,6 +697,7 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 		fly_event->available_row = event->events;
 #elif defined HAVE_KQUEUE
 		fly_event = (fly_event_t *) event->udata;
+		fly_event->id = event->ident;
 		fly_event->eflag = event->fflags;
 		fly_event->available_row = fly_event->read_or_write;
 #endif
@@ -731,16 +723,27 @@ int fly_event_handler(fly_event_manager_t *manager)
 		return FLY_EVENT_HANDLER_INVALID_MANAGER;
 
 	for (;;){
-		int timeout_msec;
 		/* update event timeout */
 		__fly_update_event_timeout(manager);
 		near_timeout = __fly_nearest_event(manager);
+		int timeout_msec;
+#ifdef HAVE_KQUEUE
+		struct timespec timeout, *t_ptr;
+#endif
 		if (near_timeout){
 			timeout_msec = fly_milli_diff_time_from_now(&near_timeout->abs_timeout);
 			if (timeout_msec < 0)
 				timeout_msec = 0;
-		}else
+#if defined HAVE_KQUEUE
+			t_ptr = &timeout;
+			fly_timeout_spec_from_msec(t_ptr, timeout_msec);
+#endif
+		}else{
 			timeout_msec = -1;
+#if defined HAVE_KQUEUE
+			t_ptr = NULL;
+#endif
+		}
 
 #ifdef DEBUG
 		printf("WAITING FOR EVENT...\n");
@@ -750,9 +753,8 @@ int fly_event_handler(fly_event_manager_t *manager)
 		epoll_events = \
 				epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
 #elif defined HAVE_KQUEUE
-		struct timespec timeout;
 		epoll_events = \
-				kevent(manager->efd, NULL, 0, manager->evlist, manager->maxevents, &timeout);
+				kevent(manager->efd, NULL, 0, manager->evlist, manager->maxevents, t_ptr);
 #endif
 		switch(epoll_events){
 		case 0:
@@ -951,59 +953,27 @@ void fly_event_error_add(fly_event_t *e, struct fly_err *__err)
 
 #ifdef HAVE_KQUEUE
 /* for kevent/kqueue */
-static int __fly_event_kevent_signal(fly_event_t *__e)
-{
-	struct kevent __kev;
-
-#define FLY_KEVENT_SET(__kev, __e, __signum)				\
-	do{														\
-		EV_SET((__kev), (__signum), 	EVFILT_SIGNAL, EV_ADD, 0, 0, (void *) (__e)); \
-		if (kevent((__e)->manager->efd, (__kev), 1, NULL, 0, NULL) == -1) \
-			return -1; 												\
-	} while(0);
-
-
-	FLY_KEVENT_SET(&__kev, __e, SIGABRT);
-	FLY_KEVENT_SET(&__kev, __e, SIGALRM);
-	FLY_KEVENT_SET(&__kev, __e, SIGBUS);
-	FLY_KEVENT_SET(&__kev, __e, SIGCHLD);
-	FLY_KEVENT_SET(&__kev, __e, SIGCONT);
-	FLY_KEVENT_SET(&__kev, __e, SIGFPE);
-	FLY_KEVENT_SET(&__kev, __e, SIGHUP);
-	FLY_KEVENT_SET(&__kev, __e, SIGILL);
-	FLY_KEVENT_SET(&__kev, __e, SIGINFO);
-	FLY_KEVENT_SET(&__kev, __e, SIGINT);
-	FLY_KEVENT_SET(&__kev, __e, SIGPIPE);
-#ifdef SIGPOLL
-	FLY_KEVENT_SET(&__kev, __e, SIGPOLL);
-#endif
-	FLY_KEVENT_SET(&__kev, __e, SIGPROF);
-	FLY_KEVENT_SET(&__kev, __e, SIGQUIT);
-	FLY_KEVENT_SET(&__kev, __e, SIGSEGV);
-	FLY_KEVENT_SET(&__kev, __e, SIGTSTP);
-	FLY_KEVENT_SET(&__kev, __e, SIGSYS);
-	FLY_KEVENT_SET(&__kev, __e, SIGTERM);
-	FLY_KEVENT_SET(&__kev, __e, SIGTRAP);
-	FLY_KEVENT_SET(&__kev, __e, SIGTTIN);
-	FLY_KEVENT_SET(&__kev, __e, SIGTTOU);
-	FLY_KEVENT_SET(&__kev, __e, SIGURG);
-	FLY_KEVENT_SET(&__kev, __e, SIGUSR1);
-	FLY_KEVENT_SET(&__kev, __e, SIGUSR2);
-	FLY_KEVENT_SET(&__kev, __e, SIGVTALRM);
-	FLY_KEVENT_SET(&__kev, __e, SIGXCPU);
-	FLY_KEVENT_SET(&__kev, __e, SIGXFSZ);
-	FLY_KEVENT_SET(&__kev, __e, SIGWINCH);
-
-	for (int i=0; SIGRTMIN+i<SIGRTMAX; i++)
-		FLY_KEVENT_SET(&__kev, __e, i);
-	
-	return 0;
-}
-
 static int __fly_event_kevent_inotify(fly_event_t *__e)
 {
 	struct kevent __kev;
 	EV_SET(&__kev, __e->fd, EVFILT_VNODE, EV_ADD, __e->eflag, 0, (void *) __e);
 	return kevent(__e->manager->efd, &__kev, 1, NULL, 0, NULL);
+}
+#endif
+
+#ifdef HAVE_KQUEUE
+static void fly_timeout_spec_from_msec(struct timespec *spec, long msec)
+{
+#define FLY_ONE_SECOND				1000
+#define FLY_MSEC_TO_NSEC(__m)		((__m)*(1000*1000))
+	spec->tv_sec = 0;
+	spec->tv_nsec = 0;
+	while ((msec-FLY_ONE_SECOND) >= 0){
+		msec -= FLY_ONE_SECOND;
+		spec->tv_sec += 1;
+	}
+
+	spec->tv_nsec = FLY_MSEC_TO_NSEC(msec);
+	return;
 }
 #endif
