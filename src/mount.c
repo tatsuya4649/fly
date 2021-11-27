@@ -3,7 +3,6 @@
 #include <string.h>
 #include <limits.h>
 #include <sys/stat.h>
-#include <sys/sendfile.h>
 #include <errno.h>
 #include "mount.h"
 #include "alloc.h"
@@ -145,14 +144,18 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 
 	pool = parts->mount->ctx->pool;
 	pfile = fly_pballoc(pool, sizeof(struct fly_mount_parts_file));
+#ifdef HAVE_INOTIFY
 	pfile->fd = -1;
 	pfile->wd = -1;
+	pfile->infd = parts->infd;
+#elif defined HAVE_KQUEUE
+	pfile->event = NULL;
+#endif
 	memset(pfile->filename, '\0', FLY_PATHNAME_MAX);
 	pfile->filename_len = 0;
 	memcpy(&pfile->fs, sb, sizeof(struct stat));
 	pfile->parts = parts;
 	pfile->mime_type = NULL;
-	pfile->infd = parts->infd;
 	pfile->de = NULL;
 	pfile->encode_type = FLY_MOUNT_DEFAULT_ENCODE_TYPE;
 	pfile->encoded = false;
@@ -163,7 +166,11 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 	return pfile;
 }
 
+#ifdef HAVE_INOTIFY
 __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const char *mount_point, int infd)
+#else
+__fly_static int __fly_nftw(fly_event_t *event, fly_mount_parts_t *parts, const char *path, const char *mount_point, int infd)
+#endif
 {
 	DIR *__pathd;
 	struct fly_mount_parts_file *pfile;
@@ -195,7 +202,13 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 			continue;
 		/* recursion */
 		if (S_ISDIR(sb.st_mode))
+#ifdef HAVE_INOTIFY
 			if (__fly_nftw(parts, __path, mount_point, infd) == -1)
+#elif defined HAVE_KQUEUE
+			if (__fly_nftw(event, parts, __path, mount_point, infd) == -1)
+#else
+#error  not found inotify or kqueue on your system
+#endif
 				goto error;
 
 		pfile = fly_pf_init(parts, &sb);
@@ -210,6 +223,7 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 		printf("%s: %s\n", pfile->dir ? "DIR": "FILE", pfile->filename);
 #endif
 		pfile->mime_type = fly_mime_type_from_path_name(__path);
+#ifdef HAVE_INOTIFY
 		if (infd >= 0){
 			if (strcmp(path, mount_point) == 0)
 				pfile->wd = inotify_add_watch(infd, __path, FLY_INOTIFY_WATCH_FLAG_MP);
@@ -219,6 +233,11 @@ __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const ch
 				goto error;
 		}else
 			pfile->wd = -1;
+#elif defined HAVE_KQUEUE
+		if (event != NULL && \
+				fly_inotify_kevent_event(event, pfile) == -1)
+			return -1;
+#endif
 
 		if (fly_hash_from_parts_file_path(__path, pfile) == -1)
 			goto error;
@@ -264,15 +283,25 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	__fly_mount_path_cpy(parts->mount_path, rpath);
 	parts->mount_number = mnt->mount_count;
 	parts->mount = mnt;
+#ifdef HAVE_INOTIFY
 	parts->wd = -1;
 	parts->infd = -1;
+#elif defined HAVE_KQUEUE
+	parts->fd = -1;
+#endif
 	parts->pool = pool;
 	parts->file_count = 0;
 	fly_bllist_init(&parts->files);
 
 	if (__fly_mount_add(mnt, parts) == -1)
 		goto error;
+#ifdef HAVE_INOTIFY
 	if (__fly_nftw(parts, rpath, rpath, -1) == -1)
+#elif HAVE_KQUEUE
+	if (__fly_nftw(NULL, parts, rpath, rpath, -1) == -1)
+#else
+#error not found inotify or kqueue on your system.
+#endif
 		goto error;
 
 	return 0;
@@ -414,6 +443,7 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mou
 	FLY_NOT_COME_HERE
 }
 
+#ifdef HAVE_INOTIFY
 int fly_mount_inotify(fly_mount_t *mount, int ifd)
 {
 	struct fly_bllist *__b, *__pfb;
@@ -450,6 +480,103 @@ int fly_mount_inotify(fly_mount_t *mount, int ifd)
 	}
 	return 0;
 }
+
+#elif defined HAVE_KQUEUE
+#include "event.h"
+
+int __fly_mount_inotify_kevent_dir(
+	struct fly_mount_parts *parts,
+	fly_event_manager_t *__m, int fd, void *data,
+	fly_event_handler_t *handler,
+	fly_event_handler_t *end_handler
+)
+{
+	struct fly_event *__e;
+
+	__e = fly_event_init(__m);
+	__e->fd = fd;
+	__e->read_or_write = FLY_KQ_INOTIFY;
+	fly_time_null(__e->timeout);
+	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_LINK;
+	__e->flag = FLY_PERSISTENT;
+	__e->tflag = FLY_INFINITY;
+	__e->event_data = data;
+	FLY_EVENT_HANDLER(__e, handler);
+	fly_event_inotify(__e);
+	__e->end_handler = end_handler;
+
+	parts->event = __e;
+	
+	return fly_event_register(__e);
+}
+
+int __fly_mount_inotify_kevent_file(
+	struct fly_mount_parts_file *__pf,
+	fly_event_manager_t *__m, int fd, void *data,
+	fly_event_handler_t *handler,
+	fly_event_handler_t *end_handler
+)
+{
+	struct fly_event *__e;
+
+	__e = fly_event_init(__m);
+	__e->fd = fd;
+	fly_time_null(__e->timeout);
+	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_CLOSE_WRITE|NOTE_RENAME;
+	__e->flag = FLY_PERSISTENT;
+	__e->tflag = FLY_INFINITY;
+	__e->event_data = data;
+	FLY_EVENT_HANDLER(__e, handler);
+	fly_event_inotify(__e);
+	__e->end_handler = end_handler;
+
+	__pf->event = __e;
+	return fly_event_register(__e);
+}
+
+int fly_mount_inotify_kevent(
+	fly_event_manager_t *manager, fly_mount_t *mount, void *data,
+	fly_event_handler_t *handler, fly_event_handler_t *end_handler
+)
+{
+	struct fly_bllist *__b, *__pfb;
+	fly_mount_parts_t *parts;
+	struct fly_mount_parts_file *__pf;
+
+	fly_for_each_bllist(__b, &mount->parts){
+		parts = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
+
+		int fd;
+		fd = open(parts->mount_path, O_DIRECTORY|O_RDONLY);
+		if (fd == -1)
+			return -1;
+
+		if (__fly_mount_inotify_kevent_dir( \
+				parts, manager, fd, data, handler, end_handler) == -1)
+			return -1;
+
+		if (parts->file_count == 0)
+			continue;
+		/* inotify add watch file */
+		fly_for_each_bllist(__pfb, &parts->files){
+			__pf = fly_bllist_data(__pfb, struct fly_mount_parts_file, blelem);
+			int pfd;
+			char rpath[FLY_PATH_MAX];
+
+			if (fly_join_path(rpath, parts->mount_path, __pf->filename) == -1)
+				continue;
+			pfd = open(rpath, O_RDONLY);
+			if (pfd == -1)
+				return -1;
+
+			if (__fly_mount_inotify_kevent_file( \
+					__pf, manager, pfd, data, handler, end_handler) == -1)
+				return -1;
+		}
+	}
+	return 0;
+}
+#endif
 
 struct fly_mount_parts_file *fly_pf_from_parts(char *path, size_t path_len, fly_mount_parts_t *parts)
 {
@@ -489,7 +616,8 @@ struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount
 	return fly_pf_from_parts(__path, strlen(path), parts);
 }
 
-struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts)
+#ifdef HAVE_INOTIFY
+struct fly_mount_parts_file *fly_pf_from_wd(int wd, fly_mount_parts_t *parts)
 {
 	struct fly_mount_parts_file *__pf;
 	struct fly_bllist *__b;
@@ -504,8 +632,26 @@ struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts)
 	}
 	return NULL;
 }
+#elif defined HAVE_KQUEUE
+struct fly_mount_parts_file *fly_pf_from_fd(int fd, fly_mount_parts_t *parts)
+{
+	struct fly_mount_parts_file *__pf;
+	struct fly_bllist *__b;
 
-struct fly_mount_parts_file *fly_wd_from_mount(int wd, fly_mount_t *mnt)
+	if (parts->file_count == 0)
+		return NULL;
+
+	fly_for_each_bllist(__b, &parts->files){
+		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
+		if (__pf->fd == fd)
+			return __pf;
+	}
+	return NULL;
+}
+#endif
+
+#ifdef HAVE_INOTIFY
+struct fly_mount_parts_file *fly_pf_from_mount(int wd, fly_mount_t *mnt)
 {
 	fly_mount_parts_t *__p;
 	struct fly_mount_parts_file *pf;
@@ -522,8 +668,28 @@ struct fly_mount_parts_file *fly_wd_from_mount(int wd, fly_mount_t *mnt)
 	}
 	return NULL;
 }
+#elif HAVE_KQUEUE
+struct fly_mount_parts_file *fly_mount_from_fd(int fd, fly_mount_t *mnt)
+{
+	fly_mount_parts_t *__p;
+	struct fly_mount_parts_file *pf;
+	struct fly_bllist *__b;
 
-fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt)
+	if (mnt->mount_count == 0)
+		return NULL;
+
+	fly_for_each_bllist(__b, &mnt->parts){
+		__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
+		pf = fly_pf_from_fd(fd, __p);
+		if (pf)
+			return pf;
+	}
+	return NULL;
+}
+#endif
+
+#ifdef HAVE_INOTIFY
+fly_mount_parts_t *fly_parts_from_wd(int wd, fly_mount_t *mnt)
 {
 	fly_mount_parts_t *__p;
 	struct fly_bllist *__b;
@@ -538,7 +704,25 @@ fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt)
 	}
 	return NULL;
 }
+#endif
 
+fly_mount_parts_t *fly_parts_from_fd(int fd, fly_mount_t *mnt)
+{
+	fly_mount_parts_t *__p;
+	struct fly_bllist *__b;
+
+	if (mnt->mount_count == 0)
+		return NULL;
+
+	fly_for_each_bllist(__b, &mnt->parts){
+		__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
+		if (__p->fd == fd)
+			return __p;
+	}
+	return NULL;
+}
+
+#ifdef HAVE_INOTIFY
 int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
 {
 	struct fly_mount_parts_file *__npf;
@@ -574,6 +758,95 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
 	}
 	return 0;
 }
+#elif HAVE_KQUEUE
+
+int fly_inotify_kevent_event(fly_event_t *e, struct fly_mount_parts_file *pf)
+{
+	int fd;
+	fly_event_t *__e;
+
+	fd = open(pf->filename, O_RDONLY);
+	if (fd == -1)
+		return -1;
+
+	__e = fly_event_init(e->manager);
+	__e->fd = fd;
+	__e->read_or_write = FLY_KQ_INOTIFY;
+	fly_time_null(__e->timeout);
+	if (pf->dir)
+		__e->eflag = FLY_INOTIFY_WATCH_FLAG_MP;
+	else
+		__e->eflag = FLY_INOTIFY_WATCH_FLAG_PF;
+	FLY_EVENT_HANDLER(__e, e->handler);
+	__e->end_handler = e->end_handler;
+	fly_event_inotify(__e);
+	pf->event = __e;
+	return fly_event_register(__e);
+}
+
+static int __fly_same_direntry(fly_mount_parts_t *parts, struct dirent *__de)
+{
+	struct fly_mount_parts_file *__npf;
+	struct fly_bllist *__b;
+
+	fly_for_each_bllist(__b, &parts->files){
+		__npf = (struct fly_mount_parts_file *) fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
+		/* if same entry, continue */
+		if (strncmp(__de->d_name, __npf->filename, strlen(__de->d_name)) == 0)
+			return 1;
+	}
+	return 0;
+}
+
+int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
+{
+	DIR *__d;
+	struct dirent *__de;
+	char rpath[FLY_PATH_MAX];
+	struct fly_mount_parts_file *__npf;
+
+	__d = opendir(parts->mount_path);
+	if (__d == NULL)
+		return -1;
+
+	while((__de=readdir(__d)) != NULL){
+		if (__fly_same_direntry(parts, __de))
+			continue;
+
+		if (fly_join_path(rpath, parts->mount_path, __de->d_name) == -1)
+			return -1;
+
+		if (fly_isdir(rpath)){
+			if (__fly_nftw(__e, parts, (const char *) rpath, parts->mount_path, parts->fd) == -1)
+				return -1;
+		}else{
+			struct stat sb;
+
+			if (stat(rpath, &sb) == -1)
+				return -1;
+
+			__npf = fly_pf_init(parts, &sb);
+			if (fly_unlikely_null(__npf))
+				return -1;
+
+			__npf->parts = parts;
+			__fly_path_cpy_with_mp(__npf->filename, rpath, (const char *) parts->mount_path, FLY_PATH_MAX);
+			__npf->filename_len = strlen(__npf->filename);
+			if (fly_hash_from_parts_file_path(rpath, __npf) == -1)
+				return -1;
+
+			/* event of kevent make */
+			if (fly_inotify_kevent_event(__e, __npf) == -1)
+				return -1;
+
+			__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __npf, (void *) __npf->filename, &__npf->rbnode, (void *) strlen(__npf->filename));
+			fly_parts_file_add(parts, __npf);
+			parts->mount->file_count++;
+		}
+	}
+	return 0;
+}
+#endif
 
 __fly_unused static int __fly_samedir_cmp(char *s1, char *s2)
 {
@@ -589,6 +862,7 @@ __fly_unused static int __fly_samedir_cmp(char *s1, char *s2)
 	return -1;
 }
 
+#ifdef HAVE_INOTIFY
 int fly_inotify_rmmp(fly_mount_parts_t *parts)
 {
 	struct fly_bllist *__b;
@@ -614,7 +888,9 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 		return -1;
 	return 0;
 }
+#endif
 
+#ifdef HAVE_INOTIFY
 int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, int mask)
 {
 	/* remove mount point elements */
@@ -635,6 +911,31 @@ int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, 
 	parts->mount->file_count--;
 	return 0;
 }
+#elif HAVE_KQUEUE
+int fly_inotify_rm_watch(struct fly_mount_parts_file *pf, int mask __fly_unused)
+{
+#ifdef DEBUG
+	assert(pf != NULL);
+#endif
+	struct fly_mount *__m;
+	/* remove mount point elements */
+	if (pf->parts->file_count == 0)
+		return -1;
+
+	__m = pf->parts->mount;
+	
+	if (close(pf->fd) == -1)
+		return -1;
+
+	pf->event->flag = FLY_CLOSE_EV;
+	if (fly_event_unregister(pf->event) == -1)
+		return -1;
+
+	fly_parts_file_remove(pf->parts, pf);
+	__m->file_count--;
+	return 0;
+}
+#endif
 
 int fly_mount_files_count(fly_mount_t *mnt, int mount_number)
 {

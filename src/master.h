@@ -1,6 +1,7 @@
 #ifndef _MASTER_H
 #define _MASTER_H
 
+#include "util.h"
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,7 +10,13 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/resource.h>
+#ifdef HAVE_INOTIFY
 #include <sys/inotify.h>
+#elif HAVE_KQUEUE
+#include <sys/event.h>
+#else
+#error	not found inotify or kqueue on your system.
+#endif
 #include "fsignal.h"
 #include "conf.h"
 #include "alloc.h"
@@ -41,7 +48,11 @@ struct fly_master{
 };
 
 struct fly_watch_path{
+#ifdef HAVE_INOTIFY
 	int							wd;
+#elif defined HAVE_KQUEUE
+	int							fd;
+#endif
 	const char					*path;
 	struct fly_bllist			blelem;
 	fly_bit_t					configure:1;

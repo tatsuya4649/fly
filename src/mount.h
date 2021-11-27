@@ -26,8 +26,12 @@
 #define FLY_MOUNT_DEFAULT_ENCODE_TYPE			fly_gzip
 struct fly_mount_parts_file{
 	int						fd;
+#ifdef HAVE_INOTIFY
 	int 					wd;
 	int 					infd;
+#elif HAVE_KQUEUE
+	struct fly_event		*event;
+#endif
 	struct stat				fs;
 	char					filename[FLY_PATH_MAX];
 	size_t					filename_len;
@@ -47,10 +51,17 @@ struct fly_mount_parts_file{
 };
 
 struct fly_mount_parts{
+#ifdef HAVE_INOTIFY
 	int						wd;
 	int 					infd;
+#elif defined HAVE_KQUEUE
+	int						fd;
+#endif
 	char					mount_path[FLY_PATH_MAX];
 	int						mount_number;
+#ifdef HAVE_KQUEUE
+	struct fly_event 		*event;
+#endif
 
 	struct fly_bllist		files;
 	int						file_count;
@@ -88,24 +99,47 @@ int fly_mount_files_count(fly_mount_t *mnt, int mount_number);
 char *fly_content_from_path(int mount_number, char *filepath);
 int fly_join_path(char *buffer, char *join1, char *join2);
 
+#ifdef HAVE_INOTIFY
 int fly_mount_inotify(fly_mount_t *mount, int ifd);
+#elif defined HAVE_KQUEUE
+int fly_mount_inotify_kevent(fly_event_manager_t *manager, fly_mount_t *mount, void *data, fly_event_handler_t *handler, fly_event_handler_t *end_handler);
+int fly_inotify_kevent_event(fly_event_t *event, struct fly_mount_parts_file *pf);
+#endif
 void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *sb);
 
 struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts);
-fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt);
-struct fly_mount_parts_file *fly_wd_from_mount(int wd, fly_mount_t *mnt);
+fly_mount_parts_t *fly_parts_from_wd(int wd, fly_mount_t *mnt);
+fly_mount_parts_t *fly_parts_from_fd(int fd, fly_mount_t *mnt);
+#ifdef HAVE_INOTIFY
+struct fly_mount_parts_file *fly_pf_from_mount(int wd, fly_mount_t *mnt);
+#elif defined HAVE_KQUEUE
+struct fly_mount_parts_file *fly_pf_from_mount(int fd, fly_mount_t *mnt);
+#endif
+#ifdef HAVE_INOTIFY
 int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len);
+#elif defined HAVE_KQUEUE
+int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e);
+#endif
 #define FLY_INOTIFY_RM_WATCH_PF				(1<<0)
 #define FLY_INOTIFY_RM_WATCH_MP				(1<<1)
 #define FLY_INOTIFY_RM_WATCH_IGNORED		(1<<2)
 #define FLY_INOTIFY_RM_WATCH_DELETED		(1<<3)
 
+#ifdef HAVE_INOTIFY
 int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, int mask);
+#elif defined HAVE_KQUEUE
+int fly_inotify_rm_watch(struct fly_mount_parts_file *pf, int mask);
+#endif
 int fly_inotify_rmmp(fly_mount_parts_t *parts);
 
+#ifdef HAVE_INOTIFY
 #define FLY_INOTIFY_WATCH_FLAG_PF	(IN_MODIFY|IN_ATTRIB)
 #define FLY_INOTIFY_WATCH_FLAG_MP	(IN_CREATE|IN_DELETE_SELF|IN_DELETE|IN_MOVE|IN_MOVE_SELF|IN_ONLYDIR)
+#elif defined HAVE_KQUEUE
+#define FLY_INOTIFY_WATCH_FLAG_MP	(NOTE_DELETE|NOTE_EXTEND|NOTE_LINK)
+#define FLY_INOTIFY_WATCH_FLAG_PF	(NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_CLOSE_WRITE|NOTE_RENAME)
+#endif
 #define FLY_NUMBER_OF_INOBUF				(100)
 #define is_fly_myself(ie)				((ie)->len == 0)
 
