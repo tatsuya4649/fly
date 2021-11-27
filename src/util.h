@@ -82,4 +82,6 @@ int fly_daemon(struct fly_context *ctx);
 #undef FLY_GCC_COMPILER
 #endif
 
+ssize_t fly_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
+
 #endif

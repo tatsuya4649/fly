@@ -405,7 +405,7 @@ AC_LINK_IFELSE([
 ])
 
 # Checks for header files.
-AC_CHECK_HEADERS([openssl/ssl.h openssl/md5.h zlib.h arpa/inet.h fcntl.h inttypes.h netdb.h netinet/in.h stdint.h sys/ioctl.h sys/socket.h sys/time.h unistd.h setjmp.h])
+AC_CHECK_HEADERS([openssl/ssl.h openssl/md5.h zlib.h arpa/inet.h fcntl.h inttypes.h netdb.h netinet/in.h stdint.h sys/ioctl.h sys/socket.h sys/time.h unistd.h setjmp.h sys/sendfile.h])
 
 if test "$ac_cv_header_openssl_ssl_h" = "no"; then
 	AC_MSG_ERROR(not found openssl/ssl.h on your system.)
