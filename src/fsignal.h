@@ -18,17 +18,9 @@ struct fly_orig_signal{
 };
 
 #ifdef HAVE_SIGNALFD
-typedef struct signalfd_siginfo fly_signalinfo_t;
+typedef struct signalfd_siginfo 	fly_siginfo_t;
 #elif defined HAVE_KQUEUE
-struct fly_siginfo_t{
-	uint32_t 		ssi_signo;
-	int32_t			ssi_code;
-	int32_t			ssi_status;
-	uint32_t		ssi_pid;
-	int 			ssi_int;
-	uint64_t 		ssi_ptr;
-};
-typedef struct fly_siginfo_t fly_siginfo_t;
+typedef struct __siginfo			fly_siginfo_t;
 #else
 #error not found signalfd or kqueue on your system.
 #endif

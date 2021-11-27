@@ -166,6 +166,28 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 	return pfile;
 }
 
+#ifdef DEBUG
+static void __fly_mount_debug(struct fly_mount *mnt)
+{
+	struct fly_bllist *__b, *__pb;
+	struct fly_mount_parts *__p;
+	struct fly_mount_parts_file *__pf;
+
+	printf("MOUNT DEBUG:\n");
+	fly_for_each_bllist(__b, &mnt->parts)
+	{
+		__p = fly_bllist_data(__b, struct fly_mount_parts, mbelem);
+		printf("\tMOUNT POINT[%d]: %s(file count: %d)\n", __p->mount_number, __p->mount_path, __p->file_count);
+
+		fly_for_each_bllist(__pb, &__p->files)
+		{
+			__pf = fly_bllist_data(__pb, struct fly_mount_parts_file, blelem);
+			printf("\t\t%s: %s\n", __pf->dir ? "DIR ": "FILE", __pf->filename);
+		}
+	}
+}
+#endif
+
 #ifdef HAVE_INOTIFY
 __fly_static int __fly_nftw(fly_mount_parts_t *parts, const char *path, const char *mount_point, int infd)
 #else
@@ -231,12 +253,13 @@ __fly_static int __fly_nftw(fly_event_t *event, fly_mount_parts_t *parts, const 
 				pfile->wd = inotify_add_watch(infd, __path, FLY_INOTIFY_WATCH_FLAG_PF);
 			if (pfile->wd == -1)
 				goto error;
-		}else
+		}else{
 			pfile->wd = -1;
+		}
 #elif defined HAVE_KQUEUE
 		if (event != NULL && \
 				fly_inotify_kevent_event(event, pfile) == -1)
-			return -1;
+			goto error;
 #endif
 
 		if (fly_hash_from_parts_file_path(__path, pfile) == -1)
@@ -304,6 +327,9 @@ int fly_mount(fly_context_t *ctx, const char *path)
 #endif
 		goto error;
 
+#ifdef DEBUG
+	__fly_mount_debug(mnt);
+#endif
 	return 0;
 error:
 	fly_pbfree(pool, parts);
@@ -669,7 +695,7 @@ struct fly_mount_parts_file *fly_pf_from_mount(int wd, fly_mount_t *mnt)
 	return NULL;
 }
 #elif HAVE_KQUEUE
-struct fly_mount_parts_file *fly_mount_from_fd(int fd, fly_mount_t *mnt)
+struct fly_mount_parts_file *fly_pf_from_mount(int fd, fly_mount_t *mnt)
 {
 	fly_mount_parts_t *__p;
 	struct fly_mount_parts_file *pf;

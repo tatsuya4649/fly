@@ -965,9 +965,6 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 		/**/
 		if (!req->receive_status_line){
 			/* CRLF in buffer */
-#ifdef DEBUG
-			printf("RECV STATUS_LINE[\\r\\n]: %s\n", (char *) fly_buffer_first_useptr(__buf));
-#endif
 			if(fly_buffer_strstr(fly_buffer_first_chain(__buf), FLY_CRLF)){
 				req->receive_status_line = true;
 				__gc = true;
@@ -983,7 +980,7 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 			/* CRLF in buffer */
 #define FLY_END_OF_HEADER				("\r\n\r\n")
 #ifdef DEBUG
-			printf("RECV HEADER[\\r\\n\\r\\n]:\n%s\n", (char *) fly_buffer_first_useptr(__buf));
+			printf("RECV HEADER[\\r\\n\\r\\n]:\n%*.s\n", recvlen, (char *) fly_buffer_first_useptr(__buf));
 #endif
 			if(fly_buffer_strstr(fly_buffer_first_chain(__buf), FLY_END_OF_HEADER) != NULL){
 				req->receive_header = true;
