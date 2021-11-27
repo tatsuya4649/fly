@@ -34,7 +34,7 @@ extern fly_pool_t *fly_event_pool;
 #elif defined HAVE_KQUEUE
 #define FLY_READ		EVFILT_READ
 #define FLY_WRITE		EVFILT_WRITE
-#define FLY_KQ_SIGNAL	(1<<3)
+//#define FLY_KQ_SIGNAL	(1<<3)
 #define FLY_KQ_INOTIFY	(1<<4)
 #endif
 
@@ -84,7 +84,15 @@ struct fly_err;
 struct fly_event{
 	fly_event_manager_t				*manager;
 	int								fd;
+#ifdef HAVE_KQUEUE
+	int								id;
+#endif
 	int								read_or_write;
+#ifdef HAVE_KQUEUE
+	/* for saving previous read_or_write */
+	int								post_row;
+#define FLY_NO_POST_ROW			-1
+#endif
 	int 							available_row;
 	int 							eflag;
 
