@@ -86,6 +86,9 @@ struct fly_err;
 struct fly_event{
 	fly_event_manager_t				*manager;
 	int								fd;
+#ifdef DEBUG
+	int 						post_fd;
+#endif
 #ifdef HAVE_KQUEUE
 	int								id;
 #endif
