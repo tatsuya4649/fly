@@ -33,6 +33,7 @@ static struct fly_watch_path *__fly_search_wp(fly_master_t *__m, int wd);
 static void __fly_master_set_orig_sighandler(fly_master_t *__m);
 static int __fly_master_get_now_sighandler(fly_master_t *__m);
 static int fly_master_default_fail_close(fly_event_t *e, int fd);
+void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 #if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
 static sigjmp_buf env;
@@ -45,7 +46,7 @@ fly_signal_t fly_master_signals[] = {
 	FLY_SIGNAL_SETTING(SIGINT,	NULL),
 	FLY_SIGNAL_SETTING(SIGTERM, NULL),
 	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
-
+	FLY_SIGNAL_SETTING(SIGUSR1, fly_master_notice_worker_daemon_pid),
 };
 
 
@@ -327,10 +328,10 @@ void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info
 	}
 }
 
-static void fly_master_rtsignal_added(fly_context_t *ctx)
-{
-	fly_add_master_sig(ctx, FLY_NOTICE_WORKER_DAEMON_PID, fly_master_notice_worker_daemon_pid);
-}
+//static void fly_master_rtsignal_added(fly_context_t *ctx)
+//{
+//	fly_add_master_sig(ctx, FLY_NOTICE_WORKER_DAEMON_PID, fly_master_notice_worker_daemon_pid);
+//}
 
 __fly_static int __fly_master_signal_handler(fly_event_t *e)
 {
@@ -369,7 +370,7 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 
 	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++)
 		fly_add_master_sig(ctx, fly_master_signals[i].number, fly_master_signals[i].handler);
-	fly_master_rtsignal_added(ctx);
+//	fly_master_rtsignal_added(ctx);
 
 	if (sigfillset(&master_set) == -1)
 		return -1;
@@ -428,7 +429,7 @@ __fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *
 
 	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++)
 		fly_add_master_sig(ctx, fly_master_signals[i].number, fly_master_signals[i].handler);
-	fly_master_rtsignal_added(ctx);
+//	fly_master_rtsignal_added(ctx);
 
 	__mptr = master;
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGABRT);
@@ -970,45 +971,47 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 {
 	/* ie->len includes null terminate */
 	int mask;
-	int signum = 0;
+	int mod = 0;
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
 
 	mask = ie->mask;
 	if (mask & IN_CREATE){
-		signum |= FLY_SIGNAL_ADDF;
+		mod |= FLY_SIGNAL_ADDF;
 		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
 	}
 	if (mask & IN_DELETE){
-		signum |= FLY_SIGNAL_DELF;
+		mod |= FLY_SIGNAL_DELF;
 		if (fly_inotify_rm_watch(parts, ie->name, ie->len-1, mask) == -1)
 			return -1;
 	}
 	if (mask & IN_DELETE_SELF){
-		signum |= FLY_SIGNAL_UMOU;
+		mod |= FLY_SIGNAL_UMOU;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVED_FROM){
-		signum |= FLY_SIGNAL_DELF;
+		mod |= FLY_SIGNAL_DELF;
 		if (fly_inotify_rm_watch(parts, ie->name, ie->len-1, mask) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVED_TO){
-		signum |= FLY_SIGNAL_ADDF;
+		mod |= FLY_SIGNAL_ADDF;
 		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVE_SELF){
-		signum |= FLY_SIGNAL_UMOU;
+		mod |= FLY_SIGNAL_UMOU;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 	}
 
 	fly_for_each_bllist(__b, &master->workers){
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
-		if (fly_send_signal(__w->pid, signum, parts->mount_number) == -1)
+		int send_value;
+		FLY_CHANGE_MNT_SIGNAL(&send_value, mod, &parts->mount_number);
+		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, send_value) == -1)
 			return -1;
 	}
 
@@ -1017,7 +1020,7 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #elif defined HAVE_KQUEUE
 __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, fly_event_t *__e)
 {
-	int signum = 0;
+	int mod = 0;
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
 	int mask;
@@ -1025,14 +1028,16 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	mask = __e->eflag;
 	/* create new file */
 	if (mask & NOTE_EXTEND){
-		signum |= FLY_SIGNAL_ADDF;
+		mod |= FLY_SIGNAL_ADDF;
 		if (fly_inotify_add_watch(parts, __e) == -1)
 			return -1;
 	}
 
 	fly_for_each_bllist(__b, &master->workers){
+		int send_value;
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
-		if (fly_send_signal(__w->pid, signum, parts->mount_number) == -1)
+		FLY_CHANGE_MNT_SIGNAL(&send_value, mod, &parts->mount_number);
+		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, send_value) == -1)
 			return -1;
 	}
 
