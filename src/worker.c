@@ -43,6 +43,7 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx);
 #define FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR			-4
 #define FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_UNKNOWN_RETURN	-5
 __fly_static int __fly_worker_open_default_content(fly_context_t *ctx);
+static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info);
 
 
 #define FLY_WORKER_SIG_COUNT				(sizeof(fly_worker_signals)/sizeof(fly_signal_t))
@@ -55,6 +56,7 @@ static fly_signal_t fly_worker_signals[] = {
 	FLY_SIGNAL_SETTING(SIGTERM, NULL),
 	FLY_SIGNAL_SETTING(SIGPIPE, FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
+	FLY_SIGNAL_SETTING(FLY_SIGNAL_CHANGE_MNT_CONTENT, fly_worker_signal_change_mnt_content),
 };
 
 /*
@@ -435,13 +437,13 @@ static int __fly_notice_master_now_pid(fly_worker_t *__w)
 	);
 }
 
-static void fly_worker_rtsig_added(fly_context_t *ctx)
-{
-	fly_add_worker_sig(ctx, FLY_SIGNAL_MODF, FLY_SIGNAL_MODF_HANDLER);
-	fly_add_worker_sig(ctx, FLY_SIGNAL_ADDF, FLY_SIGNAL_ADDF_HANDLER);
-	fly_add_worker_sig(ctx, FLY_SIGNAL_DELF, FLY_SIGNAL_DELF_HANDLER);
-	fly_add_worker_sig(ctx, FLY_SIGNAL_UMOU, FLY_SIGNAL_UMOU_HANDLER);
-}
+//static void fly_worker_rtsig_added(fly_context_t *ctx)
+//{
+//	fly_add_worker_sig(ctx, FLY_SIGNAL_MODF, FLY_SIGNAL_MODF_HANDLER);
+//	fly_add_worker_sig(ctx, FLY_SIGNAL_ADDF, FLY_SIGNAL_ADDF_HANDLER);
+//	fly_add_worker_sig(ctx, FLY_SIGNAL_DELF, FLY_SIGNAL_DELF_HANDLER);
+//	fly_add_worker_sig(ctx, FLY_SIGNAL_UMOU, FLY_SIGNAL_UMOU_HANDLER);
+//}
 
 #ifdef HAVE_SIGNALFD
 
@@ -465,7 +467,7 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 
 	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++)
 		fly_add_worker_sig(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler);
-	fly_worker_rtsig_added(ctx);
+//	fly_worker_rtsig_added(ctx);
 
 	int sigfd;
 	sigfd = fly_signal_register(&sset);
@@ -521,7 +523,7 @@ __fly_static int __fly_worker_signal(fly_worker_t *worker, fly_event_manager_t *
 
 	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++)
 		fly_add_worker_sig(ctx, fly_master_signals[i].number, fly_master_signals[i].handler);
-	fly_worker_rtsig_added(ctx);
+//	fly_worker_rtsig_added(ctx);
 
 	__wptr = worker;
 	FLY_KQUEUE_WORKER_SIGNALSET(SIGABRT);
@@ -995,4 +997,52 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 const char *fly_default_content_path(void)
 {
 	return (const char *) fly_config_value_str(FLY_DEFAULT_CONTENT_PATH);
+}
+
+static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
+{
+	int sigvalue, mount_number, change_content;
+
+#ifdef HAVE_SIGNALFD
+	sigvalue = info->ssi_int;
+#else
+	sigvalue = info->si_value.sival_int;
+#endif
+
+#ifdef WORDS_BIGENDIAN
+#define FLY_CHANGE_MNT_FROM_SIGNAL(__v, __mn, __c)	\
+	do{												\
+		char *__ptr = (char *) __v;					\
+		*__c = *__ptr;								\
+		*__ptr = 0;									\
+		*__mn = *__ptr;								\
+	} while(0)
+#else
+#define FLY_CHANGE_MNT_FROM_SIGNAL(__v, __mn, __c)	\
+	do{												\
+		char *__ptr = (char *) __v;					\
+		*__c = *(__ptr+(sizeof(int)-1));			\
+		*(__ptr+(sizeof(int)-1)) = 0;				\
+		*__mn = *__ptr;								\
+	} while(0)
+#endif
+
+	FLY_CHANGE_MNT_FROM_SIGNAL(&sigvalue, &mount_number, &change_content);
+	switch (change_content){
+	case FLY_SIGNAL_MODF:
+		FLY_SIGNAL_MODF_HANDLER(ctx, info);
+		break;
+	case FLY_SIGNAL_ADDF:
+		FLY_SIGNAL_ADDF_HANDLER(ctx, info);
+		break;
+	case FLY_SIGNAL_DELF:
+		FLY_SIGNAL_DELF_HANDLER(ctx, info);
+		break;
+	case FLY_SIGNAL_UMOU:
+		FLY_SIGNAL_UMOU_HANDLER(ctx, info);
+		break;
+	default:
+		FLY_NOT_COME_HERE
+	}
+	return;
 }
