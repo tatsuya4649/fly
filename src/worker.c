@@ -21,8 +21,10 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 #define FLY_WORKER_SIGNAL_EVENT_SIGADDSET_ERROR			-5
 #define FLY_WORKER_SIGNAL_EVENT_INIT_ERROR				-6
 #define FLY_WORKER_SIGNAL_EVENT_SIGNAL_REGISTER_ERROR	-7
+#ifdef HAVE_SIGNALFD
 __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manager_t *manager, fly_context_t *ctx);
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
+#endif
 __fly_static void fly_add_worker_sig(fly_context_t *ctx, int num, fly_sighand_t *handler);
 __fly_static void FLY_SIGNAL_MODF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info);
 __fly_static void FLY_SIGNAL_ADDF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info);
@@ -499,12 +501,12 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 #else
 static fly_worker_t *__wptr;
 
-static void __fly_worker_sigaction(int signum __unused, fly_siginfo_t *info, void *ucontext __unused)
+static void __fly_worker_sigaction(int signum __fly_unused, fly_siginfo_t *info, void *ucontext __fly_unused)
 {
 	__fly_wsignal_handle(__wptr, __wptr->context, info);
 }
 
-__fly_static int __fly_worker_signal(fly_worker_t *worker, fly_event_manager_t *manager __unused, fly_context_t *ctx)
+__fly_static int __fly_worker_signal(fly_worker_t *worker, fly_event_manager_t *manager __fly_unused, fly_context_t *ctx)
 {
 #define FLY_KQUEUE_WORKER_SIGNALSET(signum)						\
 		do{													\

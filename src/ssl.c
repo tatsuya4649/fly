@@ -65,7 +65,30 @@ int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 	context = e->manager->ctx;
 	/* non blocking accept */
 	ssl = SSL_new(context->ssl_ctx);
-	SSL_set_fd(ssl, conn->c_sockfd);
+	if (ssl == NULL){
+		if (fly_ssl_error_log(e->manager) == -1){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"SSL/TLS connection setting error . (%s: %s)", __FILE__, __LINE__
+			);
+			fly_event_error_add(e, __err);
+			return -1;
+		}
+		return -1;
+	}
+	if (SSL_set_fd(ssl, conn->c_sockfd) == 0){
+		if (fly_ssl_error_log(e->manager) == -1){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"SSL/TLS connection setting error . (%s: %s)", __FILE__, __LINE__
+			);
+			fly_event_error_add(e, __err);
+			return -1;
+		}
+		return -1;
+	}
 
 	conn->ssl = ssl;
 	conn->flag = FLY_SSL_CONNECT;
