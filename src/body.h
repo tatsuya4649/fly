@@ -24,7 +24,7 @@ struct fly_body_parts{
 };
 
 #ifdef DEBUG
-__fly_unused static inline struct fly_body_parts *fly_body_parts_debug(struct fly_bllist *__b)
+__fly_unused static struct fly_body_parts *fly_body_parts_debug(struct fly_bllist *__b)
 {
 	return (struct fly_body_parts *) fly_bllist_data(__b, struct fly_body_parts, blelem);
 }
@@ -36,7 +36,7 @@ struct fly_body{
 	fly_pool_t			*pool;
 	/* non null terminated */
 	fly_bodyc_t			*body;
-	int					body_len;
+	size_t				body_len;
 	struct fly_bllist	multipart_parts;
 	size_t				multipart_count;
 
