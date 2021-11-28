@@ -4452,10 +4452,10 @@ int fly_hv2_parse_data(fly_event_t *event, fly_hv2_stream_t *stream, uint32_t le
 	stream->state->window_size += length;
 	event->read_or_write |= FLY_WRITE;
 
-	if (content_length <= (size_t) (body->next_ptr-body->body)){
-		stream->stream_state = FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE;
-		stream->can_response = true;
-	}
+//	if (content_length <= (size_t) (body->next_ptr-body->body)){
+//		stream->stream_state = FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE;
+//		stream->can_response = true;
+//	}
 	return FLY_HV2_PARSE_DATA_SUCCESS;
 }
 
