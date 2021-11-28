@@ -1345,7 +1345,9 @@ __fase_body:
 	if (request->body == NULL){
 		body = fly_body_init(request->ctx);
 		request->body = body;
-	}
+	}else
+		body = request->body;
+
 	body_buf = fly_get_body_buf(conn->buffer);
 	if (body_buf == NULL || conn->buffer->use_len < content_length)
 		goto read_continuation;
@@ -1380,7 +1382,6 @@ __fase_body:
 	}
 
 	fly_buffer_chain_release_from_length(body_buf, content_length);
-
 	if (fly_is_multipart_form_data(request->header))
 		fly_body_parse_multipart(request);
 
