@@ -4375,8 +4375,10 @@ int fly_hv2_parse_data(fly_event_t *event, fly_hv2_stream_t *stream, uint32_t le
 	fly_body_t *body;
 	fly_bodyc_t *bc;
 	fly_request_t *req;
+	size_t content_length;
 
 	req = stream->request;
+	content_length = fly_content_length(req->header);
 	if (req->discard_body){
 		/*
 		 * send window_udpate_frame and recover window size
@@ -4390,12 +4392,10 @@ int fly_hv2_parse_data(fly_event_t *event, fly_hv2_stream_t *stream, uint32_t le
 		event->read_or_write |= FLY_WRITE;
 		return FLY_HV2_PARSE_DATA_SUCCESS;
 	}else if (req->body == NULL){
-		size_t content_length;
 		body = fly_body_init(req->ctx);
 		if (fly_unlikely_null(body))
 			return FLY_HV2_PARSE_DATA_ERROR;
 
-		content_length = fly_content_length(req->header);
 		if (content_length > req->ctx->max_request_length){
 			req->discard_body = true;
 			/*
@@ -4451,6 +4451,11 @@ int fly_hv2_parse_data(fly_event_t *event, fly_hv2_stream_t *stream, uint32_t le
 	stream->window_size += length;
 	stream->state->window_size += length;
 	event->read_or_write |= FLY_WRITE;
+
+	if (content_length <= (size_t) (body->next_ptr-body->body)){
+		stream->stream_state = FLY_HV2_STREAM_STATE_HALF_CLOSED_REMOTE;
+		stream->can_response = true;
+	}
 	return FLY_HV2_PARSE_DATA_SUCCESS;
 }
 
