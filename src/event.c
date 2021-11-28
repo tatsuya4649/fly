@@ -185,6 +185,9 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	event->err_count = 0;
 	event->emerge_ptr = manager->ctx->emerge_ptr;
 	event->if_fail_term = false;
+#ifdef DEBUG
+	event->post_fd = -1;
+#endif
 
 #ifdef HAVE_KQUEUE
 	event->id = 0;
@@ -289,17 +292,23 @@ int fly_event_register(fly_event_t *event)
 #endif
 		event->yetadd = false;
 	}else{
+#ifdef DEBUG
+		if (event->post_fd != -1)
+			assert(event->post_fd == event->fd);
+#endif
 		/* delete & add (for changing timeout) */
 		if (fly_event_monitorable(event)){
 #ifdef HAVE_KQUEUE
 			if (event->post_row != FLY_NO_POST_ROW){
-				if (event->post_row & FLY_READ){
+				if (event->post_row & FLY_READ && \
+						!(event->read_or_write & FLY_READ)){
 					struct kevent __kev;
 					EV_SET(&__kev, event->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
 						return -1;
 				}
-				if (event->post_row & FLY_WRITE){
+				if (event->post_row & FLY_WRITE && \
+						!(event->read_or_write & FLY_WRITE)){
 					struct kevent __kev;
 					EV_SET(&__kev, event->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
 					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
@@ -369,6 +378,7 @@ int fly_event_register(fly_event_t *event)
 		);
 		fly_event_error_add(event, __err);
 	}
+	event->post_fd = event->fd;
 #elif defined HAVE_KQUEUE
 	event->post_row = event->read_or_write;
 	if (fly_event_monitorable(event))

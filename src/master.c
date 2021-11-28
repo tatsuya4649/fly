@@ -12,7 +12,9 @@
 #include <sys/wait.h>
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
+#ifdef HAVE_SIGNALFD
 __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manager_t *manager, __fly_unused fly_context_t *ctx);
+#endif
 __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, fly_siginfo_t *info);
 __fly_static int __fly_master_signal_handler(fly_event_t *);
 __fly_static void __fly_workers_rebalance(fly_master_t *master);
@@ -333,7 +335,7 @@ void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info
 //	fly_add_master_sig(ctx, FLY_NOTICE_WORKER_DAEMON_PID, fly_master_notice_worker_daemon_pid);
 //}
 
-__fly_static int __fly_master_signal_handler(fly_event_t *e)
+__fly_unused __fly_static int __fly_master_signal_handler(fly_event_t *e)
 {
 	fly_siginfo_t info;
 
@@ -405,12 +407,12 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 #else
 static fly_master_t *__mptr;
 
-static void __fly_master_sigaction(int signum __unused, fly_siginfo_t *info, void *ucontext __unused)
+static void __fly_master_sigaction(int signum __fly_unused, fly_siginfo_t *info, void *ucontext __fly_unused)
 {
 	__fly_msignal_handle(__mptr, __mptr->context, info);
 }
 
-__fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *manager __unused, __fly_unused fly_context_t *ctx)
+__fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *manager __fly_unused, __fly_unused fly_context_t *ctx)
 {
 #define FLY_KQUEUE_MASTER_SIGNALSET(signum)						\
 		do{													\

@@ -30,7 +30,12 @@ async def test_https_get_index(fly_servers_ssl):
         verify=False,
         timeout=1
     ) as client:
-        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/")
+        try:
+            res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/")
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     assert(res.status_code == 200)
     assert(res.http_version == http_scheme())
@@ -44,7 +49,12 @@ async def test_https2_get_index(fly_servers_ssl):
         http2  = True,
         timeout=1
     ) as client:
-        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/")
+        try:
+            res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/")
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     assert(res.status_code == 200)
     assert(res.is_error is False)
@@ -60,6 +70,7 @@ async def test_http_post_data_index(fly_servers):
             f"{_HTTP}://{_HOST}:{_PORT}/",
             data = {"key": "value"},
         )
+
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
@@ -74,10 +85,16 @@ async def test_https_post_data_index(fly_servers_ssl):
         verify=False,
         timeout=1
     ) as client:
-        res = await client.post(
-            f"{_HTTPS}://{_HOST}:{_PORT}/",
-            data = {"key": "value"},
-        )
+        try:
+            res = await client.post(
+                f"{_HTTPS}://{_HOST}:{_PORT}/",
+                data = {"key": "value"},
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
+
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
@@ -93,10 +110,16 @@ async def test_https2_post_data_index(fly_servers_ssl):
         http2=True,
         timeout=1
     ) as client:
-        res = await client.post(
-            f"{_HTTPS}://{_HOST}:{_PORT}/",
-            data = {"key": "value"},
-        )
+        try:
+            res = await client.post(
+                f"{_HTTPS}://{_HOST}:{_PORT}/",
+                data = {"key": "value"},
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
+
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
@@ -131,10 +154,16 @@ async def test_https_post_file_index(fly_servers_ssl):
         verify=False,
         timeout=60
     ) as client:
-        res = await client.post(
-            f"{_HTTPS}://{_HOST}:{_PORT}/",
-            files = files,
-        )
+        try:
+            res = await client.post(
+                f"{_HTTPS}://{_HOST}:{_PORT}/",
+                files = files,
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
+
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
@@ -150,15 +179,19 @@ async def test_https2_post_file_index(fly_servers_ssl):
         http1=False,
         http2=True,
         verify=False,
-        timeout=60
+        timeout=10
     ) as client:
-        res = await client.post(
-            f"{_HTTPS}://{_HOST}:{_PORT}/",
-            files = files,
-        )
-    print(res.content)
+        try:
+            res = await client.post(
+                f"{_HTTPS}://{_HOST}:{_PORT}/",
+                files = files,
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
+
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
@@ -200,10 +233,16 @@ async def test_https_post_files_index(fly_servers_ssl):
         verify=False,
         timeout=60,
     ) as client:
-        res = await client.post(
-            f"{_HTTPS}://{_HOST}:{_PORT}/",
-            files = files,
-        )
+        try:
+            res = await client.post(
+                f"{_HTTPS}://{_HOST}:{_PORT}/",
+                files = files,
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
+
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
@@ -224,12 +263,18 @@ async def test_https2_post_files_index(fly_servers_ssl):
         http1=False,
         http2=True,
         verify=False,
-        timeout=60
+        timeout=10
     ) as client:
-        res = await client.post(
-            f"{_HTTPS}://{_HOST}:{_PORT}/",
-            files = files,
-        )
+        try:
+            res = await client.post(
+                f"{_HTTPS}://{_HOST}:{_PORT}/",
+                files = files,
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
+
     print(res.content)
     assert(res.status_code == 200)
     assert(res.is_error is False)
@@ -255,7 +300,12 @@ async def test_https_get_empty(fly_servers_ssl):
         verify = False,
         timeout=1,
     ) as client:
-        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/empty")
+        try:
+            res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/empty")
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res)
     assert(res.status_code == 200)
@@ -272,7 +322,12 @@ async def test_https2_get_empty(fly_servers_ssl):
         verify = False,
         timeout=1,
     ) as client:
-        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/empty")
+        try:
+            res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/empty")
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res)
     assert(res.status_code == 200)
@@ -299,7 +354,12 @@ async def test_https_head_index(fly_servers_ssl):
         verify = False,
         timeout=1
     ) as client:
-        res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}")
+        try:
+            res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}")
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res)
     assert(res.status_code == 200)
@@ -316,7 +376,12 @@ async def test_https2_head_index(fly_servers_ssl):
         verify = False,
         timeout=1
     ) as client:
-        res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}")
+        try:
+            res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}")
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res)
     assert(res.status_code == 200)
@@ -343,7 +408,12 @@ async def test_https_head_500(fly_servers_ssl):
         verify = False,
         timeout=1
     ) as client:
-        res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}/head_body")
+        try:
+            res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}/head_body")
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res)
     assert(res.status_code == 500)
@@ -360,7 +430,12 @@ async def test_https2_head_500(fly_servers_ssl):
         verify = False,
         timeout=1
     ) as client:
-        res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}/head_body")
+        try:
+            res = await client.head(f"{_HTTPS}://{_HOST}:{_PORT}/head_body")
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res)
     assert(res.status_code == 500)
@@ -390,10 +465,15 @@ async def test_https_put_index_data(fly_servers_ssl):
         verify=False,
         timeout=1
     ) as client:
-        res = await client.put(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-            data = {"key": "value"},
-        )
+        try:
+            res = await client.put(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+                data = {"key": "value"},
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -410,10 +490,15 @@ async def test_https2_put_index_data(fly_servers_ssl):
         verify=False,
         timeout=1
     ) as client:
-        res = await client.put(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-            data = {"key": "value"},
-        )
+        try:
+            res = await client.put(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+                data = {"key": "value"},
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -458,10 +543,15 @@ async def test_https_put_index_files(fly_servers_ssl):
         verify=False,
         timeout=60
     ) as client:
-        res = await client.put(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-            files = files,
-        )
+        try:
+            res = await client.put(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+                files = files,
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -484,10 +574,15 @@ async def test_https2_put_index_files(fly_servers_ssl):
         verify=False,
         timeout=60
     ) as client:
-        res = await client.put(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-            files = files,
-        )
+        try:
+            res = await client.put(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+                files = files,
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -519,9 +614,14 @@ async def test_https_delete_index(fly_servers_ssl):
         verify = False,
         timeout=1,
     ) as client:
-        res = await client.delete(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-        )
+        try:
+            res = await client.delete(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -538,9 +638,14 @@ async def test_https2_delete_index(fly_servers_ssl):
         verify=False,
         timeout=1,
     ) as client:
-        res = await client.delete(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-        )
+        try:
+            res = await client.delete(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -572,9 +677,14 @@ async def test_https_patch_index(fly_servers_ssl):
         verify=False,
         timeout=1,
     ) as client:
-        res = await client.patch(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-        )
+        try:
+            res = await client.patch(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -591,9 +701,14 @@ async def test_https2_patch_index(fly_servers_ssl):
         verify=False,
         timeout=1,
     ) as client:
-        res = await client.patch(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-        )
+        try:
+            res = await client.patch(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -625,9 +740,14 @@ async def test_https_options_index(fly_servers_ssl):
         verify=False,
         timeout=1,
     ) as client:
-        res = await client.options(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-        )
+        try:
+            res = await client.options(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -644,9 +764,14 @@ async def test_https2_options_index(fly_servers_ssl):
         verify=False,
         timeout=1,
     ) as client:
-        res = await client.options(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-        )
+        try:
+            res = await client.options(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -679,9 +804,14 @@ async def test_https_return_query(fly_servers_ssl):
         params={"key1": "value1", "key2": "value2"},
         timeout=60
     ) as client:
-        res = await client.get(
-            f"{_HTTPS}://{_HOST}:{_PORT}/query",
-        )
+        try:
+            res = await client.get(
+                f"{_HTTPS}://{_HOST}:{_PORT}/query",
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -698,9 +828,14 @@ async def test_https2_return_query(fly_servers_ssl):
         params={"key1": "value1", "key2": "value2"},
         timeout=60
     ) as client:
-        res = await client.get(
-            f"{_HTTPS}://{_HOST}:{_PORT}/query",
-        )
+        try:
+            res = await client.get(
+                f"{_HTTPS}://{_HOST}:{_PORT}/query",
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     print(res.content)
     assert(res.status_code == 200)
@@ -735,9 +870,14 @@ async def test_illegal_https(fly_servers):
         with pytest.raises(
             httpx.ConnectError
         ) as e:
-            res = await client.get(
-                f"{_HTTPS}://{_HOST}:{_PORT}",
-            )
+            try:
+                res = await client.get(
+                    f"{_HTTPS}://{_HOST}:{_PORT}",
+                )
+            except ssl.SSLWantReadError:
+                print(traceback.format_exc())
+            except ssl.SSLWantWriteError:
+                print(traceback.format_exc())
 
 @pytest.mark.asyncio
 async def test_request_over(fly_mini_servers):
@@ -763,10 +903,15 @@ async def test_ssl_request_over(fly_mini_servers_ssl):
         verify=False,
         timeout=60
     ) as client:
-        res = await client.post(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-            files = files,
-        )
+        try:
+            res = await client.post(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+                files = files,
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     assert(res.status_code == 413)
     assert(res.http_version == http_scheme())
@@ -781,10 +926,15 @@ async def test_http2_ssl_request_over(fly_mini_servers_ssl):
         verify=False,
         timeout=60
     ) as client:
-        res = await client.post(
-            f"{_HTTPS}://{_HOST}:{_PORT}",
-            files = files,
-        )
+        try:
+            res = await client.post(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+                files = files,
+            )
+        except ssl.SSLWantReadError:
+            print(traceback.format_exc())
+        except ssl.SSLWantWriteError:
+            print(traceback.format_exc())
 
     assert(res.status_code == 413)
     assert(res.http_version == http2_scheme())

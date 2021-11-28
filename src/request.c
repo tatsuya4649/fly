@@ -292,19 +292,32 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					continue;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[INIT](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case METHOD:
 				if (__fly_method(*ptr))	break;
-				else if (fly_space(*ptr)){
+				if (fly_space(*ptr)){
 					/* request method */
 					method_len = ptr-method;
 					req->request_line->method = fly_match_method_name_len(method, method_len);
-					if (req->request_line->method == NULL)
+					if (req->request_line->method == NULL){
+#ifdef DEBUG
+						printf("\tREQUEST LINE PARSE ERROR[METHOD](%s: %d)\n",
+							__FILE__, __LINE__);
+#endif
 						goto error;
+					}
 					status = METHOD_SPACE;
 					continue;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[METHOD](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case METHOD_SPACE:
 				if (fly_space(*ptr)) break;
@@ -329,6 +342,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					continue;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[METHOD_SPACE](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case ORIGIN_FORM:
 				if (fly_slash(*ptr))	break;
@@ -343,6 +360,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					status = ORIGIN_FORM_QUESTION;
 					break;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[ORIGIN_FORM](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case ORIGIN_FORM_QUESTION:
 				if (fly_space(*ptr)){
@@ -356,6 +377,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					break;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[ORIGIN_FORM_QUESTION](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case ORIGIN_FORM_QUERY:
 				if (__fly_query(&ptr, &len))	break;
@@ -364,8 +389,11 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					status = END_REQUEST_TARGET;
 					continue;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[ORIGIN_FORM_QUERY](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
-
 			case ABSOLUTE_FORM:
 				if (!is_fly_scheme(&ptr, ':'))
 					goto error;
@@ -374,16 +402,29 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					break;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[ORIGIN_FORM_COLON](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case ABSOLUTE_FORM_COLON:
-				if (!__fly_hier_part(&ptr))
+				if (!__fly_hier_part(&ptr)){
+#ifdef DEBUG
+					printf("\tREQUEST LINE PARSE ERROR[ABSOLUTE_FORM_COLON](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 					goto error;
+				}
 				if (fly_question(*ptr)){
 					target_len = ptr-request_target;
 					status = ABSOLUTE_FORM_QUESTION;
 					break;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[ABSOLUTE_FORM_COLON](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case ABSOLUTE_FORM_QUESTION:
 				if (fly_space(*ptr)){
@@ -397,6 +438,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					break;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[ABSOLUTE_FORM_QUESTION](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case ABSOLUTE_FORM_QUERY:
 				if (__fly_query(&ptr, &len))	break;
@@ -405,6 +450,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					status = END_REQUEST_TARGET;
 					continue;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[ABSOLUTE_FORM_QUERY](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case AUTHORITY_FORM:
 				if (__fly_userinfo(&ptr, &len)){
@@ -415,6 +464,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					status = AUTHORITY_FORM_HOST;
 					break;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[AUTHORITY_FORM](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case AUTHORITY_FORM_USERINFO:
 				if (__fly_userinfo(&ptr, &len))	break;
@@ -424,6 +477,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					break;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[AUTHORITY_FORM_USERINFO](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case AUTHORITY_FORM_ATSIGN:
 				if (__fly_host(&ptr)){
@@ -431,6 +488,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					break;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[AUTHORITY_FORM_ATSIGN](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case AUTHORITY_FORM_HOST:
 				if (__fly_host(&ptr))		break;
@@ -439,12 +500,20 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					break;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[AUTHORITY_FORM_HOST](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case AUTHORITY_FORM_COLON:
 				if (__fly_port(*ptr)){
 					status = AUTHORITY_FORM_PORT;
 					break;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[AUTHORITY_FORM_COLON](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case AUTHORITY_FORM_PORT:
 				if (__fly_port(*ptr))	break;
@@ -453,6 +522,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					continue;
 				}
 
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[AUTHORITY_FORM_PORT](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case END_REQUEST_TARGET:
 				/* add request/request_line/uri */
@@ -472,6 +545,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					status = HTTP_SLASH;
 					break;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[HTTP_NAME](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case HTTP_SLASH:
 				if (fly_numeral(*ptr)){
@@ -479,6 +556,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					status = HTTP_VERSION_MAJOR;
 					break;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[HTTP_SLASH](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case HTTP_VERSION_MAJOR:
 				if (fly_dot(*ptr)){
@@ -490,12 +571,20 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					status = END_HTTP_VERSION;
 					break;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[HTTP_VERSION_MAJOR](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case HTTP_VERSION_POINT:
 				if (fly_numeral(*ptr)){
 					status = HTTP_VERSION_MINOR;
 					break;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[HTTP_VERSION_POINT](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case HTTP_VERSION_MINOR:
 				if (fly_cr(*ptr)){
@@ -503,12 +592,21 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					status = END_HTTP_VERSION;
 					break;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[HTTP_VERSION_MINOR](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 				goto error;
 			case END_HTTP_VERSION:
 				/* add http version */
 				req->request_line->version = fly_match_version_len(http_version, version_len);
-				if (!req->request_line->version)
+				if (!req->request_line->version){
+#ifdef DEBUG
+					printf("\tREQUEST LINE PARSE ERROR[END_HTTP_VERSION](%s: %d)\n",
+						__FILE__, __LINE__);
+#endif
 					goto error;
+				}
 				status = CR;
 				continue;
 			case CR:
@@ -516,6 +614,10 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 					status = LF;
 					break;
 				}
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[CR](%s: %d)\n",
+					__FILE__, __LINE__);
+#endif
 				goto error;
 			case LF:
 				status = SUCCESS;
@@ -523,12 +625,21 @@ __fly_static int __fly_parse_reqline(fly_request_t *req, fly_reqlinec_t *request
 			case SUCCESS:
 				return 1;
 			default:
+#ifdef DEBUG
+				printf("\tREQUEST LINE PARSE ERROR[UNKNOWN STATUS](%s: %d)\n",
+					__FILE__, __LINE__);
+#endif
 				goto error;
 				break;
 		}
 		ptr++;
-		if (--len <= 0 && status != LF)
+		if (--len <= 0 && status != LF){
+#ifdef DEBUG
+			printf("\tREQUEST LINE PARSE ERROR[LENGTH ERROR](%s: %d)\n",
+				__FILE__, __LINE__);
+#endif
 			goto error;
+		}
 	}
 error:
 	return -1;
@@ -1139,7 +1250,7 @@ __fase_request_line:
 	reline_buf_chain = fly_get_request_line_buf(conn->buffer);
 	switch(__fly_request_operation(request, reline_buf_chain)){
 	case FLY_REQUEST_ERROR(400):
-		goto response_400;
+		goto response_400_norequest;
 	case FLY_REQUEST_ERROR(414):
 		goto response_414;
 	case FLY_REQUEST_ERROR(500):
@@ -1231,14 +1342,19 @@ __fase_body:
 
 	fly_buffer_c *body_buf;
 	fly_event_fase(event, BODY);
-	body = fly_body_init(request->ctx);
-	request->body = body;
+	if (request->body == NULL){
+		body = fly_body_init(request->ctx);
+		request->body = body;
+	}
 	body_buf = fly_get_body_buf(conn->buffer);
 	if (body_buf == NULL || conn->buffer->use_len < content_length)
 		goto read_continuation;
 	else
 		request->receive_body = true;
 
+#ifdef DEBUG
+	assert(request->receive_body);
+#endif
 	/* content-encoding */
 	fly_hdr_value *ev;
 	fly_encoding_type_t *et;
@@ -1308,6 +1424,8 @@ __fase_end_of_parse:
 	fly_response_http_version_from_request(response, request);
 	goto response;
 
+response_400_norequest:
+	return fly_400_event_norequest(event, conn);
 response_400:
 	return fly_400_event(event, request);
 response_404:
