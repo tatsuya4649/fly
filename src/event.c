@@ -293,10 +293,18 @@ int fly_event_register(fly_event_t *event)
 		if (fly_event_monitorable(event)){
 #ifdef HAVE_KQUEUE
 			if (event->post_row != FLY_NO_POST_ROW){
-				struct kevent __kev;
-				EV_SET(&__kev, event->fd, event->post_row, EV_DELETE, 0, 0, NULL);
-				if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
-					return -1;
+				if (event->post_row & FLY_READ){
+					struct kevent __kev;
+					EV_SET(&__kev, event->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
+						return -1;
+				}
+				if (event->post_row & FLY_WRITE){
+					struct kevent __kev;
+					EV_SET(&__kev, event->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
+						return -1;
+				}
 			}
 #endif
 			if (event->rbnode){
@@ -378,14 +386,30 @@ int fly_event_register(fly_event_t *event)
 				fly_event_error_add(event, __err);
 			}
 		}else{
-			EV_SET(&ev, event->fd, event->read_or_write, EV_ADD, event->eflag, 0, data);
-			if (kevent(event->manager->efd, &ev, 1, NULL, 0, NULL) == -1){
-				struct fly_err *__err;
-				__err = fly_event_err_init(
-					event, errno, FLY_ERR_ERR,
-					"kevent error in event_register."
-				);
-				fly_event_error_add(event, __err);
+			if (event->read_or_write & FLY_READ){
+				EV_SET(&ev, event->fd, EVFILT_READ, EV_ADD, event->eflag, 0, data);
+				if (kevent(event->manager->efd, &ev, 1, NULL, 0, NULL) == -1){
+					struct fly_err *__err;
+					__err = fly_event_err_init(
+						event, errno, FLY_ERR_ERR,
+						"kevent error in event_register. (%s:%s)",
+						__FILE__, __LINE__
+					);
+					fly_event_error_add(event, __err);
+				}
+			}
+
+			if (event->read_or_write & FLY_WRITE){
+				EV_SET(&ev, event->fd, EVFILT_WRITE, EV_ADD, event->eflag, 0, data);
+				if (kevent(event->manager->efd, &ev, 1, NULL, 0, NULL) == -1){
+					struct fly_err *__err;
+					__err = fly_event_err_init(
+						event, errno, FLY_ERR_ERR,
+						"kevent error in event_register. (%s:%s)",
+						__FILE__, __LINE__
+					);
+					fly_event_error_add(event, __err);
+				}
 			}
 		}
 	}
@@ -409,27 +433,55 @@ int fly_event_unregister(fly_event_t *event)
 		return 0;
 	}else{
 		fly_queue_remove(&event->qelem);
-		if (event->rbnode)
+		if (event->rbnode){
 #ifdef DEBUG
-				printf("RBTREE DELETE OF EVENT in unregister\n");
+			printf("RBTREE DELETE OF EVENT in unregister\n");
 #endif
 			fly_rb_delete(event->manager->rbtree, event->rbnode);
+		}
 		if (!(event->flag & FLY_CLOSE_EV)){
 #ifdef HAVE_EPOLL
 			if (epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL) == -1){
-#elif defined HAVE_KQUEUE
-			struct kevent __kev;
-			EV_SET(&__kev, event->fd, event->read_or_write, EV_DELETE, 0, 0, NULL);
-			if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1){
-#endif
 				struct fly_err *__err;
 				__err = fly_err_init(
 					__m->ctx->pool, errno, FLY_ERR_ERR,
-					"unregister event error in event_unregister."
+					"unregister event error in event_unregister. (%s: %s)",
+					__FILE__, __LINE__
 				);
 				fly_error_error(__err);
 				return -1;
 			}
+#elif defined HAVE_KQUEUE
+			struct kevent __kev;
+
+			if (event->read_or_write & FLY_READ){
+				EV_SET(&__kev, event->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+				if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1){
+					struct fly_err *__err;
+					__err = fly_err_init(
+						__m->ctx->pool, errno, FLY_ERR_ERR,
+						"unregister event error in event_unregister. (%s: %s)",
+						__FILE__, __LINE__
+					);
+					fly_error_error(__err);
+					return -1;
+				}
+			}
+
+			if (event->read_or_write & FLY_WRITE){
+				EV_SET(&__kev, event->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+				if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1){
+					struct fly_err *__err;
+					__err = fly_err_init(
+						__m->ctx->pool, errno, FLY_ERR_ERR,
+						"unregister event error in event_unregister. (s: %s)",
+						__FILE__, __LINE__
+					);
+					fly_error_error(__err);
+					return -1;
+				}
+			}
+#endif
 		}
 
 		fly_pbfree(event->manager->pool, event);
@@ -699,7 +751,12 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 		fly_event = (fly_event_t *) event->udata;
 		fly_event->id = event->ident;
 		fly_event->eflag = event->fflags;
-		fly_event->available_row = fly_event->read_or_write;
+		if (event->filter == EVFILT_READ)
+			fly_event->available_row = FLY_READ;
+		else if (event->filter == EVFILT_WRITE)
+			fly_event->available_row = FLY_WRITE;
+		else
+			fly_event->available_row = event->filter;
 #endif
 		fly_event->available = true;
 		fly_event_handle(fly_event);
