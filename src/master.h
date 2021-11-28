@@ -88,6 +88,26 @@ void fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *,
 bool fly_is_create_pidfile(void);
 void fly_master_setreload(fly_master_t *master, const char *reload_filepath, bool configure);
 
-#define FLY_NOTICE_WORKER_DAEMON_PID		(SIGRTMIN)
+#define FLY_NOTICE_WORKER_DAEMON_PID		(SIGUSR1)
+
+#ifdef WORDS_BIGENDIAN
+
+#define FLY_CHANGE_MNT_SIGNAL(__s, __m, __v)	\
+		do{										\
+		 	char *__ptr = (char *) __v;			\
+		 	*__ptr = (__m);						\
+			*__s = *__ptr;						\
+		} while(0)
+
+#else
+
+#define FLY_CHANGE_MNT_SIGNAL(__s, __m, __v)	\
+		do {									\
+		 	char *__ptr = (char *) __v;			\
+		 	*(__ptr+(sizeof(int)-1)) = (__m);	\
+			*__s = *__ptr;						\
+		 } while(0)
+
+#endif
 
 #endif

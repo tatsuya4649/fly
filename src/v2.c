@@ -834,7 +834,7 @@ static inline uint64_t fly_opaque_data(uint8_t **pl, fly_buffer_c **__c)
 		*(__o + 7) = (uint8_t) (*pl)[0];
 #endif
 
-		*pl += (int) (FLY_HV2_FRAME_TYPE_PING_OPEQUE_DATA_LEN)/FLY_HV2_OCTET_LEN;
+		*pl += (int) (FLY_HV2_FRAME_TYPE_PING_OPAQUE_DATA_LEN)/FLY_HV2_OCTET_LEN;
 	}
 	return opaque_data;
 }
@@ -1181,7 +1181,7 @@ int fly_send_ping_frame(fly_hv2_state_t *state, uint64_t opaque_data)
 	frame->send_len = 0;
 	frame->type = FLY_HV2_FRAME_TYPE_GOAWAY;
 	frame->payload_len = \
-		(int) (FLY_HV2_FRAME_TYPE_PING_OPEQUE_DATA_LEN)/FLY_HV2_OCTET_LEN;
+		(int) (FLY_HV2_FRAME_TYPE_PING_OPAQUE_DATA_LEN)/FLY_HV2_OCTET_LEN;
 	frame->payload = fly_pballoc(frame->pool, frame->payload_len);
 	if (fly_unlikely_null(frame->payload))
 		return -1;
@@ -1549,9 +1549,9 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 		if (conn->peer_closed)
 			goto closed;
 
-		if ((event->available_row&FLY_READ) && FLY_HV2_FRAME_HEADER_LENGTH<=conn->buffer->use_len)
+		if ((event->available_row & FLY_READ) && FLY_HV2_FRAME_HEADER_LENGTH<=conn->buffer->use_len){
 			goto frame_header_parse;
-		else if (event->available_row & FLY_READ){
+		}else if (event->available_row & FLY_READ){
 			goto blocking;
 		}else if ((event->available_row & FLY_WRITE) && \
 				state->response_count > 0){
@@ -1567,6 +1567,11 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 	frame_header_parse:
 		bufp = fly_buffer_first_useptr(conn->buffer);
 		bufc = fly_buffer_first_chain(conn->buffer);
+#ifdef DEBUG
+		size_t __buflen;
+
+		__buflen = conn->buffer->use_len;
+#endif
 
 		/* if frrme length more than limits, must send FRAME_SIZE_ERROR */
 		fly_hv2_stream_t *__stream;
@@ -1576,6 +1581,67 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 		uint8_t flags = fly_hv2_flags_from_frame_header(__fh, bufc);
 		__fly_unused bool r = fly_hv2_r_from_frame_header(__fh, bufc);
 		uint32_t sid = fly_hv2_sid_from_frame_header(__fh, bufc);
+
+#ifdef DEBUG
+		switch(type){
+		case FLY_HV2_FRAME_TYPE_DATA:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_DATA\n");
+			if (flags & FLY_HV2_FRAME_TYPE_DATA_END_STREAM)
+				printf("\t\tflag: FLY_HV2_DATA_END_STREAM\n");
+			if (flags & FLY_HV2_FRAME_TYPE_DATA_PADDED)
+				printf("\t\tflag: FLY_HV2_DATA_PADDED\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_HEADERS:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_HEADERS\n");
+			if (flags & FLY_HV2_FRAME_TYPE_HEADERS_END_STREAM)
+				printf("\t\tflag: FLY_HV2_HEADERS_END_STREAM\n");
+			if (flags & FLY_HV2_FRAME_TYPE_HEADERS_END_HEADERS)
+				printf("\t\tflag: FLY_HV2_HEADERS_END_HEADERS\n");
+			if (flags & FLY_HV2_FRAME_TYPE_HEADERS_PADDED)
+				printf("\t\tflag: FLY_HV2_HEADERS_PADDED\n");
+			if (flags & FLY_HV2_FRAME_TYPE_HEADERS_PRIORITY)
+				printf("\t\tflag: FLY_HV2_HEADERS_PRIORITY\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_PRIORITY:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_PRIORITY\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_RST_STREAM:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_RST_STREAM\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_SETTINGS:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_SETTINGS\n");
+			if (flags & FLY_HV2_FRAME_TYPE_SETTINGS_FLAG_ACK)
+				printf("\t\tflag: FLY_HV2_FRAME_TYPE_SETTINGS_FLAG_ACK\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_PUSH_PROMISE:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_PUSH_PROMISE\n");
+			if (flags & FLY_HV2_FRAME_TYPE_PUSH_PROMISE_END_HEADERS)
+				printf("\t\tflag: FLY_HV2_FRAME_TYPE_PUSH_PROMISE_END_HEADERS\n");
+			if (flags & FLY_HV2_FRAME_TYPE_PUSH_PROMISE_PADDED)
+				printf("\t\tflag: FLY_HV2_FRAME_TYPE_PUSH_PROMISE_PADDED\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_PING:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_PING\n");
+			if (flags & FLY_HV2_FRAME_TYPE_PING_ACK)
+				printf("\t\tflag: FLY_HV2_FRAME_TYPE_PING_ACK\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_GOAWAY:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_GOAWAY\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_WINDOW_UPDATE:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_WINDOW_UPDATE\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_CONTINUATION:
+			printf("\tRECV FRAME: FLY_HV2_FRAME_TYPE_CONTINUATION\n");
+			if (flags & FLY_HV2_FRAME_TYPE_CONTINUATION_END_HEADERS)
+				printf("\t\tflag: FLY_HV2_FRAME_TYPE_CONTINUATION_END_HEADERS\n");
+			break;
+		default:
+			FLY_NOT_COME_HERE
+		}
+		printf("\t\tsid: %d\n", sid);
+		printf("\t\tpayload length: %d\n", length);
+#endif
 
 		plbufc = bufc;
 		uint8_t *pl = fly_hv2_frame_payload_from_frame_header(__fh, &plbufc);
@@ -1628,9 +1694,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 
 		switch(type){
 		case FLY_HV2_FRAME_TYPE_DATA:
-#ifdef DEBUG
-			printf("FLY_HV2_FRAME_TYPE_DATA\n");
-#endif
 			if (__stream->id == FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			if (!(__stream->stream_state == FLY_HV2_STREAM_STATE_OPEN || \
@@ -1673,9 +1736,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_HEADERS:
-#ifdef DEBUG
-			printf("FLY_HV2_FRAME_TYPE_HEADERS\n");
-#endif
 			if (__stream->id == FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
@@ -1737,9 +1797,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 
 			break;
 		case FLY_HV2_FRAME_TYPE_PRIORITY:
-#ifdef DEBUG
-			printf("FLY_HV2_FRAME_TYPE_PRIORITY\n");
-#endif
 			if (__stream->id == FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
@@ -1764,9 +1821,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_RST_STREAM:
-#ifdef DEBUG
-			printf("FLY_HV2_FRAME_TYPE_RST_STREAM\n");
-#endif
 			if (__stream->id == FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
@@ -1780,9 +1834,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			break;
 		case FLY_HV2_FRAME_TYPE_SETTINGS:
 			{
-#ifdef DEBUG
-				printf("FLY_HV2_FRAME_TYPE_SETTINGS\n");
-#endif
 				bool ack;
 				if (sid!=FLY_HV2_STREAM_ROOT_ID)
 					fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
@@ -1821,9 +1872,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 
 			break;
 		case FLY_HV2_FRAME_TYPE_PUSH_PROMISE:
-#ifdef DEBUG
-			printf("FLY_HV2_FRAME_TYPE_PUSH_PROMISE\n");
-#endif
 			if (sid==FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			if (!(__stream->stream_state == FLY_HV2_STREAM_STATE_OPEN || \
@@ -1843,9 +1891,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 
 			break;
 		case FLY_HV2_FRAME_TYPE_PING:
-#ifdef DEBUG
-			printf("FLY_HV2_FRAME_TYPE_PING\n");
-#endif
 			if (sid!=FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			if (length != FLY_HV2_FRAME_TYPE_PING_LENGTH)
@@ -1860,9 +1905,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_GOAWAY:
-#ifdef DEBUG
-			printf("FLY_HV2_FRAME_TYPE_GOAWAY\n");
-#endif
 			if (sid!=FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
@@ -1882,9 +1924,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 
 			break;
 		case FLY_HV2_FRAME_TYPE_WINDOW_UPDATE:
-#ifdef DEBUG
-			printf("FLY_HV2_FRAME_TYPE_WINDOW_UPDATE\n");
-#endif
 			if (length != FLY_HV2_FRAME_TYPE_WINDOW_UPDATE_LENGTH)
 				fly_hv2_send_frame_size_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 
@@ -1908,9 +1947,6 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			}
 			break;
 		case FLY_HV2_FRAME_TYPE_CONTINUATION:
-#ifdef DEBUG
-			printf("FLY_HV2_FRAME_TYPE_CONTINUATION\n");
-#endif
 			if (sid==FLY_HV2_STREAM_ROOT_ID)
 				fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 			{
@@ -1951,6 +1987,15 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 		if (bufc->buffer->use_len == 0)
 			fly_buffer_chain_refresh(bufc);
 
+#ifdef DEBUG
+		/* 
+		 * buffer lenngth must be \
+		 * previous buffer length-FRAME_SIZE+FRAME_HEADER_SIZE 
+		 *
+		 */
+		assert(conn->buffer->use_len == __buflen-FLY_HV2_FRAME_HEADER_LENGTH-length);
+		printf("HTTP2 BUFFER LENGTH: %ld\n", conn->buffer->use_len);
+#endif
 		/* Is there next frame header in buffer? */
 		if (conn->buffer->use_len >= FLY_HV2_FRAME_HEADER_LENGTH)
 			continue;
@@ -2739,6 +2784,45 @@ retry:
 	struct fly_queue *__q;
 	fly_for_each_queue(__q, &state->send){
 		__s = fly_queue_data(__q, struct fly_hv2_send_frame, sqelem);
+#ifdef DEBUG
+		switch(__s->type){
+		case FLY_HV2_FRAME_TYPE_DATA:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_DATA\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_HEADERS:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_HEADERS\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_PRIORITY:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_PRIORITY\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_RST_STREAM:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_RST_STREAM\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_SETTINGS:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_SETTINGS\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_PUSH_PROMISE:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_PUSH_PROMISE\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_PING:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_PING\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_GOAWAY:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_GOAWAY\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_WINDOW_UPDATE:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_WINDOW_UPDATE\n");
+			break;
+		case FLY_HV2_FRAME_TYPE_CONTINUATION:
+			printf("\tSEND FRAME: FLY_HV2_FRAME_TYPE_CONTINUATION\n");
+			break;
+		default:
+			FLY_NOT_COME_HERE
+		}
+		printf("\t\tsid: %d\n", __s->sid);
+		printf("\t\tpayload length: %ld\n", __s->payload_len);
+		printf("\t\t%s\n", __s->need_ack ? "need ack": "no need ack");
+#endif
 		switch(__fly_send_frame(__s)){
 		case __FLY_SEND_FRAME_READING_BLOCKING:
 			goto read_blocking;

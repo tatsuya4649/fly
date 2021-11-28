@@ -55,14 +55,15 @@ void fly_worker_signal(void);
 #define FLY_DEFAULT_CONTENT_PATH		"FLY_DEFAULT_CONTENT_PATH"
 const char *fly_default_content_path(void);
 
+#define FLY_SIGNAL_CHANGE_MNT_CONTENT	(SIGUSR1)
 /* detect to modify file in mount points */
-#define FLY_SIGNAL_MODF					(SIGRTMIN)
+#define FLY_SIGNAL_MODF					(1<<0)
 /* detect to add file in mount points */
-#define FLY_SIGNAL_ADDF					(SIGRTMIN+1)
+#define FLY_SIGNAL_ADDF					(1<<1)
 /* detect to delete file in mount points */
-#define FLY_SIGNAL_DELF					(SIGRTMIN+2)
+#define FLY_SIGNAL_DELF					(1<<2)
 /* detect to unmount mount point */
-#define FLY_SIGNAL_UMOU					(SIGRTMIN+3)
+#define FLY_SIGNAL_UMOU					(1<<3)
 
 
 #endif
