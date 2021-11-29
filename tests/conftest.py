@@ -4,6 +4,11 @@ from signal import SIGTERM, SIGINT
 import os
 import sys
 from fly import Fly
+try:
+    import ssl
+except ModuleNotFoundError:
+    print("no ssl")
+
 
 def http_scheme():
     __HTTP = "HTTP/1.1"
@@ -28,6 +33,11 @@ def not_have_ssl_crt_key_file():
 ssl_reason = "require SSL cert/key file"
 pid_path = "log/fly.pid"
 
+@pytest.fixture(scope="session", autouse=True)
+def _pid():
+    pid = os.getpid()
+    print(f"fly test PID: \"{pid}\"")
+    yield pid
 
 def get_master_pid(pid_list):
     if not isinstance(pid_list, list):
@@ -66,13 +76,25 @@ def fly_remove_pid():
     if os.path.isfile(pid_path):
         os.remove(pid_path)
 
-KILL_FLY_COMMAND = 'FLY_NOW="$(lsof -i:1234 -t)" && if [ -n "$FLY_NOW" ]; then echo $FLY_NOW | xargs kill -KILL; fi'
+GET_FLY_COMMAND = 'lsof -i:1234 -t'
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=True)
 async def remove_already_in_use():
-    process = await asyncio.create_subprocess_shell(KILL_FLY_COMMAND, stdout = asyncio.subprocess.PIPE)
+    pid = os.getpid()
+    process = await asyncio.create_subprocess_shell(GET_FLY_COMMAND, stdout = asyncio.subprocess.PIPE)
+    _out, _ = await process.communicate()
     await process.wait()
-    yield
+
+    if (len(_out) == 0):
+        yield
+    else:
+        _spout = _out.decode("utf-8").split('\n')
+        _spout = list(filter(lambda x: len(x) > 0, _spout))
+        _no_this_pids = list(filter(lambda x: x != str(pid), _spout))
+        assert(not str(pid) in _no_this_pids)
+        process = await asyncio.create_subprocess_shell(f"echo \"{' '.join(_no_this_pids)}\" | xargs kill -KILL")
+        await process.wait()
+        yield
 
 @pytest.fixture(params=["nodaemon", "daemon"])
 def fly_servers_onlyspawn(request):
@@ -114,14 +136,14 @@ def fly_mini_servers_ssl(request):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_os(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test.conf --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
 
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_os_d(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test.conf --daemon  --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
 
 # make fly server (HTTP1.1)
@@ -129,17 +151,15 @@ async def fly_server_os_d(fly_remove_pid, remove_already_in_use):
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test.conf --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
-
-    process.send_signal(SIGINT)
 
 # make fly daemon server (HTTP1.1)
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_d(fly_remove_pid, remove_already_in_use):
     await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test.conf --daemon --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
 
     process = await asyncio.create_subprocess_shell("lsof -i:1234 -t", stdout = asyncio.subprocess.PIPE)
     await process.wait()
@@ -148,24 +168,21 @@ async def fly_server_d(fly_remove_pid, remove_already_in_use):
     pro = __out.decode("utf-8")
     print(pro.split('\n'))
     yield
-#    __master = get_master_pid(pro.split('\n'))
-#    os.kill(__master, SIGINT)
 
 # make fly server (HTTP/1.1)
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_mini_server(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test_mini.conf --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
-    #process.send_signal(SIGTERM)
 
 # make fly daemon server (HTTP1.1)
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_mini_server_d(fly_remove_pid, remove_already_in_use):
     await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test_mini.conf --daemon --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
 
     process = await asyncio.create_subprocess_shell("lsof -i:1234 -t", stdout = asyncio.subprocess.PIPE)
     await process.wait()
@@ -174,24 +191,21 @@ async def fly_mini_server_d(fly_remove_pid, remove_already_in_use):
     pro = __out.decode("utf-8")
     print(pro.split('\n'))
     yield
-#    __master = get_master_pid(pro.split('\n'))
-#    os.kill(__master, SIGINT)
 
 # make fly server (HTTP1.1/2 over SSL)
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_ssl(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/https_test.conf --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
-#    process.send_signal(SIGINT)
 
 # make fly daemon server (HTTP1.1/2 over SSL)
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_ssl_d(fly_remove_pid, remove_already_in_use):
     await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/https_test.conf --daemon --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
 
     process = await asyncio.create_subprocess_shell("lsof -i:1234 -t", stdout = asyncio.subprocess.PIPE)
     await process.wait()
@@ -200,55 +214,34 @@ async def fly_server_ssl_d(fly_remove_pid, remove_already_in_use):
     pro = __out.decode("utf-8")
     print(pro.split('\n'))
     yield
-#
-#    __master = get_master_pid(pro.split('\n'))
-#    os.kill(__master, SIGINT)
-
 
 # make fly server (HTTP/1.1), SIGINT
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_mini_server_ssl(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/https_test_mini.conf --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
-#    process.send_signal(SIGTERM)
 
 # make fly daemon server (HTTP1.1)
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_mini_server_ssl_d(fly_remove_pid, remove_already_in_use):
     await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/https_test_mini.conf --daemon --test")
-    await asyncio.sleep(0.5)
-
-    process = await asyncio.create_subprocess_shell("lsof -i:1234 -t", stdout = asyncio.subprocess.PIPE)
-    await process.wait()
-    __out, __err = await process.communicate()
-    print("\n")
-    pro = __out.decode("utf-8")
-    print(pro.split('\n'))
+    await asyncio.sleep(1.5)
     yield
-
-#    __master = get_master_pid(pro.split('\n'))
-#    os.kill(__master, SIGINT)
-    j=0
-    for i in pro.split('\n'):
-        if (len(i) > 0):
-            j+=1
-#            os.kill(int(i), SIGTERM)
-    assert(j == 2)
 
 # make fly server over workers max
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_over_worker(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test_over.conf --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process
 
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)
 async def fly_server_over_worker_d(fly_remove_pid, remove_already_in_use):
     process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test_over.conf --daemon --test")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(1.5)
     yield process

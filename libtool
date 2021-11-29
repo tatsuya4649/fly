@@ -50,7 +50,7 @@ build_old_libs=yes
 pic_mode=default
 
 # Whether or not to optimize for fast installation.
-fast_install=yes
+fast_install=needless
 
 # Shared archive member basename,for filename based shared library versioning on AIX.
 shared_archive_member_spec=
@@ -66,13 +66,13 @@ PATH_SEPARATOR=":"
 
 # The host system.
 host_alias=
-host=x86_64-pc-linux-gnu
-host_os=linux-gnu
+host=x86_64-unknown-freebsd13.0
+host_os=freebsd13.0
 
 # The build system.
 build_alias=
-build=x86_64-pc-linux-gnu
-build_os=linux-gnu
+build=x86_64-unknown-freebsd13.0
+build_os=freebsd13.0
 
 # A sed program that does not truncate output.
 SED="/usr/bin/sed"
@@ -90,13 +90,13 @@ EGREP="/usr/bin/grep -E"
 FGREP="/usr/bin/grep -F"
 
 # A BSD- or MS-compatible name lister.
-NM="/usr/bin/nm -B"
+NM="/usr/local/bin/nm -B"
 
 # Whether we need soft or hard links.
 LN_S="ln -s"
 
 # What is the maximum length of a command?
-max_cmd_len=1572864
+max_cmd_len=393216
 
 # Object file suffix (normally "o").
 objext=o
@@ -150,7 +150,7 @@ lt_ar_flags=cr
 AR_FLAGS=${ARFLAGS-"$lt_ar_flags"}
 
 # How to feed a file listing to the archiver.
-archiver_list_spec="@"
+archiver_list_spec=""
 
 # A symbol stripping program.
 STRIP="strip"
@@ -194,7 +194,7 @@ nm_file_list_spec="@"
 lt_sysroot=
 
 # Command to truncate a binary pipe.
-lt_truncate_bin="/usr/bin/dd bs=4096 count=1"
+lt_truncate_bin="/bin/dd bs=4096 count=1"
 
 # The name of the directory that contains temporary libtool files.
 objdir=.libs
@@ -243,7 +243,7 @@ need_lib_prefix=no
 need_version=no
 
 # Library versioning type.
-version_type=linux
+version_type=freebsd-elf
 
 # Shared library runtime path variable.
 runpath_var=LD_RUN_PATH
@@ -252,7 +252,7 @@ runpath_var=LD_RUN_PATH
 shlibpath_var=LD_LIBRARY_PATH
 
 # Is shlibpath searched before the hard-coded library search path?
-shlibpath_overrides_runpath=no
+shlibpath_overrides_runpath=yes
 
 # Format of library name prefix.
 libname_spec="lib\$name"
@@ -274,7 +274,7 @@ postinstall_cmds=""
 postuninstall_cmds=""
 
 # Commands used to finish a libtool library installation in a directory.
-finish_cmds="PATH=\\\"\\\$PATH:/sbin\\\" ldconfig -n \$libdir"
+finish_cmds=""
 
 # As "finish_cmds", except a single script fragment to be evaled but
 # not shown.
@@ -284,10 +284,10 @@ finish_eval=""
 hardcode_into_libs=yes
 
 # Compile-time system search path for libraries.
-sys_lib_search_path_spec="/usr/lib/gcc/x86_64-pc-linux-gnu/11.1.0 /usr/lib /lib "
+sys_lib_search_path_spec="/usr/local/lib/gcc10/gcc/x86_64-portbld-freebsd13.0/10.3.0 /usr/local/x86_64-portbld-freebsd13.0/lib /usr/local/lib/gcc10 /lib /usr/lib "
 
 # Detected run-time system search path for libraries.
-sys_lib_dlsearch_path_spec="/lib /usr/lib /home/tatsuya/program/glibc-2.33/lib /usr/lib/libfakeroot /usr/lib32 /home/tatsuya/program/glibc-2.33/lib "
+sys_lib_dlsearch_path_spec="/lib /usr/lib"
 
 # Explicit LT_SYS_LIBRARY_PATH set during ./configure time.
 configure_time_lt_sys_library_path=""
@@ -307,7 +307,7 @@ striplib="strip --strip-unneeded"
 
 
 # The linker used to build libraries.
-LD="/usr/bin/ld -m elf_x86_64"
+LD="/usr/local/bin/ld"
 
 # How to create reloadable object files.
 reload_flag=" -r"
@@ -360,10 +360,7 @@ old_archive_from_expsyms_cmds=""
 
 # Commands used to build a shared archive.
 archive_cmds="\$CC -shared \$pic_flag \$libobjs \$deplibs \$compiler_flags \$wl-soname \$wl\$soname -o \$lib"
-archive_expsym_cmds="echo \\\"{ global:\\\" > \$output_objdir/\$libname.ver~
-            cat \$export_symbols | sed -e \\\"s/\\\\(.*\\\\)/\\\\1;/\\\" >> \$output_objdir/\$libname.ver~
-            echo \\\"local: *; };\\\" >> \$output_objdir/\$libname.ver~
-            \$CC -shared \$pic_flag \$libobjs \$deplibs \$compiler_flags \$wl-soname \$wl\$soname \$wl-version-script \$wl\$output_objdir/\$libname.ver -o \$lib"
+archive_expsym_cmds="\$CC -shared \$pic_flag \$libobjs \$deplibs \$compiler_flags \$wl-soname \$wl\$soname \$wl-retain-symbols-file \$wl\$export_symbols -o \$lib"
 
 # Commands used to build a loadable module if different from building
 # a shared archive.

@@ -34,8 +34,6 @@ jobs:
               brew install automake autoconf autoconf-archive
               python -m pip install --upgrade pip
               python -m pip install -r requirements.txt
-        - name: Setup tmate session
-          uses: mxschmitt/action-tmate@v3
         - name: Make fly library
           run: |
               autoreconf
@@ -46,3 +44,16 @@ jobs:
         - name: Update resolv.conf file
           run: |
               echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+        - name: Bukld extension module
+          run: |
+              python3 setup.py build
+              cp -rf build/lib.*/fly/_fly_server* fly/
+        - name: Make self certificate for SSL/TLS
+          run: | 
+              openssl req \
+              -subj '/CN=localhost' \
+              -x509 -nodes -days 365 -newkey rsa:2048 \
+              -keyout tests/fly_test.ky \
+              -out tests/fly_test.crt
+        - name: Run Python test
+          run: python3 -m python tests -v

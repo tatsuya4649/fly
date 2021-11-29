@@ -1,9 +1,14 @@
 #include "event.h"
 #include "err.h"
+#ifdef HAVE_KQUEUE
+#include <signal.h>
+#endif
 
 
 __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx);
+#ifdef HAVE_EPOLL
 static int __fly_event_fd_init(void);
+#endif
 __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager);
 __fly_static int __fly_update_event_timeout(fly_event_manager_t *manager);
 inline float fly_diff_time(fly_time_t new, fly_time_t old);
@@ -14,6 +19,10 @@ static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e);
 __fly_static int __fly_event_cmp(void *k1, void *k2, void *);
 static void fly_event_handle(fly_event_t *e);
+static int __fly_event_kevent_inotify(fly_event_t *__e);
+#ifdef HAVE_KQUEUE
+static void fly_timeout_spec_from_msec(struct timespec *spec, long msec);
+#endif
 
 __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx)
 {
@@ -23,10 +32,12 @@ __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx)
 	return __ep;
 }
 
+#ifdef HAVE_EPOLL
 static int __fly_event_fd_init(void)
 {
 	return epoll_create1(EPOLL_CLOEXEC);
 }
+#endif
 
 /*
  *	create manager of events.
@@ -40,12 +51,20 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	__ep =__fly_event_pool_init(ctx);
 	manager = fly_pballoc(__ep , sizeof(fly_event_manager_t));
 
+#ifdef HAVE_EPOLL
 	fd = __fly_event_fd_init();
+#elif defined HAVE_KQUEUE
+	fd = kqueue();
+#endif
 	if (fd == -1)
 		goto error;
 
 	manager->pool = __ep;
-	manager->evlist = fly_pballoc(manager->pool, sizeof(struct epoll_event)*FLY_EVLIST_ELES);
+#ifdef HAVE_EPOLL
+	manager->evlist = fly_pballoc( manager->pool, sizeof(struct epoll_event) * FLY_EVLIST_ELES);
+#elif defined HAVE_KQUEUE
+	manager->evlist = fly_pballoc( manager->pool, sizeof(struct kevent) * FLY_EVLIST_ELES);
+#endif
 	fly_queue_init(&manager->monitorable);
 	fly_queue_init(&manager->unmonitorable);
 	manager->maxevents = FLY_EVLIST_ELES;
@@ -166,7 +185,16 @@ fly_event_t *fly_event_init(fly_event_manager_t *manager)
 	event->err_count = 0;
 	event->emerge_ptr = manager->ctx->emerge_ptr;
 	event->if_fail_term = false;
+#ifdef DEBUG
+	event->post_fd = -1;
+#endif
 
+#ifdef HAVE_KQUEUE
+	event->id = 0;
+	event->post_row = FLY_NO_POST_ROW;
+	if (sigemptyset(&event->sigset) == -1)
+		return NULL;
+#endif
 	FLY_EVENT_FOR_RBTREE_INIT(event);
 	return event;
 }
@@ -191,7 +219,9 @@ void fly_event_debug_rbtree_delete_node(fly_event_manager_t *manager, fly_event_
 	fly_event_t *__e;
 
 	fly_for_each_queue(__q, &manager->monitorable){
+#ifdef DEBUG_EVENT
 		printf("DEBUG_RBTREE_DELETE_NODE_EACH\n");
+#endif
 		__e = (fly_event_t *) fly_queue_data(__q, fly_event_t, qelem);
 		if ((__e->flag & FLY_INFINITY))
 			continue;
@@ -203,7 +233,9 @@ void fly_event_debug_rbtree_delete_node(fly_event_manager_t *manager, fly_event_
 			assert((*__e->rbnode->node_data)->data == __e);
 		}
 	}
+#ifdef DEBUG_EVENT
 	printf("DEBUG_RBTREE_DELETE_NODE\n");
+#endif
 }
 void fly_event_debug_rbtree(fly_event_manager_t *manager)
 {
@@ -211,7 +243,9 @@ void fly_event_debug_rbtree(fly_event_manager_t *manager)
 	fly_event_t *__e;
 
 	fly_for_each_queue(__q, &manager->monitorable){
+#ifdef DEBUG_EVENT
 		printf("EVENT_DEBUG_RBTREE\n");
+#endif
 		__e = (fly_event_t *) fly_queue_data(__q, fly_event_t, qelem);
 		if ((__e->tflag & FLY_INFINITY))
 			continue;
@@ -224,16 +258,20 @@ void fly_event_debug_rbtree(fly_event_manager_t *manager)
 
 int fly_event_register(fly_event_t *event)
 {
+#ifdef HAVE_EPOLL
 	struct epoll_event ev;
+#elif defined HAVE_KQUEUE
+	struct kevent ev;
+#endif
 	int op;
-	epoll_data_t data;
+	fly_event_data_t data;
 
 #ifdef DEBUG
 	assert(event);
 	fly_event_debug_rbtree(event->manager);
 #endif
 	op = fly_event_op(event);
-	if (op == EPOLL_CTL_ADD){
+	if (op == FLY_EVENT_CTL_ADD){
 		/* add to red black tree */
 		if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event)){
 			__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
@@ -260,8 +298,30 @@ int fly_event_register(fly_event_t *event)
 #endif
 		event->yetadd = false;
 	}else{
+#ifdef DEBUG
+		if (event->post_fd != -1)
+			assert(event->post_fd == event->fd);
+#endif
 		/* delete & add (for changing timeout) */
 		if (fly_event_monitorable(event)){
+//#ifdef HAVE_KQUEUE
+//			if (event->post_row != FLY_NO_POST_ROW){
+//				if (event->post_row & FLY_READ && 
+//						!(event->read_or_write & FLY_READ)){
+//					struct kevent __kev;
+//					EV_SET(&__kev, event->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+//					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
+//						return -1;
+//				}
+//				if (event->post_row & FLY_WRITE && 
+//						!(event->read_or_write & FLY_WRITE)){
+//					struct kevent __kev;
+//					EV_SET(&__kev, event->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+//					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
+//						return -1;
+//				}
+//			}
+//#endif
 			if (event->rbnode){
 #ifdef DEBUG
 				int ret;
@@ -275,7 +335,7 @@ int fly_event_register(fly_event_t *event)
 				fly_event_debug_rbtree(event->manager);
 #endif
 				fly_rb_delete(event->manager->rbtree, event->rbnode);
-#ifdef DEBUG
+#ifdef DEBUG_EVENT
 				printf("RBTREE DELETE OF EVENT in register\n");
 #endif
 #ifdef DEBUG
@@ -299,9 +359,13 @@ int fly_event_register(fly_event_t *event)
 			}
 		}
 	}
+#ifdef HAVE_EPOLL
 	data.ptr = event;
 	ev.data = data;
 	ev.events = event->read_or_write | event->eflag;
+#elif defined HAVE_KQUEUE
+	data = event;
+#endif
 
 #ifdef DEBUG
 	if (!(event->tflag&FLY_INFINITY) && \
@@ -309,7 +373,10 @@ int fly_event_register(fly_event_t *event)
 		assert(event->expired_handler != NULL);
 #endif
 
-	if (fly_event_monitorable(event) && epoll_ctl(event->manager->efd, op, event->fd, &ev) == -1){
+#ifdef HAVE_EPOLL
+	if (fly_event_monitorable(event) && \
+			epoll_ctl(event->manager->efd, op, event->fd, &ev) == -1)
+	{
 		struct fly_err *__err;
 		__err = fly_event_err_init(
 			event, errno, FLY_ERR_ERR,
@@ -317,8 +384,57 @@ int fly_event_register(fly_event_t *event)
 		);
 		fly_event_error_add(event, __err);
 	}
+	event->post_fd = event->fd;
+#elif defined HAVE_KQUEUE
+	event->post_row = event->read_or_write;
 
+	if (fly_event_monitorable(event))
+	{
 #ifdef DEBUG
+		assert(!fly_event_is_signal(event));
+#endif
+		if (fly_event_is_inotify(event)){
+			if (__fly_event_kevent_inotify(event) == -1){
+				struct fly_err *__err;
+				__err = fly_event_err_init(
+					event, errno, FLY_ERR_ERR,
+					"inotify kevent error in event_register."
+				);
+				fly_event_error_add(event, __err);
+			}
+		}else{
+			if (event->read_or_write & FLY_READ){
+				EV_SET(&ev, event->fd, EVFILT_READ, \
+						event->tflag & FLY_INFINITY ? EV_ADD : EV_ADD|EV_ONESHOT, event->eflag, 0, data);
+				if (kevent(event->manager->efd, &ev, 1, NULL, 0, NULL) == -1){
+					struct fly_err *__err;
+					__err = fly_event_err_init(
+						event, errno, FLY_ERR_ERR,
+						"kevent error in event_register. (%s:%s)",
+						__FILE__, __LINE__
+					);
+					fly_event_error_add(event, __err);
+				}
+			}
+
+			if (event->read_or_write & FLY_WRITE){
+				EV_SET(&ev, event->fd, EVFILT_WRITE, \
+						event->tflag & FLY_INFINITY ? EV_ADD : EV_ADD|EV_ONESHOT, event->eflag, 0, data);
+				if (kevent(event->manager->efd, &ev, 1, NULL, 0, NULL) == -1){
+					struct fly_err *__err;
+					__err = fly_event_err_init(
+						event, errno, FLY_ERR_ERR,
+						"kevent error in event_register. (%s:%s)",
+						__FILE__, __LINE__
+					);
+					fly_event_error_add(event, __err);
+				}
+			}
+		}
+	}
+#endif
+
+#ifdef DEBUG_EVENT
 	printf("END OF REGISTERING EVENT\n");
 #endif
 	return 0;
@@ -336,21 +452,56 @@ int fly_event_unregister(fly_event_t *event)
 		return 0;
 	}else{
 		fly_queue_remove(&event->qelem);
-		if (event->rbnode)
-#ifdef DEBUG
-				printf("RBTREE DELETE OF EVENT in unregister\n");
+		if (event->rbnode){
+#ifdef DEBUG_EVENT
+			printf("RBTREE DELETE OF EVENT in unregister(%s)\n", event->handler_name);
 #endif
 			fly_rb_delete(event->manager->rbtree, event->rbnode);
-		if (!(event->flag & FLY_CLOSE_EV))
+		}
+		if (!(event->flag & FLY_CLOSE_EV)){
+#ifdef HAVE_EPOLL
 			if (epoll_ctl(event->manager->efd, EPOLL_CTL_DEL, event->fd, NULL) == -1){
 				struct fly_err *__err;
 				__err = fly_err_init(
 					__m->ctx->pool, errno, FLY_ERR_ERR,
-					"epoll_ctl error in event_unregister."
+					"unregister event error in event_unregister. (%s: %s)",
+					__FILE__, __LINE__
 				);
 				fly_error_error(__err);
 				return -1;
 			}
+#elif defined HAVE_KQUEUE
+			struct kevent __kev;
+
+			if (event->read_or_write & FLY_READ){
+				EV_SET(&__kev, event->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+				if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1){
+					struct fly_err *__err;
+					__err = fly_err_init(
+						__m->ctx->pool, errno, FLY_ERR_ERR,
+						"unregister event error in event_unregister. (%s: %s)",
+						__FILE__, __LINE__
+					);
+					fly_error_error(__err);
+					return -1;
+				}
+			}
+
+			if (event->read_or_write & FLY_WRITE){
+				EV_SET(&__kev, event->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+				if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1){
+					struct fly_err *__err;
+					__err = fly_err_init(
+						__m->ctx->pool, errno, FLY_ERR_ERR,
+						"unregister event error in event_unregister. (s: %s)",
+						__FILE__, __LINE__
+					);
+					fly_error_error(__err);
+					return -1;
+				}
+			}
+#endif
+		}
 
 		fly_pbfree(event->manager->pool, event);
 		return 0;
@@ -521,21 +672,6 @@ __fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_
 			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
 			return 0;
 		}
-//		switch(tree->cmp(node->key, __t, NULL)){
-//		case FLY_RB_CMP_BIG:
-//			node = node->c_left;
-//			break;
-//		case FLY_RB_CMP_SMALL:
-//		case FLY_RB_CMP_EQUAL:
-//			/* __n right partial tree is expired */
-//			__e = (fly_event_t *) node->data;
-//			__e->expired = true;
-//			__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
-//			__fly_expired_from_rbtree(manager, tree, node->c_right, __t);
-//			return 0;
-//		default:
-//			FLY_NOT_COME_HERE
-//		}
 	}
 	return 0;
 }
@@ -617,15 +753,34 @@ __fly_static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager)
 
 static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 {
+#ifdef HAVE_EPOLL
 	struct epoll_event *event;
+#elif defined HAVE_KQUEUE
+	struct kevent *event;
+#endif
 
 	for (int i=0; i<epoll_events; i++){
 		fly_event_t *fly_event;
 		event = manager->evlist + i;
 
+#ifdef HAVE_EPOLL
 		fly_event = (fly_event_t *) event->data.ptr;
-		fly_event->available = true;
 		fly_event->available_row = event->events;
+#elif defined HAVE_KQUEUE
+		fly_event = (fly_event_t *) event->udata;
+#ifdef DEBUG_EVENT
+		printf("EVENT: %s\n", fly_event->handler_name);
+#endif
+		fly_event->id = event->ident;
+		fly_event->eflag = event->fflags;
+		if (event->filter == EVFILT_READ)
+			fly_event->available_row = FLY_READ;
+		else if (event->filter == EVFILT_WRITE)
+			fly_event->available_row = FLY_WRITE;
+		else
+			fly_event->available_row = event->filter;
+#endif
+		fly_event->available = true;
 		fly_event_handle(fly_event);
 
 #ifdef DEBUG
@@ -647,22 +802,40 @@ int fly_event_handler(fly_event_manager_t *manager)
 		return FLY_EVENT_HANDLER_INVALID_MANAGER;
 
 	for (;;){
-		int timeout_msec;
 		/* update event timeout */
 		__fly_update_event_timeout(manager);
 		near_timeout = __fly_nearest_event(manager);
+		int timeout_msec;
+#ifdef HAVE_KQUEUE
+		struct timespec timeout, *t_ptr;
+#endif
 		if (near_timeout){
 			timeout_msec = fly_milli_diff_time_from_now(&near_timeout->abs_timeout);
 			if (timeout_msec < 0)
 				timeout_msec = 0;
-		}else
+#if defined HAVE_KQUEUE
+			t_ptr = &timeout;
+			fly_timeout_spec_from_msec(t_ptr, timeout_msec);
+#endif
+		}else{
 			timeout_msec = -1;
+#if defined HAVE_KQUEUE
+			t_ptr = NULL;
+#endif
+		}
 
 #ifdef DEBUG
 		printf("WAITING FOR EVENT...\n");
 #endif
 		/* the event with closest timeout */
-		epoll_events = epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
+#ifdef HAVE_EPOLL
+		epoll_events = \
+				epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
+#elif defined HAVE_KQUEUE
+retry:
+		epoll_events = \
+				kevent(manager->efd, NULL, 0, manager->evlist, manager->maxevents, t_ptr);
+#endif
 		switch(epoll_events){
 		case 0:
 			/* trigger expired event */
@@ -672,6 +845,8 @@ int fly_event_handler(fly_event_manager_t *manager)
 			break;
 		case -1:
 			/* epoll error */
+			if (errno == EINTR)
+				goto retry;
 			return FLY_EVENT_HANDLER_EPOLL_ERROR;
 		default:
 			break;
@@ -858,3 +1033,29 @@ void fly_event_error_add(fly_event_t *e, struct fly_err *__err)
 	return;
 }
 
+#ifdef HAVE_KQUEUE
+/* for kevent/kqueue */
+static int __fly_event_kevent_inotify(fly_event_t *__e)
+{
+	struct kevent __kev;
+	EV_SET(&__kev, __e->fd, EVFILT_VNODE, EV_ADD, __e->eflag, 0, (void *) __e);
+	return kevent(__e->manager->efd, &__kev, 1, NULL, 0, NULL);
+}
+#endif
+
+#ifdef HAVE_KQUEUE
+static void fly_timeout_spec_from_msec(struct timespec *spec, long msec)
+{
+#define FLY_ONE_SECOND				1000
+#define FLY_MSEC_TO_NSEC(__m)		((__m)*(1000*1000))
+	spec->tv_sec = 0;
+	spec->tv_nsec = 0;
+	while ((msec-FLY_ONE_SECOND) >= 0){
+		msec -= FLY_ONE_SECOND;
+		spec->tv_sec += 1;
+	}
+
+	spec->tv_nsec = FLY_MSEC_TO_NSEC(msec);
+	return;
+}
+#endif

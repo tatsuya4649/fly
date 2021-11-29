@@ -343,8 +343,9 @@ typedef uint8_t fly_hv2_frame_type_t;
  *
  */
 #define FLY_HV2_FRAME_TYPE_PING					(0x6)
-#define FLY_HV2_FRAME_TYPE_PING_OPEQUE_DATA_LEN	(64)
+#define FLY_HV2_FRAME_TYPE_PING_OPAQUE_DATA_LEN	(64)
 #define FLY_HV2_FRAME_TYPE_PING_LENGTH			(8)	 /* unit: octet */
+#define FLY_HV2_FRAME_TYPE_PING_ACK						(1<<0)
 
 /*
  *	GOAWAY Frame:
