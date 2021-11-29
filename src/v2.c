@@ -533,6 +533,11 @@ int fly_receive_v2(fly_sock_t fd, fly_connect_t *connect)
 	if (FLY_CONNECT_ON_SSL(connect)){
 		SSL *ssl = connect->ssl;
 
+#ifdef DEBUG
+		assert(ssl != NULL);
+		assert(fly_buffer_lunuse_ptr(__buf) != NULL);
+		assert(fly_buffer_lunuse_len(__buf) > 0);
+#endif
 		recvlen = SSL_read(ssl, fly_buffer_lunuse_ptr(__buf),  fly_buffer_lunuse_len(__buf));
 		switch(SSL_get_error(ssl, recvlen)){
 		case SSL_ERROR_NONE:
@@ -1365,6 +1370,9 @@ int fly_hv2_end_handle(fly_event_t *e)
 
 int fly_hv2_timeout_handle(fly_event_t *e)
 {
+#ifdef DEBUG
+	printf("HTTP2 TIMEOUT HANDLE: %s: %d\n", __FILE__, __LINE__);
+#endif
 	fly_connect_t *conn;
 
 	conn = (fly_connect_t *) e->expired_event_data;
@@ -1491,9 +1499,15 @@ int fly_hv2_request_event_blocking_handler(fly_event_t *e)
 	return fly_hv2_request_event_handler(e);
 
 write_continuation:
+#ifdef DEBUG
+	printf("HTTP2 WRITE BLOCKING\n");
+#endif
 	e->read_or_write |= FLY_WRITE;
 	goto continuation;
 read_continuation:
+#ifdef DEBUG
+	printf("HTTP2 READ BLOCKING\n");
+#endif
 	e->read_or_write |= FLY_READ;
 	goto continuation;
 continuation:
@@ -1507,8 +1521,14 @@ continuation:
 	return fly_event_register(e);
 
 disconnect:
+#ifdef DEBUG
+	printf("HTTP2 DISCONNECTION\n");
+#endif
 	return fly_hv2_request_event_handler(e);
 overflow:
+#ifdef DEBUG
+	printf("HTTP2 OVERFLOW\n");
+#endif
 	return -1;
 }
 

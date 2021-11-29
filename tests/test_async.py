@@ -129,80 +129,85 @@ async def test_https2_post_data_index(fly_servers_ssl):
 @pytest.mark.asyncio
 async def test_http_post_file_index(fly_servers):
     # send with multipart/form-data
-    files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
-    async with httpx.AsyncClient(
-        http1=True,
-        timeout=60
-    ) as client:
-        res = await client.post(
-            f"{_HTTP}://{_HOST}:{_PORT}/",
-            files = files,
-        )
-    print(res.content)
-    assert(res.status_code == 200)
-    assert(res.is_error is False)
-    assert(res.http_version == http_scheme())
-    assert(res.content.decode("utf-8") == "Success, POST")
+    with open("tests/fly_dummy", 'rb') as _f:
+        files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
+        async with httpx.AsyncClient(
+            http1=True,
+            timeout=60
+        ) as client:
+            res = await client.post(
+                f"{_HTTP}://{_HOST}:{_PORT}/",
+                files = files,
+            )
+        print(res.content)
+        assert(res.status_code == 200)
+        assert(res.is_error is False)
+        assert(res.http_version == http_scheme())
+        assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_post_file_index(fly_servers_ssl):
     # send with multipart/form-data
-    files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
-    async with httpx.AsyncClient(
-        http1=True,
-        verify=False,
-        timeout=60
-    ) as client:
-        try:
-            res = await client.post(
-                f"{_HTTPS}://{_HOST}:{_PORT}/",
-                files = files,
-            )
-        except ssl.SSLWantReadError:
-            print(traceback.format_exc())
-        except ssl.SSLWantWriteError:
-            print(traceback.format_exc())
+    with open("tests/fly_dummy", 'rb') as _f:
+        files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
+        async with httpx.AsyncClient(
+            http1=True,
+            verify=False,
+            timeout=60
+        ) as client:
+            try:
+                res = await client.post(
+                    f"{_HTTPS}://{_HOST}:{_PORT}/",
+                    files = files,
+                )
+            except ssl.SSLWantReadError:
+                print(traceback.format_exc())
+            except ssl.SSLWantWriteError:
+                print(traceback.format_exc())
 
-    print(res.content)
-    assert(res.status_code == 200)
-    assert(res.is_error is False)
-    assert(res.http_version == http_scheme())
-    assert(res.content.decode("utf-8") == "Success, POST")
+        print(res.content)
+        assert(res.status_code == 200)
+        assert(res.is_error is False)
+        assert(res.http_version == http_scheme())
+        assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_post_file_index(fly_servers_ssl):
-    # send with multipart/form-data
-    files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
-    async with httpx.AsyncClient(
-        http1=False,
-        http2=True,
-        verify=False,
-        timeout=10
-    ) as client:
-        try:
-            res = await client.post(
-                f"{_HTTPS}://{_HOST}:{_PORT}/",
-                files = files,
-            )
-        except ssl.SSLWantReadError:
-            print(traceback.format_exc())
-        except ssl.SSLWantWriteError:
-            print(traceback.format_exc())
+    with open("tests/fly_dummy", 'rb') as _f:
+        # send with multipart/form-data
+        files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
+        async with httpx.AsyncClient(
+            http1=False,
+            http2=True,
+            verify=False,
+            timeout=10
+        ) as client:
+            try:
+                res = await client.post(
+                    f"{_HTTPS}://{_HOST}:{_PORT}/",
+                    files = files,
+                )
+            except ssl.SSLWantReadError:
+                print(traceback.format_exc())
+            except ssl.SSLWantWriteError:
+                print(traceback.format_exc())
 
-    assert(res.status_code == 200)
-    assert(res.http_version == http2_scheme())
-    assert(res.content.decode("utf-8") == "Success, POST")
+        assert(res.status_code == 200)
+        assert(res.http_version == http2_scheme())
+        assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
 async def test_http_post_files_index(fly_servers):
+    _f1 = open("tests/fly_dummy", 'rb')
+    _f2 = open("tests/fly_dummy2", 'rb')
     # send with multipart/form-data
     files = {
         'dummy1':
-            ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain'),
+            ('fly_dummy', _f1.read(), 'text/plain'),
         'dummy2':
-            ('fly_dummy2', open("tests/fly_dummy2", 'rb'), 'text/html'),
+            ('fly_dummy2', _f2.read(), 'text/html'),
     }
     async with httpx.AsyncClient(
         http1=True,
@@ -217,16 +222,20 @@ async def test_http_post_files_index(fly_servers):
     assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
+    _f1.close()
+    _f2.close()
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_post_files_index(fly_servers_ssl):
+    _f1 = open("tests/fly_dummy", 'rb')
+    _f2 = open("tests/fly_dummy2", 'rb')
     # send with multipart/form-data
     files = {
         'dummy1':
-            ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain'),
+            ('fly_dummy', _f1.read(), 'text/plain'),
         'dummy2':
-            ('fly_dummy2', open("tests/fly_dummy2", 'rb'), 'text/html'),
+            ('fly_dummy2', _f2.read(), 'text/html'),
     }
     async with httpx.AsyncClient(
         http1=True,
@@ -248,16 +257,20 @@ async def test_https_post_files_index(fly_servers_ssl):
     assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
+    _f1.close()
+    _f2.close()
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_post_files_index(fly_servers_ssl):
+    _f1 = open("tests/fly_dummy", 'rb')
+    _f2 = open("tests/fly_dummy2", 'rb')
     # send with multipart/form-data
     files = {
         'dummy1':
-            ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain'),
+            ('fly_dummy', _f1.read(), 'text/plain'),
         'dummy2':
-            ('fly_dummy2', open("tests/fly_dummy2", 'rb'), 'text/html'),
+            ('fly_dummy2', _f2.read(), 'text/html'),
     }
     async with httpx.AsyncClient(
         http1=False,
@@ -280,6 +293,8 @@ async def test_https2_post_files_index(fly_servers_ssl):
     assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
+    _f1.close()
+    _f2.close()
 
 @pytest.mark.asyncio
 async def test_http_get_empty(fly_servers):
@@ -508,11 +523,13 @@ async def test_https2_put_index_data(fly_servers_ssl):
 
 @pytest.mark.asyncio
 async def test_http_put_index_files(fly_servers):
+    _f1 = open("tests/fly_dummy", 'rb')
+    _f2 = open("tests/fly_dummy2", 'rb')
     files = {
         'dummy1':
-            ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain'),
+            ('fly_dummy', _f1.read(), 'text/plain'),
         'dummy2':
-            ('fly_dummy2', open("tests/fly_dummy2", 'rb'), 'text/html'),
+            ('fly_dummy2', _f2.read(), 'text/html'),
     }
     async with httpx.AsyncClient(
         http1=True,
@@ -528,15 +545,19 @@ async def test_http_put_index_files(fly_servers):
     assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
+    _f1.close()
+    _f2.close()
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https_put_index_files(fly_servers_ssl):
+    _f1 = open("tests/fly_dummy", 'rb')
+    _f2 = open("tests/fly_dummy2", 'rb')
     files = {
         'dummy1':
-            ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain'),
+            ('fly_dummy', _f1.read(), 'text/plain'),
         'dummy2':
-            ('fly_dummy2', open("tests/fly_dummy2", 'rb'), 'text/html'),
+            ('fly_dummy2', _f2.read(), 'text/html'),
     }
     async with httpx.AsyncClient(
         http1=True,
@@ -558,15 +579,19 @@ async def test_https_put_index_files(fly_servers_ssl):
     assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
+    _f1.close()
+    _f2.close()
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_https2_put_index_files(fly_servers_ssl):
+    _f1 = open("tests/fly_dummy", 'rb')
+    _f2 = open("tests/fly_dummy2", 'rb')
     files = {
         'dummy1':
-            ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain'),
+            ('fly_dummy', _f1.read(), 'text/plain'),
         'dummy2':
-            ('fly_dummy2', open("tests/fly_dummy2", 'rb'), 'text/html'),
+            ('fly_dummy2', _f2.read(), 'text/html'),
     }
     async with httpx.AsyncClient(
         http1=False,
@@ -589,6 +614,8 @@ async def test_https2_put_index_files(fly_servers_ssl):
     assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
+    _f1.close()
+    _f2.close()
 
 @pytest.mark.asyncio
 async def test_http_delete_index(fly_servers):
@@ -881,61 +908,63 @@ async def test_illegal_https(fly_servers):
 
 @pytest.mark.asyncio
 async def test_request_over(fly_mini_servers):
-    files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
-    async with httpx.AsyncClient(
-        http1=True,
-        timeout=60
-    ) as client:
-        res = await client.post(
-            f"{_HTTP}://{_HOST}:{_PORT}",
-            files = files,
-        )
-
-    assert(res.status_code == 413)
-    assert(res.http_version == http_scheme())
+    with open("tests/fly_dummy", 'rb') as _f:
+        files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
+        async with httpx.AsyncClient(
+            http1=True,
+            timeout=60
+        ) as client:
+            res = await client.post(
+                f"{_HTTP}://{_HOST}:{_PORT}",
+                files = files,
+            )
+        assert(res.status_code == 413)
+        assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_ssl_request_over(fly_mini_servers_ssl):
-    files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
-    async with httpx.AsyncClient(
-        http1=True,
-        verify=False,
-        timeout=60
-    ) as client:
-        try:
-            res = await client.post(
-                f"{_HTTPS}://{_HOST}:{_PORT}",
-                files = files,
-            )
-        except ssl.SSLWantReadError:
-            print(traceback.format_exc())
-        except ssl.SSLWantWriteError:
-            print(traceback.format_exc())
+    with open("tests/fly_dummy", 'rb') as _f:
+        files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
+        async with httpx.AsyncClient(
+            http1=True,
+            verify=False,
+            timeout=60
+        ) as client:
+            try:
+                res = await client.post(
+                    f"{_HTTPS}://{_HOST}:{_PORT}",
+                    files = files,
+                )
+            except ssl.SSLWantReadError:
+                print(traceback.format_exc())
+            except ssl.SSLWantWriteError:
+                print(traceback.format_exc())
 
-    assert(res.status_code == 413)
-    assert(res.http_version == http_scheme())
+        assert(res.status_code == 413)
+        assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_http2_ssl_request_over(fly_mini_servers_ssl):
-    files = {'upload-file': ('fly_dummy', open("tests/fly_dummy", 'rb'), 'text/plain')}
-    async with httpx.AsyncClient(
-        http1=False,
-        http2=True,
-        verify=False,
-        timeout=60
-    ) as client:
-        try:
-            res = await client.post(
-                f"{_HTTPS}://{_HOST}:{_PORT}",
-                files = files,
-            )
-        except ssl.SSLWantReadError:
-            print(traceback.format_exc())
-        except ssl.SSLWantWriteError:
-            print(traceback.format_exc())
+    with open("tests/fly_dummy", 'rb') as _f:
+        files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
+        async with httpx.AsyncClient(
+            http1=False,
+            http2=True,
+            verify=False,
+            timeout=60
+        ) as client:
+            try:
+                res = await client.post(
+                    f"{_HTTPS}://{_HOST}:{_PORT}",
+                    files = files,
+                )
+            except ssl.SSLWantReadError:
+                print(traceback.format_exc())
+            except ssl.SSLWantWriteError:
+                print(traceback.format_exc())
 
-    assert(res.status_code == 413)
-    assert(res.http_version == http2_scheme())
+        assert(res.status_code == 413)
+        assert(res.http_version == http2_scheme())
 
