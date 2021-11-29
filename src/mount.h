@@ -109,13 +109,14 @@ int fly_inotify_kevent_event(fly_event_t *event, struct fly_mount_parts_file *pf
 void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *sb);
 
-struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts);
 fly_mount_parts_t *fly_parts_from_wd(int wd, fly_mount_t *mnt);
 fly_mount_parts_t *fly_parts_from_fd(int fd, fly_mount_t *mnt);
 #ifdef HAVE_INOTIFY
 struct fly_mount_parts_file *fly_pf_from_mount(int wd, fly_mount_t *mnt);
+struct fly_mount_parts_file *fly_pf_from_wd(int wd, fly_mount_parts_t *parts);
 #elif defined HAVE_KQUEUE
 struct fly_mount_parts_file *fly_pf_from_mount(int fd, fly_mount_t *mnt);
+struct fly_mount_parts_file *fly_pf_from_fd(int fd, fly_mount_parts_t *parts);
 #endif
 #ifdef HAVE_INOTIFY
 int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len);

@@ -15,12 +15,12 @@ SOURCE_FILES := $(addprefix $(SRC)/, $(SRC_FILES))
 PYSOURCE_FILES := $(PYBUILD_FILES:%.o=%.c)
 .PHONY: all clean lib build test
 
-MAJOR_VERSION:=1
+MAJOR_VERSION:=0
 MINOR_VERSION:=0
 RELEA_VERSION:=0
 
 DEPEND_LIBS := -lz -lcrypto -lssl
-OPTIONAL_LIBS := -lbrotlidec -lbrotlienc 
+OPTIONAL_LIBS := -lbrotlidec -lbrotlienc
 
 SRCDIR := src
 LIBDIR := $(PWD)/fly/lib
@@ -65,7 +65,7 @@ lib: $(SOURCE_FILES)
 	@mkdir -p $(LIBDIR)
 	gcc $(CFLAG) -shared $(MACROS) -fPIC -Wl,-soname,$(LIBNAME) $(DEPEND_LIBS) -o $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(filter-out main.c, $^) $(LDFLAGS)
 	ln -s  $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(LIBDIR)/$(LIBNAME)
-	ln -s  $(LIBDIR)/$(LIBNAME) $(LIBDIR)/lib$(TARGET).so 
+	ln -s  $(LIBDIR)/$(LIBNAME) $(LIBDIR)/lib$(TARGET).so
 
 test: test_placeholder clean_lib lib $(addprefix $(TESTPRE), $(TEST_FILES))
 test_placeholder:
@@ -86,7 +86,7 @@ b$(TESTPRE)%.c:
 		@echo "Target: $@"
 		@echo "Source: $(subst b$(TESTPRE),,$@)"
 		@ls -l $(LIBDIR)
-		LD_LIBRARY_PATH=$(LIBDIR) $(CC) -g3 -O0 -Isrc -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst b$(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst b$(TESTPRE),,$@)) -lfly -L $(LIBDIR) 
+		LD_LIBRARY_PATH=$(LIBDIR) $(CC) -g3 -O0 -Isrc -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst b$(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst b$(TESTPRE),,$@)) -lfly -L $(LIBDIR)
 
 %.o:	%.c
 	gcc -c $(CFLAG) -o $@ $<
