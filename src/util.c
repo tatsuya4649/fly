@@ -1,6 +1,9 @@
 #include "util.h"
 #include <sys/resource.h>
 #include "context.h"
+#ifdef HAVE_SYS_SENDFILE_H
+#include <sys/sendfile.h>
+#endif
 
 int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr)
 {
