@@ -832,6 +832,7 @@ int fly_event_handler(fly_event_manager_t *manager)
 		epoll_events = \
 				epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
 #elif defined HAVE_KQUEUE
+retry:
 		epoll_events = \
 				kevent(manager->efd, NULL, 0, manager->evlist, manager->maxevents, t_ptr);
 #endif
@@ -844,6 +845,8 @@ int fly_event_handler(fly_event_manager_t *manager)
 			break;
 		case -1:
 			/* epoll error */
+			if (errno == EINTR)
+				goto retry;
 			return FLY_EVENT_HANDLER_EPOLL_ERROR;
 		default:
 			break;

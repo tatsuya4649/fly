@@ -33,6 +33,11 @@ def not_have_ssl_crt_key_file():
 ssl_reason = "require SSL cert/key file"
 pid_path = "log/fly.pid"
 
+@pytest.fixture(scope="session", autouse=True)
+def _pid():
+    pid = os.getpid()
+    print(f"fly test PID: \"{pid}\"")
+    yield pid
 
 def get_master_pid(pid_list):
     if not isinstance(pid_list, list):
@@ -224,20 +229,7 @@ async def fly_mini_server_ssl(fly_remove_pid, remove_already_in_use):
 async def fly_mini_server_ssl_d(fly_remove_pid, remove_already_in_use):
     await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/https_test_mini.conf --daemon --test")
     await asyncio.sleep(1.5)
-
-    process = await asyncio.create_subprocess_shell("lsof -i:1234 -t", stdout = asyncio.subprocess.PIPE)
-    await process.wait()
-    __out, __err = await process.communicate()
-    print("\n")
-    pro = __out.decode("utf-8")
-    print(pro.split('\n'))
     yield
-
-    j=0
-    for i in pro.split('\n'):
-        if (len(i) > 0):
-            j+=1
-    assert(j == 2)
 
 # make fly server over workers max
 @pytest.mark.asyncio

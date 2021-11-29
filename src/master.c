@@ -315,6 +315,19 @@ void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info
 	orig_worker_pid = info->si_value.sival_int;
 #endif
 
+	fly_notice_direct_log(
+		ctx->log,
+		"master process(%d) is received signal(%s). notice worker pid. (%d->%d)\n",
+		__m->pid,
+#ifdef HAVE_SIGNALFD
+		strsignal(info->ssi_signo),
+#else
+		strsignal(info->si_signo),
+#endif
+		orig_worker_pid,
+		info->si_pid
+	);
+
 	fly_for_each_bllist(__b, &__m->workers){
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
 		if (__w->pid == orig_worker_pid){
