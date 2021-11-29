@@ -57,7 +57,6 @@ async def test_https2_get_index(fly_servers_ssl):
             print(traceback.format_exc())
 
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
 
 """
@@ -73,7 +72,6 @@ async def test_http_post_data_index(fly_servers):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
@@ -97,7 +95,6 @@ async def test_https_post_data_index(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
@@ -122,7 +119,6 @@ async def test_https2_post_data_index(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
 
@@ -141,7 +137,6 @@ async def test_http_post_file_index(fly_servers):
             )
         print(res.content)
         assert(res.status_code == 200)
-        assert(res.is_error is False)
         assert(res.http_version == http_scheme())
         assert(res.content.decode("utf-8") == "Success, POST")
 
@@ -168,7 +163,6 @@ async def test_https_post_file_index(fly_servers_ssl):
 
         print(res.content)
         assert(res.status_code == 200)
-        assert(res.is_error is False)
         assert(res.http_version == http_scheme())
         assert(res.content.decode("utf-8") == "Success, POST")
 
@@ -219,7 +213,6 @@ async def test_http_post_files_index(fly_servers):
         )
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
     _f1.close()
@@ -254,7 +247,6 @@ async def test_https_post_files_index(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
     _f1.close()
@@ -290,7 +282,6 @@ async def test_https2_post_files_index(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, POST")
     _f1.close()
@@ -303,7 +294,6 @@ async def test_http_get_empty(fly_servers):
 
     print(res)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
@@ -324,7 +314,6 @@ async def test_https_get_empty(fly_servers_ssl):
 
     print(res)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
@@ -346,7 +335,6 @@ async def test_https2_get_empty(fly_servers_ssl):
 
     print(res)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(len(res.content) == 0)
 
@@ -357,7 +345,6 @@ async def test_http_head_index(fly_servers):
 
     print(res)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
@@ -378,7 +365,6 @@ async def test_https_head_index(fly_servers_ssl):
 
     print(res)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(len(res.content) == 0)
 
@@ -400,7 +386,6 @@ async def test_https2_head_index(fly_servers_ssl):
 
     print(res)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(len(res.content) == 0)
 
@@ -468,7 +453,6 @@ async def test_http_put_index_data(fly_servers):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
 
@@ -492,7 +476,6 @@ async def test_https_put_index_data(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
 
@@ -517,7 +500,6 @@ async def test_https2_put_index_data(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
 
@@ -542,7 +524,6 @@ async def test_http_put_index_files(fly_servers):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
     _f1.close()
@@ -576,7 +557,6 @@ async def test_https_put_index_files(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
     _f1.close()
@@ -611,7 +591,6 @@ async def test_https2_put_index_files(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, PUT")
     _f1.close()
@@ -629,7 +608,6 @@ async def test_http_delete_index(fly_servers):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, DELETE")
 
@@ -652,7 +630,6 @@ async def test_https_delete_index(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, DELETE")
 
@@ -676,7 +653,6 @@ async def test_https2_delete_index(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, DELETE")
 
@@ -692,30 +668,6 @@ async def test_http_patch_index(fly_servers):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
-    assert(res.http_version == http_scheme())
-    assert(res.content.decode("utf-8") == "Success, PATCH")
-
-@pytest.mark.asyncio
-@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_patch_index(fly_servers_ssl):
-    async with httpx.AsyncClient(
-        http1=True,
-        verify=False,
-        timeout=1,
-    ) as client:
-        try:
-            res = await client.patch(
-                f"{_HTTPS}://{_HOST}:{_PORT}",
-            )
-        except ssl.SSLWantReadError:
-            print(traceback.format_exc())
-        except ssl.SSLWantWriteError:
-            print(traceback.format_exc())
-
-    print(res.content)
-    assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, PATCH")
 
@@ -739,7 +691,6 @@ async def test_https2_patch_index(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, PATCH")
 
@@ -755,7 +706,6 @@ async def test_http_options_index(fly_servers):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, OPTIONS")
 
@@ -778,7 +728,6 @@ async def test_https_options_index(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
     assert(res.content.decode("utf-8") == "Success, OPTIONS")
 
@@ -802,7 +751,6 @@ async def test_https2_options_index(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
     assert(res.content.decode("utf-8") == "Success, OPTIONS")
 
@@ -819,7 +767,6 @@ async def test_http_return_query(fly_servers):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
@@ -842,7 +789,6 @@ async def test_https_return_query(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http_scheme())
 
 @pytest.mark.asyncio
@@ -866,7 +812,6 @@ async def test_https2_return_query(fly_servers_ssl):
 
     print(res.content)
     assert(res.status_code == 200)
-    assert(res.is_error is False)
     assert(res.http_version == http2_scheme())
 """
 Illeagl test
@@ -928,18 +873,14 @@ async def test_ssl_request_over(fly_mini_servers_ssl):
         files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
         async with httpx.AsyncClient(
             http1=True,
+            http2=False,
             verify=False,
             timeout=60
         ) as client:
-            try:
-                res = await client.post(
-                    f"{_HTTPS}://{_HOST}:{_PORT}",
-                    files = files,
-                )
-            except ssl.SSLWantReadError:
-                print(traceback.format_exc())
-            except ssl.SSLWantWriteError:
-                print(traceback.format_exc())
+            res = await client.post(
+                f"{_HTTPS}://{_HOST}:{_PORT}",
+                files = files,
+            )
 
         assert(res.status_code == 413)
         assert(res.http_version == http_scheme())
