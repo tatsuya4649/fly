@@ -47,7 +47,7 @@ int main()
 //		return -1;
 //	if (fly_mount(ctx, "./lib") == -1)
 //		return -1;
-	if (fly_mount(ctx, "./mnt") == -1)
+	if (fly_mount(ctx, "./tests/mnt") == -1)
 		return -1;
 
 	worker = fly_worker_init(ctx);

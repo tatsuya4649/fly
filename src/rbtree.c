@@ -526,8 +526,8 @@ recursion:
 		if (fly_rb_node_is_root(tree, node))
 			return;
 
-#ifdef DEBUG
-		printf("RTREE REBALANCE\n");
+#ifdef DEBUG_RBTREE
+		printf("\tRTREE REBALANCE\n");
 #endif
 		/* node and child is black. */
 		/* sibling is red */
@@ -702,8 +702,8 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 			*node->node_data = NULL;
 
 		if (fly_rb_node_is_root(tree, node)){
-#ifdef DEBUG
-			printf("__FLY_RBTREE_DEBUG_DELETE_ROOT\n");
+#ifdef DEBUG_RBTREE
+			printf("\t__FLY_RBTREE_DEBUG_DELETE_ROOT\n");
 			fflush(stdout);
 #endif
 			return fly_rb_root_release(tree);
@@ -823,7 +823,7 @@ void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type _
 	if (tree->node_count == 0)
 		return;
 
-#if defined DEBUG && defined RBTREE_DEBUG
+#if defined DEBUG && defined DEBUG_RBTREE
 	switch(type){
 	case __FLY_RBTREE_DEBUG_DELETE:
 		printf("__FLY_RBTREE_DEBUG_DELETE\n");

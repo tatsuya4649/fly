@@ -6,9 +6,19 @@
 #endif
 #include <stdio.h>
 #include <stdbool.h>
+#include "../config.h"
+
+#ifdef HAVE_EPOLL
+/* for linux */
 #include <sys/epoll.h>
-#include <sys/signalfd.h>
-#include <sys/timerfd.h>
+#elif defined HAVE_KQUEUE
+/* for macos */
+#include <sys/event.h>
+/* other system */
+#else
+#error not found C header for "event"on your system.
+#endif
+
 #include <sys/time.h>
 #include "alloc.h"
 #include "util.h"
@@ -17,8 +27,19 @@
 
 extern fly_pool_t *fly_event_pool;
 #define FLY_EVENT_POOL_SIZE			100
+
+#ifdef HAVE_EPOLL
 #define FLY_READ		EPOLLIN
 #define FLY_WRITE		EPOLLOUT
+#elif defined HAVE_KQUEUE
+#define FLY_READ		(1<<0)
+#define FLY_WRITE		(1<<1)	
+//#define FLY_READ		EVFILT_READ
+//#define FLY_WRITE		EVFILT_WRITE
+//#define FLY_KQ_SIGNAL	(1<<3)
+#define FLY_KQ_INOTIFY	(1<<4)
+#endif
+
 #define FLY_EVLIST_ELES			1000
 
 typedef struct fly_context fly_context_t;
@@ -26,14 +47,18 @@ struct fly_event_manager{
 	fly_pool_t					*pool;
 	fly_context_t				*ctx;
 	int							efd;
+#ifdef HAVE_EPOLL
 	struct epoll_event			*evlist;
+#elif defined HAVE_KQUEUE
+	struct kevent				*evlist;
+#endif
 	int							maxevents;
 
 	struct fly_rb_tree			*rbtree;
 	struct fly_queue			monitorable;
 	struct fly_queue			unmonitorable;
 
-	/* if event occurred error termination the process, called*/
+	/* if event occurred error termination the process, called */
 	void (*jbend_handle)(fly_context_t *ctx);
 };
 typedef struct fly_event_manager fly_event_manager_t;
@@ -49,11 +74,30 @@ struct __fly_event_for_rbtree{
 		(__e)->rbtree_elem.ptr = (__e);		\
 	} while(0)
 
+#ifdef HAVE_EPOLL
+	typedef  epoll_data_t	fly_event_data_t;
+#elif defined HAVE_KQUEUE
+	typedef  void			*fly_event_data_t;
+#else
+#error not defined HAVE_EPOLL AND HAVE_KQUEUE
+#endif
+
 struct fly_err;
 struct fly_event{
 	fly_event_manager_t				*manager;
 	int								fd;
+#ifdef DEBUG
+	int 						post_fd;
+#endif
+#ifdef HAVE_KQUEUE
+	int								id;
+#endif
 	int								read_or_write;
+#ifdef HAVE_KQUEUE
+	/* for saving previous read_or_write */
+	int								post_row;
+#define FLY_NO_POST_ROW				999
+#endif
 	int 							available_row;
 	int 							eflag;
 
@@ -94,6 +138,10 @@ struct fly_event{
 	struct fly_bllist				errors;
 	size_t							err_count;
 
+#ifdef HAVE_KQUEUE
+	sigset_t						sigset;
+#endif
+
 	/* event bit fields */
 	fly_bit_t						file_type: 4;
 	fly_bit_t 						expired: 1;
@@ -102,6 +150,7 @@ struct fly_event{
 	fly_bit_t						if_fail_term: 1;
 };
 
+typedef int (fly_event_handler_t)(struct fly_event *);
 #ifdef DEBUG
 __fly_unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
 {
@@ -203,7 +252,7 @@ int fly_event_inherit_register(fly_event_t *e);
 #define fly_event_is_symlink(e)		fly_event_is_file_type((e), SLINK)
 #define fly_event_is_epoll(e)		fly_event_is_file_type((e), EPOLL)
 #define fly_event_is_signal(e)		fly_event_is_file_type((e), SIGNAL)
-#define fly_evnet_is_inotify(e)		fly_event_is_file_type((e), INOTIFY)
+#define fly_event_is_inotify(e)		fly_event_is_file_type((e), INOTIFY)
 
 #define fly_event_regular(e)		fly_event_file_type((e), REGULAR)
 #define fly_event_dir(e)			fly_event_file_type((e), DIRECTORY)
@@ -219,8 +268,16 @@ int fly_event_inherit_register(fly_event_t *e);
 	(!fly_event_is_regular((e)) && !fly_event_is_dir((e)))
 #define fly_event_unmonitorable(e)	(!(fly_event_monitorable((e))))
 
+#ifdef HAVE_EPOLL
+#define FLY_EVENT_CTL_ADD			EPOLL_CTL_ADD
+#define FLY_EVENT_CTL_MOD			EPOLL_CTL_MOD
+#elif defined HAVE_KQUEUE
+#define FLY_EVENT_CTL_ADD			0
+#define FLY_EVENT_CTL_MOD			1
+#endif
+
 #define fly_event_op(__e)			\
-	((__e)->flag&FLY_MODIFY) ? EPOLL_CTL_MOD: EPOLL_CTL_ADD
+	((__e)->flag&FLY_MODIFY) ? FLY_EVENT_CTL_MOD: FLY_EVENT_CTL_ADD
 #define fly_event_already_added(__e)	\
 	(!(__e)->yetadd)
 
