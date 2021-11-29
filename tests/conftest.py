@@ -71,13 +71,25 @@ def fly_remove_pid():
     if os.path.isfile(pid_path):
         os.remove(pid_path)
 
-KILL_FLY_COMMAND = 'FLY_NOW="$(lsof -i:1234 -t)" && if [ -n "$FLY_NOW" ]; then echo $FLY_NOW | xargs kill -KILL; fi'
+GET_FLY_COMMAND = 'lsof -i:1234 -t'
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=True)
 async def remove_already_in_use():
-    process = await asyncio.create_subprocess_shell(KILL_FLY_COMMAND, stdout = asyncio.subprocess.PIPE)
+    pid = os.getpid()
+    process = await asyncio.create_subprocess_shell(GET_FLY_COMMAND, stdout = asyncio.subprocess.PIPE)
+    _out, _ = await process.communicate()
     await process.wait()
-    yield
+
+    if (len(_out) == 0):
+        yield
+    else:
+        _spout = _out.decode("utf-8").split('\n')
+        _spout = list(filter(lambda x: len(x) > 0, _spout))
+        _no_this_pids = list(filter(lambda x: x != str(pid), _spout))
+        assert(not str(pid) in _no_this_pids)
+        process = await asyncio.create_subprocess_shell(f"echo \"{' '.join(_no_this_pids)}\" | xargs kill -KILL")
+        await process.wait()
+        yield
 
 @pytest.fixture(params=["nodaemon", "daemon"])
 def fly_servers_onlyspawn(request):

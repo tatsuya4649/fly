@@ -219,7 +219,9 @@ void fly_event_debug_rbtree_delete_node(fly_event_manager_t *manager, fly_event_
 	fly_event_t *__e;
 
 	fly_for_each_queue(__q, &manager->monitorable){
+#ifdef DEBUG_EVENT
 		printf("DEBUG_RBTREE_DELETE_NODE_EACH\n");
+#endif
 		__e = (fly_event_t *) fly_queue_data(__q, fly_event_t, qelem);
 		if ((__e->flag & FLY_INFINITY))
 			continue;
@@ -231,7 +233,9 @@ void fly_event_debug_rbtree_delete_node(fly_event_manager_t *manager, fly_event_
 			assert((*__e->rbnode->node_data)->data == __e);
 		}
 	}
+#ifdef DEBUG_EVENT
 	printf("DEBUG_RBTREE_DELETE_NODE\n");
+#endif
 }
 void fly_event_debug_rbtree(fly_event_manager_t *manager)
 {
@@ -239,7 +243,9 @@ void fly_event_debug_rbtree(fly_event_manager_t *manager)
 	fly_event_t *__e;
 
 	fly_for_each_queue(__q, &manager->monitorable){
+#ifdef DEBUG_EVENT
 		printf("EVENT_DEBUG_RBTREE\n");
+#endif
 		__e = (fly_event_t *) fly_queue_data(__q, fly_event_t, qelem);
 		if ((__e->tflag & FLY_INFINITY))
 			continue;
@@ -298,24 +304,24 @@ int fly_event_register(fly_event_t *event)
 #endif
 		/* delete & add (for changing timeout) */
 		if (fly_event_monitorable(event)){
-#ifdef HAVE_KQUEUE
-			if (event->post_row != FLY_NO_POST_ROW){
-				if (event->post_row & FLY_READ && \
-						!(event->read_or_write & FLY_READ)){
-					struct kevent __kev;
-					EV_SET(&__kev, event->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
-						return -1;
-				}
-				if (event->post_row & FLY_WRITE && \
-						!(event->read_or_write & FLY_WRITE)){
-					struct kevent __kev;
-					EV_SET(&__kev, event->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
-						return -1;
-				}
-			}
-#endif
+//#ifdef HAVE_KQUEUE
+//			if (event->post_row != FLY_NO_POST_ROW){
+//				if (event->post_row & FLY_READ && 
+//						!(event->read_or_write & FLY_READ)){
+//					struct kevent __kev;
+//					EV_SET(&__kev, event->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
+//					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
+//						return -1;
+//				}
+//				if (event->post_row & FLY_WRITE && 
+//						!(event->read_or_write & FLY_WRITE)){
+//					struct kevent __kev;
+//					EV_SET(&__kev, event->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
+//					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
+//						return -1;
+//				}
+//			}
+//#endif
 			if (event->rbnode){
 #ifdef DEBUG
 				int ret;
@@ -329,7 +335,7 @@ int fly_event_register(fly_event_t *event)
 				fly_event_debug_rbtree(event->manager);
 #endif
 				fly_rb_delete(event->manager->rbtree, event->rbnode);
-#ifdef DEBUG
+#ifdef DEBUG_EVENT
 				printf("RBTREE DELETE OF EVENT in register\n");
 #endif
 #ifdef DEBUG
@@ -381,6 +387,7 @@ int fly_event_register(fly_event_t *event)
 	event->post_fd = event->fd;
 #elif defined HAVE_KQUEUE
 	event->post_row = event->read_or_write;
+
 	if (fly_event_monitorable(event))
 	{
 #ifdef DEBUG
@@ -397,7 +404,8 @@ int fly_event_register(fly_event_t *event)
 			}
 		}else{
 			if (event->read_or_write & FLY_READ){
-				EV_SET(&ev, event->fd, EVFILT_READ, EV_ADD, event->eflag, 0, data);
+				EV_SET(&ev, event->fd, EVFILT_READ, \
+						event->tflag & FLY_INFINITY ? EV_ADD : EV_ADD|EV_ONESHOT, event->eflag, 0, data);
 				if (kevent(event->manager->efd, &ev, 1, NULL, 0, NULL) == -1){
 					struct fly_err *__err;
 					__err = fly_event_err_init(
@@ -410,7 +418,8 @@ int fly_event_register(fly_event_t *event)
 			}
 
 			if (event->read_or_write & FLY_WRITE){
-				EV_SET(&ev, event->fd, EVFILT_WRITE, EV_ADD, event->eflag, 0, data);
+				EV_SET(&ev, event->fd, EVFILT_WRITE, \
+						event->tflag & FLY_INFINITY ? EV_ADD : EV_ADD|EV_ONESHOT, event->eflag, 0, data);
 				if (kevent(event->manager->efd, &ev, 1, NULL, 0, NULL) == -1){
 					struct fly_err *__err;
 					__err = fly_event_err_init(
@@ -425,7 +434,7 @@ int fly_event_register(fly_event_t *event)
 	}
 #endif
 
-#ifdef DEBUG
+#ifdef DEBUG_EVENT
 	printf("END OF REGISTERING EVENT\n");
 #endif
 	return 0;
@@ -444,8 +453,8 @@ int fly_event_unregister(fly_event_t *event)
 	}else{
 		fly_queue_remove(&event->qelem);
 		if (event->rbnode){
-#ifdef DEBUG
-			printf("RBTREE DELETE OF EVENT in unregister\n");
+#ifdef DEBUG_EVENT
+			printf("RBTREE DELETE OF EVENT in unregister(%s)\n", event->handler_name);
 #endif
 			fly_rb_delete(event->manager->rbtree, event->rbnode);
 		}
@@ -759,6 +768,9 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 		fly_event->available_row = event->events;
 #elif defined HAVE_KQUEUE
 		fly_event = (fly_event_t *) event->udata;
+#ifdef DEBUG_EVENT
+		printf("EVENT: %s\n", fly_event->handler_name);
+#endif
 		fly_event->id = event->ident;
 		fly_event->eflag = event->fflags;
 		if (event->filter == EVFILT_READ)
