@@ -1,4 +1,4 @@
-name: macOS
+name: Test_on_macOS
 on:
     push:
         branches:
@@ -34,6 +34,8 @@ jobs:
               brew install automake autoconf autoconf-archive
               python -m pip install --upgrade pip
               python -m pip install -r requirements.txt
+        - name: Setup tmate session
+          uses: mxschmitt/action-tmate@v3
         - name: Make fly library
           run: |
               autoreconf
@@ -49,7 +51,7 @@ jobs:
               python3 setup.py build
               cp -rf build/lib.*/fly/_fly_server* fly/
         - name: Make self certificate for SSL/TLS
-          run: | 
+          run: |
               openssl req \
               -subj '/CN=localhost' \
               -x509 -nodes -days 365 -newkey rsa:2048 \
