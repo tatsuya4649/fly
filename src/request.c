@@ -991,7 +991,15 @@ int __fly_discard_body(fly_request_t *req, size_t content_length)
 			FLY_NOT_COME_HERE
 		}
 	}
+#ifdef DEBUG
+	assert(req->discard_length == content_length);
+#endif
 	return FLY_DISCARD_BODY_END;
+}
+
+static inline void fly_discard_body_init(fly_request_t *req, fly_connect_t *conn)
+{
+	req->discard_length += (size_t) conn->buffer->use_len;
 }
 
 int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req)
@@ -1012,9 +1020,6 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 		);
 		fly_error_error(__err);
 	}
-
-	if (req->discard_body)
-		req->discard_length += (size_t) __buf->use_len;
 
 	int recvlen=0, total=0;
 	while(true){
@@ -1329,6 +1334,9 @@ __fase_header:
 	/* check of having body */
 	if (fly_content_length(request->header) == 0)
 		goto __fase_end_of_parse;
+
+	/* for discard */
+	fly_discard_body_init(request, conn);
 
 	/* parse body */
 __fase_body:
