@@ -325,7 +325,11 @@ void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info
 		strsignal(info->si_signo),
 #endif
 		orig_worker_pid,
+#ifdef HAVE_SIGNALFD
+		info->ssi_pid
+#else
 		info->si_pid
+#endif
 	);
 
 	fly_for_each_bllist(__b, &__m->workers){
@@ -470,7 +474,7 @@ __fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGTRAP);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGTTIN);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGTTOU);
-	FLY_KQUEUE_MASTER_SIGNALSET(SIGURG); 
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGURG);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGUSR1);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGUSR2);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGVTALRM);

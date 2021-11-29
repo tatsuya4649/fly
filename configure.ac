@@ -487,7 +487,7 @@ AC_CHECK_HEADER([sys/signalfd.h], [
 			sigset_t fill;
 
 			sigfillset(&fill);
-			fd = signalfd(-1, fill, SFD_NONBLOCK|SFD_CLOEXEC);
+			fd = signalfd(-1, &fill, SFD_NONBLOCK|SFD_CLOEXEC);
 		])
 	], [
 		# usable signalfd

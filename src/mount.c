@@ -532,7 +532,7 @@ int __fly_mount_inotify_kevent_dir(
 	__e->end_handler = end_handler;
 
 	parts->event = __e;
-	
+
 	return fly_event_register(__e);
 }
 
@@ -732,6 +732,7 @@ fly_mount_parts_t *fly_parts_from_wd(int wd, fly_mount_t *mnt)
 }
 #endif
 
+#ifdef HAVE_KQUEUE
 fly_mount_parts_t *fly_parts_from_fd(int fd, fly_mount_t *mnt)
 {
 	fly_mount_parts_t *__p;
@@ -747,6 +748,7 @@ fly_mount_parts_t *fly_parts_from_fd(int fd, fly_mount_t *mnt)
 	}
 	return NULL;
 }
+#endif
 
 #ifdef HAVE_INOTIFY
 int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
@@ -949,7 +951,7 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf, int mask __fly_unused)
 		return -1;
 
 	__m = pf->parts->mount;
-	
+
 	if (close(pf->fd) == -1)
 		return -1;
 
