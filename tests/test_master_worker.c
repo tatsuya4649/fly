@@ -7,7 +7,7 @@ int main()
 {
 	fly_master_t *master;
 
-	if (setenv(FLY_CONFIG_PATH, "test/test.conf", 1) == -1)
+	if (setenv(FLY_CONFIG_PATH, "tests/test.conf", 1) == -1)
 		return 1;
 	/* config setting */
 	fly_parse_config_file();
