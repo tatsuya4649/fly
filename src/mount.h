@@ -1,6 +1,7 @@
 #ifndef _MOUNT_H
 #define _MOUNT_H
 
+#include "../config.h"
 #include <dirent.h>
 #include <limits.h>
 #include <sys/stat.h>

@@ -19,8 +19,8 @@ static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e);
 __fly_static int __fly_event_cmp(void *k1, void *k2, void *);
 static void fly_event_handle(fly_event_t *e);
-static int __fly_event_kevent_inotify(fly_event_t *__e);
 #ifdef HAVE_KQUEUE
+static int __fly_event_kevent_inotify(fly_event_t *__e);
 static void fly_timeout_spec_from_msec(struct timespec *spec, long msec);
 #endif
 
@@ -306,14 +306,14 @@ int fly_event_register(fly_event_t *event)
 		if (fly_event_monitorable(event)){
 //#ifdef HAVE_KQUEUE
 //			if (event->post_row != FLY_NO_POST_ROW){
-//				if (event->post_row & FLY_READ && 
+//				if (event->post_row & FLY_READ &&
 //						!(event->read_or_write & FLY_READ)){
 //					struct kevent __kev;
 //					EV_SET(&__kev, event->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
 //					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
 //						return -1;
 //				}
-//				if (event->post_row & FLY_WRITE && 
+//				if (event->post_row & FLY_WRITE &&
 //						!(event->read_or_write & FLY_WRITE)){
 //					struct kevent __kev;
 //					EV_SET(&__kev, event->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
@@ -384,7 +384,9 @@ int fly_event_register(fly_event_t *event)
 		);
 		fly_event_error_add(event, __err);
 	}
+#ifdef DEBUG
 	event->post_fd = event->fd;
+#endif
 #elif defined HAVE_KQUEUE
 	event->post_row = event->read_or_write;
 
@@ -828,11 +830,11 @@ int fly_event_handler(fly_event_manager_t *manager)
 		printf("WAITING FOR EVENT...\n");
 #endif
 		/* the event with closest timeout */
+retry:
 #ifdef HAVE_EPOLL
 		epoll_events = \
 				epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
 #elif defined HAVE_KQUEUE
-retry:
 		epoll_events = \
 				kevent(manager->efd, NULL, 0, manager->evlist, manager->maxevents, t_ptr);
 #endif
