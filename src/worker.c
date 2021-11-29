@@ -55,7 +55,6 @@ static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx
  */
 static fly_signal_t fly_worker_signals[] = {
 	FLY_SIGNAL_SETTING(SIGINT,	FLY_SIG_IGN),
-	FLY_SIGNAL_SETTING(SIGTERM, NULL),
 	FLY_SIGNAL_SETTING(SIGPIPE, FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(FLY_SIGNAL_CHANGE_MNT_CONTENT, fly_worker_signal_change_mnt_content),
