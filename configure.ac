@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.69])
 
-VERSION="1.1.3"
+VERSION=1.1.3
 AC_INIT([fly],[VERSION])
 AC_CONFIG_SRCDIR([src/master.c])
 AC_CONFIG_HEADERS([config.h])
