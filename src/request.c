@@ -1208,13 +1208,12 @@ int fly_request_event_handler(fly_event_t *event)
 		goto __fase_body;
 
 #ifdef DEBUG
-	printf("START REQUEST PARSE\n");
-#endif
-	fly_event_fase(event, REQUEST_LINE);
-	fly_event_state(event, RECEIVE);
-#ifdef DEBUG
 	printf("REQUEST RECEIVE\n");
+	printf("\t%s\n", request->receive_status_line ? "RECEIVED STATUS LINE" : "NOT YET RECEIVED STATUS LINE");
+	printf("\t%s\n", request->receive_header ? "RECEIVED HEADER" : "NOT YET RECEIVED HEADER");
+	printf("\t%s\n", request->receive_body ? "RECEIVED BODY" : "NOT YET RECEIVED BODY");
 #endif
+	fly_event_state(event, RECEIVE);
 	switch (fly_request_receive(event->fd, conn, request)){
 	case FLY_REQUEST_RECEIVE_ERROR:
 		goto error;
@@ -1235,18 +1234,32 @@ int fly_request_event_handler(fly_event_t *event)
 
 	switch(fase){
 	case EFLY_REQUEST_FASE_INIT:
+		printf("\t%s\n", "EFLY_REQUEST_FASE_INIT");
 		break;
 	case EFLY_REQUEST_FASE_REQUEST_LINE:
+		printf("\t%s\n", "EFLY_REQUEST_FASE_REQUEST_LINE");
 		goto __fase_request_line;
 	case EFLY_REQUEST_FASE_HEADER:
+		printf("\t%s\n", "EFLY_REQUEST_FASE_HEADER");
+#ifdef DEBUG
+		printf("HTTP GOTO HEADER\n");
+#endif
 		goto __fase_header;
 	case EFLY_REQUEST_FASE_BODY:
+		printf("\t%s\n", "EFLY_REQUEST_FASE_BODY");
+#ifdef DEBUG
+		printf("HTTP GOTO BODY\n");
+#endif
 		goto __fase_body;
 	default:
 		break;
 	}
 	/* parse request_line */
 __fase_request_line:
+#ifdef DEBUG
+	printf("FASE: REQUEST PARSE\n");
+#endif
+	fly_event_fase(event, REQUEST_LINE);
 	reline_buf_chain = fly_get_request_line_buf(conn->buffer);
 	switch(__fly_request_operation(request, reline_buf_chain)){
 	case FLY_REQUEST_ERROR(400):
@@ -1270,6 +1283,7 @@ __fase_header:
 	;
 	fly_buffer_c *hdr_buf;
 
+	printf("FASE: HEADER\n");
 	fly_event_fase(event, HEADER);
 	if (!request->receive_header){
 #ifdef DEBUG
@@ -1320,6 +1334,8 @@ __fase_header:
 __fase_body:
 	;
 
+	printf("FASE: BODY\n");
+	fly_event_fase(event, BODY);
 	size_t content_length;
 	content_length = fly_content_length(request->header);
 	/* Too payload large */
@@ -1341,7 +1357,6 @@ __fase_body:
 	}
 
 	fly_buffer_c *body_buf;
-	fly_event_fase(event, BODY);
 	if (request->body == NULL){
 		body = fly_body_init(request->ctx);
 		request->body = body;
@@ -1349,6 +1364,10 @@ __fase_body:
 		body = request->body;
 
 	body_buf = fly_get_body_buf(conn->buffer);
+#ifdef DEBUG
+	if (body_buf != NULL)
+		printf("RECEIVED BODY(%ld/%ld)\n", conn->buffer->use_len, content_length);
+#endif
 	if (body_buf == NULL || conn->buffer->use_len < content_length)
 		goto read_continuation;
 	else
@@ -1387,7 +1406,7 @@ __fase_body:
 
 __fase_end_of_parse:
 #ifdef DEBUG
-	printf("END OF PARSE REQUEST\n");
+	printf("FASE: RESPONSE\n");
 #endif
 	fly_event_fase(event, RESPONSE);
 	/* Success parse request */
@@ -1448,13 +1467,13 @@ response_500:
 /* continuation event publish. */
 write_continuation:
 #ifdef DEBUG
-	printf("WRITE CONTINUATION\n");
+	printf("\tWRITE CONTINUATION\n");
 #endif
 	event->read_or_write = FLY_WRITE;
 	goto continuation;
 read_continuation:
 #ifdef DEBUG
-	printf("READ CONTINUATION\n");
+	printf("\tREAD CONTINUATION\n");
 #endif
 	event->read_or_write = FLY_READ;
 	goto continuation;
