@@ -63,7 +63,7 @@ async def test_worker_kill(test_spawn_processes):
     print(f"kill worker: {kill_wid}")
     # kill worker
     os.kill(kill_wid, signal.SIGTERM)
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(1.5)
 
     prcs = await check_workers_processes()
     nmid = get_master_pid(prcs)

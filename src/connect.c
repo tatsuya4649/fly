@@ -182,7 +182,6 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	fly_sock_t			listen_sock = event->fd;
 	struct sockaddr_storage addr;
 	socklen_t			addrlen;
-	int					flag;
 	fly_event_t			*ne;
 
 #ifdef DEBUG
@@ -190,9 +189,22 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 #endif
 	ctx = fly_context_from_event(event);
 	addrlen = sizeof(struct sockaddr_storage);
-	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
 	memset(&addr, '\0', sizeof(addr));
+#ifdef HAVE_ACCEPT4
+	int	flag;
+	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
 	conn_sock = accept4(listen_sock, (struct sockaddr *) &addr, &addrlen, flag);
+#else
+	int __sockval;
+	conn_sock = accept(listen_sock, (struct sockaddr *) &addr, &addrlen);
+	/* set non blocking */
+	__sockval = fcntl(conn_sock, F_GETFL, 0);
+	if (__sockval == -1)
+		return -1;
+
+	if (fcntl(conn_sock, F_SETFL, __sockval|O_NONBLOCK) == -1)
+		return -1;
+#endif
 	if (conn_sock == -1){
 		if (FLY_BLOCKING(conn_sock))
 			goto read_blocking;

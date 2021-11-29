@@ -80,3 +80,41 @@ int fly_daemon(fly_context_t *ctx)
 	return FLY_DAEMON_SUCCESS;
 }
 
+
+ssize_t fly_sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
+{
+#ifdef HAVE_SYS_SENDFILE_H
+	return sendfile(out_fd, in_fd, offset, count);
+#else
+#define FLY_SENDFILE_BUFFER			4096
+	size_t __total = 0;
+	char __buf[FLY_SENDFILE_BUFFER];
+
+	if (offset){
+		if (lseek(in_fd, *offset, SEEK_SET) == -1)
+			return -1;
+	}
+	while(__total<count){
+		ssize_t readsize;
+		ssize_t writesize=0;
+
+		readsize = read(in_fd, __buf, FLY_SENDFILE_BUFFER);
+		if (readsize == -1)
+			return -1;
+
+		while(writesize < readsize){
+			ssize_t res;
+			res = write(out_fd, __buf, (size_t) readsize-writesize);
+			if (res == -1)
+				return -1;
+
+			writesize += res;
+		}
+		__total += readsize;
+	}
+
+	*offset += count;
+	return count;
+#endif
+}
+
