@@ -1,5 +1,8 @@
 #include "pyserver.h"
 #include "v2.h"
+#ifdef DEBUG
+#include "log.h"
+#endif
 
 struct __pyfly_server{
 	PyObject_HEAD

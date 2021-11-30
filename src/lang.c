@@ -1,28 +1,18 @@
 #include "lang.h"
 #include "request.h"
 #include "header.h"
+#include "char.h"
 
 static void __fly_accept_lang_init(fly_request_t *req);
 static void __fly_accept_lang_add_asterisk(fly_request_t *req);
 __fly_static void __fly_accept_lang_add(fly_lang_t *l, struct __fly_lang *__nc);
-static inline bool __fly_digit(char c);
-static inline bool __fly_lalpha(char c);
-static inline bool __fly_ualpha(char c);
-static inline char __fly_lu_ignore(char c);
-static inline bool __fly_alpha(char c);
 static inline bool __fly_vchar(char c);
 static inline bool __fly_tchar(char c);
 static inline bool __fly_token(char c);
-static inline bool __fly_asterisk(char c);
 static inline bool __fly_q(char c);
-static inline bool __fly_semicolon(char c);
-static inline bool __fly_space(char c);
+static inline bool __fly_one(char c);
 static inline bool __fly_zeros(char c);
 static inline bool __fly_zero(char c);
-static inline bool __fly_one(char c);
-static inline bool __fly_equal(char c);
-static inline bool __fly_point(char c);
-static inline bool __fly_comma(char c);
 
 __fly_static int __fly_al_parse(fly_lang_t *l, fly_hdr_value *accept_lang);
 __fly_static int __fly_accept_lang_parse(fly_request_t *req, fly_hdr_value *accept_lang);
@@ -83,26 +73,6 @@ static void __fly_accept_lang_init(fly_request_t *req)
 	req->language = lang;
 }
 
-static inline bool __fly_digit(char c)
-{
-	return (c>=0x30 && c<=0x39) ? true : false;
-}
-static inline bool __fly_lalpha(char c)
-{
-	return (c>=0x61 && c<=0x7A) ? true : false;
-}
-static inline bool __fly_ualpha(char c)
-{
-	return (c>=0x41 && c<=0x5A) ? true : false;
-}
-static inline char __fly_lu_ignore(char c)
-{
-	return __fly_ualpha(c) ? (c+0x20) : c;
-}
-static inline bool __fly_alpha(char c)
-{
-	return (__fly_lalpha(c) || __fly_ualpha(c)) ? true : false;
-}
 static inline bool __fly_vchar(char c)
 {
 	return (c>=0x21 && c<=0x7E) ? true : false;
@@ -110,7 +80,7 @@ static inline bool __fly_vchar(char c)
 static inline bool __fly_tchar(char c)
 {
 	return (
-		__fly_alpha(c) || __fly_digit(c) || (__fly_vchar(c) && c != ';') || \
+		fly_alpha(c) || fly_numeral(c) || (__fly_vchar(c) && c != ';') || \
 		c=='!' || c=='#' || c=='$' || c=='&' || c==0x27 || c=='*' || \
 		c=='+' || c=='-' || c=='.' || c=='^' || c=='_' || c=='`' || \
 		c=='|' || c=='~' \
@@ -124,11 +94,6 @@ static inline bool __fly_token(char c)
 static inline bool __fly_lang(char c)
 {
 	return __fly_token(c) ? true : false;
-}
-
-static inline bool __fly_asterisk(char c)
-{
-	return (c == 0x2A) ? true : false;
 }
 
 static inline bool __fly_q(char c)
@@ -306,12 +271,12 @@ __fly_static int __fly_al_parse(fly_lang_t *l, fly_hdr_value *accept_lang)
 				__FLY_AL_PARSE_PCSTATUS(ADD);
 			goto perror;
 		case WQ_ZERO_POINT:
-			if (__fly_digit(*ptr))
+			if (fly_numeral(*ptr))
 				__FLY_AL_PARSE_PCSTATUS(WQ_ZERO_DECIMAL_PLACE);
 
 			goto perror;
 		case WQ_ZERO_DECIMAL_PLACE:
-			if (__fly_digit(*ptr) && decimal_places++ < 3)	break;
+			if (fly_numeral(*ptr) && decimal_places++ < 3)	break;
 			if (__fly_comma(*ptr))
 				__FLY_AL_PARSE_PCSTATUS(COMMA);
 			if (__fly_zeros(*ptr))

@@ -3,6 +3,7 @@ import subprocess
 import os
 import sys
 import re
+import platform
 from glob import glob
 
 def __run(command_name):
@@ -32,7 +33,6 @@ def get_packages(package):
 macros = []
 extra_compile_args = []
 if os.getenv("DEBUG") is not None:
-    print("DEBUG MODE")
     macros.append(("DEBUG", "fly"))
     extra_compile_args.append("-g3")
     extra_compile_args.append("-O0")
@@ -44,6 +44,14 @@ else:
     __run(["make"])
     __run(["make", "install"])
     extra_compile_args.append("-O3")
+
+_OS = platform.system()
+if _OS == 'Darwin':
+    _libfly_dir = os.path.join(
+        os.getcwd(),
+        "fly/lib"
+    )
+    extra_compile_args.append('-Wl,-rpath,' + _libfly_dir)
 
 server = Extension(
 	name="fly._fly_server",

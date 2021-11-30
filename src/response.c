@@ -288,8 +288,8 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->event_data = (void *) req;
 	e->available = false;
 	e->expired = false;
-	e->event_fase = EFLY_REQUEST_FASE_INIT;
-	e->event_state = EFLY_REQUEST_STATE_INIT;
+	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
+	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
 	FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
 	e->expired_event_data = req;
 	fly_event_socket(e);
@@ -443,8 +443,8 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 
 	FLY_EVENT_HANDLER(le, fly_log_event_handler);
 	le->read_or_write = FLY_WRITE;
-	le->event_fase = EFLY_LOG_FASE_INIT;
-	le->event_state = EFLY_LOG_STATE_WAIT;
+	le->event_fase = (void *) EFLY_LOG_FASE_INIT;
+	le->event_state = (void *) EFLY_LOG_STATE_WAIT;
 	le->event_data = (void *) log_content;
 	le->flag = 0;
 	le->tflag = 0;
@@ -1205,6 +1205,8 @@ int fly_response_set_send_ptr(fly_response_t *response)
 				total += response->response_len;
 				break;
 			}
+		default:
+			FLY_NOT_COME_HERE
 		}
 		break;
 	}
@@ -1336,6 +1338,8 @@ retry_read:
 				}
 				break;
 			}
+		default:
+			FLY_NOT_COME_HERE
 		}
 		break;
 	}

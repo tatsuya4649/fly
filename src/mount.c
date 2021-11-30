@@ -548,7 +548,7 @@ int __fly_mount_inotify_kevent_file(
 	__e = fly_event_init(__m);
 	__e->fd = fd;
 	fly_time_null(__e->timeout);
-	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_CLOSE_WRITE|NOTE_RENAME;
+	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME;
 	__e->flag = FLY_PERSISTENT;
 	__e->tflag = FLY_INFINITY;
 	__e->event_data = data;
@@ -688,7 +688,11 @@ struct fly_mount_parts_file *fly_pf_from_mount(int wd, fly_mount_t *mnt)
 
 	fly_for_each_bllist(__b, &mnt->parts){
 		__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
+<<<<<<< HEAD
+		pf = fly_wd_from_pf(wd, __p);
+=======
 		pf = fly_pf_from_wd(wd, __p);
+>>>>>>> f3ab8c481dbbe2745a7d23964a35b77c287aeae3
 		if (pf)
 			return pf;
 	}
