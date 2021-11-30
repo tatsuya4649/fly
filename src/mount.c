@@ -688,11 +688,7 @@ struct fly_mount_parts_file *fly_pf_from_mount(int wd, fly_mount_t *mnt)
 
 	fly_for_each_bllist(__b, &mnt->parts){
 		__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
-<<<<<<< HEAD
-		pf = fly_wd_from_pf(wd, __p);
-=======
 		pf = fly_pf_from_wd(wd, __p);
->>>>>>> f3ab8c481dbbe2745a7d23964a35b77c287aeae3
 		if (pf)
 			return pf;
 	}

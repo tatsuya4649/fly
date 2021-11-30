@@ -356,6 +356,8 @@ int fly_br_decode(fly_de_t *de)
 			break;
 		case BROTLI_DECODER_RESULT_SUCCESS:
 			break;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		if (available_out == 0){
