@@ -334,6 +334,8 @@ __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc)
 			return FLY_LOG_WRITE_WAIT;
 		case FLY_LOG_LOCK_ERROR:
 			return FLY_LOG_WRITE_ERROR;
+		default:
+			FLY_NOT_COME_HERE
 		}
 	}
 

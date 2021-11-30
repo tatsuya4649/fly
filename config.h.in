@@ -39,9 +39,6 @@
 /* Define to 1 if you have the `fork' function. */
 #undef HAVE_FORK
 
-/* Define to 1 if the system has the `weak' function attribute */
-#undef HAVE_FUNC_ATTRIBUTE_WEAK
-
 /* Define to 1 if you have the `gettimeofday' function. */
 #undef HAVE_GETTIMEOFDAY
 
@@ -108,6 +105,9 @@
 
 /* Define to 1 if you have the signalfd. */
 #undef HAVE_SIGNALFD
+
+/* Define to 1 if you have the `sigqueue' function. */
+#undef HAVE_SIGQUEUE
 
 /* Define to 1 if you have the `sigsetjmp` function. */
 #undef HAVE_SIGSETJMP

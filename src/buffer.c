@@ -28,6 +28,8 @@ fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_ma
 				return NULL;
 			case FLY_BUF_ADD_CHAIN_ERROR:
 				return NULL;
+			default:
+				FLY_NOT_COME_HERE
 			}
 	}
 	return buffer;

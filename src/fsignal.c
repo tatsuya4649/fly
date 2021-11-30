@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 199309
 #include <stdio.h>
 #include <stdlib.h>
 #include "fsignal.h"
@@ -30,8 +31,12 @@ fly_signum_t fly_signals[] = {
 	SIGXFSZ,
 	SIGVTALRM,
 	SIGPROF,
+#ifdef SIGWINCH
 	SIGWINCH,
+#endif
+#ifdef SIGIO
 	SIGIO,
+#endif
 #ifdef SIGPWR
 	SIGPWR,
 #endif
@@ -94,7 +99,11 @@ __fly_noreturn int fly_signal_default_handler(fly_context_t *ctx __fly_unused, f
 	exit(0);
 }
 
-int fly_send_signal(pid_t pid, int signumber, int value)
+int fly_send_signal(pid_t pid, int signumber, int value __fly_unused)
 {
+#ifdef HAVE_SIGQUEUE
 	return sigqueue(pid, signumber, (const union sigval) value);
+#else
+	return kill(pid, signumber);
+#endif
 }

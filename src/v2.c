@@ -61,8 +61,13 @@ void fly_hv2_emergency(fly_event_t *event, fly_hv2_state_t *state);
 void fly_hv2_dynamic_table_release(struct fly_hv2_state *state);
 
 int __fly_hv2_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream);
-__attribute__((weak, alias("__fly_hv2_blocking_event"))) int fly_hv2_settings_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream);
-__attribute__((weak, alias("__fly_hv2_blocking_event"))) int fly_hv2_response_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream);
+int fly_hv2_settings_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream){
+	return __fly_hv2_blocking_event(e, stream);
+}
+
+int fly_hv2_response_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream){
+	return __fly_hv2_blocking_event(e, stream);
+}
 
 #define FLY_HV2_PARSE_DATA_SUCCESS		0
 #define FLY_HV2_PARSE_DATA_ERROR		-1
@@ -1698,6 +1703,8 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			break;
 		case FLY_HV2_CONNECTION_STATE_COMMUNICATION:
 			break;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		/* receive message from peer. extension */
@@ -2008,9 +2015,9 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			fly_buffer_chain_refresh(bufc);
 
 #ifdef DEBUG
-		/* 
+		/*
 		 * buffer lenngth must be \
-		 * previous buffer length-FRAME_SIZE+FRAME_HEADER_SIZE 
+		 * previous buffer length-FRAME_SIZE+FRAME_HEADER_SIZE
 		 *
 		 */
 		assert(conn->buffer->use_len == __buflen-FLY_HV2_FRAME_HEADER_LENGTH-length);
@@ -2458,7 +2465,8 @@ static inline void fly_hv2_peer_window_size_update(fly_hv2_stream_t *stream, ssi
 	stream->p_window_size -= send_size;
 	stream->state->p_window_size -= send_size;
 }
-static inline void fly_hv2_window_size_update(fly_hv2_stream_t *stream, ssize_t send_size)
+
+__fly_unused static inline void fly_hv2_window_size_update(fly_hv2_stream_t *stream, ssize_t send_size)
 {
 	stream->window_size -= send_size;
 	stream->state->window_size -= send_size;
@@ -3030,6 +3038,8 @@ int __fly_send_frame_h(fly_event_t *e, fly_response_t *res)
 			return FLY_SEND_FRAME_ERROR;
 		case __FLY_SEND_FRAME_SUCCESS:
 			break;
+		default:
+			FLY_NOT_COME_HERE
 		}
 		/* end of sending */
 		/* release resources */
@@ -4290,7 +4300,7 @@ static struct fly_hv2_huffman huffman_codes[] = {
 	{ -1,		0x0,				-1 },
 };
 
-static inline uint8_t __fly_huffman_code_digit(uint8_t c)
+__fly_unused static inline uint8_t __fly_huffman_code_digit(uint8_t c)
 {
 	uint8_t i=0;
 
@@ -4519,18 +4529,20 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 		if (__c->name_len>0 && __fly_hv2_pseudo_header(__c)){
 			for (char **__p=(char **) fly_pseudo_request; *__p; __p++){
 				if (strncmp(*__p, __c->name, strlen(*__p)) == 0){
-					if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD){
+					if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD))){
 						req->request_line->method = fly_match_method_name(__c->value);
 						if (!req->request_line->method){
 							/* invalid method */
+							return -1;
 						}
-					}else if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME){
+					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME))){
 						req->request_line->scheme = fly_match_scheme_name(__c->value);
 						if (!req->request_line->scheme){
 							/* invalid method */
+							return -1;
 						}
-					}else if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY){
-					}else if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_PATH){
+					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY))){
+					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_PATH, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_PATH))){
 						fly_uri_set(req, __c->value, __c->value_len);
 					}else{
 						FLY_NOT_COME_HERE
