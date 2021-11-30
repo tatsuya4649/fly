@@ -48,7 +48,9 @@ fly_signal_t fly_master_signals[] = {
 	FLY_SIGNAL_SETTING(SIGINT,	NULL),
 	FLY_SIGNAL_SETTING(SIGTERM, NULL),
 	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
+#ifdef HAVE_SIGQUEUE
 	FLY_SIGNAL_SETTING(SIGUSR1, fly_master_notice_worker_daemon_pid),
+#endif
 };
 
 
@@ -306,12 +308,12 @@ void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info
 	fly_master_t *__m;
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
-	pid_t orig_worker_pid;
+	pid_t orig_worker_pid=0;
 
 	__m = (fly_master_t *) ctx->data;
 #ifdef HAVE_SIGNALFD
 	orig_worker_pid = info->ssi_int;
-#else
+#elif defined HAVE_SIGQUEUE
 	orig_worker_pid = info->si_value.sival_int;
 #endif
 
@@ -448,7 +450,6 @@ __fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *
 
 	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++)
 		fly_add_master_sig(ctx, fly_master_signals[i].number, fly_master_signals[i].handler);
-//	fly_master_rtsignal_added(ctx);
 
 	__mptr = master;
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGABRT);
@@ -480,10 +481,14 @@ __fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGVTALRM);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGXCPU);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGXFSZ);
+#ifdef SIGWINCH
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGWINCH);
+#endif
 
+#if defined SIGRTMIN && defined SIGRTMAX
 	for (int i=SIGRTMIN; i<SIGRTMAX; i++)
 		FLY_KQUEUE_MASTER_SIGNALSET(i);
+#endif
 
 	sigset_t sset;
 	if (sigfillset(&sset) == -1)
@@ -541,6 +546,9 @@ fly_context_t *fly_master_release_except_context(fly_master_t *master)
 static int __fly_master_get_now_sighandler(fly_master_t *__m)
 {
 	for (fly_signum_t *__a=fly_signals; *__a!=-1; __a++){
+		if (*__a == SIGKILL || *__a == SIGSTOP)
+			continue;
+
 		struct sigaction __osa;
 		struct fly_orig_signal *__s;
 		if (sigaction(*__a, NULL, &__osa) == -1)
@@ -1112,11 +1120,6 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 		if (fly_inotify_rm_watch(pf, mask) == -1)
 			return -1;
 	}
-	if ((mask & NOTE_CLOSE_WRITE)){
-		signum |= FLY_SIGNAL_MODF;
-		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
-			return -1;
-	}
 	if (mask & NOTE_ATTRIB){
 		signum |= FLY_SIGNAL_MODF;
 		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
@@ -1390,8 +1393,6 @@ static int __fly_reload(fly_master_t *__m, int fd, int mask)
 		break;
 	case NOTE_ATTRIB:
 		break;
-	case NOTE_CLOSE_WRITE:
-		break;
 	case NOTE_RENAME:
 		break;
 	default:
@@ -1544,7 +1545,7 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 		e->read_or_write = FLY_KQ_INOTIFY;
 		e->flag = FLY_PERSISTENT;
 		e->tflag = FLY_INFINITY;
-		e->eflag = (NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_CLOSE_WRITE|NOTE_RENAME);
+		e->eflag = (NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME);
 		e->event_fase = NULL;
 		e->event_state = NULL;
 		e->expired = false;

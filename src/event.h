@@ -33,7 +33,7 @@ extern fly_pool_t *fly_event_pool;
 #define FLY_WRITE		EPOLLOUT
 #elif defined HAVE_KQUEUE
 #define FLY_READ		(1<<0)
-#define FLY_WRITE		(1<<1)	
+#define FLY_WRITE		(1<<1)
 //#define FLY_READ		EVFILT_READ
 //#define FLY_WRITE		EVFILT_WRITE
 //#define FLY_KQ_SIGNAL	(1<<3)
@@ -242,7 +242,7 @@ int fly_event_inherit_register(fly_event_t *e);
 #define __FLY_INOTIFY		0x08
 
 #define	fly_event_is_file_type(e, type)	((e)->file_type == __FLY_ ## type)
-#define fly_event_file_type(e, type)			((e)->file_type = __FLY_ ## type)
+#define fly_event_file_type(e, type)		((e)->file_type =  __FLY_ ## type)
 
 #define fly_event_is_regular(e)		fly_event_is_file_type((e), REGULAR)
 #define fly_event_is_dir(e)			fly_event_is_file_type((e), DIRECTORY)

@@ -9,7 +9,7 @@ struct fly_size_bytes fly_sizes[] = {
 	{M, 100000},
 	{L, 1000000},
 	{XL, 10000000},
-	{-1, 0},
+	{-1, -1},
 };
 
 __fly_direct_log __fly_static void *__fly_malloc(size_t size);
@@ -17,7 +17,7 @@ __fly_static void __fly_free(void *ptr);
 
 ssize_t fly_bytes_from_size(fly_pool_s size)
 {
-	for (struct fly_size_bytes *s=fly_sizes; s->size>=0; s++){
+	for (struct fly_size_bytes *s=fly_sizes; s->kb>=0; s++){
 		if (s->size == size){
 			return FLY_KB * s->kb;
 		}
