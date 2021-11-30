@@ -23,7 +23,7 @@ RELEA_VERSION:=0
 DEPEND_LIBS := -lz -lcrypto -lssl
 ifeq ($(OS), Darwin)
 	CFLAG := $(CFLAG) -I/usr/local/opt/openssl/include -I/usr/local/opt/zlib/include
-	LDFLAGS := -L/usr/local/opt/openssl/lib -L/usr/local/opt/zlib/lib
+	LDFLAGS := $(LDFLAGS) -L/usr/local/opt/openssl/lib -L/usr/local/opt/zlib/lib
 endif
 OPTIONAL_LIBS := -lbrotlidec -lbrotlienc
 
