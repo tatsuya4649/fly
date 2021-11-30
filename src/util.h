@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <stddef.h>
+#include <sys/types.h>
 #include "../config.h"
 
 #ifndef __GNUC__

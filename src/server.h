@@ -1,6 +1,9 @@
 #ifndef _SERVER_H
 #define _SERVER_H
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
