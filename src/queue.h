@@ -55,14 +55,10 @@ static inline void fly_queue_init(struct fly_queue *__h)
 	__h->prev = __h;
 	__h->head = __h;
 }
-#if FLY_GCC_COMPILER
-__attribute__((weak, alias("fly_queue_init"))) void fly_queue_empty(struct fly_queue *__h);
-#else
 static inline void fly_queue_empty(struct fly_queue *__h)
 {
 	fly_queue_init(__h);
 }
-#endif
 
 #define fly_queue_data(ptr, type, member)			\
 	fly_container_of(ptr, type, member)

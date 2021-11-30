@@ -52,9 +52,9 @@ __fly_unused static struct fly_buffer_chain *fly_buffer_chain_debug(struct fly_b
 typedef struct fly_buffer fly_buffer_t;
 typedef struct fly_buffer_chain fly_buffer_c;
 
-static inline fly_buffer_c *fly_buffer_chain(struct fly_bllist *__b)
+static inline fly_buffer_c *fly_buffer_chain(__fly_unused struct fly_bllist *__b )
 {
-	return fly_bllist_data(__b, struct fly_buffer_chain, blelem);
+	return (fly_buffer_c *) fly_bllist_data(__b, struct fly_buffer_chain, blelem);
 }
 
 static inline bool fly_is_chain_buffer_chain(struct fly_buffer *buf, struct fly_bllist *__b)

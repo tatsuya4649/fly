@@ -11,7 +11,7 @@ fly_http_method_t methods[] = {
 	{.name="OPTIONS", 		.type=OPTIONS},
 	{.name="TRACE",			.type=TRACE},
 	{.name="PATCH", 		.type=PATCH},
-	{NULL}
+	{.name=NULL,			.type=-1}
 };
 
 fly_http_method_t *fly_match_method_name(char *method_name)

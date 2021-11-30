@@ -1,10 +1,11 @@
 CC = gcc
 CPP = g++
+OS = $(shell uname)
 INCLUDE_PATH := -I/usr/local/include -I/usr/include
 ifdef DEBUG
-CFLAG := -gdwarf-2 -g3 -O0 -W -Wall -Werror -Wcast-align $(INCLUDE_PATH)
+CFLAG := -ggdb -g3 -O0 -W -Wall -Werror -Wcast-align $(INCLUDE_PATH) -Wno-deprecated-declarations
 else
-CFLAG := -O0 -W -Wall -Werror -Wcast-align $(INCLUDE_PATH)
+CFLAG := -O0 -W -Wall -Werror -Wcast-align $(INCLUDE_PATH) -Wno-deprecated-declarations
 endif
 LDFLAGS := -L /usr/lib -L /usr/local/lib -L ./fly/lib
 TARGET = fly
@@ -15,16 +16,24 @@ SOURCE_FILES := $(addprefix $(SRC)/, $(SRC_FILES))
 PYSOURCE_FILES := $(PYBUILD_FILES:%.o=%.c)
 .PHONY: all clean lib build test
 
-MAJOR_VERSION:=1
+MAJOR_VERSION:=0
 MINOR_VERSION:=0
 RELEA_VERSION:=0
 
 DEPEND_LIBS := -lz -lcrypto -lssl
-OPTIONAL_LIBS := -lbrotlidec -lbrotlienc 
+ifeq ($(OS), Darwin)
+	CFLAG := $(CFLAG) -I/usr/local/opt/openssl/include -I/usr/local/opt/zlib/include
+	LDFLAGS := -L/usr/local/opt/openssl/lib -L/usr/local/opt/zlib/lib
+endif
+OPTIONAL_LIBS := -lbrotlidec -lbrotlienc
 
 SRCDIR := src
 LIBDIR := $(PWD)/fly/lib
-LIBNAME := lib$(TARGET).so.$(MAJOR_VERSION)
+ifeq ($(OS), Darwin)
+	LIBNAME := lib$(TARGET).$(MAJOR_VERSION).dylib
+else
+	LIBNAME := lib$(TARGET).so.$(MAJOR_VERSION)
+endif
 BUILDDIR := build
 TESTDIR := tests
 TESTPRE := __fly_
@@ -39,9 +48,9 @@ ifdef DEBUG_RESPONSE_ERROR
 MACROS := $(MACROS) -D DEBUG_RESPONSE_ERROR
 endif
 ifdef DEBUG
-PYTHON := python3.10
+PYTHON := python3
 else
-PYTHON := python3.10
+PYTHON := python3
 endif
 
 all: build
@@ -63,9 +72,14 @@ pybuild:
 
 lib: $(SOURCE_FILES)
 	@mkdir -p $(LIBDIR)
-	gcc $(CFLAG) -shared $(MACROS) -fPIC -Wl,-soname,$(LIBNAME) $(DEPEND_LIBS) -o $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(filter-out main.c, $^) $(LDFLAGS)
-	ln -s  $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(LIBDIR)/$(LIBNAME)
-	ln -s  $(LIBDIR)/$(LIBNAME) $(LIBDIR)/lib$(TARGET).so 
+	if [ "$(OS)" = "Darwin" ]; then \
+		gcc $(CFLAG) -dynamiclib $(MACROS) $(DEPEND_LIBS) -o $(LIBDIR)/$(LIBNAME) $(filter-out main.c, $^) $(LDFLAGS); \
+		ln -fs  $(LIBDIR)/$(LIBNAME) $(LIBDIR)/lib$(TARGET).dylib; \
+	else \
+		ln -sf  $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(LIBDIR)/$(LIBNAME); \
+		gcc $(CFLAG) -shared $(MACROS) -fPIC -Wl,-soname,$(LIBNAME) $(DEPEND_LIBS) -o $(LIBDIR)/$(LIBNAME).$(MINOR_VERSION).$(RELEA_VERSION) $(filter-out main.c, $^) $(LDFLAGS); \
+		ln -fs  $(LIBDIR)/$(LIBNAME) $(LIBDIR)/lib$(TARGET).so; \
+	fi;
 
 test: test_placeholder clean_lib lib $(addprefix $(TESTPRE), $(TEST_FILES))
 test_placeholder:
@@ -80,19 +94,23 @@ $(TESTPRE)%.cpp:
 $(TESTPRE)%.c:
 		@echo "Target: $@"
 		@echo "Source: $(subst $(TESTPRE),,$@)"
-		$(CC) -g3 -O0 -Isrc -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lpthread -lfly
+		$(CC) -g3 -gdwarf -O0 -Isrc -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst $(TESTPRE),,$@)) -L ./$(LIBDIR) $(DEPEND_LIBS) -lpthread -lfly
 		LD_LIBRARY_PATH=$(LIBDIR) ./$(TESTDIR)/$(addprefix $(TESTPRE), $(subst $(TESTPRE),,$@))
 b$(TESTPRE)%.c:
 		@echo "Target: $@"
 		@echo "Source: $(subst b$(TESTPRE),,$@)"
 		@ls -l $(LIBDIR)
-		LD_LIBRARY_PATH=$(LIBDIR) $(CC) -g3 -O0 -Isrc -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst b$(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst b$(TESTPRE),,$@)) -lfly -L $(LIBDIR) 
+		LD_LIBRARY_PATH=$(LIBDIR) $(CC) -g3 -O0 -Isrc -I. $(MACROS) -o $(TESTDIR)/$(addprefix $(TESTPRE), $(subst b$(TESTPRE),, $@)) $(addprefix $(TESTDIR)/, $(subst b$(TESTPRE),,$@)) -lfly -L $(LIBDIR) $(CFLAG)
 
 %.o:	%.c
 	gcc -c $(CFLAG) -o $@ $<
 
 clean_lib:
-	rm -f $(LIBDIR)/lib$(TARGET).so*
+	if [ "$(OS)" = "Darwin" ]; then \
+		rm -rf $(LIBDIR)/lib$(TARGET).dylib*; \
+	else \
+		rm -f $(LIBDIR)/lib$(TARGET).so*; \
+	fi;
 	rm -f $(LIBDIR)/_fly_server*
 	rm -rf $(LIBDIR)/__pycache__
 	rm -f $(SRCDIR)/*.o
@@ -103,4 +121,4 @@ clean: clean_lib
 	rm -f .*.swp
 	rm -f fly/_fly_server.*
 	rm -rf build
-	rm -f $(TESTDIR)/__fly_*
+	rm -rf $(TESTDIR)/__fly_*
