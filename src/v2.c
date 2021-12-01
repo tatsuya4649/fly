@@ -2395,7 +2395,7 @@ send:
 		}else{
 			int c_sockfd;
 			c_sockfd = res->request->connect->c_sockfd;
-			numsend = send(c_sockfd, fh, FLY_HV2_FRAME_HEADER_LENGTH, MSG_NOSIGNAL);
+			numsend = send(c_sockfd, fh, FLY_HV2_FRAME_HEADER_LENGTH, FLY_MSG_NOSIGNAL);
 			if (FLY_BLOCKING(numsend))
 				goto write_blocking;
 			else if (numsend == -1 && errno == EPIPE)
@@ -2556,7 +2556,7 @@ send:
 				}else{
 					int c_sockfd;
 					c_sockfd = res->request->connect->c_sockfd;
-					numsend = send(c_sockfd, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr), MSG_NOSIGNAL);
+					numsend = send(c_sockfd, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr), FLY_MSG_NOSIGNAL);
 					if (FLY_BLOCKING(numsend))
 						goto write_blocking;
 					else if (numsend == -1 && errno == EPIPE)
@@ -2616,7 +2616,7 @@ send:
 						return FLY_SEND_DATA_FH_ERROR;
 					}
 				}else{
-					numsend = send(e->fd, body->body+total, body->body_len-total, MSG_NOSIGNAL);
+					numsend = send(e->fd, body->body+total, body->body_len-total, FLY_MSG_NOSIGNAL);
 					if (FLY_BLOCKING(numsend))
 						goto write_blocking;
 					else if (numsend == -1 && errno == EPIPE)
@@ -3232,7 +3232,7 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame)
 			if (frame->send_fase == FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER)
 				numsend = send(c_sockfd, ((uint8_t *) &frame->frame_header)+total, FLY_HV2_FRAME_HEADER_LENGTH-total, 0);
 			else
-				numsend = send(c_sockfd, frame->payload+total, frame->payload_len-total, MSG_NOSIGNAL);
+				numsend = send(c_sockfd, frame->payload+total, frame->payload_len-total, FLY_MSG_NOSIGNAL);
 			if (FLY_BLOCKING(numsend))
 				goto write_blocking;
 			else if (numsend == -1 && errno == EPIPE)

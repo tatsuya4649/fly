@@ -92,4 +92,10 @@ int fly_daemon(struct fly_context *ctx);
 
 ssize_t fly_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 
+#ifdef MSG_NOSIGNAL
+#define FLY_MSG_NOSIGNAL			MSG_NOSIGNAL
+#else
+#define FLY_MSG_NOSIGNAL			0
+#endif
+
 #endif
