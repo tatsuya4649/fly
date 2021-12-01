@@ -26,7 +26,6 @@
 #define FLY_NOTICLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_notice.log")
 #define FLY_LOG_PATH					"FLY_LOG_PATH"
 typedef char				fly_path_t;
-typedef char				fly_logc_t;
 typedef int					fly_logfile_t;
 typedef struct __fly_log	__fly_log_t;
 typedef struct fly_log		fly_log_t;
@@ -65,7 +64,7 @@ int fly_log_release(fly_log_t *log);
 #include "ftime.h"
 struct fly_logcont{
 	/* log content */
-	fly_logc_t		*content;
+	char			*content;
 	/* length of content(not including end of \0). */
 	size_t			contlen;
 	/* log type */

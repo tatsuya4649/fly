@@ -426,6 +426,9 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 #define FLY_HV2_INIT_CONNECTION_PREFACE_SUCCESS			(1)
 int fly_hv2_init_connection_preface(fly_connect_t *conn)
 {
+#ifdef DEBUG
+	printf("WORKER: check HTTP2 connection preface\n");
+#endif
 	fly_buffer_t *buf = conn->buffer;
 
 	switch(fly_buffer_memcmp(FLY_CONNECTION_PREFACE, fly_buffer_first_useptr(buf), fly_buffer_first_chain(buf), strlen(FLY_CONNECTION_PREFACE))){
@@ -627,6 +630,9 @@ int fly_hv2_init_handler(fly_event_t *e)
 #if !defined FLY_BIG_ENDIAN && !defined FLY_LITTLE_ENDIAN
 	/* can't recognize endian */
 	assert(0);
+#endif
+#ifdef DEBUG
+	printf("WORKER: HTTP2 init handler\n");
 #endif
 	fly_connect_t *conn;
 	fly_buffer_t *buf;
@@ -4517,10 +4523,13 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 	fly_hdr_ci *ci = req->header;
 
 	fly_request_line_init(req);
-
 	req->request_line->version = fly_match_version_from_type(V2);
 	if (fly_unlikely_null(req->request_line->version))
 		return -1;
+#ifdef DEBUG
+	printf("WORKER: Parse HTTP2 request:\n");
+	printf("\tRequest HTTP ver: %s\n", req->request_line->version->full);
+#endif
 	/* convert pseudo header to request line */
 	fly_hdr_c *__c;
 	struct fly_bllist *__b;
@@ -4529,20 +4538,35 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 		if (__c->name_len>0 && __fly_hv2_pseudo_header(__c)){
 			for (char **__p=(char **) fly_pseudo_request; *__p; __p++){
 				if (strncmp(*__p, __c->name, strlen(*__p)) == 0){
-					if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD))){
+					if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD)) == 0){
+#ifdef DEBUG
+						printf("\tRequest method: %s\n", *__p);
+#endif
 						req->request_line->method = fly_match_method_name(__c->value);
 						if (!req->request_line->method){
+#ifdef DEBUG
+							printf("\tmethod is invalid.\n");
+#endif
 							/* invalid method */
 							return -1;
 						}
-					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME))){
+					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME)) == 0){
+#ifdef DEBUG
+						printf("\tRequest scheme: %s\n", *__p);
+#endif
 						req->request_line->scheme = fly_match_scheme_name(__c->value);
 						if (!req->request_line->scheme){
+#ifdef DEBUG
+							printf("\tschemeis invalid.\n");
+#endif
 							/* invalid method */
 							return -1;
 						}
-					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY))){
-					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_PATH, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_PATH))){
+					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY)) == 0){
+					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_PATH, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_PATH)) == 0){
+#ifdef DEBUG
+						printf("\tRequest uri: %s\n", *__p);
+#endif
 						fly_uri_set(req, __c->value, __c->value_len);
 					}else{
 						FLY_NOT_COME_HERE
@@ -4630,6 +4654,9 @@ void fly_hv2_remove_response(fly_hv2_state_t *state, fly_response_t *res)
 
 int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 {
+#ifdef DEBUG
+	printf("WORKER: prepare for HTTP2 Response \n");
+#endif
 	fly_request_t *request;
 	fly_response_t *response;
 
@@ -4806,6 +4833,9 @@ int __fly_hv2_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream)
  */
 int fly_hv2_response_event(fly_event_t *e)
 {
+#ifdef DEBUG
+	printf("WORKER: HTTP2 Response event handler\n");
+#endif
 	fly_response_t *res;
 	fly_request_t *req;
 	fly_hv2_stream_t *stream;
@@ -4979,6 +5009,9 @@ send_body:
 	return fly_send_data_frame(e, res);
 
 log:
+#ifdef DEBUG
+	printf("WORKER: Log HTTP2 Access\n");
+#endif
 	if (fly_response_log(res, e) == -1)
 		return -1;
 
@@ -4998,6 +5031,9 @@ log:
 		if (fly_hv2_close_stream(stream) == -1)
 			return -1;
 
+#ifdef DEBUG
+	printf("WORKER: End HTTP2 request response\n");
+#endif
 register_handler:
 	e->read_or_write |= FLY_READ;
 	e->flag = FLY_MODIFY;
