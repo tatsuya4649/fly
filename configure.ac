@@ -146,11 +146,11 @@ AC_COMPILE_IFELSE([
 LIBS="-lcrypto $LIBS"
 AC_MSG_CHECKING(for md5 works in -lcrypto)
 if test "$build_mac" = "yes"; then
-	if [ -d '/usr/local/opt/openssl' ]; then
+	if test -d '/usr/local/opt/openssl'; then
         OPENSSLDIR='/usr/local/opt/openssl'
-	elif [ -d '/usr/local/opt/openssl@3' ]; then
+	elif test -d '/usr/local/opt/openssl@3'; then
         OPENSSLDIR='/usr/local/opt/openssl@3'
-	elif [ -d '/usr/local/opt/openssl@1.1' ]; then
+	elif test -d '/usr/local/opt/openssl@1.1'; then
         OPENSSLDIR='/usr/local/opt/openssl@1.1'
 	else
 		AC_MSG_ERROR(not found opessl directory on your system.)

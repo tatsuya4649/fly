@@ -13040,7 +13040,15 @@ LIBS="-lcrypto $LIBS"
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for md5 works in -lcrypto" >&5
 printf %s "checking for md5 works in -lcrypto... " >&6; }
 if test "$build_mac" = "yes"; then
+	if test -d '/usr/local/opt/openssl'; then
         OPENSSLDIR='/usr/local/opt/openssl'
+	elif test -d '/usr/local/opt/openssl@3'; then
+        OPENSSLDIR='/usr/local/opt/openssl@3'
+	elif test -d '/usr/local/opt/openssl@1.1'; then
+        OPENSSLDIR='/usr/local/opt/openssl@1.1'
+	else
+		as_fn_error $? "not found opessl directory on your system." "$LINENO" 5
+	fi
         LDFLAGS="$LDFLAGS -L$OPENSSLDIR/lib"
         CFLAGS="$CFLAGS -I$OPENSSLDIR/include"
 fi
