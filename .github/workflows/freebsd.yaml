@@ -25,8 +25,8 @@ jobs:
                   prepare: |
                       pkg update
                       pkg install -y autoconf autoconf-archive automake autotools gcc sqlite3 python310 py310-sqlite3
-                      python3 -m pip install --upgrade pip
-                      python3 -m pip install -r requirements.txt
+                      python3.10 -m pip install --upgrade pip
+                      python3.10 -m pip install -r requirements.txt
                   run: |
                       autoreconf
                       ./configure
@@ -34,11 +34,11 @@ jobs:
                       make
                       make install
                       echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
-                      python3 setup.py build
+                      python3.10 setup.py build
                       cp -rf build/lib.*/fly/_fly_server.cpython* fly/
                       openssl req \
                       -subj '/CN=localhsot' \
                       -x509 -nodes -days 365 -newkey rsa:2048 \
                       -keyout tests/fly_test.key \
                       -out tests/fly_test.crt
-                      python3 -m pytest tests -xv
+                      python3.10 -m pytest tests -xv
