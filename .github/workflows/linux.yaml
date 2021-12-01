@@ -57,4 +57,4 @@ jobs:
               #              uses: mxschmitt/action-tmate@v3
               #            - name: Run Python
             - name: Run Python test
-              run: python3 -m pytest tests -v
+              run: python3 -m pytest tests -xv
