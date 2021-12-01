@@ -50,6 +50,8 @@ fly_signal_t fly_master_signals[] = {
 	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
 #ifdef HAVE_SIGQUEUE
 	FLY_SIGNAL_SETTING(SIGUSR1, fly_master_notice_worker_daemon_pid),
+#else
+	FLY_SIGNAL_SETTING(SIGUSR1, FLY_SIG_IGN),
 #endif
 };
 
@@ -718,6 +720,9 @@ __fly_direct_log int fly_master_process(fly_master_t *master)
 #endif
 	if (res == FLY_MASTER_CONTINUE){
 		/* event handler start here */
+#ifdef DEBUG
+		printf("MASTER PROCESS EVENT START!\n");
+#endif
 		switch(fly_event_handler(manager)){
 		case FLY_EVENT_HANDLER_INVALID_MANAGER:
 			FLY_EMERGENCY_ERROR(
@@ -747,9 +752,15 @@ __fly_direct_log int fly_master_process(fly_master_t *master)
 			FLY_NOT_COME_HERE
 		}
 	}else if (res == FLY_MASTER_SIGNAL_END){
+#ifdef DEBUG
+		printf("MASTER PROCESS SIGNAL END\n");
+#endif
 		/* signal or reload file return */
 		return res;
 	}else if (res == FLY_MASTER_RELOAD){
+#ifdef DEBUG
+		printf("MASTER PROCESS RELOAD\n");
+#endif
 		return res;
 	}
 
@@ -908,9 +919,9 @@ const char *fly_proc_type_str(fly_proc_type type)
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx)
 {
-	pid_t pid;
-	fly_worker_t *worker;
-	sigset_t __s;
+	pid_t pid=0;
+	fly_worker_t *worker=NULL;
+	sigset_t __s=0;
 
 	/* block signals */
 	if (sigfillset(&__s) == -1)
@@ -918,34 +929,59 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 	if (sigprocmask(SIG_BLOCK, &__s, NULL) == -1)
 		return -1;
 
-	switch((pid=fork())){
-	case -1:
+	pid = fork();
+	if (pid == -1)
 		return -1;
-	case 0:
-		{
-			fly_context_t *mctx;
-			/* unnecessary resource release */
-			master->now_workers++;
-			mctx = fly_master_release_except_context(master);
+	else if (pid == 0){
+		fly_context_t *mctx=NULL;
+		/* unnecessary resource release */
+		master->now_workers++;
+		mctx = fly_master_release_except_context(master);
 
-			/* alloc worker resource */
-			worker = fly_worker_init(mctx);
-			if (!worker)
-				exit(1);
+		/* alloc worker resource */
+		worker = fly_worker_init(mctx);
+		if (!worker)
+			exit(1);
 
-			/* set master context */
-			ctx = worker->context;
+		/* set master context */
+		ctx = worker->context;
 #ifdef HAVE_SIGNALFD
-			if (sigprocmask(SIG_UNBLOCK, &__s, NULL) == -1)
-				return -1;
+		if (sigprocmask(SIG_UNBLOCK, &__s, NULL) == -1)
+			return -1;
 #endif
-		}
-		break;
-	default:
+	}else{
 		/* parent */
 		master->now_workers++;
 		goto child_register;
 	}
+//	switch(pid){
+//	case -1:
+//		return -1;
+//	case 0:
+//		{
+//			fly_context_t *mctx=NULL;
+//			/* unnecessary resource release */
+//			master->now_workers++;
+//			mctx = fly_master_release_except_context(master);
+//
+//			/* alloc worker resource */
+//			worker = fly_worker_init(mctx);
+//			if (!worker)
+//				exit(1);
+//
+//			/* set master context */
+//			ctx = worker->context;
+//#ifdef HAVE_SIGNALFD
+//			if (sigprocmask(SIG_UNBLOCK, &__s, NULL) == -1)
+//				return -1;
+//#endif
+//		}
+//		break;
+//	default:
+//		/* parent */
+//		master->now_workers++;
+//		goto child_register;
+//	}
 	/* new process only */
 	proc(ctx, (void *) worker);
 	exit(0);
