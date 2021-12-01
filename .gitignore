@@ -39,6 +39,7 @@ gdb.*
 .libs
 stamp-h1
 Makefile
+/src/Makefile
 update
 test_update
 test_read.conf

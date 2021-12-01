@@ -167,7 +167,7 @@ lock_old_archive_extraction=no
 LTCC="gcc"
 
 # LTCC compiler flags.
-LTCFLAGS="-g -O2 -std=gnu11 -W -fno-strict-aliasing -Waddress -Warray-bounds -Wchar-subscripts -Wenum-compare -Wformat -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-aliasing -Wstrict-overflow=1 -Wtrigraphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -Wunused-label -Wunused-value -Wunused-variable -Wunused-parameter -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-deprecated-declarations -Wcast-align -Wtype-limits -Wunused-but-set-parameter -Wno-error=unused-result"
+LTCFLAGS="-g -O2 -I/usr/local/opt/openssl/include -I/usr/local/opt/zlib/include -std=gnu11 -W -fno-strict-aliasing -Waddress -Warray-bounds -Wchar-subscripts -Wenum-compare -Wformat -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-overflow=1 -Wtrigraphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -Wunused-label -Wunused-value -Wunused-variable -Wunused-parameter -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-deprecated-declarations -Wcast-align -Wtype-limits -Wno-error=unused-result"
 
 # Take the output of nm and produce a listing of raw symbols and C names.
 global_symbol_pipe="sed -n -e 's/^.*[	 ]\\([ABCDGIRSTW][ABCDGIRSTW]*\\)[	 ][	 ]*\\([_A-Za-z][_A-Za-z0-9]*\\)\$/\\1 \\2 \\2/p' | sed '/ __gnu_lto/d'"
