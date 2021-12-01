@@ -255,7 +255,7 @@ AUTOMAKE = ${SHELL} '/home/tatsuya/fly/missing' automake-1.16
 AWK = gawk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -O2 -std=gnu11 -W -Waddress -Warray-bounds -Wchar-subscripts -Wenum-compare -Wformat -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-aliasing -Wstrict-overflow=1 -Wtrigraphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -Wunused-label -Wunused-value -Wunused-variable -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-error=deprecated-declarations -Wcast-align -Wtype-limits -Wunused-parameter -Wunused-but-set-parameter
+CFLAGS = -g -O2 -std=gnu11 -W -Waddress -Warray-bounds -Wchar-subscripts -Wenum-compare -Wformat -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-aliasing -Wstrict-overflow=1 -Wtrigraphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -Wunused-label -Wunused-value -Wunused-variable -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-error=deprecated-declarations -Wcast-align -Wtype-limits -Wunused-parameter -Wunused-but-set-parameter -Wno-error=unused-result
 CPPFLAGS = 
 CSCOPE = cscope
 CTAGS = ctags
