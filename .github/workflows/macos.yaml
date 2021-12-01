@@ -53,7 +53,7 @@ jobs:
               openssl req \
               -subj '/CN=localhost' \
               -x509 -nodes -days 365 -newkey rsa:2048 \
-              -keyout tests/fly_test.ky \
+              -keyout tests/fly_test.key \
               -out tests/fly_test.crt
         - name: Run Python fly test
           run: python3 -m pytest tests -xv
