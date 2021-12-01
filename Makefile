@@ -215,7 +215,7 @@ AUTOMAKE = ${SHELL} '/Users/tatsuya/fly/missing' automake-1.16
 AWK = awk
 CC = gcc
 CCDEPMODE = depmode=gcc3
-CFLAGS = -g -O2 -I/usr/local/opt/openssl/include -I/usr/local/opt/zlib/include -std=gnu11 -W -fno-strict-aliasing -Waddress -Warray-bounds -Wchar-subscripts -Wenum-compare -Wformat -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-aliasing -Wstrict-overflow=1 -Wtrigraphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -Wunused-label -Wunused-value -Wunused-variable -Wunused-parameter -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-deprecated-declarations -Wcast-align -Wtype-limits -Wno-error=unused-result
+CFLAGS = -g -O2 -I/usr/local/opt/openssl/include -I/usr/local/opt/zlib/include -std=gnu11 -W -fno-strict-aliasing -Waddress -Warray-bounds -Wchar-subscripts -Wenum-compare -Wformat -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-overflow=1 -Wtrigraphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -Wunused-label -Wunused-value -Wunused-variable -Wunused-parameter -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-deprecated-declarations -Wcast-align -Wtype-limits -Wno-error=unused-result
 CPPFLAGS = 
 CSCOPE = cscope
 CTAGS = ctags
