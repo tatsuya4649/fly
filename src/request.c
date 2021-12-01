@@ -1194,8 +1194,8 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_request_fase_t				fase;
 	fly_connect_t					*conn;
 
-	state = *((fly_request_state_t *) event->event_state);
-	fase = *((fly_request_fase_t *) event->event_fase);
+	state = *(fly_request_state_t *) &event->event_state;
+	fase = *(fly_request_fase_t *) &event->event_fase;
 	request = (fly_request_t *) event->event_data;
 	conn = request->connect;
 
@@ -1203,7 +1203,7 @@ int fly_request_event_handler(fly_event_t *event)
 		goto __fase_body;
 
 #ifdef DEBUG
-	printf("REQUEST RECEIVE\n");
+	printf("WORKER: Will receive request\n");
 	printf("\t%s\n", request->receive_status_line ? "RECEIVED STATUS LINE" : "NOT YET RECEIVED STATUS LINE");
 	printf("\t%s\n", request->receive_header ? "RECEIVED HEADER" : "NOT YET RECEIVED HEADER");
 	printf("\t%s\n", request->receive_body ? "RECEIVED BODY" : "NOT YET RECEIVED BODY");

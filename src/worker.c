@@ -378,7 +378,11 @@ __fly_static int __fly_wsignal_handle(fly_worker_t *worker, fly_context_t *ctx, 
 	struct fly_bllist *__b;
 
 #ifdef DEBUG
-	printf("WORKER SIGNAL RECEIVED\n");
+#ifdef HAVE_SIGNALFD
+	printf("WORKER: Signal received. %s\n", strsignal(info->ssi_signo));
+#else
+	printf("WORKER: Signal received. %s\n", strsignal(info->si_signo));
+#endif
 #endif
 	fly_for_each_bllist(__b, &worker->signals){
 		__s = fly_bllist_data(__b, struct fly_signal, blelem);
@@ -407,7 +411,7 @@ __fly_static int __fly_worker_signal_handler(fly_event_t *e)
 	ssize_t res;
 
 #ifdef DEBUG
-	printf("WORKER SIGNAL DEFAULT HANDLER\n");
+	printf("WORKER: SIGNAL DEFAULT HANDLER\n");
 #endif
 	while(true){
 		res = read(e->fd, (void *) &info,sizeof(fly_siginfo_t));
@@ -743,6 +747,9 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 		);
 
 	/* log event start here */
+#ifdef DEBUG
+	printf("WORKER PROCESS EVENT START!\n");
+#endif
 	switch(fly_event_handler(manager)){
 	case FLY_EVENT_HANDLER_INVALID_MANAGER:
 		FLY_EMERGENCY_ERROR(

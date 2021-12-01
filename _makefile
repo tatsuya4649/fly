@@ -1,4 +1,4 @@
-CC = gcc
+CC = clang
 CPP = g++
 OS = $(shell uname)
 INCLUDE_PATH := -I/usr/local/include -I/usr/include

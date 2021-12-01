@@ -114,6 +114,9 @@ __fly_static int __fly_info_of_connect(fly_connect_t *conn)
  */
 int fly_listen_connected(fly_event_t *e)
 {
+#ifdef DEBUG
+	printf("WORKER: Listen socket is connected\n");
+#endif
 	fly_connect_t *conn;
 	fly_request_t *req;
 
@@ -129,6 +132,9 @@ int fly_listen_connected(fly_event_t *e)
 
 	switch(FLY_CONNECT_HTTP_VERSION(conn)){
 	case V1_1:
+#ifdef DEBUG
+	printf("WORKER: Start HTTP1.1 communication\n");
+#endif
 		req = fly_request_init(conn);
 		if (fly_unlikely_null(req)){
 			struct fly_err *__err;
@@ -145,6 +151,9 @@ int fly_listen_connected(fly_event_t *e)
 		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
 		return fly_request_event_handler(e);
 	case V2:
+#ifdef DEBUG
+	printf("WORKER: Start HTTP2 communication\n");
+#endif
 		e->event_data = (void *) conn;
 		FLY_EVENT_END_HANDLER(e, fly_hv2_end_handle, conn);
 		FLY_EVENT_EXPIRED_HANDLER(e, fly_hv2_timeout_handle, conn);
@@ -185,6 +194,7 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	fly_event_t			*ne;
 
 #ifdef DEBUG
+	printf("WORKER: ACCEPT LISTEN EVENT\n");
 	assert(event->err_count == 0);
 #endif
 	ctx = fly_context_from_event(event);
@@ -252,6 +262,9 @@ read_blocking:
 
 static int fly_recognize_protocol_of_connected(fly_event_t *e)
 {
+#ifdef DEBUG
+	printf("WORKER: RECOGNIZE PROTOCOL EVENT\n");
+#endif
 	fly_connect_t *conn;
 	fly_sock_t conn_sock;
 	fly_sockinfo_t *sockinfo;
@@ -287,6 +300,9 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 			goto disconnect;
 		}
 
+#ifdef DEBUG
+		printf("WORKER: SSL Received!\n");
+#endif
 		/* HTTP request over TLS */
 		return fly_accept_listen_socket_ssl_handler(e, conn);
 	}else{
@@ -298,6 +314,9 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 			goto response_400;
 		}
 
+#ifdef DEBUG
+		printf("WORKER: HTTP Received!\n");
+#endif
 		return fly_listen_connected(e);
 	}
 read_blocking:
