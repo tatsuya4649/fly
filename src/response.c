@@ -313,18 +313,43 @@ char *fly_log_request_line_hv2(fly_response_t *res)
 #define FLY_LOG_REQUEST_LINE_HV2_STREND_SIZE		1
 	size_t size=0;
 	char   *request_line;
+#ifdef DEBUG
+	assert(res->request->request_line);
+#endif
 
-	size += strlen(res->request->request_line->method->name);
+	if (res->request->request_line->method != NULL)
+		size += strlen(res->request->request_line->method->name);
+	else{
+#ifdef DEBUG
+		printf("WORKER: log setting. no method in request line.\n");
+#endif
+		return FLY_RESPONSE_NONSTRING;
+	}
 	size += FLY_LOG_REQUEST_LINE_HV2_SPACE_SIZE;
-	size += (size_t) res->request->request_line->uri.len;
+	if (res->request->request_line->uri.ptr != NULL)
+		size += (size_t) res->request->request_line->uri.len;
+	else{
+#ifdef DEBUG
+		printf("WORKER: log setting. no uri in request line.\n");
+#endif
+		return FLY_RESPONSE_NONSTRING;
+	}
 	size += FLY_LOG_REQUEST_LINE_HV2_SPACE_SIZE;
-	size += strlen(res->request->request_line->version->full);
+	if (res->request->request_line->version)
+		size += strlen(res->request->request_line->version->full);
+	else{
+#ifdef DEBUG
+		printf("WORKER: log setting. no version in request line.\n");
+#endif
+		return FLY_RESPONSE_NONSTRING;
+	}
 	size += FLY_LOG_REQUEST_LINE_HV2_STREND_SIZE;
 
 	request_line = fly_pballoc(res->pool, size);
 	if (fly_unlikely_null(request_line))
 		return NULL;
 
+	printf("HEre\n");
 	snprintf(request_line, size, "%s %s %s",
 			res->request->request_line->method->name,
 			res->request->request_line->uri.ptr,
@@ -350,9 +375,10 @@ __fly_static int __fly_response_logcontent(fly_response_t *response, fly_event_t
 	 *
 	 */
 	int res;
+
 	res = snprintf(
-		(char *) lc->content,
-		(size_t) lc->contlen,
+		lc->content,
+		lc->contlen,
 		"%s:%s (%s) --> %s:%s (%d %s)\n",
 		/* peer hostname */
 		response->request->connect->hostname,
@@ -409,6 +435,9 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 	}
 	fly_logcont_setting(log_content, FLY_RESPONSE_LOG_LENGTH);
 
+#ifdef DEBUG
+	printf("WORKER: Setting Log content of HTTP2 Access\n");
+#endif
 	switch(__fly_response_logcontent(res, e, log_content)){
 	case __FLY_RESPONSE_LOGCONTENT_SUCCESS:
 	case __FLY_RESPONSE_LOGCONTENT_OVERFLOW:
@@ -441,6 +470,9 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 		return -1;
 	}
 
+#ifdef DEBUG
+	printf("WORKER: End of setting log content of HTTP2 Access\n");
+#endif
 	FLY_EVENT_HANDLER(le, fly_log_event_handler);
 	le->read_or_write = FLY_WRITE;
 	le->event_fase = (void *) EFLY_LOG_FASE_INIT;

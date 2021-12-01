@@ -46,12 +46,14 @@ else:
     extra_compile_args.append("-O3")
 
 _OS = platform.system()
+_libfly_dir = list()
 if _OS == 'Darwin':
-    _libfly_dir = os.path.join(
-        os.getcwd(),
-        "fly/lib"
-    )
-    extra_compile_args.append('-Wl,-rpath,' + _libfly_dir)
+    _libfly_dir.append(
+        os.path.join(
+            os.getcwd(),
+            "fly/lib"
+    ))
+    #extra_compile_args.append('-Wl,-rpath,' + _libfly_dir)
 
 server = Extension(
 	name="fly._fly_server",
@@ -59,6 +61,7 @@ server = Extension(
     language='c',
 	libraries=["fly"],
 	library_dirs=[f"{ os.path.abspath(os.path.dirname(__file__)) }/fly/lib"],
+    runtime_library_dirs=_libfly_dir,
     extra_compile_args = extra_compile_args,
     define_macros = macros,
 )

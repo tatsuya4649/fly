@@ -274,7 +274,7 @@ __fly_static int __fly_log_unlock(fly_logfile_t file, struct flock *lock)
 	return fcntl(file, F_SETLK, lock);
 }
 
-__fly_static int __fly_write(fly_logfile_t file, size_t length, fly_logc_t *content)
+__fly_static int __fly_write(fly_logfile_t file, size_t length, char *content)
 {
 	size_t total = 0;
 
@@ -283,7 +283,7 @@ __fly_static int __fly_write(fly_logfile_t file, size_t length, fly_logc_t *cont
 		return -1;
 	while(true){
 #ifndef FLY_LOG_WRITE_SIZE
-#define FLY_LOG_WRITE_SIZE		sizeof(fly_logc_t)
+#define FLY_LOG_WRITE_SIZE		sizeof(char)
 #endif
 		int now_pos=0, n, write_length;
 		write_length = length - total;

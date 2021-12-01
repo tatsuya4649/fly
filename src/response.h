@@ -139,7 +139,7 @@ int fly_response_event(fly_event_t *e);
 
 #define FLY_DEFAULT_HTTP_VERSION		V1_1
 #define FLY_RESPONSE_LOG_LENGTH			300
-#define FLY_RESPONSE_NONSTRING			""
+#define FLY_RESPONSE_NONSTRING			"?"
 
 struct fly_itm_response{
 	fly_stcode_t status_code;
