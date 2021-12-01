@@ -593,7 +593,7 @@ old_postuninstall_cmds=''
 old_archive_cmds='$AR $AR_FLAGS $oldlib$oldobjs~$RANLIB $tool_oldlib'
 lock_old_archive_extraction='yes'
 CC='gcc'
-CFLAGS='-g -O2 -I/usr/local/opt/openssl/include -I/usr/local/opt/zlib/include -std=gnu11 -W -Waddress -Warray-bounds -Wchar-subscripts -Wenum-compare -Wformat -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-aliasing -Wstrict-overflow=1 -Wtrigraphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -Wunused-label -Wunused-value -Wunused-variable -Wunused-parameter -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-deprecated-declarations -Wcast-align -Wtype-limits -Wno-error=unused-result'
+CFLAGS='-g -O2 -I/usr/local/opt/openssl/include -I/usr/local/opt/zlib/include -std=gnu11 -W -fno-strict-aliasing -Waddress -Warray-bounds -Wchar-subscripts -Wenum-compare -Wformat -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-aliasing -Wstrict-overflow=1 -Wtrigraphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -Wunused-label -Wunused-value -Wunused-variable -Wunused-parameter -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-deprecated-declarations -Wcast-align -Wtype-limits -Wno-error=unused-result'
 compiler='gcc'
 GCC='yes'
 lt_cv_sys_global_symbol_pipe='sed -n -e '\''s/^.*[	 ]\([BCDEGRST][BCDEGRST]*\)[	 ][	 ]*_\([_A-Za-z][_A-Za-z0-9]*\)$/\1 _\2 \2/p'\'' | sed '\''/ __gnu_lto/d'\'''
@@ -891,11 +891,11 @@ S["EXEEXT"]=""
 S["ac_ct_CC"]="gcc"
 S["CPPFLAGS"]=""
 S["LDFLAGS"]=" -L/usr/local/opt/openssl/lib -L/usr/local/opt/zlib/lib"
-S["CFLAGS"]="-g -O2 -I/usr/local/opt/openssl/include -I/usr/local/opt/zlib/include -std=gnu11 -W -Waddress -Warray-bounds -Wchar-subscripts -Wenum-compare -Wform"\
-"at -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-aliasing -Wstrict-overflow=1 -Wtrigr"\
-"aphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -Wunused-label -Wunuse"\
-"d-value -Wunused-variable -Wunused-parameter -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-deprecated-declarations -Wcast-align -Wt"\
-"ype-limits -Wno-error=unused-result"
+S["CFLAGS"]="-g -O2 -I/usr/local/opt/openssl/include -I/usr/local/opt/zlib/include -std=gnu11 -W -fno-strict-aliasing -Waddress -Warray-bounds -Wchar-subscripts "\
+"-Wenum-compare -Wformat -Wuninitialized -Wmissing-braces -Wnonnull -Wparentheses -Wimplicit -Wsequence-point -Wsign-compare -Wstrict-aliasing -Wstri"\
+"ct-overflow=1 -Wtrigraphs -Wreturn-type -Wunused -Wswitch-default -Wuninitialized -Wmissing-field-initializers -Wunknown-pragmas -Wunused-function -"\
+"Wunused-label -Wunused-value -Wunused-variable -Wunused-parameter -Wvolatile-register-var -Wcomment -Wno-deprecated -Werror -Wno-deprecated-declarat"\
+"ions -Wcast-align -Wtype-limits -Wno-error=unused-result"
 S["CC"]="gcc"
 S["target_alias"]=""
 S["host_alias"]=""
