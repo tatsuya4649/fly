@@ -919,9 +919,9 @@ const char *fly_proc_type_str(fly_proc_type type)
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx)
 {
-	pid_t pid=0;
-	fly_worker_t *worker=NULL;
-	sigset_t __s=0;
+	pid_t pid;
+	fly_worker_t *worker;
+	sigset_t __s;
 
 	/* block signals */
 	if (sigfillset(&__s) == -1)
