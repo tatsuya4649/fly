@@ -596,11 +596,12 @@ AX_CHECK_COMPILE_FLAG([-Wvolatile-register-var], [CFLAGS="$CFLAGS -Wvolatile-reg
 AX_CHECK_COMPILE_FLAG([-Wcomment], [CFLAGS="$CFLAGS -Wcomment"])
 AX_CHECK_COMPILE_FLAG([-Wno-deprecated], [CFLAGS="$CFLAGS -Wno-deprecated"])
 AX_CHECK_COMPILE_FLAG([-Werror], [CFLAGS="$CFLAGS -Werror"])
-AX_CHECK_COMPILE_FLAG([-Wno-error=deprecated-declarations], [CFLAGS="$CFLAGS -Wno-error=deprecated-declarations"])
+AX_CHECK_COMPILE_FLAG([-Wno-deprecated-declarations], [CFLAGS="$CFLAGS -Wno-deprecated-declarations"])
 AX_CHECK_COMPILE_FLAG([-Wcast-align], [CFLAGS="$CFLAGS -Wcast-align"])
 AX_CHECK_COMPILE_FLAG([-Wtype-limits], [CFLAGS="$CFLAGS -Wtype-limits"])
 AX_CHECK_COMPILE_FLAG([-Wunused-parameter], [CFLAGS="$CFLAGS -Wunused-parameter"])
 AX_CHECK_COMPILE_FLAG([-Wunused-but-set-parameter], [CFLAGS="$CFLAGS -Wunused-but-set-parameter"])
+AX_CHECK_COMPILE_FLAG([-Wno-error=unused-result], [CFLAGS="$CFLAGS -Wno-error=unused-result"])
 
 AC_PREFIX_DEFAULT($PWD/fly)
 AC_CONFIG_FILES([Makefile
