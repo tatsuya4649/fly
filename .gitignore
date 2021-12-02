@@ -47,3 +47,14 @@ fly_test.crt
 fly_test.key
 __fly_*
 valgrind*
+missing
+libtool
+install-sh
+config.log
+config.status
+config.sub
+depcomp
+ltmain.sh
+compile
+config.guess
+aclocal.m4
