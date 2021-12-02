@@ -17,7 +17,7 @@
 #include "str.h"
 
 #define FLY_PATHNAME_MAX	_POSIX_NAME_MAX
-#define FLY_PATH_MAX	_POSIX_PATH_MAX
+#define FLY_PATH_MAX		_POSIX_PATH_MAX
 #define FLY_MOUNT_POOL_PAGE		((fly_page_t) 10)
 #define FLY_MOUNT_INIT_NUMBER		0
 #define FLY_DATE_LENGTH			(50)
