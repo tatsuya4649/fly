@@ -36,7 +36,7 @@ jobs:
               python3 -m pip install -r requirements.txt
         - name: Make fly library
           run: |
-              autoreconf
+              autoreconf --force --install
               ./configure
               cat config.h
               make

@@ -24,13 +24,13 @@ jobs:
                       python3.10 -m ensurepip
                       python3.10 -m pip install --upgrade pip
                   run: |
-                      autoreconf
+                      autoreconf --force --install
                       ./configure
                       cat config.h
                       make
                       make install
-                      echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
-                      python3.10 -m pip -r requirements.txt install
+                      echo "nameserver 8.8.8.8" | tee /etc/resolv.conf
+                      python3.10 -m pip install -r ./requirements.txt
                       python3.10 setup.py build
                       cp -rf build/lib.*/fly/_fly_server.cpython* fly/
                       openssl req \

@@ -6,7 +6,8 @@ on:
             - develop
 env:
     LC_ALL: C.UTF-8
-    LANG: C.UTF-8 jobs:
+    LANG: C.UTF-8
+jobs:
     fly-test:
         runs-on: ubuntu-latest
         continue-on-error: false
@@ -32,7 +33,7 @@ env:
                   python3 -m pip install -r requirements.txt
             - name: Make fly library
               run: |
-                  autoreconf
+                  autoreconf --force --install
                   ./configure
                   cat config.h
                   make
