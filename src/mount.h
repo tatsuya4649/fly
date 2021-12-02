@@ -1,6 +1,7 @@
 #ifndef _MOUNT_H
 #define _MOUNT_H
 
+#include "../config.h"
 #include <dirent.h>
 #include <limits.h>
 #include <sys/stat.h>
@@ -16,7 +17,7 @@
 #include "str.h"
 
 #define FLY_PATHNAME_MAX	_POSIX_NAME_MAX
-#define FLY_PATH_MAX	_POSIX_PATH_MAX
+#define FLY_PATH_MAX		_POSIX_PATH_MAX
 #define FLY_MOUNT_POOL_PAGE		((fly_page_t) 10)
 #define FLY_MOUNT_INIT_NUMBER		0
 #define FLY_DATE_LENGTH			(50)
@@ -108,13 +109,14 @@ int fly_inotify_kevent_event(fly_event_t *event, struct fly_mount_parts_file *pf
 void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *sb);
 
-struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts);
 fly_mount_parts_t *fly_parts_from_wd(int wd, fly_mount_t *mnt);
 fly_mount_parts_t *fly_parts_from_fd(int fd, fly_mount_t *mnt);
 #ifdef HAVE_INOTIFY
 struct fly_mount_parts_file *fly_pf_from_mount(int wd, fly_mount_t *mnt);
+struct fly_mount_parts_file *fly_pf_from_wd(int wd, fly_mount_parts_t *parts);
 #elif defined HAVE_KQUEUE
 struct fly_mount_parts_file *fly_pf_from_mount(int fd, fly_mount_t *mnt);
+struct fly_mount_parts_file *fly_pf_from_fd(int fd, fly_mount_parts_t *parts);
 #endif
 #ifdef HAVE_INOTIFY
 int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len);
@@ -138,7 +140,7 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts);
 #define FLY_INOTIFY_WATCH_FLAG_MP	(IN_CREATE|IN_DELETE_SELF|IN_DELETE|IN_MOVE|IN_MOVE_SELF|IN_ONLYDIR)
 #elif defined HAVE_KQUEUE
 #define FLY_INOTIFY_WATCH_FLAG_MP	(NOTE_DELETE|NOTE_EXTEND|NOTE_LINK)
-#define FLY_INOTIFY_WATCH_FLAG_PF	(NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_CLOSE_WRITE|NOTE_RENAME)
+#define FLY_INOTIFY_WATCH_FLAG_PF	(NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME)
 #endif
 #define FLY_NUMBER_OF_INOBUF				(100)
 #define is_fly_myself(ie)				((ie)->len == 0)

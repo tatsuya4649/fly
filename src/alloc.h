@@ -17,7 +17,7 @@ enum fly_pool_size{
 
 struct fly_size_bytes{
 	enum fly_pool_size size;
-	unsigned kb;
+	ssize_t kb;
 };
 #define FLY_KB		1000
 

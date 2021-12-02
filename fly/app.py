@@ -1,5 +1,6 @@
 import sys
 import os
+import platform
 import ctypes
 import inspect
 import importlib.machinery as imm
@@ -9,14 +10,32 @@ import traceback
 import time
 import signal
 
-ctypes.cdll.LoadLibrary(
-    os.path.abspath(
+_os = platform.system()
+_libfly_dir = os.path.abspath(
         os.path.join(
             os.path.dirname(__file__),
-            "lib/libfly.so"
+            'lib'
         )
-    )
 )
+
+if _os == 'Linux' or _os == 'FreeBSD':
+    _lib = 'libfly.so'
+elif _os == 'Darwin':
+    _lib = 'libfly.dylib'
+else:
+    raise RuntimeError(f"your system \"{_os}\" not supported.")
+
+_libfly_abs = os.path.abspath(
+        os.path.join(
+            _libfly_dir,
+            _lib
+        )
+)
+_libfly = _libfly_abs
+libfly = ctypes.cdll.LoadLibrary(
+    _libfly
+)
+
 from enum import Enum
 from .mount import Mount
 from ._fly_server import _fly_server

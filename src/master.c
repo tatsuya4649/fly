@@ -48,7 +48,11 @@ fly_signal_t fly_master_signals[] = {
 	FLY_SIGNAL_SETTING(SIGINT,	NULL),
 	FLY_SIGNAL_SETTING(SIGTERM, NULL),
 	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
+#ifdef HAVE_SIGQUEUE
 	FLY_SIGNAL_SETTING(SIGUSR1, fly_master_notice_worker_daemon_pid),
+#else
+	FLY_SIGNAL_SETTING(SIGUSR1, FLY_SIG_IGN),
+#endif
 };
 
 
@@ -306,12 +310,12 @@ void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info
 	fly_master_t *__m;
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
-	pid_t orig_worker_pid;
+	pid_t orig_worker_pid=0;
 
 	__m = (fly_master_t *) ctx->data;
 #ifdef HAVE_SIGNALFD
 	orig_worker_pid = info->ssi_int;
-#else
+#elif defined HAVE_SIGQUEUE
 	orig_worker_pid = info->si_value.sival_int;
 #endif
 
@@ -325,7 +329,11 @@ void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info
 		strsignal(info->si_signo),
 #endif
 		orig_worker_pid,
+#ifdef HAVE_SIGNALFD
+		info->ssi_pid
+#else
 		info->si_pid
+#endif
 	);
 
 	fly_for_each_bllist(__b, &__m->workers){
@@ -444,7 +452,6 @@ __fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *
 
 	for (int i=0; i<(int) FLY_MASTER_SIG_COUNT; i++)
 		fly_add_master_sig(ctx, fly_master_signals[i].number, fly_master_signals[i].handler);
-//	fly_master_rtsignal_added(ctx);
 
 	__mptr = master;
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGABRT);
@@ -470,16 +477,20 @@ __fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGTRAP);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGTTIN);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGTTOU);
-	FLY_KQUEUE_MASTER_SIGNALSET(SIGURG); 
+	FLY_KQUEUE_MASTER_SIGNALSET(SIGURG);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGUSR1);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGUSR2);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGVTALRM);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGXCPU);
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGXFSZ);
+#ifdef SIGWINCH
 	FLY_KQUEUE_MASTER_SIGNALSET(SIGWINCH);
+#endif
 
+#if defined SIGRTMIN && defined SIGRTMAX
 	for (int i=SIGRTMIN; i<SIGRTMAX; i++)
 		FLY_KQUEUE_MASTER_SIGNALSET(i);
+#endif
 
 	sigset_t sset;
 	if (sigfillset(&sset) == -1)
@@ -537,6 +548,9 @@ fly_context_t *fly_master_release_except_context(fly_master_t *master)
 static int __fly_master_get_now_sighandler(fly_master_t *__m)
 {
 	for (fly_signum_t *__a=fly_signals; *__a!=-1; __a++){
+		if (*__a == SIGKILL || *__a == SIGSTOP)
+			continue;
+
 		struct sigaction __osa;
 		struct fly_orig_signal *__s;
 		if (sigaction(*__a, NULL, &__osa) == -1)
@@ -706,6 +720,9 @@ __fly_direct_log int fly_master_process(fly_master_t *master)
 #endif
 	if (res == FLY_MASTER_CONTINUE){
 		/* event handler start here */
+#ifdef DEBUG
+		printf("MASTER PROCESS EVENT START!\n");
+#endif
 		switch(fly_event_handler(manager)){
 		case FLY_EVENT_HANDLER_INVALID_MANAGER:
 			FLY_EMERGENCY_ERROR(
@@ -735,9 +752,15 @@ __fly_direct_log int fly_master_process(fly_master_t *master)
 			FLY_NOT_COME_HERE
 		}
 	}else if (res == FLY_MASTER_SIGNAL_END){
+#ifdef DEBUG
+		printf("MASTER PROCESS SIGNAL END\n");
+#endif
 		/* signal or reload file return */
 		return res;
 	}else if (res == FLY_MASTER_RELOAD){
+#ifdef DEBUG
+		printf("MASTER PROCESS RELOAD\n");
+#endif
 		return res;
 	}
 
@@ -906,34 +929,59 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 	if (sigprocmask(SIG_BLOCK, &__s, NULL) == -1)
 		return -1;
 
-	switch((pid=fork())){
-	case -1:
+	pid = fork();
+	if (pid == -1)
 		return -1;
-	case 0:
-		{
-			fly_context_t *mctx;
-			/* unnecessary resource release */
-			master->now_workers++;
-			mctx = fly_master_release_except_context(master);
+	else if (pid == 0){
+		fly_context_t *mctx=NULL;
+		/* unnecessary resource release */
+		master->now_workers++;
+		mctx = fly_master_release_except_context(master);
 
-			/* alloc worker resource */
-			worker = fly_worker_init(mctx);
-			if (!worker)
-				exit(1);
+		/* alloc worker resource */
+		worker = fly_worker_init(mctx);
+		if (!worker)
+			exit(1);
 
-			/* set master context */
-			ctx = worker->context;
+		/* set master context */
+		ctx = worker->context;
 #ifdef HAVE_SIGNALFD
-			if (sigprocmask(SIG_UNBLOCK, &__s, NULL) == -1)
-				return -1;
+		if (sigprocmask(SIG_UNBLOCK, &__s, NULL) == -1)
+			return -1;
 #endif
-		}
-		break;
-	default:
+	}else{
 		/* parent */
 		master->now_workers++;
 		goto child_register;
 	}
+//	switch(pid){
+//	case -1:
+//		return -1;
+//	case 0:
+//		{
+//			fly_context_t *mctx=NULL;
+//			/* unnecessary resource release */
+//			master->now_workers++;
+//			mctx = fly_master_release_except_context(master);
+//
+//			/* alloc worker resource */
+//			worker = fly_worker_init(mctx);
+//			if (!worker)
+//				exit(1);
+//
+//			/* set master context */
+//			ctx = worker->context;
+//#ifdef HAVE_SIGNALFD
+//			if (sigprocmask(SIG_UNBLOCK, &__s, NULL) == -1)
+//				return -1;
+//#endif
+//		}
+//		break;
+//	default:
+//		/* parent */
+//		master->now_workers++;
+//		goto child_register;
+//	}
 	/* new process only */
 	proc(ctx, (void *) worker);
 	exit(0);
@@ -1106,11 +1154,6 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 	if (mask & NOTE_DELETE){
 		signum |= FLY_SIGNAL_DELF;
 		if (fly_inotify_rm_watch(pf, mask) == -1)
-			return -1;
-	}
-	if ((mask & NOTE_CLOSE_WRITE)){
-		signum |= FLY_SIGNAL_MODF;
-		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
 			return -1;
 	}
 	if (mask & NOTE_ATTRIB){
@@ -1386,8 +1429,6 @@ static int __fly_reload(fly_master_t *__m, int fd, int mask)
 		break;
 	case NOTE_ATTRIB:
 		break;
-	case NOTE_CLOSE_WRITE:
-		break;
 	case NOTE_RENAME:
 		break;
 	default:
@@ -1540,7 +1581,7 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 		e->read_or_write = FLY_KQ_INOTIFY;
 		e->flag = FLY_PERSISTENT;
 		e->tflag = FLY_INFINITY;
-		e->eflag = (NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_CLOSE_WRITE|NOTE_RENAME);
+		e->eflag = (NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME);
 		e->event_fase = NULL;
 		e->event_state = NULL;
 		e->expired = false;

@@ -1,6 +1,7 @@
 #ifndef _FLY_SIGNAL_H
 #define _FLY_SIGNAL_H
 #include <signal.h>
+#include "../config.h"
 #ifdef HAVE_SIGNALFD
 #include <sys/signalfd.h>
 #endif

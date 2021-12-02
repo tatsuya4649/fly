@@ -135,16 +135,6 @@ static inline bool __fly_method(char c)
 	return __fly_token(c);
 }
 
-static inline bool __fly_asterisk(char c)
-{
-	return c=='*' ? true : false;
-}
-
-static inline bool __fly_sharp(char c)
-{
-	return c==0x23 ? true : false;
-}
-
 static inline bool __fly_unreserved(char c)
 {
 	return (fly_alpha(c) || fly_numeral(c) || \
@@ -1204,8 +1194,8 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_request_fase_t				fase;
 	fly_connect_t					*conn;
 
-	state = (fly_request_state_t) event->event_state;
-	fase = (fly_request_fase_t) event->event_fase;
+	state = *(fly_request_state_t *) &event->event_state;
+	fase = *(fly_request_fase_t *) &event->event_fase;
 	request = (fly_request_t *) event->event_data;
 	conn = request->connect;
 
@@ -1213,7 +1203,7 @@ int fly_request_event_handler(fly_event_t *event)
 		goto __fase_body;
 
 #ifdef DEBUG
-	printf("REQUEST RECEIVE\n");
+	printf("WORKER: Will receive request\n");
 	printf("\t%s\n", request->receive_status_line ? "RECEIVED STATUS LINE" : "NOT YET RECEIVED STATUS LINE");
 	printf("\t%s\n", request->receive_header ? "RECEIVED HEADER" : "NOT YET RECEIVED HEADER");
 	printf("\t%s\n", request->receive_body ? "RECEIVED BODY" : "NOT YET RECEIVED BODY");
@@ -1704,6 +1694,8 @@ int fly_hv2_request_target_parse(fly_request_t *req)
 				fly_query_set(req, query, query_len);
 			}
 			return 0;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		if (!--len){

@@ -32,8 +32,6 @@ __fly_static void __fly_memcpy_name(char *dist, char *src, size_t src_len, size_
 static inline bool __fly_number(char c);
 static inline bool __fly_vchar(char c);
 static inline bool __fly_tchar(char c);
-static inline bool __fly_alnum(char c);
-static inline bool __fly_delimit(char c);
 static inline bool __fly_space(char c);
 static inline bool __fly_semicolon(char c);
 static inline bool __fly_q(char c);
@@ -358,6 +356,8 @@ int fly_br_decode(fly_de_t *de)
 			break;
 		case BROTLI_DECODER_RESULT_SUCCESS:
 			break;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		if (available_out == 0){
@@ -610,7 +610,7 @@ int fly_deflate_encode(fly_de_t *de)
 		break;
 	}
 
-	int status, flush;
+	int status=0, flush;
 	z_stream __zstream;
 	fly_buffer_c *chain;
 	size_t contlen = 0;
@@ -762,7 +762,7 @@ __fly_static void __fly_add_accept_encoding(fly_encoding_t *enc, struct __fly_en
 	enc->accept_count++;
 }
 
-__fly_static inline int __fly_quality_value(struct __fly_encoding *e, int qvalue)
+__fly_unused __fly_static inline int __fly_quality_value(struct __fly_encoding *e, int qvalue)
 {
 	/* 0~100% */
 	if (qvalue < 0 || qvalue > 100)
@@ -797,7 +797,7 @@ static void __fly_add_accept_encode_asterisk(fly_request_t *req)
 	__fly_add_accept_encoding(req->encoding, __e);
 }
 
-static inline bool fly_is_accept_type(fly_encoding_t *e, fly_encoding_type_t *type)
+__fly_unused static inline bool fly_is_accept_type(fly_encoding_t *e, fly_encoding_type_t *type)
 {
 	struct fly_bllist *__b;
 	struct __fly_encoding *__a;
@@ -855,15 +855,6 @@ static inline bool __fly_alpha(char c)
 	return (__fly_ualpha(c) || __fly_lalpha(c)) ? true : false;
 }
 
-static inline char __fly_alpha_lower(char c)
-{
-	if (__fly_ualpha(c))
-		return c-0x20;
-	else
-		return c;
-}
-
-
 static inline bool __fly_number(char c)
 {
 	return (c >= 0x30 && c <= 0x39);
@@ -882,21 +873,6 @@ static inline bool __fly_tchar(char c)
 		c == '+' || c == '-' || c == '.' || c == '^' || c == '_' ||			\
 		c == '`' || c == '|' || c == '~' || (__fly_vchar(c) &&	c != ';')	\
 	) ? true : false);
-}
-
-static inline bool __fly_alnum(char c)
-{
-	return (__fly_alpha(c) || __fly_number(c)) ? true : false;
-}
-
-static inline bool __fly_delimit(char c)
-{
-	return (
-		c == 0x22 || c == '(' || c == ')' || c == ',' || c == '/' || \
-		c == ':'  || c == ';' || c == '<' || c == '=' || c == '>' || \
-		c == '?'  || c == '@' || c == '[' || c == '\\' || c == ']' || \
-		c == '{'  || c == '}' \
-	) ? true : false;
 }
 
 static inline bool __fly_space(char c)
@@ -1240,6 +1216,8 @@ __fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_h
 		return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
 	case __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR:
 		return __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR;
+	default:
+		FLY_NOT_COME_HERE
 	}
 
 	/* decide to use which encodes */

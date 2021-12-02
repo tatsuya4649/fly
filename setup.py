@@ -3,6 +3,7 @@ import subprocess
 import os
 import sys
 import re
+import platform
 from glob import glob
 
 def __run(command_name):
@@ -32,7 +33,6 @@ def get_packages(package):
 macros = []
 extra_compile_args = []
 if os.getenv("DEBUG") is not None:
-    print("DEBUG MODE")
     macros.append(("DEBUG", "fly"))
     extra_compile_args.append("-g3")
     extra_compile_args.append("-O0")
@@ -45,12 +45,76 @@ else:
     __run(["make", "install"])
     extra_compile_args.append("-O3")
 
+_OS = platform.system()
+_libfly_dir = list()
+print(_OS)
+if _OS == 'Darwin':
+    _libfly_dir.append(
+        os.path.join(
+            os.getcwd(),
+            "fly/lib"
+    ))
+    # -I header of openSSL
+    # OpenSSL
+    _dirs = ["/usr/local/opt/openssl/include", "/usr/local/opt/openssl@3/include", "/usr/local/opt/openssl@1.1/include"]
+    _headers = ['openssl/ssl.h', 'openssl/err.h', 'openssl/md5.h']
+    _ssldir = None
+    for d in _dirs:
+        if os.path.isdir(d):
+            _invalid = False
+            for h in _headers:
+                if not os.path.isfile(f"{os.path.join(d, h)}"):
+                    _invalid = True
+                    break
+            if _invalid:
+                continue
+            _ssldir = "/usr/local/opt/openssl/include"
+    if _ssldir is None:
+        raise RuntimeError("not found openssl on your system.")
+    # Zlib
+    _dirs = ["/usr/local/opt/zlib/include"]
+    _headers = ["zlib.h"]
+    _zdir = None
+    for d in _dirs:
+        if os.path.isdir(d):
+            _invalid = False
+            for h in _headers:
+                if not os.path.isfile(f"{os.path.join(d, h)}"):
+                    _invalid = True
+                    continue
+            if _invalid:
+                continue
+            _zdir = "/usr/local/opt/zlib/include"
+    if _zdir is None:
+        raise RuntimeError("not found zlib on your system.")
+    #Brotli
+    _dirs = ["/usr/local/opt/brotli/include"]
+    _headers = ["brotli/encode.h", "brotli/decode.h"]
+    _bro = None
+    for d in _dirs:
+        if os.path.isdir(d):
+            _invalid = False
+            for h in _headers:
+                if not os.path.isfile(f"{os.path.join(d, h)}"):
+                    _invalid = True
+                    continue
+            if _invalid:
+                continue
+            _bro = "/usr/local/opt/zlib/include"
+    if _bro is not None:
+        extra_compile_args.append(f"-I {_brodir}")
+    print(f"OpenSSL Directory: {_ssldir}", flush=True)
+    print(f"Zlib Directory: {_zdir}", flush=True)
+    extra_compile_args.append(f"-I {_ssldir}")
+    extra_compile_args.append(f"-I {_zdir}")
+
 server = Extension(
 	name="fly._fly_server",
 	sources=["src/pyserver.c"],
     language='c',
 	libraries=["fly"],
 	library_dirs=[f"{ os.path.abspath(os.path.dirname(__file__)) }/fly/lib"],
+    runtime_library_dirs=_libfly_dir,
     extra_compile_args = extra_compile_args,
     define_macros = macros,
 )

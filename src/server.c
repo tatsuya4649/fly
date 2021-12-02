@@ -68,7 +68,6 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 
 		close(sockfd);
 	}
-
 	/* can't bind to port */
 	if (rp == NULL)
 		return -1;

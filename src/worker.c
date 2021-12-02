@@ -53,7 +53,7 @@ static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx
 /*
  *  worker process signal info.
  */
-static fly_signal_t fly_worker_signals[] = {
+fly_signal_t fly_worker_signals[] = {
 	FLY_SIGNAL_SETTING(SIGINT,	FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(SIGPIPE, FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
@@ -378,7 +378,11 @@ __fly_static int __fly_wsignal_handle(fly_worker_t *worker, fly_context_t *ctx, 
 	struct fly_bllist *__b;
 
 #ifdef DEBUG
-	printf("WORKER SIGNAL RECEIVED\n");
+#ifdef HAVE_SIGNALFD
+	printf("WORKER: Signal received. %s\n", strsignal(info->ssi_signo));
+#else
+	printf("WORKER: Signal received. %s\n", strsignal(info->si_signo));
+#endif
 #endif
 	fly_for_each_bllist(__b, &worker->signals){
 		__s = fly_bllist_data(__b, struct fly_signal, blelem);
@@ -407,7 +411,7 @@ __fly_static int __fly_worker_signal_handler(fly_event_t *e)
 	ssize_t res;
 
 #ifdef DEBUG
-	printf("WORKER SIGNAL DEFAULT HANDLER\n");
+	printf("WORKER: SIGNAL DEFAULT HANDLER\n");
 #endif
 	while(true){
 		res = read(e->fd, (void *) &info,sizeof(fly_siginfo_t));
@@ -430,11 +434,10 @@ static int __fly_notice_master_now_pid(fly_worker_t *__w)
 	union sigval sv;
 
 	memset(&sv, '\0', sizeof(union sigval));
-	sv.sival_int = (int) __w->orig_pid;
-	return sigqueue(
+	return fly_send_signal(
 		__w->master_pid,
 		FLY_NOTICE_WORKER_DAEMON_PID,
-		sv
+		__w->orig_pid
 	);
 }
 
@@ -550,7 +553,7 @@ __fly_static int __fly_worker_signal(fly_worker_t *worker, fly_event_manager_t *
 	FLY_KQUEUE_WORKER_SIGNALSET(SIGTRAP);
 	FLY_KQUEUE_WORKER_SIGNALSET(SIGTTIN);
 	FLY_KQUEUE_WORKER_SIGNALSET(SIGTTOU);
-	FLY_KQUEUE_WORKER_SIGNALSET(SIGURG); 
+	FLY_KQUEUE_WORKER_SIGNALSET(SIGURG);
 	FLY_KQUEUE_WORKER_SIGNALSET(SIGUSR1);
 	FLY_KQUEUE_WORKER_SIGNALSET(SIGUSR2);
 	FLY_KQUEUE_WORKER_SIGNALSET(SIGVTALRM);
@@ -558,8 +561,10 @@ __fly_static int __fly_worker_signal(fly_worker_t *worker, fly_event_manager_t *
 	FLY_KQUEUE_WORKER_SIGNALSET(SIGXFSZ);
 	FLY_KQUEUE_WORKER_SIGNALSET(SIGWINCH);
 
+#if defined SIGRTMIN && defined SIGRTMAX
 	for (int i=SIGRTMIN; i<SIGRTMAX; i++)
 		FLY_KQUEUE_WORKER_SIGNALSET(i);
+#endif
 
 	sigset_t sset;
 	if (sigfillset(&sset) == -1)
@@ -742,6 +747,9 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 		);
 
 	/* log event start here */
+#ifdef DEBUG
+	printf("WORKER PROCESS EVENT START!\n");
+#endif
 	switch(fly_event_handler(manager)){
 	case FLY_EVENT_HANDLER_INVALID_MANAGER:
 		FLY_EMERGENCY_ERROR(
