@@ -818,6 +818,7 @@ Illeagl test
 """
 # SSL Server but, HTTP request
 @pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
 async def test_illegal_http(fly_servers_ssl):
     async with httpx.AsyncClient(
         http1=True,
