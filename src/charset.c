@@ -1,27 +1,18 @@
 #include "charset.h"
 #include "request.h"
 #include "header.h"
+#include "char.h"
 
 static void __fly_accept_charset_init(fly_request_t *req);
 static void __fly_accept_add_asterisk(fly_request_t *req);
 __fly_static void __fly_accept_add(fly_charset_t *cs, struct __fly_charset *__nc);
-static inline bool __fly_digit(char c);
-static inline bool __fly_lalpha(char c);
-static inline bool __fly_ualpha(char c);
-static inline char __fly_lu_ignore(char c);
-static inline bool __fly_alpha(char c);
 static inline bool __fly_vchar(char c);
 static inline bool __fly_tchar(char c);
 static inline bool __fly_token(char c);
-static inline bool __fly_asterisk(char c);
 static inline bool __fly_q(char c);
-static inline bool __fly_semicolon(char c);
-static inline bool __fly_space(char c);
 static inline bool __fly_zeros(char c);
 static inline bool __fly_zero(char c);
 static inline bool __fly_one(char c);
-static inline bool __fly_equal(char c);
-static inline bool __fly_point(char c);
 static inline bool __fly_comma(char c);
 
 __fly_static int __fly_ac_parse(fly_charset_t *cs, fly_hdr_value *accept_charset);
@@ -84,26 +75,6 @@ static void __fly_accept_charset_init(fly_request_t *req)
 	fly_bllist_init(&charset->charsets);
 }
 
-static inline bool __fly_digit(char c)
-{
-	return (c>=0x30 && c<=0x39) ? true : false;
-}
-static inline bool __fly_lalpha(char c)
-{
-	return (c>=0x61 && c<=0x7A) ? true : false;
-}
-static inline bool __fly_ualpha(char c)
-{
-	return (c>=0x41 && c<=0x5A) ? true : false;
-}
-static inline char __fly_lu_ignore(char c)
-{
-	return __fly_ualpha(c) ? (c+0x20) : c;
-}
-static inline bool __fly_alpha(char c)
-{
-	return (__fly_lalpha(c) || __fly_ualpha(c)) ? true : false;
-}
 static inline bool __fly_vchar(char c)
 {
 	return (c>=0x21 && c<=0x7E) ? true : false;
@@ -111,7 +82,7 @@ static inline bool __fly_vchar(char c)
 static inline bool __fly_tchar(char c)
 {
 	return (
-		__fly_alpha(c) || __fly_digit(c) || (__fly_vchar(c) && c != ';') || \
+		fly_alpha(c) || fly_numeral(c) || (__fly_vchar(c) && c != ';') || \
 		c=='!' || c=='#' || c=='$' || c=='&' || c==0x27 || c=='*' || \
 		c=='+' || c=='-' || c=='.' || c=='^' || c=='_' || c=='`' || \
 		c=='|' || c=='~' \
@@ -127,24 +98,9 @@ static inline bool __fly_charset(char c)
 	return __fly_token(c) ? true : false;
 }
 
-static inline bool __fly_asterisk(char c)
-{
-	return (c == 0x2A) ? true : false;
-}
-
 static inline bool __fly_q(char c)
 {
 	return (c == 'q') ? true : false;
-}
-
-static inline bool __fly_semicolon(char c)
-{
-	return (c == ';') ? true : false;
-}
-
-static inline bool __fly_space(char c)
-{
-	return (c == 0x20 || c == 0x09) ? true : false;
 }
 
 static inline bool __fly_zeros(char c)
@@ -160,11 +116,6 @@ static inline bool __fly_zero(char c)
 static inline bool __fly_one(char c)
 {
 	return (c == '1') ? true : false;
-}
-
-static inline bool __fly_equal(char c)
-{
-	return (c == 0x3D) ? true : false;
 }
 
 static inline bool __fly_point(char c)
@@ -236,33 +187,33 @@ __fly_static int __fly_ac_parse(fly_charset_t *cs, fly_hdr_value *accept_charset
 				__FLY_AC_PARSE_PCSTATUS(COMMA);
 			if (__fly_zeros(*ptr))
 				__FLY_AC_PARSE_PCSTATUS(ADD);
-			if (__fly_semicolon(*ptr))
+			if (fly_semicolon(*ptr))
 				__FLY_AC_PARSE_PBSTATUS(WSEMICOLON);
-			if (__fly_space(*ptr))
+			if (fly_space(*ptr))
 				__FLY_AC_PARSE_PCSTATUS(WOWS1);
 
 			if (__fly_charset(*ptr)) break;
 			goto perror;
 		case WOWS1:
-			if (__fly_space(*ptr))	break;
-			if (__fly_semicolon(*ptr))
+			if (fly_space(*ptr))	break;
+			if (fly_semicolon(*ptr))
 					__FLY_AC_PARSE_PBSTATUS(WSEMICOLON);
 			goto perror;
 		case WSEMICOLON:
-			if (__fly_space(*ptr))
+			if (fly_space(*ptr))
 				__FLY_AC_PARSE_PBSTATUS(WOWS2);
 			if (__fly_q(*ptr))
 				__FLY_AC_PARSE_PBSTATUS(WQ);
 
 			goto perror;
 		case WOWS2:
-			if (__fly_space(*ptr))	break;
+			if (fly_space(*ptr))	break;
 			if (__fly_q(*ptr))
 				__FLY_AC_PARSE_PBSTATUS(WQ);
 
 			goto perror;
 		case WQ:
-			if (__fly_equal(*ptr))
+			if (fly_equal(*ptr))
 				__FLY_AC_PARSE_PBSTATUS(WQEQUAL);
 
 			goto perror;
@@ -307,12 +258,12 @@ __fly_static int __fly_ac_parse(fly_charset_t *cs, fly_hdr_value *accept_charset
 				__FLY_AC_PARSE_PCSTATUS(ADD);
 			goto perror;
 		case WQ_ZERO_POINT:
-			if (__fly_digit(*ptr))
+			if (fly_numeral(*ptr))
 				__FLY_AC_PARSE_PCSTATUS(WQ_ZERO_DECIMAL_PLACE);
 
 			goto perror;
 		case WQ_ZERO_DECIMAL_PLACE:
-			if (__fly_digit(*ptr) && decimal_places++ < 3)	break;
+			if (fly_numeral(*ptr) && decimal_places++ < 3)	break;
 			if (__fly_comma(*ptr))
 				__FLY_AC_PARSE_PCSTATUS(COMMA);
 			if (__fly_zeros(*ptr))
@@ -335,7 +286,7 @@ __fly_static int __fly_ac_parse(fly_charset_t *cs, fly_hdr_value *accept_charset
 			}
 			__FLY_AC_PARSE_PCSTATUS(ADD_END);
 		case ADD_END:
-			if (__fly_space(*ptr))	break;
+			if (fly_space(*ptr))	break;
 			if (__fly_comma(*ptr))	break;
 			if (__fly_zeros(*ptr))
 				__FLY_AC_PARSE_PCSTATUS(END);

@@ -223,15 +223,17 @@ __fly_static int __fly_nftw(fly_event_t *event, fly_mount_parts_t *parts, const 
 		if (stat(__path, &sb) == -1)
 			continue;
 		/* recursion */
-		if (S_ISDIR(sb.st_mode))
+		if (S_ISDIR(sb.st_mode)){
 #ifdef HAVE_INOTIFY
-			if (__fly_nftw(parts, __path, mount_point, infd) == -1)
+			if (__fly_nftw(parts, __path, mount_point, infd) == -1){
 #elif defined HAVE_KQUEUE
-			if (__fly_nftw(event, parts, __path, mount_point, infd) == -1)
+			if (__fly_nftw(event, parts, __path, mount_point, infd) == -1){
 #else
 #error  not found inotify or kqueue on your system
 #endif
 				goto error;
+			}
+		}
 
 		pfile = fly_pf_init(parts, &sb);
 		if (S_ISDIR(sb.st_mode))
@@ -282,19 +284,31 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	fly_mount_t *mnt;
 	fly_mount_parts_t *parts;
 	fly_pool_t *pool;
-	char rpath[FLY_PATH_MAX];
+	//char rpath[FLY_PATH_MAX];
+	char *rpath;
 
-	if (!ctx || !ctx->mount)
+	if (!ctx || !ctx->mount){
+#ifdef DEBUG
+		printf("MOUNT ERROR: context/mount is invalid.\n");
+#endif
 		return -1;
+	}
+	if (path == NULL || strlen(path) > FLY_PATH_MAX){
+#ifdef DEBUG
+		printf("MOUNT ERROR: path length.\n");
+#endif
+		return FLY_EARG;
+	}
+
 	if (fly_mount_max_limit() == ctx->mount->mount_count)
 		return FLY_EMOUNT_LIMIT;
 
-	if (realpath(path, rpath) == NULL)
+	/* alloc realpath memory */
+	rpath = realpath(path, NULL);
+	if (rpath == NULL)
 		return -1;
 	mnt = ctx->mount;
 
-	if (path == NULL || strlen(path) > FLY_PATH_MAX)
-		return FLY_EARG;
 	if (fly_isdir(rpath) != 1)
 		return FLY_EARG;
 
@@ -303,7 +317,13 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	if (fly_unlikely_null(parts))
 		return -1;
 
+	if (strlen(rpath) > FLY_PATH_MAX){
+		free(rpath);
+		return -1;
+	}
 	__fly_mount_path_cpy(parts->mount_path, rpath);
+	/* release realpath memory. */
+	free(rpath);
 	parts->mount_number = mnt->mount_count;
 	parts->mount = mnt;
 #ifdef HAVE_INOTIFY
@@ -319,13 +339,14 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	if (__fly_mount_add(mnt, parts) == -1)
 		goto error;
 #ifdef HAVE_INOTIFY
-	if (__fly_nftw(parts, rpath, rpath, -1) == -1)
+	if (__fly_nftw(parts, parts->mount_path, parts->mount_path, -1) == -1){
 #elif HAVE_KQUEUE
-	if (__fly_nftw(NULL, parts, rpath, rpath, -1) == -1)
+	if (__fly_nftw(NULL, parts, parts->mount_path, parts->mount_path, -1) == -1){
 #else
 #error not found inotify or kqueue on your system.
 #endif
 		goto error;
+	}
 
 #ifdef DEBUG
 	__fly_mount_debug(mnt);
@@ -532,7 +553,7 @@ int __fly_mount_inotify_kevent_dir(
 	__e->end_handler = end_handler;
 
 	parts->event = __e;
-	
+
 	return fly_event_register(__e);
 }
 
@@ -548,7 +569,7 @@ int __fly_mount_inotify_kevent_file(
 	__e = fly_event_init(__m);
 	__e->fd = fd;
 	fly_time_null(__e->timeout);
-	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_CLOSE_WRITE|NOTE_RENAME;
+	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME;
 	__e->flag = FLY_PERSISTENT;
 	__e->tflag = FLY_INFINITY;
 	__e->event_data = data;
@@ -688,7 +709,7 @@ struct fly_mount_parts_file *fly_pf_from_mount(int wd, fly_mount_t *mnt)
 
 	fly_for_each_bllist(__b, &mnt->parts){
 		__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
-		pf = fly_wd_from_pf(wd, __p);
+		pf = fly_pf_from_wd(wd, __p);
 		if (pf)
 			return pf;
 	}
@@ -732,6 +753,7 @@ fly_mount_parts_t *fly_parts_from_wd(int wd, fly_mount_t *mnt)
 }
 #endif
 
+#ifdef HAVE_KQUEUE
 fly_mount_parts_t *fly_parts_from_fd(int fd, fly_mount_t *mnt)
 {
 	fly_mount_parts_t *__p;
@@ -747,6 +769,7 @@ fly_mount_parts_t *fly_parts_from_fd(int fd, fly_mount_t *mnt)
 	}
 	return NULL;
 }
+#endif
 
 #ifdef HAVE_INOTIFY
 int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
@@ -767,9 +790,6 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
 			return -1;
 
 		__npf = fly_pf_init(parts, &sb);
-		if (fly_unlikely_null(__npf))
-			return -1;
-
 		__npf->infd = parts->infd;
 		__npf->wd = inotify_add_watch(__npf->infd, rpath, FLY_INOTIFY_WATCH_FLAG_PF);
 		__npf->parts = parts;
@@ -949,7 +969,7 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf, int mask __fly_unused)
 		return -1;
 
 	__m = pf->parts->mount;
-	
+
 	if (close(pf->fd) == -1)
 		return -1;
 

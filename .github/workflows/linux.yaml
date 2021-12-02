@@ -1,4 +1,4 @@
-name: Test
+name: Test_on_Linux
 on:
     push:
         branches:
@@ -23,17 +23,17 @@ jobs:
                   python-version: ${{ matrix.python-version }}
                   architecture: 'x64'
             - name: Get Python version
-              run: python -V
+              run: python3 -V
             - name: Install dependencies
               run: |
                   sudo apt update
                   sudo apt install -y build-essential m4 perl autotools-dev autoconf automake libtool-bin autoconf-archive lsof
                   sudo apt install -y libssl-dev zlib1g-dev libbrotli-dev
-                  python -m pip install --upgrade pip
-                  python -m pip install -r requirements.txt
+                  python3 -m pip install --upgrade pip
+                  python3 -m pip install -r requirements.txt
             - name: Make fly library
               run: |
-                  autoreconf
+                  autoreconf --force --install
                   ./configure
                   cat config.h
                   make
@@ -53,8 +53,7 @@ jobs:
                   -x509 -nodes -days 365 -newkey rsa:2048 \
                   -keyout tests/fly_test.key \
                   -out tests/fly_test.crt
-            #- name: Setup tmate session
-              #              uses: mxschmitt/action-tmate@v3
-              #            - name: Run Python
-            - name: Run Python test
-              run: python3 -m pytest tests -v
+                  #            - name: Setup tmate session
+                  #              uses: mxschmitt/action-tmate@v3
+            - name: Run Python fly tes
+              run: python3 -m pytest tests -xv

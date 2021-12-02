@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.69])
 
-VERSION="1.1.3"
+VERSION=1.1.3
 AC_INIT([fly],[VERSION])
 AC_CONFIG_SRCDIR([src/master.c])
 AC_CONFIG_HEADERS([config.h])
@@ -146,7 +146,15 @@ AC_COMPILE_IFELSE([
 LIBS="-lcrypto $LIBS"
 AC_MSG_CHECKING(for md5 works in -lcrypto)
 if test "$build_mac" = "yes"; then
+	if test -d '/usr/local/opt/openssl'; then
         OPENSSLDIR='/usr/local/opt/openssl'
+	elif test -d '/usr/local/opt/openssl@3'; then
+        OPENSSLDIR='/usr/local/opt/openssl@3'
+	elif test -d '/usr/local/opt/openssl@1.1'; then
+        OPENSSLDIR='/usr/local/opt/openssl@1.1'
+	else
+		AC_MSG_ERROR(not found opessl directory on your system.)
+	fi
         LDFLAGS="$LDFLAGS -L$OPENSSLDIR/lib"
         CFLAGS="$CFLAGS -I$OPENSSLDIR/include"
 fi
@@ -435,7 +443,7 @@ AC_TYPE_UINT8_T
 AC_FUNC_FORK
 AC_FUNC_MALLOC
 AC_FUNC_MKTIME
-AC_CHECK_FUNCS([atexit dup2 gettimeofday localtime_r memset realpath setenv socket strchr strerror sigsetjmp siglongjmp strerrorname_np strerrordesc_np realpath accept4])
+AC_CHECK_FUNCS([atexit dup2 gettimeofday localtime_r memset realpath setenv socket strchr strerror sigsetjmp siglongjmp strerrorname_np strerrordesc_np realpath accept4 sigqueue])
 
 # Check for epoll or kqueue
 AC_MSG_CHECKING([for epoll on your system.])
@@ -487,7 +495,7 @@ AC_CHECK_HEADER([sys/signalfd.h], [
 			sigset_t fill;
 
 			sigfillset(&fill);
-			fd = signalfd(-1, fill, SFD_NONBLOCK|SFD_CLOEXEC);
+			fd = signalfd(-1, &fill, SFD_NONBLOCK|SFD_CLOEXEC);
 		])
 	], [
 		# usable signalfd
@@ -565,14 +573,43 @@ if test "$ac_cv_func_sigsetjmp" = "yes"; then
 	AC_DEFINE(HAVE_SIGSETJMP, 1, [Define to 1 if you have the `sigsetjmp` function. ])
 fi
 
-AX_GCC_FUNC_ATTRIBUTE(weak)
-AC_LANG_PUSH(C)
-AX_CHECK_COMPILE_FLAG([-O0], [CFLAGS="$CFLAGS -O0"])
+AX_CHECK_COMPILE_FLAG([-std=gnu11], [CFLAGS="$CFLAGS -std=gnu11"])
 AX_CHECK_COMPILE_FLAG([-W], [CFLAGS="$CFLAGS -W"])
-AX_CHECK_COMPILE_FLAG([-Wall], [CFLAGS="$CFLAGS -Wall"])
+AX_CHECK_COMPILE_FLAG([-fno-strict-aliasing], [CFLAGS="$CFLAGS -fno-strict-aliasing"])
+AX_CHECK_COMPILE_FLAG([-Waddress], [CFLAGS="$CFLAGS -Waddress"])
+AX_CHECK_COMPILE_FLAG([-Warray-bounds], [CFLAGS="$CFLAGS -Warray-bounds"])
+AX_CHECK_COMPILE_FLAG([-Wchar-subscripts], [CFLAGS="$CFLAGS -Wchar-subscripts"])
+AX_CHECK_COMPILE_FLAG([-Wenum-compare], [CFLAGS="$CFLAGS -Wenum-compare"])
+AX_CHECK_COMPILE_FLAG([-Wformat], [CFLAGS="$CFLAGS -Wformat"])
+AX_CHECK_COMPILE_FLAG([-Wuninitialized], [CFLAGS="$CFLAGS -Wuninitialized"])
+AX_CHECK_COMPILE_FLAG([-Wmissing-braces], [CFLAGS="$CFLAGS -Wmissing-braces"])
+AX_CHECK_COMPILE_FLAG([-Wnonnull], [CFLAGS="$CFLAGS -Wnonnull"])
+AX_CHECK_COMPILE_FLAG([-Wparentheses], [CFLAGS="$CFLAGS -Wparentheses"])
+AX_CHECK_COMPILE_FLAG([-Wimplicit], [CFLAGS="$CFLAGS -Wimplicit"])
+AX_CHECK_COMPILE_FLAG([-Wsequence-point], [CFLAGS="$CFLAGS -Wsequence-point"])
+AX_CHECK_COMPILE_FLAG([-Wsign-compare], [CFLAGS="$CFLAGS -Wsign-compare"])
+AX_CHECK_COMPILE_FLAG([-Wstrict-overflow=1], [CFLAGS="$CFLAGS -Wstrict-overflow=1"])
+AX_CHECK_COMPILE_FLAG([-Wtrigraphs], [CFLAGS="$CFLAGS -Wtrigraphs"])
+AX_CHECK_COMPILE_FLAG([-Wreturn-type], [CFLAGS="$CFLAGS -Wreturn-type"])
+AX_CHECK_COMPILE_FLAG([-Wunused], [CFLAGS="$CFLAGS -Wunused"])
+AX_CHECK_COMPILE_FLAG([-Wswitch-default], [CFLAGS="$CFLAGS -Wswitch-default"])
+AX_CHECK_COMPILE_FLAG([-Wuninitialized], [CFLAGS="$CFLAGS -Wuninitialized"])
+AX_CHECK_COMPILE_FLAG([-Wmissing-field-initializers], [CFLAGS="$CFLAGS -Wmissing-field-initializers"])
+AX_CHECK_COMPILE_FLAG([-Wunknown-pragmas], [CFLAGS="$CFLAGS -Wunknown-pragmas"])
+AX_CHECK_COMPILE_FLAG([-Wunused-function], [CFLAGS="$CFLAGS -Wunused-function"])
+AX_CHECK_COMPILE_FLAG([-Wunused-label], [CFLAGS="$CFLAGS -Wunused-label"])
+AX_CHECK_COMPILE_FLAG([-Wunused-value], [CFLAGS="$CFLAGS -Wunused-value"])
+AX_CHECK_COMPILE_FLAG([-Wunused-variable], [CFLAGS="$CFLAGS -Wunused-variable"])
+AX_CHECK_COMPILE_FLAG([-Wunused-parameter], [CFLAGS="$CFLAGS -Wunused-parameter"])
+AX_CHECK_COMPILE_FLAG([-Wvolatile-register-var], [CFLAGS="$CFLAGS -Wvolatile-register-var"])
+AX_CHECK_COMPILE_FLAG([-Wcomment], [CFLAGS="$CFLAGS -Wcomment"])
+AX_CHECK_COMPILE_FLAG([-Wno-deprecated], [CFLAGS="$CFLAGS -Wno-deprecated"])
 AX_CHECK_COMPILE_FLAG([-Werror], [CFLAGS="$CFLAGS -Werror"])
+AX_CHECK_COMPILE_FLAG([-Wno-deprecated-declarations], [CFLAGS="$CFLAGS -Wno-deprecated-declarations"])
 AX_CHECK_COMPILE_FLAG([-Wcast-align], [CFLAGS="$CFLAGS -Wcast-align"])
-AC_LANG_POP(C)
+AX_CHECK_COMPILE_FLAG([-Wtype-limits], [CFLAGS="$CFLAGS -Wtype-limits"])
+AX_CHECK_COMPILE_FLAG([-Wunused-but-set-parameter], [CFLAGS="$CFLAGS -Wunused-but-set-parameter"])
+AX_CHECK_COMPILE_FLAG([-Wno-error=unused-result], [CFLAGS="$CFLAGS -Wno-error=unused-result"])
 
 AC_PREFIX_DEFAULT($PWD/fly)
 AC_CONFIG_FILES([Makefile

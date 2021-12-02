@@ -61,8 +61,13 @@ void fly_hv2_emergency(fly_event_t *event, fly_hv2_state_t *state);
 void fly_hv2_dynamic_table_release(struct fly_hv2_state *state);
 
 int __fly_hv2_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream);
-__attribute__((weak, alias("__fly_hv2_blocking_event"))) int fly_hv2_settings_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream);
-__attribute__((weak, alias("__fly_hv2_blocking_event"))) int fly_hv2_response_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream);
+int fly_hv2_settings_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream){
+	return __fly_hv2_blocking_event(e, stream);
+}
+
+int fly_hv2_response_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream){
+	return __fly_hv2_blocking_event(e, stream);
+}
 
 #define FLY_HV2_PARSE_DATA_SUCCESS		0
 #define FLY_HV2_PARSE_DATA_ERROR		-1
@@ -421,6 +426,9 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 #define FLY_HV2_INIT_CONNECTION_PREFACE_SUCCESS			(1)
 int fly_hv2_init_connection_preface(fly_connect_t *conn)
 {
+#ifdef DEBUG
+	printf("WORKER: check HTTP2 connection preface\n");
+#endif
 	fly_buffer_t *buf = conn->buffer;
 
 	switch(fly_buffer_memcmp(FLY_CONNECTION_PREFACE, fly_buffer_first_useptr(buf), fly_buffer_first_chain(buf), strlen(FLY_CONNECTION_PREFACE))){
@@ -622,6 +630,9 @@ int fly_hv2_init_handler(fly_event_t *e)
 #if !defined FLY_BIG_ENDIAN && !defined FLY_LITTLE_ENDIAN
 	/* can't recognize endian */
 	assert(0);
+#endif
+#ifdef DEBUG
+	printf("WORKER: HTTP2 init handler\n");
 #endif
 	fly_connect_t *conn;
 	fly_buffer_t *buf;
@@ -1698,6 +1709,8 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			break;
 		case FLY_HV2_CONNECTION_STATE_COMMUNICATION:
 			break;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		/* receive message from peer. extension */
@@ -2008,9 +2021,9 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			fly_buffer_chain_refresh(bufc);
 
 #ifdef DEBUG
-		/* 
+		/*
 		 * buffer lenngth must be \
-		 * previous buffer length-FRAME_SIZE+FRAME_HEADER_SIZE 
+		 * previous buffer length-FRAME_SIZE+FRAME_HEADER_SIZE
 		 *
 		 */
 		assert(conn->buffer->use_len == __buflen-FLY_HV2_FRAME_HEADER_LENGTH-length);
@@ -2388,7 +2401,7 @@ send:
 		}else{
 			int c_sockfd;
 			c_sockfd = res->request->connect->c_sockfd;
-			numsend = send(c_sockfd, fh, FLY_HV2_FRAME_HEADER_LENGTH, MSG_NOSIGNAL);
+			numsend = send(c_sockfd, fh, FLY_HV2_FRAME_HEADER_LENGTH, FLY_MSG_NOSIGNAL);
 			if (FLY_BLOCKING(numsend))
 				goto write_blocking;
 			else if (numsend == -1 && errno == EPIPE)
@@ -2458,7 +2471,8 @@ static inline void fly_hv2_peer_window_size_update(fly_hv2_stream_t *stream, ssi
 	stream->p_window_size -= send_size;
 	stream->state->p_window_size -= send_size;
 }
-static inline void fly_hv2_window_size_update(fly_hv2_stream_t *stream, ssize_t send_size)
+
+__fly_unused static inline void fly_hv2_window_size_update(fly_hv2_stream_t *stream, ssize_t send_size)
 {
 	stream->window_size -= send_size;
 	stream->state->window_size -= send_size;
@@ -2548,7 +2562,7 @@ send:
 				}else{
 					int c_sockfd;
 					c_sockfd = res->request->connect->c_sockfd;
-					numsend = send(c_sockfd, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr), MSG_NOSIGNAL);
+					numsend = send(c_sockfd, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr), FLY_MSG_NOSIGNAL);
 					if (FLY_BLOCKING(numsend))
 						goto write_blocking;
 					else if (numsend == -1 && errno == EPIPE)
@@ -2608,7 +2622,7 @@ send:
 						return FLY_SEND_DATA_FH_ERROR;
 					}
 				}else{
-					numsend = send(e->fd, body->body+total, body->body_len-total, MSG_NOSIGNAL);
+					numsend = send(e->fd, body->body+total, body->body_len-total, FLY_MSG_NOSIGNAL);
 					if (FLY_BLOCKING(numsend))
 						goto write_blocking;
 					else if (numsend == -1 && errno == EPIPE)
@@ -3030,6 +3044,8 @@ int __fly_send_frame_h(fly_event_t *e, fly_response_t *res)
 			return FLY_SEND_FRAME_ERROR;
 		case __FLY_SEND_FRAME_SUCCESS:
 			break;
+		default:
+			FLY_NOT_COME_HERE
 		}
 		/* end of sending */
 		/* release resources */
@@ -3222,7 +3238,7 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame)
 			if (frame->send_fase == FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER)
 				numsend = send(c_sockfd, ((uint8_t *) &frame->frame_header)+total, FLY_HV2_FRAME_HEADER_LENGTH-total, 0);
 			else
-				numsend = send(c_sockfd, frame->payload+total, frame->payload_len-total, MSG_NOSIGNAL);
+				numsend = send(c_sockfd, frame->payload+total, frame->payload_len-total, FLY_MSG_NOSIGNAL);
 			if (FLY_BLOCKING(numsend))
 				goto write_blocking;
 			else if (numsend == -1 && errno == EPIPE)
@@ -4290,7 +4306,7 @@ static struct fly_hv2_huffman huffman_codes[] = {
 	{ -1,		0x0,				-1 },
 };
 
-static inline uint8_t __fly_huffman_code_digit(uint8_t c)
+__fly_unused static inline uint8_t __fly_huffman_code_digit(uint8_t c)
 {
 	uint8_t i=0;
 
@@ -4507,10 +4523,13 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 	fly_hdr_ci *ci = req->header;
 
 	fly_request_line_init(req);
-
 	req->request_line->version = fly_match_version_from_type(V2);
 	if (fly_unlikely_null(req->request_line->version))
 		return -1;
+#ifdef DEBUG
+	printf("WORKER: Parse HTTP2 request:\n");
+	printf("\tRequest HTTP ver: %s\n", req->request_line->version->full);
+#endif
 	/* convert pseudo header to request line */
 	fly_hdr_c *__c;
 	struct fly_bllist *__b;
@@ -4519,18 +4538,35 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 		if (__c->name_len>0 && __fly_hv2_pseudo_header(__c)){
 			for (char **__p=(char **) fly_pseudo_request; *__p; __p++){
 				if (strncmp(*__p, __c->name, strlen(*__p)) == 0){
-					if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD){
+					if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_METHOD)) == 0){
+#ifdef DEBUG
+						printf("\tRequest method: %s\n", *__p);
+#endif
 						req->request_line->method = fly_match_method_name(__c->value);
 						if (!req->request_line->method){
+#ifdef DEBUG
+							printf("\tmethod is invalid.\n");
+#endif
 							/* invalid method */
+							return -1;
 						}
-					}else if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME){
+					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_SCHEME)) == 0){
+#ifdef DEBUG
+						printf("\tRequest scheme: %s\n", *__p);
+#endif
 						req->request_line->scheme = fly_match_scheme_name(__c->value);
 						if (!req->request_line->scheme){
+#ifdef DEBUG
+							printf("\tschemeis invalid.\n");
+#endif
 							/* invalid method */
+							return -1;
 						}
-					}else if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY){
-					}else if (*__p == (char *) FLY_HV2_REQUEST_PSEUDO_HEADER_PATH){
+					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_AUTHORITY)) == 0){
+					}else if (strncmp(*__p, FLY_HV2_REQUEST_PSEUDO_HEADER_PATH, strlen(FLY_HV2_REQUEST_PSEUDO_HEADER_PATH)) == 0){
+#ifdef DEBUG
+						printf("\tRequest uri: %s\n", *__p);
+#endif
 						fly_uri_set(req, __c->value, __c->value_len);
 					}else{
 						FLY_NOT_COME_HERE
@@ -4618,6 +4654,9 @@ void fly_hv2_remove_response(fly_hv2_state_t *state, fly_response_t *res)
 
 int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 {
+#ifdef DEBUG
+	printf("WORKER: prepare for HTTP2 Response \n");
+#endif
 	fly_request_t *request;
 	fly_response_t *response;
 
@@ -4794,6 +4833,9 @@ int __fly_hv2_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream)
  */
 int fly_hv2_response_event(fly_event_t *e)
 {
+#ifdef DEBUG
+	printf("WORKER: HTTP2 Response event handler\n");
+#endif
 	fly_response_t *res;
 	fly_request_t *req;
 	fly_hv2_stream_t *stream;
@@ -4967,6 +5009,9 @@ send_body:
 	return fly_send_data_frame(e, res);
 
 log:
+#ifdef DEBUG
+	printf("WORKER: Log HTTP2 Access\n");
+#endif
 	if (fly_response_log(res, e) == -1)
 		return -1;
 
@@ -4986,6 +5031,9 @@ log:
 		if (fly_hv2_close_stream(stream) == -1)
 			return -1;
 
+#ifdef DEBUG
+	printf("WORKER: End HTTP2 request response\n");
+#endif
 register_handler:
 	e->read_or_write |= FLY_READ;
 	e->flag = FLY_MODIFY;
