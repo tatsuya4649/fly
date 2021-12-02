@@ -102,13 +102,15 @@ if _OS == 'Darwin':
                 continue
             _bro = "/usr/local/opt/zlib/include"
     if _bro is not None:
-        extra_compile_args.append(f"-I {_bro}")
+        extra_compile_args.append(f"-I{_bro}")
     print(f"OpenSSL Directory: {_ssldir}", flush=True)
     print(f"Zlib Directory: {_zdir}", flush=True)
-    extra_compile_args.append(f"-I {_ssldir}")
-    extra_compile_args.append(f"-I {_zdir}")
+    extra_compile_args.append(f"-I{_ssldir}")
+    extra_compile_args.append(f"-I{_zdir}")
 
 print(extra_compile_args)
+extra_compile_args.append("-v")
+extra_compile_args.append("-I/usr/local/include")
 server = Extension(
 	name="fly._fly_server",
 	sources=["src/pyserver.c"],
