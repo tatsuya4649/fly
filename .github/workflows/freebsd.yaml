@@ -20,7 +20,15 @@ jobs:
                   mem: 4096
                   prepare: |
                       pkg update
-                      pkg install -y autoconf autoconf-archive automake autotools gcc sqlite3 python310 py310-sqlite3
+                      pkg install -y autoconf autoconf-archive automake autotools gcc sqlite3 python36 py36-sqlite3 python37 py37-sqlite3 python38 py38-sqlite3 python39 py39-sqlite3 python310 py310-sqlite3
+                      python3.6 -m ensurepip
+                      python3.6 -m pip install --upgrade pip
+                      python3.7 -m ensurepip
+                      python3.7 -m pip install --upgrade pip
+                      python3.8 -m ensurepip
+                      python3.8 -m pip install --upgrade pip
+                      python3.9 -m ensurepip
+                      python3.9 -m pip install --upgrade pip
                       python3.10 -m ensurepip
                       python3.10 -m pip install --upgrade pip
                   run: |
@@ -30,6 +38,14 @@ jobs:
                       make
                       make install
                       echo "nameserver 8.8.8.8" | tee /etc/resolv.conf
+                      python3.6 -m pip install -r ./requirements.txt
+                      python3.6 setup.py build
+                      python3.7 -m pip install -r ./requirements.txt
+                      python3.7 setup.py build
+                      python3.8 -m pip install -r ./requirements.txt
+                      python3.8 setup.py build
+                      python3.9 -m pip install -r ./requirements.txt
+                      python3.9 setup.py build
                       python3.10 -m pip install -r ./requirements.txt
                       python3.10 setup.py build
                       cp -rf build/lib.*/fly/_fly_server.cpython* fly/
