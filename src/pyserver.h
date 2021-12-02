@@ -3,6 +3,7 @@
 
 #include <Python.h>
 #include <structmember.h>
+#include "../config.h"
 #include "server.h"
 #include "context.h"
 #include "char.h"
