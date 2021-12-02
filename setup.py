@@ -53,6 +53,7 @@ if _OS == 'Darwin':
             os.getcwd(),
             "fly/lib"
     ))
+    # TODO: -I header of openSSL
     #extra_compile_args.append('-Wl,-rpath,' + _libfly_dir)
 
 server = Extension(

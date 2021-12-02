@@ -223,15 +223,17 @@ __fly_static int __fly_nftw(fly_event_t *event, fly_mount_parts_t *parts, const 
 		if (stat(__path, &sb) == -1)
 			continue;
 		/* recursion */
-		if (S_ISDIR(sb.st_mode))
+		if (S_ISDIR(sb.st_mode)){
 #ifdef HAVE_INOTIFY
-			if (__fly_nftw(parts, __path, mount_point, infd) == -1)
+			if (__fly_nftw(parts, __path, mount_point, infd) == -1){
 #elif defined HAVE_KQUEUE
-			if (__fly_nftw(event, parts, __path, mount_point, infd) == -1)
+			if (__fly_nftw(event, parts, __path, mount_point, infd) == -1){
 #else
 #error  not found inotify or kqueue on your system
 #endif
 				goto error;
+			}
+		}
 
 		pfile = fly_pf_init(parts, &sb);
 		if (S_ISDIR(sb.st_mode))
@@ -284,8 +286,12 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	fly_pool_t *pool;
 	char rpath[FLY_PATH_MAX];
 
-	if (!ctx || !ctx->mount)
+	if (!ctx || !ctx->mount){
+#ifdef DEBUG
+		printf("MOUNT ERROR: context/mount is invalid.\n");
+#endif
 		return -1;
+	}
 	if (fly_mount_max_limit() == ctx->mount->mount_count)
 		return FLY_EMOUNT_LIMIT;
 
@@ -319,13 +325,14 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	if (__fly_mount_add(mnt, parts) == -1)
 		goto error;
 #ifdef HAVE_INOTIFY
-	if (__fly_nftw(parts, rpath, rpath, -1) == -1)
+	if (__fly_nftw(parts, rpath, rpath, -1) == -1){
 #elif HAVE_KQUEUE
-	if (__fly_nftw(NULL, parts, rpath, rpath, -1) == -1)
+	if (__fly_nftw(NULL, parts, rpath, rpath, -1) == -1){
 #else
 #error not found inotify or kqueue on your system.
 #endif
 		goto error;
+	}
 
 #ifdef DEBUG
 	__fly_mount_debug(mnt);
