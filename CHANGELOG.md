@@ -1,5 +1,17 @@
 # Change Log
 
+## 1.1.4
+
+## Added
+
+* Support macOS
+
+* Support FreeBSD
+
+## Fixed
+
+* signal handler of master/worker.
+
 ## 1.1.3
 
 Released: 2021/11/22

@@ -53,8 +53,28 @@ if _OS == 'Darwin':
             os.getcwd(),
             "fly/lib"
     ))
-    # TODO: -I header of openSSL
-    #extra_compile_args.append('-Wl,-rpath,' + _libfly_dir)
+    # -I header of openSSL
+    # OpenSSL
+    if os.path.isdir("/usr/local/opt/openssl/include"):
+        _ssldir = "/usr/local/opt/openssl/include"
+    elif os.path.isdir("/usr/local/opt/openssl@3/include"):
+        _ssldir = "/usr/local/opt/openssl@3/include"
+    elif os.path.isdir("/usr/local/opt/openssl@1.1/include"):
+        _ssldir = "/usr/local/opt/openssl@1.1/include"
+    else:
+        raise RuntimeError("not found openssl on your system.")
+    # Zlib
+    if os.path.isdir("/usr/local/opt/zlib/include"):
+        _zdir = "/usr/local/opt/zlib/include"
+    else:
+        raise RuntimeError("not found zlib on your system.")
+    #Brotli
+    if os.path.isdir("/usr/local/opt/brotli/include"):
+        _brodir = "/usr/local/opt/brotli/include"
+        extra_compile_args.append(f"-I {_brodir}")
+
+    extra_compile_args.append(f"-I {_ssldir}")
+    extra_compile_args.append(f"-I {_zdir}")
 
 server = Extension(
 	name="fly._fly_server",
