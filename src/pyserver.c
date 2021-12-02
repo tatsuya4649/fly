@@ -1007,29 +1007,48 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 		printf("%s\n", fly_log_path());
 #endif
 	if (self->ssl && fly_ssl_crt_path() != NULL){
-		self->ssl_crt_path = realpath((const char *) fly_ssl_crt_path(), NULL);
-		if (self->ssl_crt_path == NULL){
+		char *__tmp;
+
+		__tmp = realpath((const char *) fly_ssl_crt_path(), NULL);
+		if (__tmp == NULL){
 			PyErr_Format(PyExc_ValueError, "SSL certificate path: %s", strerror(errno));
 			goto error;
 		}
+		self->ssl_crt_path = fly_pballoc(self->master->context->pool, sizeof(char)*(strlen(__tmp)+1));
+		memset(self->ssl_crt_path, '\0', sizeof(char)*(strlen(__tmp)+1));
+		memcpy(self->ssl_crt_path, __tmp, sizeof(char)*strlen(__tmp));
+		free(__tmp);
 	}else
 		self->ssl_crt_path = NULL;
 
 	if (self->ssl && fly_ssl_key_path() != NULL){
-		self->ssl_key_path = realpath((const char *) fly_ssl_key_path(), NULL);
-		if (self->ssl_key_path == NULL){
+		char *__tmp;
+
+		__tmp = realpath((const char *) fly_ssl_key_path(), NULL);
+		if (__tmp == NULL){
 			PyErr_Format(PyExc_ValueError, "SSL key path:%s", strerror(errno));
 			goto error;
 		}
+		self->ssl_key_path = fly_pballoc(self->master->context->pool, sizeof(char)*(strlen(__tmp)+1));
+		memset(self->ssl_key_path, '\0', sizeof(char)*(strlen(__tmp)+1));
+		memcpy(self->ssl_key_path, __tmp, sizeof(char)*strlen(__tmp));
+		free(__tmp);
 	}else
 		self->ssl_key_path = NULL;
 
 	if (fly_log_path() != NULL){
-		self->log = realpath((const char *) fly_log_path(), NULL);
-		if (self->log == NULL){
+		char *__tmp;
+
+		__tmp = realpath((const char *) fly_log_path(), NULL);
+		if (__tmp == NULL){
 			PyErr_Format(PyExc_ValueError, "Log path: %s", strerror(errno));
 			goto error;
 		}
+
+		self->log = fly_pballoc(self->master->context->pool, sizeof(char)*(strlen(__tmp)+1));
+		memset(self->log, '\0', sizeof(char)*(strlen(__tmp)+1));
+		memcpy(self->log, __tmp, sizeof(char)*strlen(__tmp));
+		free(__tmp);
 	}else
 		self->log = NULL;
 

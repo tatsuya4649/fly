@@ -15,30 +15,30 @@ __fly_noreturn void __fly_log_error_handle(int res);
 __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 {
 	const char *path;
-	char rpath[FLY_PATH_MAX];
+	/* need to release of realpath memory. */
+	char *rpath;
 	char *__lp = log_path_buf;
 
 #ifdef DEBUG
 	assert(log_path_buf);
 #endif
 	path = fly_log_path();
-	memset(rpath, '\0', FLY_PATH_MAX);
-	if (path == NULL || realpath(path, rpath) == NULL)
+	if (path == NULL|| (rpath=realpath(path, NULL)) == NULL)
 		return -1;
 
 	memset(log_path_buf, '\0', buflen);
 	if (log_path_buf+strlen(rpath) > __lp+buflen)
-		return -1;
+		goto error;
 	memcpy(log_path_buf, rpath, strlen(rpath));
 	log_path_buf += strlen(rpath);
 
 	if (log_path_buf+1 > __lp+buflen)
-		return -1;
+		goto error;
 	memcpy(log_path_buf, "/", 1);
 	log_path_buf += 1;
 
 	if (log_path_buf+strlen(FLY_ERRORLOG_FILENAME) > __lp+buflen)
-		return -1;
+		goto error;
 	memcpy(log_path_buf, FLY_ERRORLOG_FILENAME, strlen(FLY_ERRORLOG_FILENAME));
 
 #ifdef DEBUG
@@ -46,12 +46,15 @@ __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 #endif
 
 	return 0;
+error:
+	free(rpath);
+	return -1;
 }
 
 __fly_static int __fly_access_log_path(char *log_path_buf, size_t buflen)
 {
 	const char *path;
-	char rpath[FLY_PATH_MAX];
+	char *rpath;
 	char *__lp = log_path_buf;
 
 #ifdef DEBUG
@@ -59,63 +62,67 @@ __fly_static int __fly_access_log_path(char *log_path_buf, size_t buflen)
 #endif
 
 	path = fly_log_path();
-	memset(rpath, '\0', FLY_PATH_MAX);
-	if (path == NULL || realpath(path, rpath) == NULL)
+	if (path == NULL || (rpath=realpath(path, NULL)) == NULL)
 		return -1;
 
 	memset(log_path_buf, '\0', buflen);
 	if (log_path_buf+strlen(rpath) > __lp+buflen)
-		return -1;
+		goto error;
 	memcpy(log_path_buf, rpath, strlen(rpath));
 	log_path_buf += strlen(rpath);
 
 	if (log_path_buf+1 > __lp+buflen)
-		return -1;
+		goto error;
 	memcpy(log_path_buf, "/", 1);
 	log_path_buf += 1;
 
 	if (log_path_buf+strlen(FLY_ACCESLOG_FILENAME) > __lp+buflen)
-		return -1;
+		goto error;
 	memcpy(log_path_buf, FLY_ACCESLOG_FILENAME, strlen(FLY_ACCESLOG_FILENAME));
 #ifdef DEBUG
 	printf("access log file: %s\n", __lp);
 #endif
 	return 0;
+error:
+	free(rpath);
+	return -1;
 }
 
 __fly_static int __fly_notice_log_path(char *log_path_buf, size_t buflen)
 {
 	const char *path;
-	char rpath[FLY_PATH_MAX];
+	char *rpath;
 	char *__lp = log_path_buf;
 
 #ifdef DEBUG
 	assert(log_path_buf);
 #endif
 	path = fly_log_path();
-	memset(rpath, '\0', FLY_PATH_MAX);
-	if (path == NULL || realpath(path, rpath) == NULL)
+	if (path == NULL || (rpath=realpath(path, NULL)) == NULL)
 		return -1;
 
 	memset(log_path_buf, '\0', buflen);
 	if (log_path_buf+strlen(rpath) > __lp+buflen)
-		return -1;
+		goto error;
 	memcpy(log_path_buf, rpath, strlen(rpath));
 	log_path_buf += strlen(rpath);
 
 	if (log_path_buf+1 > __lp+buflen)
-		return -1;
+		goto error;
 	memcpy(log_path_buf, "/", 1);
 	log_path_buf += 1;
 
 	if (log_path_buf+strlen(FLY_NOTICLOG_FILENAME) > __lp+buflen)
-		return -1;
+		goto error;
 	memcpy(log_path_buf, FLY_NOTICLOG_FILENAME, strlen(FLY_NOTICLOG_FILENAME));
 
 #ifdef DEBUG
 	printf("notice log file: %s\n", __lp);
 #endif
 	return 0;
+error:
+	free(rpath);
+	return -1;
 }
 
 #define __FLY_LOGFILE_INIT_STDOUT			1 << 0

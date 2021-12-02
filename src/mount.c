@@ -284,7 +284,8 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	fly_mount_t *mnt;
 	fly_mount_parts_t *parts;
 	fly_pool_t *pool;
-	char rpath[FLY_PATH_MAX];
+	//char rpath[FLY_PATH_MAX];
+	char *rpath;
 
 	if (!ctx || !ctx->mount){
 #ifdef DEBUG
@@ -292,15 +293,17 @@ int fly_mount(fly_context_t *ctx, const char *path)
 #endif
 		return -1;
 	}
+	if (path == NULL || strlen(path) > FLY_PATH_MAX)
+		return FLY_EARG;
+
 	if (fly_mount_max_limit() == ctx->mount->mount_count)
 		return FLY_EMOUNT_LIMIT;
 
-	if (realpath(path, rpath) == NULL)
+	rpath = realpath(path, NULL);
+	if (rpath == NULL)
 		return -1;
 	mnt = ctx->mount;
 
-	if (path == NULL || strlen(path) > FLY_PATH_MAX)
-		return FLY_EARG;
 	if (fly_isdir(rpath) != 1)
 		return FLY_EARG;
 
@@ -309,7 +312,13 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	if (fly_unlikely_null(parts))
 		return -1;
 
+	if (strlen(rpath) > FLY_PATH_MAX){
+		free(rpath);
+		return -1;
+	}
 	__fly_mount_path_cpy(parts->mount_path, rpath);
+	/* release realpath memory. */
+	free(rpath);
 	parts->mount_number = mnt->mount_count;
 	parts->mount = mnt;
 #ifdef HAVE_INOTIFY

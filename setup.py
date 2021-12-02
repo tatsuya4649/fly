@@ -73,6 +73,8 @@ if _OS == 'Darwin':
         _brodir = "/usr/local/opt/brotli/include"
         extra_compile_args.append(f"-I {_brodir}")
 
+    print(f"OpenSSL Directory: {_ssldir}", flush=True)
+    print(f"Zlib Directory: {_zdir}", flush=True)
     extra_compile_args.append(f"-I {_ssldir}")
     extra_compile_args.append(f"-I {_zdir}")
 

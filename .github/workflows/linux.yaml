@@ -53,7 +53,5 @@ jobs:
                   -x509 -nodes -days 365 -newkey rsa:2048 \
                   -keyout tests/fly_test.key \
                   -out tests/fly_test.crt
-            - name: Setup tmate session
-              uses: mxschmitt/action-tmate@v3
             - name: Run Python fly tes
               run: python3 -m pytest tests -xv
