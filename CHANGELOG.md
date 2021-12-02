@@ -1,5 +1,15 @@
 # Change Log
 
+## 1.1.4
+
+Released: 2021/11/29
+
+## Added
+
+* FreeBSD support.
+
+* macOS support.
+
 ## 1.1.3
 
 Released: 2021/11/22
