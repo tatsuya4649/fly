@@ -18,7 +18,7 @@ _libfly_dir = os.path.abspath(
         )
 )
 
-if _os == 'Linux' or os == 'FreeBSD':
+if _os == 'Linux' or _os == 'FreeBSD':
     _lib = 'libfly.so'
 elif _os == 'Darwin':
     _lib = 'libfly.dylib'
