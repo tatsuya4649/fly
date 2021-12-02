@@ -44,7 +44,9 @@ jobs:
         - name: Update resolv.conf file
           run: |
               echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
-        - name: Bukld extension module
+        - name: Setup tmate session
+          uses: mxschmitt/action-tmate@v3
+        - name: Build extension module
           run: |
               python3 setup.py build
               cp -rf build/lib.*/fly/_fly_server* fly/
