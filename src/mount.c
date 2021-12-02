@@ -293,12 +293,17 @@ int fly_mount(fly_context_t *ctx, const char *path)
 #endif
 		return -1;
 	}
-	if (path == NULL || strlen(path) > FLY_PATH_MAX)
+	if (path == NULL || strlen(path) > FLY_PATH_MAX){
+#ifdef DEBUG
+		printf("MOUNT ERROR: path length.\n");
+#endif
 		return FLY_EARG;
+	}
 
 	if (fly_mount_max_limit() == ctx->mount->mount_count)
 		return FLY_EMOUNT_LIMIT;
 
+	/* alloc realpath memory */
 	rpath = realpath(path, NULL);
 	if (rpath == NULL)
 		return -1;
@@ -334,9 +339,9 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	if (__fly_mount_add(mnt, parts) == -1)
 		goto error;
 #ifdef HAVE_INOTIFY
-	if (__fly_nftw(parts, rpath, rpath, -1) == -1){
+	if (__fly_nftw(parts, parts->mount_path, parts->mount_path, -1) == -1){
 #elif HAVE_KQUEUE
-	if (__fly_nftw(NULL, parts, rpath, rpath, -1) == -1){
+	if (__fly_nftw(NULL, parts, parts->mount_path, parts->mount_path, -1) == -1){
 #else
 #error not found inotify or kqueue on your system.
 #endif
@@ -785,9 +790,6 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
 			return -1;
 
 		__npf = fly_pf_init(parts, &sb);
-		if (fly_unlikely_null(__npf))
-			return -1;
-
 		__npf->infd = parts->infd;
 		__npf->wd = inotify_add_watch(__npf->infd, rpath, FLY_INOTIFY_WATCH_FLAG_PF);
 		__npf->parts = parts;

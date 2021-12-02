@@ -12,9 +12,9 @@ struct __pyfly_server{
 	long 				worker;
 	long 				reqworker;
 	bool 				ssl;
-	const char			*log;
-	const char			*ssl_crt_path;
-	const char 			*ssl_key_path;
+	char				*log;
+	char				*ssl_crt_path;
+	char 				*ssl_key_path;
 };
 
 struct PyMemberDef __pyfly_server_members[] = {
