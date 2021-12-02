@@ -32,13 +32,6 @@ _libfly_abs = os.path.abspath(
         )
 )
 _libfly = _libfly_abs
-while os.path.islink(_libfly):
-    _libfly = os.readlink(_libfly_abs)
-    if not os.path.isabs(_libfly):
-        _libfly = os.path.join(
-            _libfly_dir,
-            _libfly
-        )
 libfly = ctypes.cdll.LoadLibrary(
     _libfly
 )
