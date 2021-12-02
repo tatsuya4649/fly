@@ -49,6 +49,7 @@ jobs:
                       python3.10 -m pip install -r ./requirements.txt
                       python3.10 setup.py build
                       cp -rf build/lib.*/fly/_fly_server.cpython* fly/
+                      ls -l fly/ | grep _fly_server.cpython*
                       openssl req \
                       -subj '/CN=localhsot' \
                       -x509 -nodes -days 365 -newkey rsa:2048 \
@@ -56,6 +57,26 @@ jobs:
                       -out tests/fly_test.crt
                       export _PATH_PYTHON=$(which python3.10)
                       ln -sf $_PATH_PYTHON $(dirname $_PATH_PYTHON)/python3
-                      ls $(dirname $_PATH_PYTHON) | grep python
+                      echo $_PATH_PYTHON
+                      which python3
+                      python3 -m pytest tests -xv
+                      export _PATH_PYTHON=$(which python3.9)
+                      ln -sf $_PATH_PYTHON $(dirname $_PATH_PYTHON)/python3
+                      echo $_PATH_PYTHON
+                      which python3
+                      python3 -m pytest tests -xv
+                      export _PATH_PYTHON=$(which python3.8)
+                      ln -sf $_PATH_PYTHON $(dirname $_PATH_PYTHON)/python3
+                      echo $_PATH_PYTHON
+                      which python3
+                      python3 -m pytest tests -xv
+                      export _PATH_PYTHON=$(which python3.7)
+                      ln -sf $_PATH_PYTHON $(dirname $_PATH_PYTHON)/python3
+                      echo $_PATH_PYTHON
+                      which python3
+                      python3 -m pytest tests -xv
+                      export _PATH_PYTHON=$(which python3.6)
+                      ln -sf $_PATH_PYTHON $(dirname $_PATH_PYTHON)/python3
+                      echo $_PATH_PYTHON
                       which python3
                       python3 -m pytest tests -xv
