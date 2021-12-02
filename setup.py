@@ -108,6 +108,7 @@ if _OS == 'Darwin':
     extra_compile_args.append(f"-I {_ssldir}")
     extra_compile_args.append(f"-I {_zdir}")
 
+print(extra_compile_args)
 server = Extension(
 	name="fly._fly_server",
 	sources=["src/pyserver.c"],
