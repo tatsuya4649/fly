@@ -55,5 +55,5 @@ jobs:
                   -out tests/fly_test.crt
             - name: Setup tmate session
               uses: mxschmitt/action-tmate@v3
-            - name: Run Python fly test
+            - name: Run Python fly tes
               run: python3 -m pytest tests -xv
