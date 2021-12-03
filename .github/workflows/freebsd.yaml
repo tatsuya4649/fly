@@ -48,7 +48,7 @@ jobs:
                       python3.9 setup.py build
                       python3.10 -m pip install -r ./requirements.txt
                       python3.10 setup.py build
-                      cp -rf build/lib.*/fly/_fly_server.cpython* fly/
+                      cp build/lib.*/fly/_fly_server.cpython* fly/
                       ls -l fly/ | grep _fly_server.cpython*
                       openssl req \
                       -subj '/CN=localhsot' \
