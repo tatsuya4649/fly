@@ -1589,8 +1589,6 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 		e->flag = FLY_PERSISTENT;
 		e->tflag = FLY_INFINITY;
 		e->eflag = (NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME);
-		e->event_fase = NULL;
-		e->event_state = NULL;
 		e->expired = false;
 		e->available = false;
 		//e->event_data = (void *) master;
