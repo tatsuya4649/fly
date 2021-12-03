@@ -50,7 +50,8 @@ int fly_accept_end_timeout_handler(fly_event_t *e)
 {
 	fly_connect_t *conn;
 
-	conn = (fly_connect_t *) e->expired_event_data;
+	//conn = (fly_connect_t *) e->expired_event_data;
+	conn = (fly_connect_t *) fly_expired_event_data_get(e, __p);
 	fly_ssl_connected_release(conn);
 
 	return fly_listen_socket_end_handler(e);
@@ -228,7 +229,8 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 		goto disconnect;
 	}
 
-	e->event_data = __ac->connect;
+	//e->event_data = __ac->connect;
+	fly_event_data_set(e, __p, __ac->connect);
 	/* release accept resource */
 	fly_pbfree(__ac->pool, __ac);
 	return fly_listen_connected(e);
@@ -249,7 +251,8 @@ blocking:
 	e->eflag = 0;
 	e->expired = false;
 	e->available = false;
-	e->event_data = (struct fly_ssl_accept *) __ac;
+	//e->event_data = (struct fly_ssl_accept *) __ac;
+	fly_event_data_set(e, __p, __ac);
 	fly_event_socket(e);
 	return fly_event_register(e);
 
@@ -272,7 +275,8 @@ __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e)
 {
 	struct fly_ssl_accept *__ac;
 
-	__ac = (struct fly_ssl_accept *) e->event_data;
+	//__ac = (struct fly_ssl_accept *) e->event_data;
+	__ac = (struct fly_ssl_accept *) fly_event_data_get(e, __p);
 	return __fly_ssl_accept_event_handler(e, __ac);
 }
 

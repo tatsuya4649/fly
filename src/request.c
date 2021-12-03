@@ -1148,7 +1148,8 @@ int fly_request_disconnect_handler(fly_event_t *event)
 
 	event->flag = FLY_CLOSE_EV;
 
-	req = (fly_request_t *) event->event_data;
+	//req = (fly_request_t *) event->event_data;
+	req = (fly_request_t *) fly_event_data_get(event, __p);
 
 	fly_connect_release(req->connect);
 	fly_request_release(req);
@@ -1160,7 +1161,8 @@ int fly_request_timeout_handler(fly_event_t *event)
 {
 	fly_request_t *req;
 	fly_connect_t *conn;
-	req = (fly_request_t *) event->expired_event_data;
+	//req = (fly_request_t *) event->expired_event_data;
+	req = (fly_request_t *) fly_event_data_get(event, __p);
 
 	conn = req->connect;
 
@@ -1194,9 +1196,12 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_request_fase_t				fase;
 	fly_connect_t					*conn;
 
-	state = *(fly_request_state_t *) &event->event_state;
-	fase = *(fly_request_fase_t *) &event->event_fase;
-	request = (fly_request_t *) event->event_data;
+	//state = *(fly_request_state_t *) &event->event_state;
+	//fase = *(fly_request_fase_t *) &event->event_fase;
+	//request = (fly_request_t *) event->event_data;
+	state = (fly_request_state_t) fly_event_state_get(event, __e);
+	fase = (fly_request_fase_t) fly_event_fase_get(event, __e);
+	request = (fly_request_t *) fly_event_data_get(event, __p);
 	conn = request->connect;
 
 	if (request->discard_body)
@@ -1208,7 +1213,7 @@ int fly_request_event_handler(fly_event_t *event)
 	printf("\t%s\n", request->receive_header ? "RECEIVED HEADER" : "NOT YET RECEIVED HEADER");
 	printf("\t%s\n", request->receive_body ? "RECEIVED BODY" : "NOT YET RECEIVED BODY");
 #endif
-	fly_event_state(event, RECEIVE);
+	fly_event_request_state(event, RECEIVE);
 	switch (fly_request_receive(event->fd, conn, request)){
 	case FLY_REQUEST_RECEIVE_ERROR:
 		goto error;
@@ -1254,7 +1259,7 @@ __fase_request_line:
 #ifdef DEBUG
 	printf("FASE: REQUEST PARSE\n");
 #endif
-	fly_event_fase(event, REQUEST_LINE);
+	fly_event_request_fase(event, REQUEST_LINE);
 	reline_buf_chain = fly_get_request_line_buf(conn->buffer);
 	switch(__fly_request_operation(request, reline_buf_chain)){
 	case FLY_REQUEST_ERROR(400):
@@ -1279,7 +1284,7 @@ __fase_header:
 	fly_buffer_c *hdr_buf;
 
 	printf("FASE: HEADER\n");
-	fly_event_fase(event, HEADER);
+	fly_event_request_fase(event, HEADER);
 	if (!request->receive_header){
 #ifdef DEBUG
 		printf("don't have a pointer to the header yet\n");
@@ -1333,7 +1338,7 @@ __fase_body:
 	;
 
 	printf("FASE: BODY\n");
-	fly_event_fase(event, BODY);
+	fly_event_request_fase(event, BODY);
 	size_t content_length;
 	content_length = fly_content_length(request->header);
 	/* Too payload large */
@@ -1406,7 +1411,7 @@ __fase_end_of_parse:
 #ifdef DEBUG
 	printf("FASE: RESPONSE\n");
 #endif
-	fly_event_fase(event, RESPONSE);
+	fly_event_request_fase(event, RESPONSE);
 	/* Success parse request */
 	enum method_type __mtype;
 	__mtype = request->request_line->method->type;
@@ -1476,7 +1481,8 @@ read_continuation:
 	event->read_or_write = FLY_READ;
 	goto continuation;
 continuation:
-	event->event_state = (void *) EFLY_REQUEST_STATE_CONT;
+	//event->event_state = (void *) EFLY_REQUEST_STATE_CONT;
+	fly_event_state_set(event, __e, EFLY_REQUEST_STATE_CONT);
 	event->flag = FLY_MODIFY;
 	FLY_EVENT_HANDLER(event, fly_request_event_handler);
 	event->tflag = FLY_INHERIT;
@@ -1502,18 +1508,21 @@ response_304:
 	rc_304 = fly_pballoc(request->pool, sizeof(struct fly_response_content));
 	rc_304->pf = pf;
 	rc_304->request = request;
-	event->event_data = (void *) rc_304;
+	//event->event_data = (void *) rc_304;
+	fly_event_data_set(event, __p, rc_304);
 
 	return fly_304_event(event);
 
 response:
-	event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	//event->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	fly_event_state_set(event, __e, EFLY_REQUEST_STATE_RESPONSE);
 	event->read_or_write = FLY_WRITE;
 	event->flag = FLY_MODIFY;
 	event->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(event, fly_response_event);
 	event->available = false;
-	event->event_data = (void *) response;
+	//event->event_data = (void *) response;
+	fly_event_data_set(event, __p, response);
 	fly_event_socket(event);
 	fly_response_timeout_end_setting(event, response);
 	event->fail_close = fly_response_fail_close_handler;

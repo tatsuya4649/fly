@@ -475,7 +475,8 @@ int fly_log_event_handler(fly_event_t *e)
 	__fly_unused fly_logcont_t *content;
 	int res;
 
-	content = (fly_logcont_t *) e->event_data;
+	//content = (fly_logcont_t *) e->event_data;
+	content = (fly_logcont_t *) fly_event_data_get(e, __p);
 	res = __fly_log_write_logcont(content);
 	if (res < 0)
 		/* noreturn */
@@ -553,7 +554,8 @@ int fly_log_event_register(fly_event_manager_t *manager, struct fly_logcont *lc)
 	e->eflag = 0;
 	e->expired = false;
 	e->available = false;
-	e->event_data = (void *) lc;
+	//e->event_data = (void *) lc;
+	fly_event_data_set(e, __p, (void *) lc);
 	fly_event_regular(e);
 	fly_time_zero(e->timeout);
 
