@@ -131,7 +131,8 @@ int fly_errlog_event_handler(fly_event_t *e)
 
 	lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_ERROR);
 
-	err = (fly_err_t *) e->event_data;
+	//err = (fly_err_t *) e->event_data;
+	err = (fly_err_t *) fly_event_data_get(e, __p);
 	if (lc == NULL)
 		return -1;
 	fly_logcont_setting(lc, FLY_ERROR_LOG_LENGTH);
@@ -140,7 +141,8 @@ int fly_errlog_event_handler(fly_event_t *e)
 	if (fly_log_now(&lc->when) == -1)
 		return -1;
 
-	e->event_data = (void *) lc;
+	//e->event_data = (void *) lc;
+	fly_event_data_set(e, __p, lc);
 	e->flag = 0;
 	e->tflag = FLY_INFINITY;
 	e->expired = false;
@@ -169,7 +171,8 @@ int fly_errlog_event(fly_event_manager_t *manager, fly_err_t *err)
 	e->flag = 0;
 	e->eflag = 0;
 	FLY_EVENT_HANDLER(e, fly_errlog_event_handler);
-	e->event_data = (void *) err;
+	//e->event_data = (void *) err;
+	fly_event_data_set(e, __p, err);
 	e->available = false;
 	e->expired = false;
 	fly_time_zero(e->timeout);

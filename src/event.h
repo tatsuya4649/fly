@@ -82,6 +82,18 @@ struct __fly_event_for_rbtree{
 #error not defined HAVE_EPOLL AND HAVE_KQUEUE
 #endif
 
+union __eu{
+	int		__i;
+	void	*__p;
+	enum __fly_dummy{
+		FLY_EU_DUMMY_A,
+		FLY_EU_DUMMY_B,
+		FLY_EU_DUMMY_C
+	}		__e;
+};
+
+typedef union __eu		fly_event_union;
+
 struct fly_err;
 struct fly_event{
 	fly_event_manager_t				*manager;
@@ -122,11 +134,40 @@ struct fly_event{
 	int								(*expired_handler)(struct fly_event *);
 	char							*handler_name;
 
-	void							*event_data;
-	void							*end_event_data;
-	void							*expired_event_data;
-	void 							*event_fase;
-	void 							*event_state;
+#define __fly_event_get(__e, param, name)			\
+			((__e)->param.name)
+#define __fly_event_set(__e, param, name, value)			\
+			((__e)->param.name = (typeof((__e)->param.name)) (value))
+	fly_event_union					event_data;
+#define fly_event_data_get(__e, name)			\
+			__fly_event_get(__e, event_data, name)
+#define fly_event_data_set(__e, name, value)	\
+			__fly_event_set(__e, event_data, name, value)
+	fly_event_union					end_event_data;
+#define fly_end_event_data_get(__e, name)				\
+			__fly_event_get(__e, end_event_data, name)
+#define fly_end_event_data_set(__e, name, value)				\
+			__fly_event_set(__e, end_event_data, name, value)
+	fly_event_union					expired_event_data;
+#define fly_expired_event_data_get(__e, name)				\
+			__fly_event_get(__e, expired_event_data, name)
+#define fly_expired_event_data_set(__e, name, value)				\
+			__fly_event_set(__e, expired_event_data, name, value)
+	fly_event_union					event_fase;
+#define fly_event_fase_get(__e, name)				\
+			__fly_event_get(__e, event_fase, name)
+#define fly_event_fase_set(__e, name, value)				\
+			__fly_event_set(__e, event_fase, name, value)
+	fly_event_union					event_state;
+#define fly_event_state_get(__e, name)				\
+			__fly_event_get(__e, event_state, name)
+#define fly_event_state_set(__e, name, value)				\
+			__fly_event_set(__e, event_state, name, value)
+//	void							*event_data;
+//	void							*end_event_data;
+//	void							*expired_event_data;
+//	void 							*event_fase;
+//	void 							*event_state;
 	uint8_t							*emerge_ptr;
 
 	/*
@@ -177,12 +218,12 @@ __fly_unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
 #define FLY_EVENT_END_HANDLER(e, __handler, __data)	\
 	do{									\
 		(e)->end_handler = (__handler);		\
-		(e)->end_event_data = (void *) (__data);	\
+		fly_event_data_set((e), __p, __data);		\
 	} while(0)
 #define FLY_EVENT_EXPIRED_HANDLER(e, __handler, __data)	\
 	do{									\
 		(e)->expired_handler = (__handler);		\
-		(e)->expired_event_data = (void *) (__data);	\
+		fly_expired_event_data_set((e), __p, __data);	\
 	} while(0)
 
 typedef struct fly_event fly_event_t;

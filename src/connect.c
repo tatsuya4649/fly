@@ -120,14 +120,17 @@ int fly_listen_connected(fly_event_t *e)
 	fly_connect_t *conn;
 	fly_request_t *req;
 
-	conn = (fly_connect_t *) e->event_data;
+	//conn = (fly_connect_t *) e->event_data;
+	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 	e->read_or_write = FLY_READ;
 	/* event only modify (no add, no delete) */
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
-	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
-	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
+	//e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
+	//e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
+	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_INIT);
+	fly_event_fase_set(e, __e, EFLY_REQUEST_FASE_INIT);
 	fly_event_socket(e);
 
 	switch(FLY_CONNECT_HTTP_VERSION(conn)){
@@ -145,7 +148,8 @@ int fly_listen_connected(fly_event_t *e)
 			fly_event_error_add(e, __err);
 			return -1;
 		}
-		e->event_data = (void *) req;
+		fly_event_data_set(e, __p, (void *) req);
+		//e->event_data = (void *) req;
 
 		e->fail_close = fly_request_fail_close_handler;
 		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
@@ -154,7 +158,8 @@ int fly_listen_connected(fly_event_t *e)
 #ifdef DEBUG
 	printf("WORKER: Start HTTP2 communication\n");
 #endif
-		e->event_data = (void *) conn;
+		//e->event_data = (void *) conn;
+		fly_event_data_set(e, __p, conn);
 		FLY_EVENT_END_HANDLER(e, fly_hv2_end_handle, conn);
 		FLY_EVENT_EXPIRED_HANDLER(e, fly_hv2_timeout_handle, conn);
 		return fly_hv2_init_handler(e);
@@ -167,7 +172,8 @@ int fly_fail_recognize_protocol(fly_event_t *e, int fd __fly_unused)
 {
 	fly_connect_t *con;
 
-	con = (fly_connect_t *) e->expired_event_data;
+	con = (fly_connect_t *) fly_expired_event_data_get(e, __p);
+	//con = (fly_connect_t *) e->expired_event_data;
 	return fly_connect_release(con);
 }
 
@@ -249,8 +255,10 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	/* for end of connection */
 	FLY_EVENT_EXPIRED_HANDLER(ne, fly_listen_socket_end_handler, conn);
 	FLY_EVENT_END_HANDLER(ne, fly_listen_socket_end_handler, conn);
-	ne->event_data = conn;
-	ne->expired_event_data = conn;
+	//ne->event_data = conn;
+	//ne->expired_event_data = conn;
+	fly_event_data_set(ne, __p, conn);
+	fly_expired_event_data_set(ne, __p, conn);
 	ne->fail_close = fly_fail_recognize_protocol;
 	fly_event_socket(ne);
 
@@ -269,7 +277,8 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 	fly_sock_t conn_sock;
 	fly_sockinfo_t *sockinfo;
 
-	conn = (fly_connect_t *) e->event_data;
+	//conn = (fly_connect_t *) e->event_data;
+	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 	conn_sock = conn->c_sockfd;
 	sockinfo = e->manager->ctx->listen_sock;
 
@@ -345,7 +354,8 @@ int fly_listen_socket_end_handler(fly_event_t *__e)
 {
 	fly_connect_t *conn;
 
-	conn = (fly_connect_t *) __e->end_event_data;
+	//conn = (fly_connect_t *) __e->end_event_data;
+	conn = (fly_connect_t *) fly_end_event_data_get(__e, __p);
 
 	__e->flag = FLY_CLOSE_EV;
 	return fly_connect_release(conn);

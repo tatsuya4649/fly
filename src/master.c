@@ -369,7 +369,7 @@ __fly_unused __fly_static int __fly_master_signal_handler(fly_event_t *e)
 			else
 				return -1;
 		}
-		if (__fly_msignal_handle((fly_master_t *) e->event_data, e->manager->ctx, &info) == -1)
+		if (__fly_msignal_handle((fly_master_t *) fly_event_data_get(e, __p), e->manager->ctx, &info) == -1)
 			return -1;
 	}
 
@@ -411,11 +411,10 @@ __fly_static int __fly_master_signal_event(fly_master_t *master, fly_event_manag
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
 	e->flag = FLY_PERSISTENT;
-	e->event_fase = NULL;
-	e->event_state = NULL;
 	e->expired = false;
 	e->available = false;
-	e->event_data = (void *) master;
+	//e->event_data = (void *) master;
+	fly_event_data_set(e, __p, (void *) master);
 	e->if_fail_term = true;
 	e->fail_close = fly_master_default_fail_close;
 	e->end_handler = __fly_master_signal_end_handler;
@@ -1235,7 +1234,8 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 	struct inotify_event *__e;
 	fly_pool_t *pool;
 
-	master = (fly_master_t *) e->event_data;
+	//master = (fly_master_t *) e->event_data;
+	master = (fly_master_t *) fly_event_data_get(e, __p);
 	ctx = master->context;
 	inofd = e->fd;
 	inobuf_size = FLY_NUMBER_OF_INOBUF*(sizeof(struct inotify_event) + NAME_MAX + 1);
@@ -1273,7 +1273,8 @@ static int __fly_master_inotify_handler(fly_event_t *e)
 	fly_master_t *master;
 	fly_context_t *ctx;
 
-	master = (fly_master_t *) e->event_data;
+	//master = (fly_master_t *) e->event_data;
+	master = (fly_master_t *) fly_event_data_get(e, __p);
 	ctx = master->context;
 	return __fly_inotify_handle(master, ctx, e);
 }
@@ -1312,7 +1313,8 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 	fly_time_null(e->timeout);
 	e->flag = FLY_PERSISTENT;
 	e->tflag = FLY_INFINITY;
-	e->event_data = (void *) master;
+	//e->event_data = (void *) master;
+	fly_event_data_set(e, __p, master);
 	FLY_EVENT_HANDLER(e, __fly_master_inotify_handler);
 	e->expired = false;
 	e->available = false;
@@ -1461,7 +1463,8 @@ static int __fly_master_reload_filepath_handler(fly_event_t *e)
 	ssize_t numread;
 	struct inotify_event *__ie;
 
-	__m = (fly_master_t *) e->event_data;
+	//__m = (fly_master_t *) e->event_data;
+	__m = fly_event_data_get(e, __p);
 	/* e->fd is inotify descriptor */
 	numread = read(e->fd, buf, FLY_INOTIFY_BUFSIZE(1));
 	if (numread == -1){
@@ -1489,7 +1492,8 @@ static int __fly_master_reload_filepath_handler(fly_event_t *e)
 	fly_master_t *__m;
 	int fflags;
 
-	__m = (fly_master_t *) e->event_data;
+	//__m = (fly_master_t *) e->event_data;
+	__m = fly_event_data_get(e, __p);
 
 	/* trigger flag of event(ex. NOTE_EXTEND ) */
 	fflags = e->eflag;
@@ -1539,11 +1543,14 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
 	e->flag = FLY_PERSISTENT;
-	e->event_fase = NULL;
-	e->event_state = NULL;
+	//e->event_fase = NULL;
+	//e->event_state = NULL;
+	fly_event_fase_set(e, __p, NULL);
+	fly_event_state_set(e, __p, NULL);
 	e->expired = false;
 	e->available = false;
-	e->event_data = (void *) master;
+	//e->event_data = (void *) master;
+	fly_event_data_set(e, __p, master);
 	e->if_fail_term = true;
 	e->fail_close = fly_master_default_fail_close;
 	e->end_handler = __fly_master_reload_filepath_end_handler;
@@ -1586,7 +1593,8 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 		e->event_state = NULL;
 		e->expired = false;
 		e->available = false;
-		e->event_data = (void *) master;
+		//e->event_data = (void *) master;
+		fly_event_data_set(e, __p, master);
 		e->if_fail_term = true;
 		e->fail_close = fly_master_default_fail_close;
 		e->end_handler = __fly_master_reload_filepath_end_handler;

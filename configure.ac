@@ -575,7 +575,6 @@ fi
 
 AX_CHECK_COMPILE_FLAG([-std=gnu11], [CFLAGS="$CFLAGS -std=gnu11"])
 AX_CHECK_COMPILE_FLAG([-W], [CFLAGS="$CFLAGS -W"])
-AX_CHECK_COMPILE_FLAG([-fno-strict-aliasing], [CFLAGS="$CFLAGS -fno-strict-aliasing"])
 AX_CHECK_COMPILE_FLAG([-Waddress], [CFLAGS="$CFLAGS -Waddress"])
 AX_CHECK_COMPILE_FLAG([-Warray-bounds], [CFLAGS="$CFLAGS -Warray-bounds"])
 AX_CHECK_COMPILE_FLAG([-Wchar-subscripts], [CFLAGS="$CFLAGS -Wchar-subscripts"])

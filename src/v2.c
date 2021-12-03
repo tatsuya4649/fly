@@ -637,7 +637,8 @@ int fly_hv2_init_handler(fly_event_t *e)
 	fly_connect_t *conn;
 	fly_buffer_t *buf;
 
-	conn = (fly_connect_t *) e->event_data;
+	//conn = (fly_connect_t *) e->event_data;
+	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 	buf = conn->buffer;
 
 	if ((size_t) (buf->per_len*buf->chain_max)<FLY_HV2_MAX_FRAME_SIZE_DEFAULT){
@@ -706,7 +707,8 @@ read_continuation:
 continuation:
 	if (conn->buffer->use_len > strlen(FLY_CONNECTION_PREFACE))
 		goto connection_preface;
-	e->event_state = (void *) EFLY_REQUEST_STATE_CONT;
+	//e->event_state = (void *) EFLY_REQUEST_STATE_CONT;
+	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_CONT);
 	e->flag = FLY_MODIFY;
 	FLY_EVENT_HANDLER(e, fly_hv2_init_handler);
 	e->tflag = FLY_INHERIT;
@@ -1375,7 +1377,8 @@ int fly_hv2_end_handle(fly_event_t *e)
 {
 	fly_connect_t *conn;
 
-	conn = (fly_connect_t *) e->expired_event_data;
+	//conn = (fly_connect_t *) e->expired_event_data;
+	conn = (fly_connect_t *) fly_expired_event_data_get(e, __p);
 	return fly_hv2_close_handle(e, conn->v2_state);
 }
 
@@ -1386,7 +1389,8 @@ int fly_hv2_timeout_handle(fly_event_t *e)
 #endif
 	fly_connect_t *conn;
 
-	conn = (fly_connect_t *) e->expired_event_data;
+	//conn = (fly_connect_t *) e->expired_event_data;
+	conn = (fly_connect_t *) fly_expired_event_data_get(e, __p);
 	return fly_hv2_close_handle(e, conn->v2_state);
 }
 
@@ -1487,7 +1491,8 @@ int fly_hv2_request_event_blocking_handler(fly_event_t *e)
 {
 	fly_connect_t *conn;
 
-	conn = (fly_connect_t *) e->event_data;
+	//conn = (fly_connect_t *) e->event_data;
+	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 
 	/* receive from peer */
 	switch(fly_receive_v2(conn->c_sockfd, conn)){
@@ -1522,9 +1527,11 @@ read_continuation:
 	e->read_or_write |= FLY_READ;
 	goto continuation;
 continuation:
-	e->event_state = (void *) EFLY_REQUEST_STATE_CONT;
+	//e->event_state = (void *) EFLY_REQUEST_STATE_CONT;
+	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_CONT);
 	e->flag = FLY_MODIFY;
-	e->event_data = conn;
+	//e->event_data = conn;
+	fly_event_data_set(e, __p, conn);
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	e->tflag = FLY_INHERIT;
 	e->available = false;
@@ -1549,7 +1556,8 @@ int fly_hv2_request_event_blocking(fly_event_t *e, fly_connect_t *conn)
 	e->read_or_write |= FLY_READ;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
-	e->event_data = (void *) conn;
+	//e->event_data = (void *) conn;
+	fly_event_data_set(e, __p, conn);
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_blocking_handler);
 
 	return fly_event_register(e);
@@ -1573,7 +1581,8 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 		fly_buffer_c *bufc, *plbufc;
 		fly_hv2_state_t *state;
 
-		conn = (fly_connect_t *) event->event_data;
+		//conn = (fly_connect_t *) event->event_data;
+		conn = (fly_connect_t *) fly_event_data_get(event, __p);
 		state = conn->v2_state;
 		if (state->goaway)
 			goto goaway;
@@ -2344,7 +2353,8 @@ int __fly_send_data_fh_event_handler(fly_event_t *e)
 	fly_response_t *res;
 	int flag;
 
-	res = (fly_response_t *) e->event_data;
+	//res = (fly_response_t *) e->event_data;
+	res = (fly_response_t *) fly_event_data_get(e, __p);
 	flag = res->datai;
 	/*
 	 *	unuse data_len, sid parameter.
@@ -2421,7 +2431,8 @@ success:
 	fly_pbfree(res->pool, fh);
 	res->fase = FLY_RESPONSE_DATA_FRAME;
 
-	e->event_data = (void *) res->request->connect;
+	//e->event_data = (void *) res->request->connect;
+	fly_event_data_set(e, __p, res->request->connect);
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
@@ -2435,12 +2446,14 @@ write_blocking:
 	goto blocking;
 blocking:
 	res->datai = flag;
-	e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	//e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
+	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	e->available = false;
-	e->event_data = (void *) res->request->connect;
+	//e->event_data = (void *) res->request->connect;
+	fly_event_data_set(e, __p, res->request->connect);
 	fly_event_socket(e);
 	return fly_event_register(e);
 disconnect:
@@ -2448,7 +2461,8 @@ disconnect:
 	fly_disconnect_from_response(res);
 	fly_pbfree(res->pool, fh);
 	res->fase = FLY_RESPONSE_DATA_FRAME;
-	e->event_data = (void *) res->request->connect;
+	//e->event_data = (void *) res->request->connect;
+	fly_event_data_set(e, __p, res->request->connect);
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
@@ -2461,7 +2475,8 @@ int fly_send_data_frame_handler(fly_event_t *e)
 {
 	fly_response_t *res;
 
-	res = (fly_response_t *) e->event_data;
+	//res = (fly_response_t *) e->event_data;
+	res = (fly_response_t *) fly_event_data_get(e, __p);
 
 	return fly_send_data_frame(e, res);
 }
@@ -2896,7 +2911,8 @@ success:
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	e->available = false;
-	e->event_data = (void *) state->connect;
+	//e->event_data = (void *) state->connect;
+	fly_event_data_set(e, __p, state->connect);
 	return fly_event_register(e);
 
 read_blocking:
@@ -2910,7 +2926,8 @@ blocking:
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	e->available = false;
-	e->event_data = (void *) state->connect;
+	//e->event_data = (void *) state->connect;
+	fly_event_data_set(e, __p, state->connect);
 	return fly_event_register(e);
 disconnect:
 	return fly_hv2_close_handle(e, state);
@@ -2951,7 +2968,8 @@ success:
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	e->available = false;
-	e->event_data = (void *) stream->state->connect;
+	//e->event_data = (void *) stream->state->connect;
+	fly_event_data_set(e, __p, stream->state->connect);
 	fly_event_socket(e);
 	return fly_event_register(e);
 
@@ -2966,7 +2984,8 @@ blocking:
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	e->available = false;
-	e->event_data = (void *) stream->state->connect;
+	//e->event_data = (void *) stream->state->connect;
+	fly_event_data_set(e, __p, stream->state->connect);
 	fly_event_socket(e);
 	return fly_event_register(e);
 disconnect:
@@ -4606,7 +4625,8 @@ int fly_hv2_responses(fly_event_t *e, fly_hv2_state_t *state __fly_unused)
 
 	__q = state->responses.next;
 	res = fly_queue_data(__q, struct fly_hv2_response, qelem);
-	e->event_data = res->response;
+	//e->event_data = res->response;
+	fly_event_data_set(e, __p, res->response);
 
 	return fly_hv2_response_event(e);
 }
@@ -4714,7 +4734,7 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 	if (fly_is_multipart_form_data(request->header))
 		fly_body_parse_multipart(request);
 __response:
-	fly_event_fase(e, RESPONSE);
+	fly_event_request_fase(e, RESPONSE);
 
 	/* Success parse request */
 	enum method_type __mtype;
@@ -4790,7 +4810,8 @@ response_500:
 	response = fly_500_response(request);
 	goto __response_event;
 __response_event:
-	e->event_data = (void *) response;
+	//e->event_data = (void *) response;
+	fly_event_data_set(e, __p, response);
 	return fly_hv2_response_event(e);
 error:
 	return -1;
@@ -4819,7 +4840,8 @@ int __fly_hv2_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream)
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	e->available = false;
-	e->event_data = (void *) stream->state->connect;
+	//e->event_data = (void *) stream->state->connect;
+	fly_event_data_set(e, __p, stream->state->connect);
 	fly_event_socket(e);
 
 	return fly_event_register(e);
@@ -4841,7 +4863,8 @@ int fly_hv2_response_event(fly_event_t *e)
 	fly_hv2_stream_t *stream;
 	struct fly_hv2_response *v2_res;
 
-	res = (fly_response_t *) e->event_data;
+	//res = (fly_response_t *) e->event_data;
+	res = (fly_response_t *) fly_event_data_get(e, __p);
 	if (res->header == NULL)
 		res->header = fly_header_init(res->request->ctx);
 	stream = res->request->stream;
@@ -5001,7 +5024,8 @@ int fly_hv2_response_event(fly_event_t *e)
 send_header:
 	fly_send_headers_frame(stream, res);
 	e->read_or_write |= FLY_WRITE;
-	e->event_data = (void *) res->request->connect;
+	//e->event_data = (void *) res->request->connect;
+	fly_event_data_set(e, __p, res->request->connect);
 	goto register_handler;
 
 send_body:
@@ -5017,7 +5041,8 @@ log:
 
 	/* release response resources */
 	res->fase = FLY_RESPONSE_RELEASE;
-	e->event_data = (void *) res->request->connect;
+	//e->event_data = (void *) res->request->connect;
+	fly_event_data_set(e, __p, res->request->connect);
 	fly_hv2_remove_response(stream->state, res);
 	fly_response_release(res);
 	if (stream->id > stream->state->max_handled_sid)
@@ -5048,7 +5073,8 @@ response_413:
 	fly_hv2_remove_response(stream->state, res);
 	fly_response_release(res);
 	res = fly_413_response(req);
-	e->event_data = (void *) res;
+	//e->event_data = (void *) res;
+	fly_event_data_set(e, __p, res);
 	return fly_hv2_response_event(e);
 
 response_500:
@@ -5057,7 +5083,8 @@ response_500:
 	fly_hv2_remove_response(stream->state, res);
 	fly_response_release(res);
 	res = fly_500_response(req);
-	e->event_data = (void *) res;
+	//e->event_data = (void *) res;
+	fly_event_data_set(e, __p, res);
 	return fly_hv2_response_event(e);
 }
 

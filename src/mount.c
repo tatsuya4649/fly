@@ -547,7 +547,8 @@ int __fly_mount_inotify_kevent_dir(
 	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_LINK;
 	__e->flag = FLY_PERSISTENT;
 	__e->tflag = FLY_INFINITY;
-	__e->event_data = data;
+	//__e->event_data = data;
+	fly_event_data_set(__e, __p, data);
 	FLY_EVENT_HANDLER(__e, handler);
 	fly_event_inotify(__e);
 	__e->end_handler = end_handler;
@@ -572,7 +573,8 @@ int __fly_mount_inotify_kevent_file(
 	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME;
 	__e->flag = FLY_PERSISTENT;
 	__e->tflag = FLY_INFINITY;
-	__e->event_data = data;
+	//__e->event_data = data;
+	fly_event_data_set(__e, __p, data);
 	FLY_EVENT_HANDLER(__e, handler);
 	fly_event_inotify(__e);
 	__e->end_handler = end_handler;

@@ -57,7 +57,9 @@ enum fly_request_fase{
 	EFLY_REQUEST_FASE_BODY,
 	EFLY_REQUEST_FASE_RESPONSE,
 };
-#define fly_event_fase(e, fase)			((e)->event_fase = (void *) EFLY_REQUEST_FASE_ ## fase)
+#define fly_event_request_fase(e, fase)			\
+	fly_event_fase_set((e), __e, EFLY_REQUEST_FASE_ ## fase)
+	//((e)->event_fase = (void *) EFLY_REQUEST_FASE_ ## fase)
 typedef enum fly_request_fase fly_request_fase_t;
 enum fly_request_state{
 	EFLY_REQUEST_STATE_INIT,
@@ -67,7 +69,9 @@ enum fly_request_state{
 	EFLY_REQUEST_STATE_END,
 	EFLY_REQUEST_STATE_TIMEOUT,
 };
-#define fly_event_state(e, event)		((e)->event_state = (void *) EFLY_REQUEST_STATE_ ## event)
+#define fly_event_request_state(e, event)		\
+	fly_event_state_set((e), __e, EFLY_REQUEST_STATE_ ## event)
+	//((e)->event_state = (void *) EFLY_REQUEST_STATE_ ## event)
 typedef enum fly_request_state fly_request_state_t;
 #include "encode.h"
 #include "mime.h"

@@ -421,7 +421,7 @@ __fly_static int __fly_worker_signal_handler(fly_event_t *e)
 			else
 				return -1;
 		}
-		if (__fly_wsignal_handle((fly_worker_t *) e->event_data, e->manager->ctx, &info) == -1)
+		if (__fly_wsignal_handle((fly_worker_t *) fly_event_data_get(e, __p), e->manager->ctx, &info) == -1)
 			return -1;
 	}
 
@@ -487,14 +487,13 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
 	e->flag = FLY_PERSISTENT;
-	e->event_fase = NULL;
-	e->event_state = NULL;
 	e->expired = false;
 	e->available = false;
 	e->handler = __fly_worker_signal_handler;
 	e->end_handler = __fly_worker_signal_end_handler;
 	e->if_fail_term = true;
-	e->event_data = (void *) worker;
+	//e->event_data = (void *) worker;
+	fly_event_data_set(e, __p, worker);
 
 	fly_time_null(e->timeout);
 	fly_event_signal(e);
@@ -804,7 +803,8 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
 	fly_time_null(e->timeout);
-	e->event_data = sockinfo;
+	//e->event_data = sockinfo;
+	fly_event_data_set(e, __p, sockinfo);
 	e->expired = false;
 	e->available = false;
 	e->if_fail_term = true;
