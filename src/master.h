@@ -94,7 +94,7 @@ void fly_master_setreload(fly_master_t *master, const char *reload_filepath, boo
 
 #define FLY_CHANGE_MNT_SIGNAL(__s, __m, __v)	\
 		do{										\
-		 	char *__ptr = (char *) __v;			\
+		 	uint8_t *__ptr = (uint8_t *) __v;			\
 		 	*__ptr = (__m);						\
 			*__s = *__ptr;						\
 		} while(0)
@@ -103,9 +103,8 @@ void fly_master_setreload(fly_master_t *master, const char *reload_filepath, boo
 
 #define FLY_CHANGE_MNT_SIGNAL(__s, __m, __v)	\
 		do {									\
-		 	char *__ptr = (char *) __v;			\
-		 	*(__ptr+(sizeof(int)-1)) = (__m);	\
-			*__s = *__ptr;						\
+			memcpy((uint8_t *) __s, (uint8_t *) __v, 3);	\
+			memcpy((((uint8_t *) __s)+3), (uint8_t *) __m, 1);	\
 		 } while(0)
 
 #endif

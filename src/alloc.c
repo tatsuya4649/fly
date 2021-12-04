@@ -56,11 +56,15 @@ void fly_free(void *ptr)
 }
 
 /* for red black tree */
-__fly_static int __fly_rb_search_block(void *k1, void *k2, void * data __fly_unused)
+__fly_static int __fly_rb_search_block(fly_rbdata_t *k1, fly_rbdata_t *k2, fly_rbdata_t *cmpdata __fly_unused)
 {
-	if (k1 > k2)
+	void *__a1, *__a2;
+
+	__a1 = fly_rbdata_ptr(k1);
+	__a2 = fly_rbdata_ptr(k2);
+	if (__a1 > __a2)
 		return FLY_RB_CMP_BIG;
-	else if (k1 < k2)
+	else if (__a1 < __a2)
 		return FLY_RB_CMP_SMALL;
 	else
 		return FLY_RB_CMP_EQUAL;
@@ -68,6 +72,7 @@ __fly_static int __fly_rb_search_block(void *k1, void *k2, void * data __fly_unu
 
 static void *__fly_palloc(fly_pool_t *pool, size_t size)
 {
+	fly_rbdata_t data, key;
 	fly_pool_b *new_block;
 
 	new_block = __fly_malloc(sizeof(fly_pool_b));
@@ -81,7 +86,9 @@ static void *__fly_palloc(fly_pool_t *pool, size_t size)
 	}
 	new_block->last = new_block->entry+size-1;
 	new_block->size = size;
-	if (fly_unlikely_null(fly_rb_tree_insert(pool->rbtree, new_block, new_block->entry, NULL, NULL))){
+	fly_rbdata_set_ptr(&data, new_block);
+	fly_rbdata_set_ptr(&key, new_block->entry);
+	if (fly_unlikely_null(fly_rb_tree_insert(pool->rbtree, &data, &key, NULL, NULL))){
 		__fly_free(new_block->entry);
 		__fly_free(new_block);
 		return NULL;
@@ -155,14 +162,17 @@ void fly_pbfree(fly_pool_t *pool, void *ptr)
 {
 	fly_rb_node_t *__dn;
 	fly_pool_b *__db;
+	fly_rbdata_t key;
+
 	if (pool->block_size == 0 || pool->rbtree->node_count == 0)
 		return;
 
-	__dn = (fly_rb_node_t *) fly_rb_node_from_key(pool->rbtree, ptr, NULL);
+	fly_rbdata_set_ptr(&key, ptr);
+	__dn = (fly_rb_node_t *) fly_rb_node_from_key(pool->rbtree, &key, NULL);
 	if (fly_unlikely_null(__dn))
 		return;
 
-	__db = (fly_pool_b *) __dn->data;
+	__db = (fly_pool_b *) fly_rbdata_ptr(&__dn->data);
 	fly_bllist_remove(&__db->blelem);
 	fly_rb_delete(pool->rbtree, __dn);
 	__fly_free(__db->entry);

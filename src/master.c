@@ -210,7 +210,7 @@ decrement:
 #endif
 	fly_notice_direct_log(
 		ctx->log,
-		"Detected the terminated of Worker(%d) in Master(%d). Create a new worker.\n",
+		"Master: Detected the terminated of Worker(%d). Create a new worker.\n",
 #ifdef HAVE_SIGNALFD
 		info->ssi_pid,
 #else
@@ -235,7 +235,7 @@ __fly_noreturn static void fly_master_signal_default_handler(fly_master_t *maste
 
 	fly_notice_direct_log(
 		ctx->log,
-		"master process(%d) is received signal(%s). kill workers.\n",
+		"Master: Process(%d) is received signal(%s). kill workers.\n",
 		master->pid,
 #ifdef HAVE_SIGNALFD
 		strsignal(si->ssi_signo)
@@ -271,7 +271,7 @@ __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, 
 	struct fly_bllist *__b;
 
 #ifdef DEBUG
-	printf("MASTER SIGNAL RECEIVED\n");
+	printf("MASTER: SIGNAL RECEIVED\n");
 #endif
 	fly_for_each_bllist(__b, &master->signals){
 		__s = fly_bllist_data(__b, struct fly_signal, blelem);
@@ -953,34 +953,6 @@ int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly
 		master->now_workers++;
 		goto child_register;
 	}
-//	switch(pid){
-//	case -1:
-//		return -1;
-//	case 0:
-//		{
-//			fly_context_t *mctx=NULL;
-//			/* unnecessary resource release */
-//			master->now_workers++;
-//			mctx = fly_master_release_except_context(master);
-//
-//			/* alloc worker resource */
-//			worker = fly_worker_init(mctx);
-//			if (!worker)
-//				exit(1);
-//
-//			/* set master context */
-//			ctx = worker->context;
-//#ifdef HAVE_SIGNALFD
-//			if (sigprocmask(SIG_UNBLOCK, &__s, NULL) == -1)
-//				return -1;
-//#endif
-//		}
-//		break;
-//	default:
-//		/* parent */
-//		master->now_workers++;
-//		goto child_register;
-//	}
 	/* new process only */
 	proc(ctx, (void *) worker);
 	exit(0);
@@ -1033,7 +1005,7 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 {
 	/* ie->len includes null terminate */
 	int mask;
-	int mod = 0;
+	uint8_t mod = 0;
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
 
@@ -1072,7 +1044,7 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	fly_for_each_bllist(__b, &master->workers){
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
 		int send_value;
-		FLY_CHANGE_MNT_SIGNAL(&send_value, mod, &parts->mount_number);
+		FLY_CHANGE_MNT_SIGNAL(&send_value, &mod, &parts->mount_number);
 		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, send_value) == -1)
 			return -1;
 	}
@@ -1086,20 +1058,39 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
 	int mask;
+#ifdef DEBUG
+	int __tmp;
+#endif
 
 	mask = __e->eflag;
+	__tmp = parts->file_count;
 	/* create new file */
-	if (mask & NOTE_EXTEND){
+	if ((mask & NOTE_EXTEND) || (mask & NOTE_WRITE)){
 		mod |= FLY_SIGNAL_ADDF;
 		if (fly_inotify_add_watch(parts, __e) == -1)
 			return -1;
+#ifdef  DEBUG
+		if (__tmp == parts->file_count)
+			printf("MASTER: Detect not added file.\n");
+		else
+			printf("MASTER: Detect added file.\n");
+#endif
+	}
+	if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
+		mod |= FLY_SIGNAL_UMOU;
+		if (fly_inotify_rmmp(parts) == -1)
+			return -1;
+#ifdef DEBUG
+		printf("MASTER: Detect rename/detect of mount point.\n");
+#endif
 	}
 
 	fly_for_each_bllist(__b, &master->workers){
-		int send_value;
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
-		FLY_CHANGE_MNT_SIGNAL(&send_value, mod, &parts->mount_number);
-		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, send_value) == -1)
+#ifdef DEBUG
+		printf("MASTER: Send signal to worker(\"%d\") to notificate chnaged content of mount point\n", __w->pid);
+#endif
+		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, 0) == -1)
 			return -1;
 	}
 
@@ -1139,42 +1130,76 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 	return 0;
 }
 #elif defined HAVE_KQUEUE
+
+static int __fly_file_deleted(const char *path)
+{
+	struct stat st;
+	if (stat(path, &st) == -1)
+		return 1;
+	else
+		return 0;
+}
+
 __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, int flag)
 {
-	int mask;
+	int mask, mod=0;
 	char rpath[FLY_PATH_MAX];
 	fly_worker_t *__w;
-	int signum = 0;
+	int res;
+	struct fly_mount_parts *parts;
 
-	if (fly_join_path(rpath, pf->parts->mount_path, pf->filename) == -1)
+	parts = pf->parts;
+#ifdef DEBUG
+	assert(parts != NULL);
+#endif
+	res = snprintf(rpath, FLY_PATH_MAX, "%s/%s", parts->mount_path, pf->filename);
+	if (res < 0 || res == FLY_PATH_MAX)
 		return -1;
 
+	if (__fly_file_deleted((const char *) rpath))
+		goto deleted;
+
 	mask = flag;
-	if (mask & NOTE_DELETE){
-		signum |= FLY_SIGNAL_DELF;
-		if (fly_inotify_rm_watch(pf, mask) == -1)
-			return -1;
-	}
-	if (mask & NOTE_ATTRIB){
-		signum |= FLY_SIGNAL_MODF;
+	if (mask & NOTE_DELETE)
+		goto deleted;
+	if (mask & NOTE_WRITE){
+		mod |= FLY_SIGNAL_MODF;
 		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
 			return -1;
 	}
 	if (mask & NOTE_EXTEND){
-		signum |= FLY_SIGNAL_MODF;
+		mod |= FLY_SIGNAL_MODF;
 		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
 			return -1;
 	}
-	if (mask & NOTE_RENAME){
-		signum |= FLY_SIGNAL_MODF;
+	if (mask & NOTE_ATTRIB){
+		mod |= FLY_SIGNAL_MODF;
 		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
 			return -1;
 	}
+	if (mask & NOTE_RENAME)
+		goto deleted;
+
+	goto send_signal;
+deleted:
+#ifdef DEBUG
+	printf("MASTER: Detect renamed/deleted file. Remove watch(%s)\n", rpath);
+#endif
+	mod |= FLY_SIGNAL_DELF;
+	if (fly_inotify_rm_watch(pf) == -1)
+		return -1;
+send_signal:
+	;
 
 	struct fly_bllist *__b;
 	fly_for_each_bllist(__b, &master->workers){
 		__w = fly_bllist_data(__b, struct fly_worker, blelem);
-		if (fly_send_signal(__w->pid, signum, pf->parts->mount_number) == -1)
+#ifdef DEBUG
+		printf("MASTER: Send signal to worker(\"%d\") to notificate chnaged content of mount point\n", __w->pid);
+#endif
+		//uint32_t send_value=0;
+		//FLY_CHANGE_MNT_SIGNAL(&send_value, &mod, &parts->mount_number);
+		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, 0) == -1)
 			return -1;
 	}
 	return 0;
@@ -1236,6 +1261,10 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 
 	//master = (fly_master_t *) e->event_data;
 	master = (fly_master_t *) fly_event_data_get(e, __p);
+#ifdef DEBUG
+	assert(master != NULL);
+	assert(master->context != NULL);
+#endif
 	ctx = master->context;
 	inofd = e->fd;
 	inobuf_size = FLY_NUMBER_OF_INOBUF*(sizeof(struct inotify_event) + NAME_MAX + 1);
@@ -1275,6 +1304,10 @@ static int __fly_master_inotify_handler(fly_event_t *e)
 
 	//master = (fly_master_t *) e->event_data;
 	master = (fly_master_t *) fly_event_data_get(e, __p);
+#ifdef DEBUG
+	assert(master != NULL);
+	assert(master->context != NULL);
+#endif
 	ctx = master->context;
 	return __fly_inotify_handle(master, ctx, e);
 }
@@ -1429,7 +1462,7 @@ static int __fly_reload(fly_master_t *__m, int fd, int mask)
 		break;
 	case NOTE_EXTEND:
 		break;
-	case NOTE_ATTRIB:
+	case NOTE_WRITE:
 		break;
 	case NOTE_RENAME:
 		break;
@@ -1443,7 +1476,6 @@ static int __fly_reload(fly_master_t *__m, int fd, int mask)
 	);
 
 	fly_master_release(__m);
-
 	/* jump to master process */
 #if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
 	siglongjmp(env, FLY_MASTER_RELOAD);
@@ -1463,7 +1495,6 @@ static int __fly_master_reload_filepath_handler(fly_event_t *e)
 	ssize_t numread;
 	struct inotify_event *__ie;
 
-	//__m = (fly_master_t *) e->event_data;
 	__m = fly_event_data_get(e, __p);
 	/* e->fd is inotify descriptor */
 	numread = read(e->fd, buf, FLY_INOTIFY_BUFSIZE(1));
@@ -1492,9 +1523,7 @@ static int __fly_master_reload_filepath_handler(fly_event_t *e)
 	fly_master_t *__m;
 	int fflags;
 
-	//__m = (fly_master_t *) e->event_data;
 	__m = fly_event_data_get(e, __p);
-
 	/* trigger flag of event(ex. NOTE_EXTEND ) */
 	fflags = e->eflag;
 	return __fly_reload(__m, e->fd, fflags);
@@ -1588,7 +1617,7 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 		e->read_or_write = FLY_KQ_INOTIFY;
 		e->flag = FLY_PERSISTENT;
 		e->tflag = FLY_INFINITY;
-		e->eflag = (NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME);
+		e->eflag = (NOTE_DELETE|NOTE_EXTEND|NOTE_WRITE|NOTE_RENAME);
 		e->expired = false;
 		e->available = false;
 		//e->event_data = (void *) master;
