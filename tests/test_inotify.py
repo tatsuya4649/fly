@@ -12,6 +12,7 @@ _INOD="ino/test_inotify_file.txt"
 _TEST_MOUNT_POINT="./tests/mnt"
 _INOF_PATH=f"{_TEST_MOUNT_POINT}/{_INOF}"
 _INOD_PATH=f"{_TEST_MOUNT_POINT}/{_INOD}"
+_INOD2_PATH=f"{_TEST_MOUNT_POINT}/ino"
 
 @pytest.fixture(scope="function", autouse=False)
 def inotify_file_remove():
@@ -98,3 +99,65 @@ async def test_create_directory(inotify_dir_remove, fly_servers):
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
     assert(res.status_code == 200)
 
+@pytest.mark.asyncio
+async def test_delete_directory(inotify_dir_remove, fly_servers):
+    # create directory
+    os.mkdir(os.path.dirname(_INOD_PATH))
+    with open(_INOD_PATH, "w") as f:
+        f.write("Hello new file!")
+    assert(os.path.isfile(_INOD_PATH))
+
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
+    assert(res.status_code == 200)
+
+    # delete directory
+    shutil.rmtree(os.path.dirname(_INOD_PATH))
+
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
+    assert(res.status_code == 404)
+
+@pytest.mark.asyncio
+async def test_move_directory(inotify_dir_remove, fly_servers):
+    # create directory
+    os.mkdir(os.path.dirname(_INOD_PATH))
+    with open(_INOD_PATH, "w") as f:
+        f.write("Hello new file!")
+    assert(os.path.isfile(_INOD_PATH))
+
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
+    assert(res.status_code == 200)
+
+    # move directory
+    shutil.move(_INOD_PATH, '../' + _INOF)
+
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
+    assert(res.status_code == 404)
+
+    # move to mount directory 
+    shutil.move('../' + _INOF, _INOD_PATH)
+
+@pytest.mark.asyncio
+async def test_move_directory2(inotify_dir_remove, fly_servers):
+    # create directory
+    os.mkdir(os.path.dirname(_INOD_PATH))
+    with open(_INOD_PATH, "w") as f:
+        f.write("Hello new file!")
+    assert(os.path.isfile(_INOD_PATH))
+
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
+    assert(res.status_code == 200)
+
+    # move directory
+    shutil.move(_INOD2_PATH, '../ino')
+
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
+    assert(res.status_code == 404)
+
+    # move to mount directory 
+    shutil.move('../ino', _INOD2_PATH)
