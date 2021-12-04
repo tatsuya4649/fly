@@ -1106,7 +1106,7 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 	fly_worker_t *__w;
 	int signum = 0;
 
-	if (fly_join_path(rpath, pf->parts->mount_path, pf->filename) == -1)
+	if (fly_join_path(rpath, FLY_PATH_MAX, pf->parts->mount_path, pf->filename) == -1)
 		return -1;
 
 	mask = ie->mask;

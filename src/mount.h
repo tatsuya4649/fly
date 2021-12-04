@@ -98,7 +98,7 @@ ssize_t fly_file_size(const char *path);
 int fly_mount_number(fly_mount_t *mnt, const char *path);
 int fly_mount_files_count(fly_mount_t *mnt, int mount_number);
 char *fly_content_from_path(int mount_number, char *filepath);
-int fly_join_path(char *buffer, char *join1, char *join2);
+int fly_join_path(char *buffer, size_t buflen, char *join1, char *join2);
 
 #ifdef HAVE_INOTIFY
 int fly_mount_inotify(fly_mount_t *mount, int ifd);
