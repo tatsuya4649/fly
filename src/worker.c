@@ -332,10 +332,11 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, const char *mount
 __fly_static int __fly_work_unmount(fly_mount_parts_t *parts)
 {
 	struct fly_mount_parts_file *__pf;
-	struct fly_bllist *__b;
+	struct fly_bllist *__b, *__n;
 
 	/* close all mount file */
-	fly_for_each_bllist(__b, &parts->files){
+	for (__b=parts->files.next; __b!=&parts->files; __b=__n){
+		__n = __b->next;
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if (__pf->fd != -1 && close(__pf->fd) == -1)
 			return -1;
@@ -343,6 +344,9 @@ __fly_static int __fly_work_unmount(fly_mount_parts_t *parts)
 		fly_parts_file_remove(parts, __pf);
 		parts->mount->file_count--;
 	}
+#ifdef DEBUG
+	printf("WORKER[%d]: Unmount mouht point. (%s)\n", getpid(), parts->mount_path);
+#endif
 	return fly_unmount(parts->mount, parts->mount_path);
 }
 
@@ -372,10 +376,10 @@ __fly_static void fly_check_del_file(fly_mount_parts_t *parts)
 	}
 }
 
-__fly_static void __fly_unmount_by_signal(fly_mount_parts_t *parts)
-{
-	__fly_work_unmount(parts);
-}
+//__fly_static void __fly_unmount_by_signal(fly_mount_parts_t *parts)
+//{
+//	__fly_work_unmount(parts);
+//}
 
 //__fly_static int __fly_signal_handler(fly_context_t *ctx, int mount_number, void (*handler)(fly_mount_parts_t *))
 //{
@@ -1052,10 +1056,23 @@ static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx
 		if (stat(__p->mount_path, &__sb) == -1){
 			if (errno == ENOENT){
 #ifdef DEBUG
-				printf("WORKER: DETECT UNMOUNT MOUNT POINT(%s)\n", __p->mount_path);
+				int __tmp, __tmpc;
+				size_t __tmpm;
+				__tmp = __p->file_count;
+				__tmpm = __p->mount->file_count;
+				__tmpc = __p->mount->mount_count;
+
+				printf("WORKER[%d]: DETECT UNMOUNT MOUNT POINT(%s)\n", getpid(), __p->mount_path);
 #endif
 				/* unmount mount point */
-				__fly_unmount_by_signal(__p);
+				__fly_work_unmount(__p);
+#ifdef DEBUG
+				printf("\tUnmount file count %d\n", __tmp);
+				printf("\tMount point count %d --> %d\n", __tmpc, __p->mount->mount_count);
+				printf("\tTotal file count %ld --> %ld\n", __tmpm, __p->mount->file_count);
+				assert(__tmpm = __p->mount->file_count + __tmp);
+#endif
+				continue;
 			}
 
 			/* emergency error */

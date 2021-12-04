@@ -1089,11 +1089,12 @@ __fly_unused static int __fly_samedir_cmp(char *s1, char *s2)
 #ifdef HAVE_INOTIFY
 int fly_inotify_rmmp(fly_mount_parts_t *parts)
 {
-	struct fly_bllist *__b;
+	struct fly_bllist *__b, *__n;
 	struct fly_mount_parts_file *__pf;
 
 	/* remove mount point */
-	fly_for_each_bllist(__b, &parts->files){
+	for (__b=parts->files.next; __b!=&parts->files; __b=__n){
+		__n = __b->next;
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if (__pf->infd > 0 && __pf->wd > 0)
 			if(inotify_rm_watch(__pf->infd, __pf->wd) == -1)
@@ -1117,16 +1118,33 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 
 int fly_inotify_rmmp(fly_mount_parts_t *parts)
 {
-	struct fly_bllist *__b;
+	struct fly_bllist *__b, *__n;
 	struct fly_mount_parts_file *__pf;
+#ifdef DEBUG
+	int __tmp, __tmpm;
+
+	__tmp = parts->file_count;
+	__tmpm = parts->mount->file_count;
+#endif
 
 	/* remove parts file of mount point */
-	fly_for_each_bllist(__b, &parts->files){
+	for (__b=parts->files.next; __b!=&parts->files; __b=__n){
+		__n = __b->next;
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
+#ifdef DEBUG
+		assert(__pf->fd > 0);
+#endif
 		if (__pf->fd > 0)
 			if (fly_inotify_rm_watch(__pf) == -1)
 				return -1;
 	}
+#ifdef DEBUG
+	/*
+	 * previous mount's file count == \
+	 * now it's file count + unmount mount parts file count
+	 */
+	assert(__tmpm = parts->mount->file_count + __tmp);
+#endif
 
 	/* remove mount point */
 	if (close(parts->fd) == -1)

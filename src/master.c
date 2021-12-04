@@ -102,7 +102,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 	case CLD_DUMPED:
 		FLY_NOTICE_DIRECT_LOG(
 			ctx->log,
-			"master process(%d) detected the dumped of worker process(%d).",
+			"master process(%d) detected the dumped of worker process(%d).\n",
 			getpid(),
 #ifdef HAVE_SIGNALFD
 			info->ssi_pid,
@@ -125,7 +125,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 		case FLY_ERR_EMERG:
 			FLY_NOTICE_DIRECT_LOG(
 				ctx->log,
-				"master process(%d) detected the emergency termination of worker process(%d).",
+				"master process(%d) detected the emergency termination of worker process(%d).\n",
 				getpid(),
 #ifdef HAVE_SIGNALFD
 				info->ssi_pid,
@@ -140,7 +140,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 		case FLY_ERR_CRIT:
 			FLY_NOTICE_DIRECT_LOG(
 				ctx->log,
-				"master process(%d) detected the critical termination of worker process(%d).",
+				"master process(%d) detected the critical termination of worker process(%d).\n",
 				getpid(),
 #ifdef HAVE_SIGNALFD
 				info->ssi_pid,
@@ -155,7 +155,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 		case FLY_ERR_ERR:
 			FLY_NOTICE_DIRECT_LOG(
 				ctx->log,
-				"master process(%d) detected the error termination of worker process(%d).",
+				"master process(%d) detected the error termination of worker process(%d).\n",
 				getpid(),
 #ifdef HAVE_SIGNALFD
 				info->ssi_pid,
@@ -1059,8 +1059,13 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	struct fly_bllist *__b;
 	int mask;
 #ifdef DEBUG
-	int __tmp;
+	int __tmp, __tmpc;
+	size_t __tmpm;
+	fly_mount_t *__m;
 	__tmp = parts->file_count;
+	__tmpc = parts->mount->mount_count;
+	__tmpm = parts->mount->file_count;
+	__m = parts->mount;
 #endif
 
 	mask = __e->eflag;
@@ -1085,6 +1090,10 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 			return -1;
 #ifdef DEBUG
 		printf("MASTER: Detect rename/detect of mount point.\n");
+		printf("MASTER: Unmount mount point. %s\n", parts->mount_path);
+		printf("\tUnmount file count %d\n", __tmp);
+		printf("\tMount point count %d --> %d\n", __tmpc, __m->mount_count);
+		printf("\tTotal file count %ld --> %ld\n", __tmpm, __m->file_count);
 #endif
 	}
 
