@@ -462,6 +462,10 @@ int fly_add_content_length_from_fd(fly_hdr_ci *ci, int fd, bool v2)
 
 int fly_add_content_etag(fly_hdr_ci *ci, struct fly_mount_parts_file *pf, bool v2)
 {
+#ifdef DEBUG
+	assert(pf->hash != NULL);
+	printf("ETag: %s\n", pf->hash->md5);
+#endif
 	if (v2)
 		return fly_header_add_v2(ci, fly_header_name_length("etag"), (char *) pf->hash->md5, 2*FLY_MD5_LENGTH, false);
 	else

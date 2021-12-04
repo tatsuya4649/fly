@@ -1206,6 +1206,9 @@ void __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount
 
 int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf)
 {
+#ifdef DEBUG
+	printf("RESPONSE FROM PF\n");
+#endif
 	__fly_response_from_pf(e, req, pf, fly_response_event);
 	return fly_event_register(e);
 }
