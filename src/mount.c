@@ -13,8 +13,8 @@
 
 __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point, size_t dist_len);
 static int fly_mount_max_limit(void);
-static int fly_file_max_limit(void);
-static int __fly_mount_search_cmp(void *k1, void *k2, void *data);
+static size_t fly_file_max_limit(void);
+static int __fly_mount_search_cmp(fly_rbdata_t *k1, fly_rbdata_t *k2, fly_rbdata_t *cmpdata);
 
 int fly_mount_init(fly_context_t *ctx)
 {
@@ -202,6 +202,10 @@ __fly_static int __fly_nftw(fly_event_t *event, fly_mount_parts_t *parts, const 
 	int res;
 
 
+#ifdef DEBUG
+	assert(parts->mount != NULL);
+	assert(parts->mount->ctx != NULL);
+#endif
 	if (parts->mount->file_count > fly_file_max_limit())
 		/* file resource error */
 		return -1;
@@ -215,10 +219,46 @@ __fly_static int __fly_nftw(fly_event_t *event, fly_mount_parts_t *parts, const 
 			continue;
 
 		res = snprintf(__path, FLY_PATH_MAX, "%s/%s", path, __ent->d_name);
-		if (res < 0 || res == FLY_PATH_MAX)
+		if (res < 0 || res == FLY_PATH_MAX){
+			fly_log_t *__log;
+#ifdef HAVE_INOTIFY
+			__log = parts->mount->ctx->log;
+#else
+			if (event == NULL)
+				continue;
+
+			__log = fly_context_from_event(event)->log;
+#endif
+#ifdef DEBUG
+			assert(__log != NULL);
+#endif
+			fly_notice_direct_log(
+				__log,
+				"can't mount \"%s\" because path name is too long. path name length must be %d characters or less.",
+				__path, FLY_PATHNAME_MAX
+			);
 			continue;
-		if (strlen(__ent->d_name) >= FLY_PATHNAME_MAX)
+		}
+		if (strlen(__ent->d_name) >= FLY_PATHNAME_MAX){
+			fly_log_t *__log;
+#ifdef HAVE_INOTIFY
+			__log = parts->mount->ctx->log;
+#else
+			if (event == NULL)
+				continue;
+
+			__log = fly_context_from_event(event)->log;
+#endif
+#ifdef DEBUG
+			assert(__log != NULL);
+#endif
+			fly_notice_direct_log(
+				__log,
+				"can't mount \"%s\" because path name is too long. directory entry name length must be %d characters or less.",
+				__path, FLY_PATHNAME_MAX
+			);
 			continue;
+		}
 
 		if (stat(__path, &sb) == -1)
 			continue;
@@ -268,7 +308,12 @@ __fly_static int __fly_nftw(fly_event_t *event, fly_mount_parts_t *parts, const 
 			goto error;
 
 		/* add rbnode to rbtree */
-		pfile->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) pfile, (void *) pfile->filename, &pfile->rbnode, (void *) pfile->filename_len);
+		fly_rbdata_t data, key, cmpdata;
+
+		fly_rbdata_set_ptr(&data, pfile);
+		fly_rbdata_set_ptr(&key, pfile->filename);
+		fly_rbdata_set_size(&cmpdata, pfile->filename_len);
+		pfile->rbnode = fly_rb_tree_insert(parts->mount->rbtree, &data, &key, &pfile->rbnode, &cmpdata);
 		fly_parts_file_add(parts, pfile);
 		parts->mount->file_count++;
 	}
@@ -349,6 +394,7 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	}
 
 #ifdef DEBUG
+	assert(mnt->rbtree->node_count == mnt->file_count);
 	__fly_mount_debug(mnt);
 #endif
 	return 0;
@@ -459,6 +505,7 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mou
 	struct fly_mount_parts_file *__pf;
 	char *filename;
 	size_t len;
+	fly_rbdata_t cmpdata, k1;
 
 	if (fly_unlikely_null(mnt) || mnt->file_count == 0){
 		*res = NULL;
@@ -477,8 +524,10 @@ int fly_found_content_from_path(fly_mount_t *mnt, fly_uri_t *uri, struct fly_mou
 		len = strlen(filename);
 	}
 
+	fly_rbdata_set_size(&cmpdata, len);
+	fly_rbdata_set_ptr(&k1, filename);
 	__pf = (struct fly_mount_parts_file *) \
-				fly_rb_node_data_from_key(mnt->rbtree, filename, (void *) len);
+				fly_rb_node_data_from_key(mnt->rbtree, &k1, &cmpdata);
 
 	if (__pf != NULL){
 		*res = __pf;
@@ -544,7 +593,7 @@ int __fly_mount_inotify_kevent_dir(
 	__e->fd = fd;
 	__e->read_or_write = FLY_KQ_INOTIFY;
 	fly_time_null(__e->timeout);
-	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_LINK;
+	__e->eflag =FLY_INOTIFY_WATCH_FLAG_MP;
 	__e->flag = FLY_PERSISTENT;
 	__e->tflag = FLY_INFINITY;
 	//__e->event_data = data;
@@ -554,7 +603,7 @@ int __fly_mount_inotify_kevent_dir(
 	__e->end_handler = end_handler;
 
 	parts->event = __e;
-
+	parts->fd = fd;
 	return fly_event_register(__e);
 }
 
@@ -570,7 +619,8 @@ int __fly_mount_inotify_kevent_file(
 	__e = fly_event_init(__m);
 	__e->fd = fd;
 	fly_time_null(__e->timeout);
-	__e->eflag = NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME;
+	__e->read_or_write = FLY_KQ_INOTIFY;
+	__e->eflag = FLY_INOTIFY_WATCH_FLAG_PF;
 	__e->flag = FLY_PERSISTENT;
 	__e->tflag = FLY_INFINITY;
 	//__e->event_data = data;
@@ -580,6 +630,7 @@ int __fly_mount_inotify_kevent_file(
 	__e->end_handler = end_handler;
 
 	__pf->event = __e;
+	__pf->fd = fd;
 	return fly_event_register(__e);
 }
 
@@ -630,12 +681,21 @@ int fly_mount_inotify_kevent(
 struct fly_mount_parts_file *fly_pf_from_parts(char *path, size_t path_len, fly_mount_parts_t *parts)
 {
 	struct fly_mount_parts_file *__pf;
+	fly_rbdata_t k1, cmpdata, *node_data;
 
 	if (parts->file_count == 0)
 		return NULL;
 
-	__pf = fly_rb_node_data_from_key(parts->mount->rbtree, path, &path_len);
-	return __pf;
+	fly_rbdata_set_ptr(&k1, path);
+	fly_rbdata_set_size(&cmpdata, path_len);
+	node_data = fly_rb_node_data_from_key(parts->mount->rbtree, &k1, &cmpdata);
+	if (node_data == NULL)
+		return NULL;
+	else{
+		__pf = (struct fly_mount_parts_file *)  fly_rbdata_ptr(node_data);
+		return __pf;
+	}
+	FLY_NOT_COME_HERE
 }
 
 struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount_parts_t *parts)
@@ -661,7 +721,6 @@ struct fly_mount_parts_file *fly_pf_from_parts_by_fullpath(char *path, fly_mount
 	path_len = strlen(path);
 	memset(__path, '\0', FLY_PATH_MAX);
 	memcpy(__path, path, path_len);
-
 	return fly_pf_from_parts(__path, strlen(path), parts);
 }
 
@@ -800,31 +859,53 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
 		if (fly_hash_from_parts_file_path(rpath, __npf) == -1)
 			return -1;
 
-		__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __npf, (void *) __npf->filename, &__npf->rbnode, (void *) len);
+		/* add rbtree of mount */
+		fly_rbdata_t data, key, cmpdata;
+
+		fly_rbdata_set_ptr(&data, __npf);
+		fly_rbdata_set_ptr(&key, __npf->filename);
+		fly_rbdata_set_size(&cmpdata, len);
+		__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, &data, &key, &__npf->rbnode, &cmpdata);
 		fly_parts_file_add(parts, __npf);
 		parts->mount->file_count++;
 	}
 	return 0;
 }
-#elif HAVE_KQUEUE
 
+#elif HAVE_KQUEUE
 int fly_inotify_kevent_event(fly_event_t *e, struct fly_mount_parts_file *pf)
 {
-	int fd;
+	int fd, res;
 	fly_event_t *__e;
+	char rpath[FLY_PATH_MAX];
+	struct fly_mount_parts *parts;
 
-	fd = open(pf->filename, O_RDONLY);
+	parts = pf->parts;
+#ifdef DEBUG
+	assert(parts != NULL);
+#endif
+
+	res = snprintf(rpath, FLY_PATH_MAX, "%s/%s", parts->mount_path, pf->filename);
+	if (res < 0 || res == FLY_PATH_MAX)
+		return -1;
+	fd = open(rpath, O_RDONLY);
 	if (fd == -1)
 		return -1;
 
 	__e = fly_event_init(e->manager);
 	__e->fd = fd;
 	__e->read_or_write = FLY_KQ_INOTIFY;
+	__e->flag = FLY_PERSISTENT;
+	__e->tflag = FLY_INFINITY;
+	__e->expired = false;
+	__e->available = false;
 	fly_time_null(__e->timeout);
 	if (pf->dir)
 		__e->eflag = FLY_INOTIFY_WATCH_FLAG_MP;
 	else
 		__e->eflag = FLY_INOTIFY_WATCH_FLAG_PF;
+	memcpy(&__e->event_data, &e->event_data, sizeof(fly_event_union));
+	memcpy(&__e->end_event_data, &e->end_event_data, sizeof(fly_event_union));
 	FLY_EVENT_HANDLER(__e, e->handler);
 	__e->end_handler = e->end_handler;
 	fly_event_inotify(__e);
@@ -848,6 +929,7 @@ static int __fly_same_direntry(fly_mount_parts_t *parts, struct dirent *__de)
 
 int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 {
+	int res;
 	DIR *__d;
 	struct dirent *__de;
 	char rpath[FLY_PATH_MAX];
@@ -858,11 +940,18 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 		return -1;
 
 	while((__de=readdir(__d)) != NULL){
+		/* ignore "." or ".." directories. */
+		if (strncmp(__de->d_name, ".", strlen(".")) == 0 || \
+				strncmp(__de->d_name, "..", strlen("..")) == 0)
+			continue;
 		if (__fly_same_direntry(parts, __de))
 			continue;
 
-		if (fly_join_path(rpath, parts->mount_path, __de->d_name) == -1)
-			return -1;
+		if (strlen(__de->d_name) >= FLY_PATHNAME_MAX)
+			continue;
+		res = snprintf(rpath, FLY_PATH_MAX, "%s/%s", parts->mount_path, __de->d_name);
+		if (res < 0 || res == FLY_PATH_MAX)
+			continue;
 
 		if (fly_isdir(rpath)){
 			if (__fly_nftw(__e, parts, (const char *) rpath, parts->mount_path, parts->fd) == -1)
@@ -887,7 +976,13 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 			if (fly_inotify_kevent_event(__e, __npf) == -1)
 				return -1;
 
-			__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __npf, (void *) __npf->filename, &__npf->rbnode, (void *) strlen(__npf->filename));
+			/* add rbtree of mount */
+			fly_rbdata_t data, key, cmpdata;
+
+			fly_rbdata_set_ptr(&data, __npf);
+			fly_rbdata_set_ptr(&key, __npf->filename);
+			fly_rbdata_set_size(&cmpdata, strlen(__npf->filename));
+			__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, &data, &key, &__npf->rbnode, &cmpdata);
 			fly_parts_file_add(parts, __npf);
 			parts->mount->file_count++;
 		}
@@ -936,12 +1031,39 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 		return -1;
 	return 0;
 }
+
+#elif HAVE_KQUEUE
+
+int fly_inotify_rmmp(fly_mount_parts_t *parts)
+{
+	struct fly_bllist *__b;
+	struct fly_mount_parts_file *__pf;
+
+	/* remove parts file of mount point */
+	fly_for_each_bllist(__b, &parts->files){
+		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
+		if (__pf->fd > 0)
+			if (fly_inotify_rm_watch(__pf) == -1)
+				return -1;
+	}
+
+	/* remove mount point */
+	if (close(parts->fd) == -1)
+		return -1;
+	parts->event->flag = FLY_CLOSE_EV;
+	if (fly_event_unregister(parts->event) == -1)
+		return -1;
+
+	if (fly_unmount(parts->mount, parts->mount_path) == -1)
+		return -1;
+
+	return 0;
+}
 #endif
 
 #ifdef HAVE_INOTIFY
 int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, int mask)
 {
-	/* remove mount point elements */
 	if (parts->file_count == 0)
 		return -1;
 
@@ -960,18 +1082,17 @@ int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, 
 	return 0;
 }
 #elif HAVE_KQUEUE
-int fly_inotify_rm_watch(struct fly_mount_parts_file *pf, int mask __fly_unused)
+int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 {
 #ifdef DEBUG
 	assert(pf != NULL);
+	assert(pf->event->read_or_write == FLY_KQ_INOTIFY);
 #endif
 	struct fly_mount *__m;
-	/* remove mount point elements */
 	if (pf->parts->file_count == 0)
 		return -1;
 
 	__m = pf->parts->mount;
-
 	if (close(pf->fd) == -1)
 		return -1;
 
@@ -1005,24 +1126,25 @@ static int fly_mount_max_limit(void)
 	return fly_config_value_int(FLY_MOUNT_MAX);
 }
 
-static int fly_file_max_limit(void)
+static size_t fly_file_max_limit(void)
 {
-	return fly_config_value_int(FLY_FILE_MAX);
+	return (size_t) fly_config_value_int(FLY_FILE_MAX);
 }
 
 /*
  *	data is length of k1 path.
  */
-static int __fly_mount_search_cmp(void *k1, void *k2, void *data)
+static int __fly_mount_search_cmp(fly_rbdata_t *k1, fly_rbdata_t *k2, fly_rbdata_t *cmpdata)
 {
 	char *c1, *c2;
 	int res;
 	size_t minlen;
 	size_t len;
 
-	c1 = (char *) k1;
-	c2 = (char *) k2;
-	len = (size_t) data;
+	c1 = (char *) fly_rbdata_ptr(k1);
+	c2 = (char *) fly_rbdata_ptr(k2);
+	/* c1 length */
+	len = fly_rbdata_size(cmpdata);
 
 	minlen = (strlen(c2) < len) ? strlen(c2) : len;
 	res = strncmp(c1, c2, minlen);
@@ -1049,3 +1171,4 @@ const char *fly_index_path(void)
 {
 	return (const char *) fly_config_value_str(FLY_INDEX_PATH);
 }
+

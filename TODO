@@ -15,5 +15,3 @@ v 1.2.0
 * supports macOS/freebsd
 
 * fix realpath bug
-
-* fix event data type

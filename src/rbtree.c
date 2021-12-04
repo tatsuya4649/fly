@@ -9,7 +9,6 @@ struct fly_rb_node nil_node = {
 	.c_left = nil_node_ptr,
 	.parent = nil_node_ptr,
 	.color = FLY_RB_BLACK,
-	.data = NULL,
 };
 
 static inline void fly_rb_color_update(struct fly_rb_node *node, fly_rb_color_t color);
@@ -238,8 +237,8 @@ fly_rb_node_t *__fly_node_init(void *data, void *key)
 	if (fly_unlikely_null(node))
 		return NULL;
 
-	node->data = data;
-	node->key = key;
+	fly_rbdata_set(node, __p, data);
+	fly_rbkey_set(node, __p, key);
 	node->parent = nil_node_ptr;
 	node->c_right = nil_node_ptr;
 	node->c_left = nil_node_ptr;
@@ -249,23 +248,28 @@ fly_rb_node_t *__fly_node_init(void *data, void *key)
 	return node;
 }
 
-__fly_static int __fly_rb_node_from_key(struct fly_rb_tree *tree, struct fly_rb_node *node, void *key, void *data)
+fly_rb_node_t *fly_node_init(void)
 {
-	return tree->cmp(key, node->key, data);
+	return __fly_node_init(NULL, NULL);
 }
 
-void *fly_rb_node_data_from_key(struct fly_rb_tree *tree, void *key, void *data)
+__fly_static int __fly_rb_node_from_key(struct fly_rb_tree *tree, struct fly_rb_node *node, fly_rbdata_t *key, fly_rbdata_t *cmpdata)
+{
+	return tree->cmp(key, &node->key, cmpdata);
+}
+
+fly_rbdata_t *fly_rb_node_data_from_key(struct fly_rb_tree *tree, fly_rbdata_t *key, fly_rbdata_t *cmpdata)
 {
 	fly_rb_node_t *__n;
 
-	__n = fly_rb_node_from_key(tree, key, data);
+	__n = fly_rb_node_from_key(tree, key, cmpdata);
 	if (fly_unlikely_null(__n))
 		return NULL;
 	else
-		return __n->data;
+		return &__n->data;
 }
 
-fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key, void *data)
+fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, fly_rbdata_t *key, fly_rbdata_t *cmpdata)
 {
 	struct fly_rb_node *__n;
 	if (!tree->cmp)
@@ -273,7 +277,7 @@ fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key, void *d
 
 	__n = tree->root->node;
 	while(__n != nil_node_ptr){
-		switch(__fly_rb_node_from_key(tree, __n, key, data)){
+		switch(__fly_rb_node_from_key(tree, __n, key, cmpdata)){
 		case FLY_RB_CMP_BIG:
 			__n = __n->c_right;
 			break;
@@ -289,14 +293,16 @@ fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key, void *d
 	return NULL;
 }
 
-fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key, struct fly_rb_node **node_data, void *__cmpdata)
+fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, fly_rbdata_t *data, fly_rbdata_t *key, struct fly_rb_node **node_data, fly_rbdata_t *__cmpdata)
 {
 	fly_rb_node_t *node;
 
-	node = __fly_node_init(data, key);
+	node = fly_node_init();
 	if (fly_unlikely_null(node))
 		return NULL;
 
+	memcpy(&node->data, data, sizeof(fly_rbdata_t));
+	memcpy(&node->key, key, sizeof(fly_rbdata_t));
 #ifdef DEBUG
 	size_t count = tree->node_count;
 	assert(tree!=NULL);
@@ -329,7 +335,7 @@ fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *ke
 	return node;
 }
 
-struct fly_rb_node *fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node, void *data)
+struct fly_rb_node *fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node, fly_rbdata_t *cmpdata)
 {
 	struct fly_rb_node *origin_node = node;
     struct fly_rb_node *__n, *__p, *__g, *__u;
@@ -341,7 +347,7 @@ struct fly_rb_node *fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly
 
     __n = tree->root->node;
     while(true){
-		switch(tree->cmp(node->key, __n->key, data)){
+		switch(tree->cmp(&node->key, &__n->key, cmpdata)){
 		case FLY_RB_CMP_EQUAL:
 			fly_free(node);
             return __n;

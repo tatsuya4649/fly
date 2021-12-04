@@ -17,7 +17,7 @@ __fly_static int __fly_expired_event(fly_event_manager_t *manager);
 static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager);
 static void __fly_event_handle_nomonitorable(fly_event_manager_t *manager);
 __fly_static int __fly_event_handle_failure_log(fly_event_t *e);
-__fly_static int __fly_event_cmp(void *k1, void *k2, void *);
+__fly_static int __fly_event_cmp(fly_rbdata_t *k1, fly_rbdata_t *k2, fly_rbdata_t *);
 static void fly_event_handle(fly_event_t *e);
 #ifdef HAVE_KQUEUE
 static int __fly_event_kevent_inotify(fly_event_t *__e);
@@ -83,11 +83,11 @@ void fly_jbhandle_setting(fly_event_manager_t *em, void (*handle)(fly_context_t 
 	em->jbend_handle = handle;
 }
 
-__fly_static int __fly_event_cmp(void *k1, void *k2, void *data __fly_unused)
+__fly_static int __fly_event_cmp(fly_rbdata_t *k1, fly_rbdata_t *k2, fly_rbdata_t *cmpdata __fly_unused)
 {
 	struct __fly_event_for_rbtree *__e1, *__e2;
-	__e1 = (struct __fly_event_for_rbtree *) k1;
-	__e2 = (struct __fly_event_for_rbtree *) k2;
+	__e1 = (struct __fly_event_for_rbtree *) fly_rbdata_ptr(k1);
+	__e2 = (struct __fly_event_for_rbtree *) fly_rbdata_ptr(k2);
 
 #ifdef DEBUG
 	assert(__e1 != NULL);
@@ -234,8 +234,8 @@ void fly_event_debug_rbtree_delete_node(fly_event_manager_t *manager, fly_event_
 		if (__e == target){
 			assert(__e->rbnode == NULL);
 		}else{
-			assert(__e->rbnode->data == __e);
-			assert((*__e->rbnode->node_data)->data == __e);
+			assert(fly_rbdata_ptr(&__e->rbnode->data) == __e);
+			assert(fly_rbdata_ptr(&((*__e->rbnode->node_data)->data)) == __e);
 		}
 	}
 #ifdef DEBUG_EVENT
@@ -255,8 +255,8 @@ void fly_event_debug_rbtree(fly_event_manager_t *manager)
 		if ((__e->tflag & FLY_INFINITY))
 			continue;
 
-		assert(__e->rbnode->data == __e);
-		assert((*__e->rbnode->node_data)->data == __e);
+		assert(fly_rbdata_ptr(&__e->rbnode->data) == __e);
+		assert(fly_rbdata_ptr(&((*__e->rbnode->node_data)->data)) == __e);
 	}
 }
 #endif
@@ -279,16 +279,19 @@ int fly_event_register(fly_event_t *event)
 	if (op == FLY_EVENT_CTL_ADD){
 		/* add to red black tree */
 		if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event)){
+			fly_rbdata_t event_data, event_key;
 			__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
-			event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->rbtree_elem, &event->rbnode, NULL);
+			fly_rbdata_set_ptr(&event_data, event);
+			fly_rbdata_set_ptr(&event_key, &event->rbtree_elem);
+			event->rbnode = fly_rb_tree_insert(event->manager->rbtree, &event_data, &event_key, &event->rbnode, NULL);
 #ifdef DEBUG
 			int ret;
 
 			ret = (event->rbnode == (*event->rbnode->node_data));
 			assert(ret);
-			ret = (event == (*event->rbnode->node_data)->data);
+			ret = (event == fly_rbdata_ptr(&(*event->rbnode->node_data)->data));
 			assert(ret);
-			ret = (event->rbnode->key-event->rbnode->data) == offsetof(fly_event_t, rbtree_elem);
+			ret = (fly_rbdata_ptr(&event->rbnode->key)-fly_rbdata_ptr(&event->rbnode->data)) == offsetof(fly_event_t, rbtree_elem);
 			assert(ret);
 			fly_event_debug_rbtree(event->manager);
 #endif
@@ -309,33 +312,15 @@ int fly_event_register(fly_event_t *event)
 #endif
 		/* delete & add (for changing timeout) */
 		if (fly_event_monitorable(event)){
-//#ifdef HAVE_KQUEUE
-//			if (event->post_row != FLY_NO_POST_ROW){
-//				if (event->post_row & FLY_READ &&
-//						!(event->read_or_write & FLY_READ)){
-//					struct kevent __kev;
-//					EV_SET(&__kev, event->fd, EVFILT_READ, EV_DELETE, 0, 0, NULL);
-//					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
-//						return -1;
-//				}
-//				if (event->post_row & FLY_WRITE &&
-//						!(event->read_or_write & FLY_WRITE)){
-//					struct kevent __kev;
-//					EV_SET(&__kev, event->fd, EVFILT_WRITE, EV_DELETE, 0, 0, NULL);
-//					if (kevent(event->manager->efd, &__kev, 1, NULL, 0, NULL) == -1)
-//						return -1;
-//				}
-//			}
-//#endif
 			if (event->rbnode){
 #ifdef DEBUG
 				int ret;
 
 				ret = (event->rbnode == (*event->rbnode->node_data));
 				assert(ret);
-				ret = event == (*event->rbnode->node_data)->data;
+				ret = event == fly_rbdata_ptr(&(*event->rbnode->node_data)->data);
 				assert(ret);
-				ret = (event->rbnode->key-event->rbnode->data) == offsetof(fly_event_t, rbtree_elem);
+				ret = (fly_rbdata_ptr(&event->rbnode->key)-fly_rbdata_ptr(&event->rbnode->data)) == offsetof(fly_event_t, rbtree_elem);
 				assert(ret);
 				fly_event_debug_rbtree(event->manager);
 #endif
@@ -350,14 +335,18 @@ int fly_event_register(fly_event_t *event)
 			if (!(event->tflag & FLY_INFINITY) && !(event->tflag & FLY_INHERIT))
 					__fly_add_time_from_now(&event->abs_timeout, &event->timeout);
 			if (!(event->tflag & FLY_INFINITY) && fly_event_monitorable(event)){
-				event->rbnode = fly_rb_tree_insert(event->manager->rbtree, event, &event->rbtree_elem, &event->rbnode, NULL);
+				fly_rbdata_t event_key, event_data;
+
+				fly_rbdata_set_ptr(&event_data, event);
+				fly_rbdata_set_ptr(&event_key, &event->rbtree_elem);
+				event->rbnode = fly_rb_tree_insert(event->manager->rbtree, &event_data, &event_key, &event->rbnode, NULL);
 #ifdef DEBUG
 				int ret;
 				ret = (event->rbnode == (*event->rbnode->node_data));
 				assert(ret);
-				ret = (event == (*event->rbnode->node_data)->data);
+				ret = event == fly_rbdata_ptr(&(*event->rbnode->node_data)->data);
 				assert(ret);
-				ret = (event->rbnode->key-event->rbnode->data) == offsetof(fly_event_t, rbtree_elem);
+				ret = (fly_rbdata_ptr(&event->rbnode->key)-fly_rbdata_ptr(&event->rbnode->data)) == offsetof(fly_event_t, rbtree_elem);
 				assert(ret);
 				fly_event_debug_rbtree(event->manager);
 #endif
@@ -590,7 +579,7 @@ __fly_static fly_event_t *__fly_nearest_event(fly_event_manager_t *manager)
 	while(node->c_left != nil_node_ptr)
 		node = node->c_left;
 
-	return (fly_event_t *) node->data;
+	return (fly_event_t *) fly_rbdata_ptr(&node->data);
 }
 
 __fly_static int __fly_expired_event(fly_event_manager_t *manager)
@@ -661,7 +650,7 @@ __fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_
 	while(node!=nil_node_ptr){
 		struct __fly_event_for_rbtree *__er;
 
-		__er = (struct __fly_event_for_rbtree *) node->key;
+		__er = (struct __fly_event_for_rbtree *) fly_rbdata_ptr(&node->key);
 		fly_time_t *__et = __er->abs_timeout;
 
 #ifdef DEBUG
@@ -672,7 +661,7 @@ __fly_static int __fly_expired_from_rbtree(fly_event_manager_t *manager, fly_rb_
 		if (__et->tv_sec > __t->tv_sec)
 			node = node->c_left;
 		else{
-			__e = (fly_event_t *) node->data;
+			__e = (fly_event_t *) fly_rbdata_ptr(&node->data);
 			__e->expired = true;
 
 			__fly_expired_from_rbtree(manager, tree, node->c_left, __t);
@@ -1045,7 +1034,7 @@ void fly_event_error_add(fly_event_t *e, struct fly_err *__err)
 static int __fly_event_kevent_inotify(fly_event_t *__e)
 {
 	struct kevent __kev;
-	EV_SET(&__kev, __e->fd, EVFILT_VNODE, EV_ADD, __e->eflag, 0, (void *) __e);
+	EV_SET(&__kev, __e->fd, EVFILT_VNODE, EV_ADD|EV_CLEAR, __e->eflag, 0, (void *) __e);
 	return kevent(__e->manager->efd, &__kev, 1, NULL, 0, NULL);
 }
 #endif

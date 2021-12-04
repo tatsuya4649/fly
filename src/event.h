@@ -34,9 +34,6 @@ extern fly_pool_t *fly_event_pool;
 #elif defined HAVE_KQUEUE
 #define FLY_READ		(1<<0)
 #define FLY_WRITE		(1<<1)
-//#define FLY_READ		EVFILT_READ
-//#define FLY_WRITE		EVFILT_WRITE
-//#define FLY_KQ_SIGNAL	(1<<3)
 #define FLY_KQ_INOTIFY	(1<<4)
 #endif
 

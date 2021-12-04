@@ -77,7 +77,7 @@ typedef struct fly_context fly_context_t;
 struct fly_mount{
 	struct fly_bllist			parts;
 	int							mount_count;
-	int 						file_count;
+	size_t 						file_count;
 
 	struct fly_mount_parts_file	*index;
 	struct fly_rb_tree			*rbtree;
@@ -131,7 +131,7 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e);
 #ifdef HAVE_INOTIFY
 int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, int mask);
 #elif defined HAVE_KQUEUE
-int fly_inotify_rm_watch(struct fly_mount_parts_file *pf, int mask);
+int fly_inotify_rm_watch(struct fly_mount_parts_file *pf);
 #endif
 int fly_inotify_rmmp(fly_mount_parts_t *parts);
 
@@ -139,8 +139,22 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts);
 #define FLY_INOTIFY_WATCH_FLAG_PF	(IN_MODIFY|IN_ATTRIB)
 #define FLY_INOTIFY_WATCH_FLAG_MP	(IN_CREATE|IN_DELETE_SELF|IN_DELETE|IN_MOVE|IN_MOVE_SELF|IN_ONLYDIR)
 #elif defined HAVE_KQUEUE
-#define FLY_INOTIFY_WATCH_FLAG_MP	(NOTE_DELETE|NOTE_EXTEND|NOTE_LINK)
-#define FLY_INOTIFY_WATCH_FLAG_PF	(NOTE_DELETE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME)
+/* 
+ * Directory:
+ * 	NOTE_EXTEND -> change directory entry count.
+ * 	NOTE_RENAME -> rename directory.
+ * 	NOTE_DELETE -> delete directory.
+ */
+#define FLY_INOTIFY_WATCH_FLAG_MP	(NOTE_DELETE|NOTE_EXTEND|NOTE_RENAME|NOTE_WRITE)
+/* 
+ * File:
+ *	NOTE_EXTEND -> extend file size.
+ *	NOTE_WRITE  -> change file content.
+ *	NOTE_DELETE -> delete file.
+ *	NOTE_ATTRIB -> change file attribute.
+ *	NOTE_RENAME -> rename file.
+ */
+#define FLY_INOTIFY_WATCH_FLAG_PF	(NOTE_DELETE|NOTE_WRITE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME)
 #endif
 #define FLY_NUMBER_OF_INOBUF				(100)
 #define is_fly_myself(ie)				((ie)->len == 0)
@@ -176,5 +190,23 @@ __fly_unused static struct fly_mount_parts *fly_parts_debug(struct fly_bllist *_
 	return (struct fly_mount_parts *) fly_bllist_data(__b, struct fly_mount_parts, mbelem);
 }
 #endif
+
+/*
+ * If file is changed, return true, false otherwise.
+ */
+static inline bool fly_pf_modified(struct stat *sb, struct fly_mount_parts_file *__pf)
+{
+	struct stat *__fs;
+
+	__fs = &__pf->fs;
+
+	/*
+	 *  Check last modification time and last status change time
+	 */
+	if (__fs->st_mtime == sb->st_mtime && __fs->st_ctime == sb->st_ctime)
+		return false;
+	else
+		return true;
+}
 
 #endif

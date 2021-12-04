@@ -46,10 +46,14 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx);
 #define FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_UNKNOWN_RETURN	-5
 __fly_static int __fly_worker_open_default_content(fly_context_t *ctx);
 static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info);
+#define FLY_PREENCODE_FILE_ENCODE_SUCCESS			0
+#define FLY_PREENCODE_FILE_ENCODE_ERROR				-1
+#define FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN	-2
+static int fly_preencode_pf(fly_context_t *ctx, struct fly_mount_parts_file *__pf);
+static int fly_preencode_frc(fly_context_t *ctx, struct fly_response_content_by_stcode *__frc);
 
 
 #define FLY_WORKER_SIG_COUNT				(sizeof(fly_worker_signals)/sizeof(fly_signal_t))
-
 /*
  *  worker process signal info.
  */
@@ -122,6 +126,9 @@ __fly_static void fly_add_worker_sig(fly_context_t *ctx, int num, fly_sighand_t 
 	fly_worker_t *__w;
 	fly_signal_t *__nf;
 
+#ifdef DEBUG
+	printf("WORKER SIGNAL SETTING: %d: %s\n", num, strsignal(num));
+#endif
 	__w = (fly_worker_t *) ctx->data;
 	__nf = fly_pballoc(ctx->pool, sizeof(struct fly_signal));
 	__nf->number = num;
@@ -129,20 +136,36 @@ __fly_static void fly_add_worker_sig(fly_context_t *ctx, int num, fly_sighand_t 
 	fly_bllist_add_tail(&__w->signals, &__nf->blelem);
 }
 
-__fly_static void __fly_modupdate(fly_mount_parts_t *parts)
+__fly_static void fly_check_mod_file(fly_mount_parts_t *parts)
 {
 	if (parts->file_count == 0)
 		return;
 
+#ifdef DEBUG
+	printf("WORKER[%d]: CHECK MODIFIED FILE (%s)\n", getpid(), parts->mount_path);
+#endif
 	char rpath[FLY_PATH_MAX];
 
 	struct fly_bllist *__b;
 	struct fly_mount_parts_file *__f;
+	struct stat statbuf;
 
 	fly_for_each_bllist(__b, &parts->files){
 		__f = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if (fly_join_path(rpath, parts->mount_path, __f->filename) == -1)
 			return;
+		if (stat(rpath, &statbuf) == -1)
+			FLY_EMERGENCY_ERROR(
+				"stat file error in worker. (%s: %d)",
+				__FILE__, __LINE__
+			);
+
+		if (!fly_pf_modified(&statbuf, __f))
+			continue;
+
+#ifdef DEBUG
+		printf("WORKER[%d]: DETECT MODIFIED FILE(%s)\n", getpid(), rpath);
+#endif
 		if (fly_hash_update_from_parts_file_path(rpath, __f) == -1)
 			FLY_EMERGENCY_ERROR(
 				"modify file error in worker."
@@ -179,7 +202,7 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 				strcmp(__ent->d_name, "..") == 0)
 			continue;
 
-		if (fly_join_path(__path, parts->mount_path, __ent->d_name) == -1)
+		if (fly_join_path(__path, path, __ent->d_name) == -1)
 			goto error;
 
 		if (fly_isdir(__path) == 1){
@@ -187,6 +210,10 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 				goto error;
 			continue;
 		}
+		if (strlen(__path) >= FLY_PATH_MAX)
+			continue;
+		if (strlen(__ent->d_name) >= FLY_PATHNAME_MAX)
+			continue;
 
 		__pf = fly_pf_from_parts_by_fullpath(__path, parts);
 		/* already register in parts */
@@ -194,6 +221,9 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 			continue;
 
 		/* new file regsiter in parts */
+#ifdef DEBUG
+		printf("WORKER[%d]: DETECT NEW FILE (%s)\n", getpid(), __path);
+#endif
 		if (stat(__path, &sb) == -1)
 			goto error;
 
@@ -204,6 +234,9 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		__pf->fd = open(__path, O_RDONLY);
 		if (__pf->fd == -1)
 			goto error;
+
+		if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
+			return -1;
 		__fly_path_cpy(__pf->filename, __path, mount_point);
 		__pf->filename_len = strlen(__pf->filename);
 		__pf->parts = parts;
@@ -214,9 +247,30 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		if (fly_hash_from_parts_file_path(__path, __pf) == -1)
 			goto error;
 
+#ifdef DEBUG
+		assert(parts->mount != NULL);
+		assert(parts->mount->ctx != NULL);
+#endif
+		switch (fly_preencode_pf(parts->mount->ctx, __pf)){
+		case FLY_PREENCODE_FILE_ENCODE_SUCCESS:
+			break;
+		case FLY_PREENCODE_FILE_ENCODE_ERROR:
+			return -1;
+		case FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN:
+			return -1;
+		default:
+			FLY_NOT_COME_HERE
+		}
+
 		fly_parts_file_add(parts, __pf);
 		parts->mount->file_count++;
-		__pf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, (void *) __pf, (void *) __pf->filename, &__pf->rbnode, (void *) __pf->filename_len);
+		/* add rbtree of mount */
+		fly_rbdata_t data, key, cmpdata;
+
+		fly_rbdata_set_ptr(&data, __pf);
+		fly_rbdata_set_ptr(&key, __pf->filename);
+		fly_rbdata_set_size(&cmpdata, __pf->filename_len);
+		__pf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, &data, &key, &__pf->rbnode, &cmpdata);
 	}
 	return closedir(__pathd);
 error:
@@ -231,12 +285,18 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __fly_unused char
 
 	char __path[FLY_PATH_MAX];
 	struct fly_mount_parts_file *__pf;
-	struct fly_bllist *__b;
+	struct fly_bllist *__b, *__n;
 
-	fly_for_each_bllist(__b, &parts->files){
+	for (__b=parts->files.next; __b!=&parts->files; __b=__n){
+		__n = __b->next;
+
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 		if (fly_join_path(__path, (char *) mount_point, __pf->filename) == -1 \
 				&& errno == ENOENT){
+#ifdef DEBUG
+			printf("WORKER[%d]: DETECT DELETED FILE: (%s)\n", \
+					getpid(), __path);
+#endif
 			if (__pf->fd != -1)
 				if (close(__pf->fd) == -1)
 					return -1;
@@ -266,14 +326,30 @@ __fly_static int __fly_work_unmount(fly_mount_parts_t *parts)
 	return fly_unmount(parts->mount, parts->mount_path);
 }
 
-__fly_static void __fly_add_file_by_signal(fly_mount_parts_t *parts)
+__fly_static void fly_check_add_file(fly_mount_parts_t *parts)
 {
-	__fly_work_add_nftw(parts, parts->mount_path, parts->mount_path);
+#ifdef DEBUG
+	printf("WORKER[%d]: CHECK ADD FILE (%s)\n", getpid(), parts->mount_path);
+#endif
+	if (__fly_work_add_nftw(parts, parts->mount_path, parts->mount_path) == -1){
+		FLY_EMERGENCY_ERROR(
+			"worker check add file error. (%s: %d)",
+			__FILE__, __LINE__
+		);
+	}
 }
 
-__fly_static void __fly_del_file_by_signal(fly_mount_parts_t *parts)
+__fly_static void fly_check_del_file(fly_mount_parts_t *parts)
 {
-	__fly_work_del_nftw(parts, parts->mount_path, parts->mount_path);
+#ifdef DEBUG
+	printf("WORKER[%d]: CHECK DELETE FILE (%s)\n", getpid(), parts->mount_path);
+#endif
+	if (__fly_work_del_nftw(parts, parts->mount_path, parts->mount_path) == -1){
+		FLY_EMERGENCY_ERROR(
+			"worker check delete file error. (%s: %d)",
+			__FILE__, __LINE__
+		);
+	}
 }
 
 __fly_static void __fly_unmount_by_signal(fly_mount_parts_t *parts)
@@ -307,7 +383,7 @@ __fly_static void FLY_SIGNAL_MODF_HANDLER(__fly_unused fly_context_t *ctx, __fly
 #else
 	mount_number = info->si_value.sival_int;
 #endif
-	__fly_signal_handler(ctx, mount_number, __fly_modupdate);
+	__fly_signal_handler(ctx, mount_number, fly_check_mod_file);
 }
 
 __fly_static void FLY_SIGNAL_ADDF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
@@ -322,7 +398,7 @@ __fly_static void FLY_SIGNAL_ADDF_HANDLER(__fly_unused fly_context_t *ctx, __fly
 #else
 	mount_number = info->si_value.sival_int;
 #endif
-	__fly_signal_handler(ctx, mount_number, __fly_add_file_by_signal);
+	__fly_signal_handler(ctx, mount_number, fly_check_add_file);
 }
 
 __fly_static void FLY_SIGNAL_DELF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
@@ -337,7 +413,7 @@ __fly_static void FLY_SIGNAL_DELF_HANDLER(__fly_unused fly_context_t *ctx, __fly
 #else
 	mount_number = info->si_value.sival_int;
 #endif
-	__fly_signal_handler(ctx, mount_number, __fly_del_file_by_signal);
+	__fly_signal_handler(ctx, mount_number, fly_check_del_file);
 }
 
 __fly_static void FLY_SIGNAL_UMOU_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
@@ -524,8 +600,12 @@ __fly_static int __fly_worker_signal(fly_worker_t *worker, fly_event_manager_t *
 	if (fly_refresh_signal() == -1)
 		return -1;
 
-	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++)
-		fly_add_worker_sig(ctx, fly_master_signals[i].number, fly_master_signals[i].handler);
+#ifdef DEBUG
+	printf("WORKER SIGNAL SETTING COUNT: \"%ld\"\n", FLY_WORKER_SIG_COUNT);
+#endif
+	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++){
+		fly_add_worker_sig(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler);
+	}
 //	fly_worker_rtsig_added(ctx);
 
 	__wptr = worker;
@@ -835,10 +915,13 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 			__pf = fly_bllist_data(__pfb, struct fly_mount_parts_file, blelem);
 			if (__pf->dir){
 				fly_parts_file_remove(__p, __pf);
+				__p->mount->file_count--;
 			}else{
 				if (fly_join_path(rpath, __p->mount_path, __pf->filename) == -1)
 					continue;
-
+#ifdef DEBUG
+				assert(strlen(rpath) <= FLY_PATH_MAX);
+#endif
 				__pf->fd = open(rpath, O_RDONLY);
 				/* if index, setting */
 				const char *index_path = fly_index_path();
@@ -847,53 +930,16 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 
 				if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
 					return FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR;
-				/* pre encode */
-				if (fly_over_encoding_threshold(ctx, (size_t) __pf->fs.st_size)){
-					struct fly_de *__de;
-					int res;
 
-					__de = fly_de_init(__p->pool);
-					__de->type = FLY_DE_FROM_PATH;
-					__de->fd = __pf->fd;
-					__de->offset = 0;
-					__de->count = __pf->fs.st_size;
-					__de->etype = fly_encoding_from_type(__pf->encode_type);
-					if (fly_response_content_max_length() >= __pf->fs.st_size){
-						size_t __max;
-
-						__max = fly_response_content_max_length();
-						__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
-						__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
-						__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
-						__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
-#ifdef DEBUG
-						assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
-#endif
-						res = __de->etype->encode(__de);
-						switch(res){
-						case FLY_ENCODE_SUCCESS:
-							break;
-						case FLY_ENCODE_ERROR:
-							return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
-						case FLY_ENCODE_SEEK_ERROR:
-							return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
-						case FLY_ENCODE_TYPE_ERROR:
-							return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
-						case FLY_ENCODE_READ_ERROR:
-							return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
-						case FLY_ENCODE_BUFFER_ERROR:
-							__de->overflow = true;
-							break;
-						default:
-							return FLY_WORKER_OPEN_FILE_ENCODE_UNKNOWN_RETURN;
-						}
-					}else{
-						__de->overflow = true;
-						__pf->overflow = true;
-					}
-
-					__pf->de = __de;
-					__pf->encoded = true;
+				switch(fly_preencode_pf(ctx, __pf)){
+				case FLY_PREENCODE_FILE_ENCODE_SUCCESS:
+					break;
+				case FLY_PREENCODE_FILE_ENCODE_ERROR:
+					return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
+				case FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN:
+					return FLY_WORKER_OPEN_FILE_ENCODE_UNKNOWN_RETURN;
+				default:
+					FLY_NOT_COME_HERE
 				}
 			}
 		}
@@ -951,51 +997,15 @@ __fly_static int __fly_worker_open_default_content(fly_context_t *ctx)
 		if (fstat(__frc->fd, &__frc->fs) == -1)
 			return FLY_WORKER_OPEN_DEFAULT_CONTENT_INVALID_FILE;
 
-		if (fly_over_encoding_threshold(ctx, (size_t) __frc->fs.st_size)){
-			struct fly_de *__de;
-
-			__de = fly_de_init(ctx->pool);
-			__de->type = FLY_DE_FROM_PATH;
-			__de->fd = __frc->fd;
-			__de->offset = 0;
-			__de->count = __frc->fs.st_size;
-			__de->etype = fly_encoding_from_type(__frc->encode_type);
-			if (fly_response_content_max_length() >= __frc->fs.st_size){
-				size_t __max;
-				int res;
-
-				__max = fly_response_content_max_length();
-				__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
-				__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
-				__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
-				__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
-#ifdef DEBUG
-				assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
-#endif
-				res = __de->etype->encode(__de);
-				switch(res){
-				case FLY_ENCODE_SUCCESS:
-					break;
-				case FLY_ENCODE_ERROR:
-					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR;
-				case FLY_ENCODE_SEEK_ERROR:
-					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR;
-				case FLY_ENCODE_TYPE_ERROR:
-					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR;
-				case FLY_ENCODE_READ_ERROR:
-					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR;
-				case FLY_ENCODE_BUFFER_ERROR:
-					__de->overflow = true;
-					break;
-				default:
-					return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_UNKNOWN_RETURN;
-				}
-			}else{
-				__de->overflow = true;
-			}
-
-			__frc->de = __de;
-			__frc->encoded = true;
+		switch(fly_preencode_frc(ctx, __frc)){
+		case FLY_PREENCODE_FILE_ENCODE_SUCCESS:
+			break;
+		case FLY_PREENCODE_FILE_ENCODE_ERROR:
+			return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR;
+		case FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN:
+			return FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_UNKNOWN_RETURN;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		__fly_add_rcbs(ctx, __frc);
@@ -1010,48 +1020,144 @@ const char *fly_default_content_path(void)
 
 static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
 {
-	int sigvalue, mount_number, change_content;
+#ifdef DEBUG
+	assert(ctx != NULL);
+	assert(ctx->mount != NULL);
+	assert(ctx->mount->mount_count > 0);
+	assert(ctx->mount->file_count == ctx->mount->rbtree->node_count);
 
-#ifdef HAVE_SIGNALFD
-	sigvalue = info->ssi_int;
-#else
-	sigvalue = info->si_value.sival_int;
 #endif
+	struct fly_mount_parts *__p;
+	struct fly_bllist *__b;
 
-#ifdef WORDS_BIGENDIAN
-#define FLY_CHANGE_MNT_FROM_SIGNAL(__v, __mn, __c)	\
-	do{												\
-		char *__ptr = (char *) __v;					\
-		*__c = *__ptr;								\
-		*__ptr = 0;									\
-		*__mn = *__ptr;								\
-	} while(0)
-#else
-#define FLY_CHANGE_MNT_FROM_SIGNAL(__v, __mn, __c)	\
-	do{												\
-		char *__ptr = (char *) __v;					\
-		*__c = *(__ptr+(sizeof(int)-1));			\
-		*(__ptr+(sizeof(int)-1)) = 0;				\
-		*__mn = *__ptr;								\
-	} while(0)
+	fly_for_each_bllist(__b, &ctx->mount->parts){
+		__p = (struct fly_mount_parts *) fly_bllist_data(__b, fly_mount_parts_t, mbelem);
+		struct stat __sb;
+
+		if (stat(__p->mount_path, &__sb) == -1){
+			if (errno == ENOENT){
+#ifdef DEBUG
+				printf("WORKER: DETECT UNMOUNT MOUNT POINT(%s)\n", __p->mount_path);
 #endif
+				/* unmount mount point */
+				__fly_unmount_by_signal(__p);
+			}
 
-	FLY_CHANGE_MNT_FROM_SIGNAL(&sigvalue, &mount_number, &change_content);
-	switch (change_content){
-	case FLY_SIGNAL_MODF:
-		FLY_SIGNAL_MODF_HANDLER(ctx, info);
-		break;
-	case FLY_SIGNAL_ADDF:
-		FLY_SIGNAL_ADDF_HANDLER(ctx, info);
-		break;
-	case FLY_SIGNAL_DELF:
-		FLY_SIGNAL_DELF_HANDLER(ctx, info);
-		break;
-	case FLY_SIGNAL_UMOU:
-		FLY_SIGNAL_UMOU_HANDLER(ctx, info);
-		break;
-	default:
-		FLY_NOT_COME_HERE
+			/* emergency error */
+			FLY_EMERGENCY_ERROR(
+				"unknown stat error %s in worker's signal handler of change of mount path content.(%s: %d)", __p->mount_path,  __FILE__, __LINE__
+			);
+		}
+
+		fly_check_add_file(__p);
+		fly_check_del_file(__p);
+		fly_check_mod_file(__p);
 	}
 	return;
+}
+
+
+static int fly_preencode_pf(fly_context_t *ctx, struct fly_mount_parts_file *__pf)
+{
+	if (!fly_over_encoding_threshold(ctx, (size_t) __pf->fs.st_size))
+		return 0;
+
+	struct fly_de *__de;
+	int res;
+
+	__de = fly_de_init(__pf->parts->pool);
+	__de->type = FLY_DE_FROM_PATH;
+	__de->fd = __pf->fd;
+	__de->offset = 0;
+	__de->count = __pf->fs.st_size;
+	__de->etype = fly_encoding_from_type(__pf->encode_type);
+	if (fly_response_content_max_length() >= __pf->fs.st_size){
+		size_t __max;
+
+		__max = fly_response_content_max_length();
+		__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
+		__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
+		__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
+		__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
+#ifdef DEBUG
+		assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
+#endif
+		res = __de->etype->encode(__de);
+		switch(res){
+		case FLY_ENCODE_SUCCESS:
+			break;
+		case FLY_ENCODE_ERROR:
+			return FLY_PREENCODE_FILE_ENCODE_ERROR;
+		case FLY_ENCODE_SEEK_ERROR:
+			return FLY_PREENCODE_FILE_ENCODE_ERROR;
+		case FLY_ENCODE_TYPE_ERROR:
+			return FLY_PREENCODE_FILE_ENCODE_ERROR;
+		case FLY_ENCODE_READ_ERROR:
+			return FLY_PREENCODE_FILE_ENCODE_ERROR;
+		case FLY_ENCODE_BUFFER_ERROR:
+			__de->overflow = true;
+			break;
+		default:
+			return FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN;
+		}
+	}else{
+		__de->overflow = true;
+		__pf->overflow = true;
+	}
+
+	__pf->de = __de;
+	__pf->encoded = true;
+	return FLY_PREENCODE_FILE_ENCODE_SUCCESS;
+}
+
+static int fly_preencode_frc(fly_context_t *ctx, struct fly_response_content_by_stcode *__frc)
+{
+	if (!fly_over_encoding_threshold(ctx, (size_t) __frc->fs.st_size))
+		return FLY_PREENCODE_FILE_ENCODE_SUCCESS;
+
+	struct fly_de *__de;
+
+	__de = fly_de_init(ctx->pool);
+	__de->type = FLY_DE_FROM_PATH;
+	__de->fd = __frc->fd;
+	__de->offset = 0;
+	__de->count = __frc->fs.st_size;
+	__de->etype = fly_encoding_from_type(__frc->encode_type);
+	if (fly_response_content_max_length() >= __frc->fs.st_size){
+		size_t __max;
+		int res;
+
+		__max = fly_response_content_max_length();
+		__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
+		__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
+		__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
+		__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
+#ifdef DEBUG
+		assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
+#endif
+		res = __de->etype->encode(__de);
+		switch(res){
+		case FLY_ENCODE_SUCCESS:
+			break;
+		case FLY_ENCODE_ERROR:
+			return FLY_PREENCODE_FILE_ENCODE_ERROR;
+		case FLY_ENCODE_SEEK_ERROR:
+			return FLY_PREENCODE_FILE_ENCODE_ERROR;
+		case FLY_ENCODE_TYPE_ERROR:
+			return FLY_PREENCODE_FILE_ENCODE_ERROR;
+		case FLY_ENCODE_READ_ERROR:
+			return FLY_PREENCODE_FILE_ENCODE_ERROR;
+		case FLY_ENCODE_BUFFER_ERROR:
+			__de->overflow = true;
+			break;
+		default:
+			return FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN;
+		}
+	}else{
+		__de->overflow = true;
+	}
+
+	__frc->de = __de;
+	__frc->encoded = true;
+	return FLY_PREENCODE_FILE_ENCODE_SUCCESS;
 }
