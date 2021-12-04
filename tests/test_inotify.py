@@ -161,3 +161,22 @@ async def test_move_directory2(inotify_dir_remove, fly_servers):
 
     # move to mount directory 
     shutil.move('../ino', _INOD2_PATH)
+
+
+@pytest.mark.asyncio
+async def test_unmount_dir(inotify_dir_remove, fly_servers):
+    assert(os.path.isdir("tests/mnt2"))
+    
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/hello")
+    assert(res.status_code == 200)
+
+    # move mount point
+    shutil.move("tests/mnt2", '../mnt2')
+
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/hello")
+    assert(res.status_code == 404)
+
+    # move to mount directory 
+    shutil.move("../mnt2", 'tests/mnt2')
