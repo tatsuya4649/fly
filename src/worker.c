@@ -152,7 +152,7 @@ __fly_static void fly_check_mod_file(fly_mount_parts_t *parts)
 
 	fly_for_each_bllist(__b, &parts->files){
 		__f = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
-		if (fly_join_path(rpath, parts->mount_path, __f->filename) == -1)
+		if (fly_join_path(rpath, FLY_PATH_MAX, parts->mount_path, __f->filename) == -1)
 			return;
 		if (stat(rpath, &statbuf) == -1)
 			FLY_EMERGENCY_ERROR(
@@ -202,7 +202,7 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 				strcmp(__ent->d_name, "..") == 0)
 			continue;
 
-		if (fly_join_path(__path, path, __ent->d_name) == -1)
+		if (fly_join_path(__path, FLY_PATH_MAX, path, __ent->d_name) == -1)
 			goto error;
 
 		if (fly_isdir(__path) == 1){
@@ -291,7 +291,7 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __fly_unused char
 		__n = __b->next;
 
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
-		if (fly_join_path(__path, (char *) mount_point, __pf->filename) == -1 \
+		if (fly_join_path(__path, FLY_PATH_MAX, (char *) mount_point, __pf->filename) == -1 \
 				&& errno == ENOENT){
 #ifdef DEBUG
 			printf("WORKER[%d]: DETECT DELETED FILE: (%s)\n", \
@@ -917,7 +917,7 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 				fly_parts_file_remove(__p, __pf);
 				__p->mount->file_count--;
 			}else{
-				if (fly_join_path(rpath, __p->mount_path, __pf->filename) == -1)
+				if (fly_join_path(rpath, FLY_PATH_MAX, __p->mount_path, __pf->filename) == -1)
 					continue;
 #ifdef DEBUG
 				assert(strlen(rpath) <= FLY_PATH_MAX);

@@ -98,4 +98,9 @@ ssize_t fly_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
 #define FLY_MSG_NOSIGNAL			0
 #endif
 
+static inline size_t fly_min(size_t a, size_t b)
+{
+	return a < b ? a : b;
+}
+
 #endif

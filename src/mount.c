@@ -449,11 +449,11 @@ int fly_mount_number(fly_mount_t *mnt, const char *path)
 	return FLY_ENOTFOUND;
 }
 
-int fly_join_path(char *buffer, char *join1, char *join2)
+int fly_join_path(char *buffer, size_t buflen, char *join1, char *join2)
 {
-	char *ptr;
-	char result[FLY_PATH_MAX];
-	if (strlen(join1)+strlen(join2)+1 >= FLY_PATH_MAX)
+	char *ptr, *rpath;
+	char result[buflen];
+	if (strlen(join1)+strlen(join2)+1 >= buflen)
 		return -1;
 	ptr = result;
 	strcpy(ptr, join1);
@@ -464,9 +464,14 @@ int fly_join_path(char *buffer, char *join1, char *join2)
 	ptr += strlen(join2);
 	strcpy(ptr, "\0");
 
-	if (realpath(result, buffer) == NULL)
+	rpath = realpath(result, NULL);
+	if (rpath == NULL)
 		return -1;
 
+	memset(buffer, '\0', buflen);
+	memcpy(buffer, rpath, fly_min((size_t) buflen-1, strlen(rpath)));
+
+	free(rpath);
 	return 0;
 }
 
@@ -564,7 +569,7 @@ int fly_mount_inotify(fly_mount_t *mount, int ifd)
 			int wd;
 			char rpath[FLY_PATH_MAX];
 
-			if (fly_join_path(rpath, parts->mount_path, __pf->filename) == -1)
+			if (fly_join_path(rpath, FLY_PATH_MAX, parts->mount_path, __pf->filename) == -1)
 				continue;
 			wd = inotify_add_watch(ifd, rpath, FLY_INOTIFY_WATCH_FLAG_PF);
 			if (wd == -1)
@@ -663,7 +668,7 @@ int fly_mount_inotify_kevent(
 			int pfd;
 			char rpath[FLY_PATH_MAX];
 
-			if (fly_join_path(rpath, parts->mount_path, __pf->filename) == -1)
+			if (fly_join_path(rpath, FLY_PATH_MAX, parts->mount_path, __pf->filename) == -1)
 				continue;
 			pfd = open(rpath, O_RDONLY);
 			if (pfd == -1)
@@ -838,7 +843,7 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
 	struct fly_mount_parts_file *__npf;
 	char rpath[FLY_PATH_MAX];
 
-	if (fly_join_path(rpath, parts->mount_path, path) == -1)
+	if (fly_join_path(rpath, FLY_PATH_MAX, parts->mount_path, path) == -1)
 		return -1;
 
 	if (fly_isdir(rpath)){
