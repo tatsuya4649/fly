@@ -8,6 +8,12 @@
 
 * Support FreeBSD
 
+## Changed
+
+### C
+
+* Change struct event member type(event\_data, ...) void \* to union.
+
 ## Fixed
 
 * signal handler of master/worker.

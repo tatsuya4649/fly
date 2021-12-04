@@ -26,10 +26,6 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 __fly_static int __fly_worker_signal_handler(fly_event_t *e);
 #endif
 __fly_static void fly_add_worker_sig(fly_context_t *ctx, int num, fly_sighand_t *handler);
-__fly_static void FLY_SIGNAL_MODF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info);
-__fly_static void FLY_SIGNAL_ADDF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info);
-__fly_static void FLY_SIGNAL_DELF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info);
-__fly_static void FLY_SIGNAL_UMOU_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info);
 #define FLY_WORKER_OPEN_FILE_SUCCESS				0
 #define FLY_WORKER_OPEN_FILE_CTX_ERROR				-2
 #define FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR		-3
@@ -357,79 +353,79 @@ __fly_static void __fly_unmount_by_signal(fly_mount_parts_t *parts)
 	__fly_work_unmount(parts);
 }
 
-__fly_static int __fly_signal_handler(fly_context_t *ctx, int mount_number, void (*handler)(fly_mount_parts_t *))
-{
-	struct fly_bllist *__b;
-	struct fly_mount_parts *parts;
+//__fly_static int __fly_signal_handler(fly_context_t *ctx, int mount_number, void (*handler)(fly_mount_parts_t *))
+//{
+//	struct fly_bllist *__b;
+//	struct fly_mount_parts *parts;
+//
+//	fly_for_each_bllist(__b, &ctx->mount->parts){
+//		parts = fly_bllist_data(__b, struct fly_mount_parts, mbelem);
+//		if (parts->mount_number == mount_number){
+//			handler(parts);
+//			return 0;
+//		}
+//	}
+//	return 0;
+//}
 
-	fly_for_each_bllist(__b, &ctx->mount->parts){
-		parts = fly_bllist_data(__b, struct fly_mount_parts, mbelem);
-		if (parts->mount_number == mount_number){
-			handler(parts);
-			return 0;
-		}
-	}
-	return 0;
-}
-
-__fly_static void FLY_SIGNAL_MODF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
-{
-	int mount_number;
-	if (!ctx->mount)
-		return;
-
-#ifdef HAVE_SIGNALFD
-	mount_number = info->ssi_int;
-#else
-	mount_number = info->si_value.sival_int;
-#endif
-	__fly_signal_handler(ctx, mount_number, fly_check_mod_file);
-}
-
-__fly_static void FLY_SIGNAL_ADDF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
-{
-	int mount_number;
-
-	if (!ctx->mount)
-		return;
-
-#ifdef HAVE_SIGNALFD
-	mount_number = info->ssi_int;
-#else
-	mount_number = info->si_value.sival_int;
-#endif
-	__fly_signal_handler(ctx, mount_number, fly_check_add_file);
-}
-
-__fly_static void FLY_SIGNAL_DELF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
-{
-	int mount_number;
-
-	if (!ctx->mount)
-		return;
-
-#ifdef HAVE_SIGNALFD
-	mount_number = info->ssi_int;
-#else
-	mount_number = info->si_value.sival_int;
-#endif
-	__fly_signal_handler(ctx, mount_number, fly_check_del_file);
-}
-
-__fly_static void FLY_SIGNAL_UMOU_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
-{
-	int mount_number;
-
-	if (!ctx->mount)
-		return;
-
-#ifdef HAVE_SIGNALFD
-	mount_number = info->ssi_int;
-#else
-	mount_number = info->si_value.sival_int;
-#endif
-	__fly_signal_handler(ctx, mount_number, __fly_unmount_by_signal);
-}
+//__fly_static void FLY_SIGNAL_MODF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
+//{
+//	int mount_number;
+//	if (!ctx->mount)
+//		return;
+//
+//#ifdef HAVE_SIGNALFD
+//	mount_number = info->ssi_int;
+//#else
+//	mount_number = info->si_value.sival_int;
+//#endif
+//	__fly_signal_handler(ctx, mount_number, fly_check_mod_file);
+//}
+//
+//__fly_static void FLY_SIGNAL_ADDF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
+//{
+//	int mount_number;
+//
+//	if (!ctx->mount)
+//		return;
+//
+//#ifdef HAVE_SIGNALFD
+//	mount_number = info->ssi_int;
+//#else
+//	mount_number = info->si_value.sival_int;
+//#endif
+//	__fly_signal_handler(ctx, mount_number, fly_check_add_file);
+//}
+//
+//__fly_static void FLY_SIGNAL_DELF_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
+//{
+//	int mount_number;
+//
+//	if (!ctx->mount)
+//		return;
+//
+//#ifdef HAVE_SIGNALFD
+//	mount_number = info->ssi_int;
+//#else
+//	mount_number = info->si_value.sival_int;
+//#endif
+//	__fly_signal_handler(ctx, mount_number, fly_check_del_file);
+//}
+//
+//__fly_static void FLY_SIGNAL_UMOU_HANDLER(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
+//{
+//	int mount_number;
+//
+//	if (!ctx->mount)
+//		return;
+//
+//#ifdef HAVE_SIGNALFD
+//	mount_number = info->ssi_int;
+//#else
+//	mount_number = info->si_value.sival_int;
+//#endif
+//	__fly_signal_handler(ctx, mount_number, __fly_unmount_by_signal);
+//}
 
 __fly_noreturn void fly_worker_signal_default_handler(fly_worker_t *worker, fly_context_t *ctx __fly_unused, fly_siginfo_t *si __fly_unused)
 {
