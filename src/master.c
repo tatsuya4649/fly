@@ -1064,6 +1064,9 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #endif
 
 	mask = __e->eflag;
+#ifdef DEBUG
+	printf("MASTER: INOTIFY at mount point. mask is \"0x%x\"\n", mask);
+#endif
 	/* create new file */
 	if ((mask & NOTE_EXTEND) || (mask & NOTE_WRITE)){
 		mod |= FLY_SIGNAL_ADDF;
@@ -1071,9 +1074,9 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 			return -1;
 #ifdef  DEBUG
 		if (__tmp == parts->file_count)
-			printf("MASTER: Detect not added file.\n");
+			printf("MASTER: Detect not added file/directory.\n");
 		else
-			printf("MASTER: Detect added file.\n");
+			printf("MASTER: Detect added file/directory.\n");
 #endif
 	}
 	if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
@@ -1160,25 +1163,51 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 		goto deleted;
 
 	mask = flag;
-	if (mask & NOTE_DELETE)
-		goto deleted;
-	if (mask & NOTE_WRITE){
-		mod |= FLY_SIGNAL_MODF;
-		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
-			return -1;
+	if (pf->dir){
+#ifdef DEBUG
+		int __tmp;
+		__tmp = parts->file_count;
+#endif
+		if ((mask & NOTE_EXTEND) || (mask & NOTE_WRITE)){
+			mod |= FLY_SIGNAL_ADDF;
+			if (fly_inotify_add_watch(parts, pf->event) == -1)
+				return -1;
+#ifdef  DEBUG
+			if (__tmp == parts->file_count)
+				printf("MASTER: Detect not added file.\n");
+			else
+				printf("MASTER: Detect added file.\n");
+#endif
+		}
+		if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
+			mod |= FLY_SIGNAL_UMOU;
+			if (fly_inotify_rmmp(parts) == -1)
+				return -1;
+#ifdef DEBUG
+			printf("MASTER: Detect rename/detect of mount point.\n");
+#endif
+		}
+	}else{
+		if (mask & NOTE_DELETE)
+			goto deleted;
+		if (mask & NOTE_WRITE){
+			mod |= FLY_SIGNAL_MODF;
+			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+				return -1;
+		}
+		if (mask & NOTE_EXTEND){
+			mod |= FLY_SIGNAL_MODF;
+			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+				return -1;
+		}
+		if (mask & NOTE_ATTRIB){
+			mod |= FLY_SIGNAL_MODF;
+			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+				return -1;
+		}
+		if (mask & NOTE_RENAME)
+			goto deleted;
 	}
-	if (mask & NOTE_EXTEND){
-		mod |= FLY_SIGNAL_MODF;
-		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
-			return -1;
-	}
-	if (mask & NOTE_ATTRIB){
-		mod |= FLY_SIGNAL_MODF;
-		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
-			return -1;
-	}
-	if (mask & NOTE_RENAME)
-		goto deleted;
 
 	goto send_signal;
 deleted:
@@ -1186,8 +1215,13 @@ deleted:
 	printf("MASTER: Detect renamed/deleted file. Remove watch(%s)\n", rpath);
 #endif
 	mod |= FLY_SIGNAL_DELF;
-	if (fly_inotify_rm_watch(pf) == -1)
-		return -1;
+	if (pf->dir){
+		if (fly_inotify_rmmp(parts) == -1)
+			return -1;
+	}else{
+		if (fly_inotify_rm_watch(pf) == -1)
+			return -1;
+	}
 send_signal:
 	;
 

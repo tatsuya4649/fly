@@ -204,7 +204,10 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		if (fly_isdir(__path) == 1){
 			if (__fly_work_add_nftw(parts, __path, mount_point) == -1)
 				goto error;
+
+#ifdef HAVE_INOTIFY
 			continue;
+#endif
 		}
 		if (strlen(__path) >= FLY_PATH_MAX)
 			continue;
@@ -227,6 +230,18 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		if (fly_unlikely_null(__pf))
 			goto error;
 
+#ifdef HAVE_KQUEUE
+		if (fly_isdir(__path) == 1){
+			__pf->dir = true;
+#ifdef DEBUG
+			printf("\tdirectory\n");
+		}else{
+			printf("\tfile\n");
+		}
+#else
+		}
+#endif
+#endif
 		__pf->fd = open(__path, O_RDONLY);
 		if (__pf->fd == -1)
 			goto error;
@@ -247,16 +262,25 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		assert(parts->mount != NULL);
 		assert(parts->mount->ctx != NULL);
 #endif
-		switch (fly_preencode_pf(parts->mount->ctx, __pf)){
-		case FLY_PREENCODE_FILE_ENCODE_SUCCESS:
-			break;
-		case FLY_PREENCODE_FILE_ENCODE_ERROR:
-			return -1;
-		case FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN:
-			return -1;
-		default:
-			FLY_NOT_COME_HERE
+		if (!__pf->dir){
+			switch (fly_preencode_pf(parts->mount->ctx, __pf)){
+			case FLY_PREENCODE_FILE_ENCODE_SUCCESS:
+				break;
+			case FLY_PREENCODE_FILE_ENCODE_ERROR:
+				return -1;
+			case FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN:
+				return -1;
+			default:
+				FLY_NOT_COME_HERE
+			}
 		}
+
+		if (fly_hash_from_parts_file_path(__path, __pf) == -1)
+			goto error;
+#ifdef DEBUG
+		assert(__pf->hash != NULL);
+		printf("\tHASH FOR NEW FILE %s\n", __pf->hash->md5);
+#endif
 
 		fly_parts_file_add(parts, __pf);
 		parts->mount->file_count++;
@@ -274,7 +298,7 @@ error:
 	return -1;
 }
 
-__fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, __fly_unused char *path, const char *mount_point)
+__fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, const char *mount_point)
 {
 	if (parts->file_count == 0)
 		return -1;
@@ -340,7 +364,7 @@ __fly_static void fly_check_del_file(fly_mount_parts_t *parts)
 #ifdef DEBUG
 	printf("WORKER[%d]: CHECK DELETE FILE (%s)\n", getpid(), parts->mount_path);
 #endif
-	if (__fly_work_del_nftw(parts, parts->mount_path, parts->mount_path) == -1){
+	if (__fly_work_del_nftw(parts, parts->mount_path) == -1){
 		FLY_EMERGENCY_ERROR(
 			"worker check delete file error. (%s: %d)",
 			__FILE__, __LINE__
@@ -909,34 +933,29 @@ __fly_static int __fly_worker_open_file(fly_context_t *ctx)
 		for (__pfb=__p->files.next; __pfb!=&__p->files; __pfb=__n){
 			__n = __pfb->next;
 			__pf = fly_bllist_data(__pfb, struct fly_mount_parts_file, blelem);
-			if (__pf->dir){
-				fly_parts_file_remove(__p, __pf);
-				__p->mount->file_count--;
-			}else{
-				if (fly_join_path(rpath, FLY_PATH_MAX, __p->mount_path, __pf->filename) == -1)
-					continue;
+			if (fly_join_path(rpath, FLY_PATH_MAX, __p->mount_path, __pf->filename) == -1)
+				continue;
 #ifdef DEBUG
-				assert(strlen(rpath) <= FLY_PATH_MAX);
+			assert(strlen(rpath) <= FLY_PATH_MAX);
 #endif
-				__pf->fd = open(rpath, O_RDONLY);
-				/* if index, setting */
-				const char *index_path = fly_index_path();
-				if (strncmp(__pf->filename, index_path, strlen(index_path)) == 0)
-					fly_mount_index_parts_file(__pf);
+			__pf->fd = open(rpath, O_RDONLY);
+			/* if index, setting */
+			const char *index_path = fly_index_path();
+			if (strncmp(__pf->filename, index_path, strlen(index_path)) == 0)
+				fly_mount_index_parts_file(__pf);
 
-				if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
-					return FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR;
+			if (fly_imt_fixdate(__pf->last_modified, FLY_DATE_LENGTH, &__pf->fs.st_mtime) == -1)
+				return FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR;
 
-				switch(fly_preencode_pf(ctx, __pf)){
-				case FLY_PREENCODE_FILE_ENCODE_SUCCESS:
-					break;
-				case FLY_PREENCODE_FILE_ENCODE_ERROR:
-					return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
-				case FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN:
-					return FLY_WORKER_OPEN_FILE_ENCODE_UNKNOWN_RETURN;
-				default:
-					FLY_NOT_COME_HERE
-				}
+			switch(fly_preencode_pf(ctx, __pf)){
+			case FLY_PREENCODE_FILE_ENCODE_SUCCESS:
+				break;
+			case FLY_PREENCODE_FILE_ENCODE_ERROR:
+				return FLY_WORKER_OPEN_FILE_ENCODE_ERROR;
+			case FLY_PREENCODE_FILE_ENCODE_UNKNOWN_RETURN:
+				return FLY_WORKER_OPEN_FILE_ENCODE_UNKNOWN_RETURN;
+			default:
+				FLY_NOT_COME_HERE
 			}
 		}
 	}
@@ -1021,8 +1040,8 @@ static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx
 	assert(ctx->mount != NULL);
 	assert(ctx->mount->mount_count > 0);
 	assert(ctx->mount->file_count == ctx->mount->rbtree->node_count);
-
 #endif
+
 	struct fly_mount_parts *__p;
 	struct fly_bllist *__b;
 

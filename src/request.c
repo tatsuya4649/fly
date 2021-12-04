@@ -638,7 +638,7 @@ error:
 __fly_static int __fly_request_operation(fly_request_t *req, fly_buffer_c *reqline_bufc)
 {
 #ifdef DEBUG
-	printf("PARSE REQUEST LINE\n");
+	printf("\tPARSE REQUEST LINE\n");
 #endif
 	/* get request */
 	size_t request_line_length;
@@ -932,7 +932,7 @@ in_the_middle:
 int fly_reqheader_operation(fly_request_t *req, fly_buffer_c *header_chain)
 {
 #ifdef DEBUG
-	printf("PARSE HEADERS\n");
+	printf("\tPARSE HEADERS\n");
 #endif
 	fly_hdr_ci *rchain_info;
 	rchain_info = fly_header_init(req->ctx);
@@ -1257,7 +1257,7 @@ int fly_request_event_handler(fly_event_t *event)
 	/* parse request_line */
 __fase_request_line:
 #ifdef DEBUG
-	printf("FASE: REQUEST PARSE\n");
+	printf("\tFASE: REQUEST PARSE\n");
 #endif
 	fly_event_request_fase(event, REQUEST_LINE);
 	reline_buf_chain = fly_get_request_line_buf(conn->buffer);
@@ -1283,7 +1283,7 @@ __fase_header:
 	;
 	fly_buffer_c *hdr_buf;
 
-	printf("FASE: HEADER\n");
+	printf("\tFASE: HEADER\n");
 	fly_event_request_fase(event, HEADER);
 	if (!request->receive_header){
 #ifdef DEBUG
@@ -1297,7 +1297,7 @@ __fase_header:
 		goto read_continuation;
 
 #ifdef DEBUG
-	printf("GET HEADER POINTER\n");
+	printf("\tGET HEADER POINTER\n");
 #endif
 	switch (fly_reqheader_operation(request, hdr_buf)){
 	case __REQUEST_HEADER_ERROR:
@@ -1337,7 +1337,7 @@ __fase_header:
 __fase_body:
 	;
 
-	printf("FASE: BODY\n");
+	printf("\tFASE: BODY\n");
 	fly_event_request_fase(event, BODY);
 	size_t content_length;
 	content_length = fly_content_length(request->header);
@@ -1409,7 +1409,7 @@ __fase_body:
 
 __fase_end_of_parse:
 #ifdef DEBUG
-	printf("FASE: RESPONSE\n");
+	printf("\tFASE: RESPONSE\n");
 #endif
 	fly_event_request_fase(event, RESPONSE);
 	/* Success parse request */
@@ -1425,9 +1425,26 @@ __fase_end_of_parse:
 		found_res = fly_found_content_from_path(mount, &request->request_line->uri, &pf);
 		if (__mtype != GET && found_res){
 			goto response_405;
-		}else if (__mtype == GET && found_res)
+		}else if (__mtype == GET && found_res){
+#ifdef DEBUG
+			printf("\tFound Response content (mount parts file)\n");
+#endif
+			if (pf->dir){
+#ifdef DEBUG
+				printf("\tBut directory...\n");
+#endif
+				goto response_404;
+			}
 			goto response_path;
+		}
 		goto response_404;
+#ifdef DEBUG
+		printf("\tNot found Response content\n");
+#endif
+	}else{
+#ifdef DEBUG
+		printf("\tFound Response content (defined route)\n");
+#endif
 	}
 
 	/* defined handler */
