@@ -1060,10 +1060,10 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	int mask;
 #ifdef DEBUG
 	int __tmp;
+	__tmp = parts->file_count;
 #endif
 
 	mask = __e->eflag;
-	__tmp = parts->file_count;
 	/* create new file */
 	if ((mask & NOTE_EXTEND) || (mask & NOTE_WRITE)){
 		mod |= FLY_SIGNAL_ADDF;
