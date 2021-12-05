@@ -1190,7 +1190,7 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 		}
 		if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
 			mod |= FLY_SIGNAL_UMOU;
-			if (fly_inotify_rmmp(parts) == -1)
+			if (fly_inotify_rm_watch(pf) == -1)
 				return -1;
 #ifdef DEBUG
 			printf("MASTER: Detect rename/detect of mount point.\n");
@@ -1224,13 +1224,8 @@ deleted:
 	printf("MASTER: Detect renamed/deleted file. Remove watch(%s)\n", rpath);
 #endif
 	mod |= FLY_SIGNAL_DELF;
-	if (pf->dir){
-		if (fly_inotify_rmmp(parts) == -1)
-			return -1;
-	}else{
-		if (fly_inotify_rm_watch(pf) == -1)
-			return -1;
-	}
+	if (fly_inotify_rm_watch(pf) == -1)
+		return -1;
 send_signal:
 	;
 
@@ -1279,13 +1274,27 @@ __fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, 
 
 	/* occurred in mount point directory */
 	parts = fly_parts_from_fd(fd, ctx->mount);
-	if (parts)
-		return __fly_inotify_in_mp(master, parts, __e);
+#ifdef DEBUG
+	if (parts != NULL)
+		printf("MASTER: Detect at mount point\n");
+#endif
+	if (parts != NULL && \
+			__fly_inotify_in_mp(master, parts, __e) == -1)
+		return -1;
 
 	pf = fly_pf_from_mount(fd, ctx->mount);
-	if (pf)
-		return __fly_inotify_in_pf(master, pf, __e->eflag);
+#ifdef DEBUG
+	if (pf != NULL)
+		printf("MASTER: Detect at point file\n");
+#endif
+	if (pf != NULL && \
+			__fly_inotify_in_pf(master, pf, __e->eflag) == -1)
+		return -1;
 
+#ifdef DEBUG
+	printf("MASTER MOUNT CONTENT DEBUG\n");
+	__fly_debug_mnt_content(ctx);
+#endif
 	return 0;
 }
 #endif

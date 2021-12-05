@@ -211,4 +211,8 @@ static inline bool fly_pf_modified(struct stat *sb, struct fly_mount_parts_file 
 		return true;
 }
 
+#ifdef DEBUG
+void __fly_debug_mnt_content(fly_context_t *ctx);
+#endif
+
 #endif
