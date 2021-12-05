@@ -1079,7 +1079,7 @@ static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unuse
 				printf("\tUnmount file count %d\n", __tmp);
 				printf("\tMount point count %d --> %d\n", __tmpc, __p->mount->mount_count);
 				printf("\tTotal file count %ld --> %ld\n", __tmpm, __p->mount->file_count);
-				assert(__tmpm = __p->mount->file_count + __tmp);
+				assert(__tmpm == __p->mount->file_count + __tmp);
 #endif
 				continue;
 			}

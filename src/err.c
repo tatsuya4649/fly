@@ -260,7 +260,8 @@ __fly_static void __fly_write_to_log_emerg(const char *err_content, enum fly_err
 #endif
 	);
 	if (errfile != -1)
-		write(errfile, errc, strlen(errc));
+		if (write(errfile, errc, strlen(errc)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", errc);
 	if (ctx->log_stderr)
@@ -283,7 +284,8 @@ __fly_static void __fly_write_to_log_emerg(const char *err_content, enum fly_err
 		__fly_errsys.pid
 	);
 	if (noticefile != -1)
-		write(noticefile, noticec, strlen(noticec));
+		if (write(noticefile, noticec, strlen(noticec)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", noticec);
 	if (ctx->log_stderr)
@@ -338,7 +340,8 @@ __fly_static void __fly_write_to_log_err(const char *err_content, size_t len, en
 		err_content
 	);
 	if (errfile != -1)
-		write(errfile, errc, strlen(errc));
+		if (write(errfile, errc, strlen(errc)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", errc);
 	if (ctx->log_stderr)
@@ -379,7 +382,8 @@ __fly_static void __fly_write_to_log_err(const char *err_content, size_t len, en
 		__fly_errsys.pid
 	);
 	if (noticefile != -1)
-		write(noticefile, noticec, strlen(noticec));
+		if (write(noticefile, noticec, strlen(noticec)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", noticec);
 	if (ctx->log_stderr)
@@ -430,7 +434,8 @@ __fly_static void __fly_write_to_log_info(const char *content, size_t len, enum 
 		content
 	);
 	if (noticefile != -1)
-		write(noticefile, noticec, strlen(noticec));
+		if (write(noticefile, noticec, strlen(noticec)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", noticec);
 	if (ctx->log_stderr)
