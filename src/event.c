@@ -791,8 +791,10 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 		if (fly_event && !fly_nodelete(fly_event))
 			fly_event_unregister(fly_event);
 
+#ifdef HAVE_KQUEUE
 		if (manager->reset)
 			break;
+#endif
 	}
 
 	__fly_event_handle_nomonitorable(manager);
@@ -833,11 +835,12 @@ int fly_event_handler(fly_event_manager_t *manager)
 #endif
 		/* the event with closest timeout */
 retry:
-		memset(manager->evlist, '\0', sizeof(struct kevent)*manager->maxevents);
+		memset(manager->evlist, '\0', sizeof(*manager->evlist)*manager->maxevents);
 #ifdef HAVE_EPOLL
 		epoll_events = \
 				epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
 #elif defined HAVE_KQUEUE
+		memset(manager->evlist, '\0', sizeof(struct kevent)*manager->maxevents);
 		epoll_events = \
 				kevent(manager->efd, NULL, 0, manager->evlist, 1, t_ptr);
 #endif
