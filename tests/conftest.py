@@ -30,6 +30,14 @@ def not_have_ssl_crt_key_file():
     return not os.path.isfile(crt_path()) or \
         not os.path.isfile(key_path())
 
+@pytest.fixture(scope="session", autouse=True)
+def make_mntdir():
+    if not os.path.isdir("tests/mnt"):
+        os.mkdir("tests/mnt")
+    if not os.path.isdir("tests/mnt2"):
+        os.mkdir("tests/mnt2")
+    yield
+
 ssl_reason = "require SSL cert/key file"
 pid_path = "log/fly.pid"
 

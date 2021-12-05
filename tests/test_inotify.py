@@ -177,6 +177,8 @@ async def test_unmount_dir(inotify_dir_remove, fly_servers):
     # move mount point
     shutil.move("tests/mnt2", '../mnt2')
 
+    await asyncio.sleep(1)
+
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/hello")
     assert(res.status_code == 404)
