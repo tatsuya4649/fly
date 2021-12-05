@@ -79,7 +79,7 @@ async def test_move(inotify_file_remove, fly_servers):
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOF}")
     assert(res.status_code == 404)
 
-    # move to mount directory 
+    # move to mount directory
     shutil.move('../' + _INOF, _INOF_PATH)
 
 
@@ -137,7 +137,7 @@ async def test_move_directory(inotify_dir_remove, fly_servers):
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
     assert(res.status_code == 404)
 
-    # move to mount directory 
+    # move to mount directory
     shutil.move('../' + _INOF, _INOD_PATH)
 
 @pytest.mark.asyncio
@@ -159,7 +159,7 @@ async def test_move_directory2(inotify_dir_remove, fly_servers):
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
     assert(res.status_code == 404)
 
-    # move to mount directory 
+    # move to mount directory
     shutil.move('../ino', _INOD2_PATH)
 
 
@@ -169,7 +169,7 @@ async def test_unmount_dir(inotify_dir_remove, fly_servers):
     if not os.path.isfile("tests/mnt2/hello"):
         with open("tests/mnt2/hello", "w") as f:
             f.write("Hello test!")
-    
+
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/hello")
     assert(res.status_code == 200)
@@ -181,7 +181,7 @@ async def test_unmount_dir(inotify_dir_remove, fly_servers):
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/hello")
     assert(res.status_code == 404)
 
-    # move to mount directory 
+    # move to mount directory
     shutil.move("../mnt2", 'tests/mnt2')
 
 _INODIR = "tests/mnt2/inod"
@@ -198,7 +198,7 @@ async def test_mount_unmount(inotify_dir_remove, fly_servers):
         shutil.rmtree(_INODIR)
     assert not os.path.isdir(_INODIR)
     assert not os.path.isfile(_INODIR_FILE)
-    
+
     # test HTTP
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/inod/hello")
