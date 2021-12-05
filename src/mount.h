@@ -130,25 +130,26 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e);
 #define FLY_INOTIFY_RM_WATCH_IGNORED		(1<<2)
 #define FLY_INOTIFY_RM_WATCH_DELETED		(1<<3)
 
-#ifdef HAVE_INOTIFY
-int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, int mask);
-#elif defined HAVE_KQUEUE
+//#ifdef HAVE_INOTIFY
+//int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len);
+//#elif defined HAVE_KQUEUE
+//int fly_inotify_rm_watch(struct fly_mount_parts_file *pf);
+//#endif
 int fly_inotify_rm_watch(struct fly_mount_parts_file *pf);
-#endif
 int fly_inotify_rmmp(fly_mount_parts_t *parts);
 
 #ifdef HAVE_INOTIFY
-#define FLY_INOTIFY_WATCH_FLAG_PF	(IN_MODIFY|IN_ATTRIB)
-#define FLY_INOTIFY_WATCH_FLAG_MP	(IN_CREATE|IN_DELETE_SELF|IN_DELETE|IN_MOVE|IN_MOVE_SELF|IN_ONLYDIR)
+#define FLY_INOTIFY_WATCH_FLAG_PF	(IN_MODIFY|IN_MOVE_SELF|IN_DELETE_SELF|IN_ATTRIB)
+#define FLY_INOTIFY_WATCH_FLAG_MP	(IN_CREATE|IN_MOVED_TO|IN_DELETE_SELF|IN_MOVE_SELF|IN_ONLYDIR)
 #elif defined HAVE_KQUEUE
-/* 
+/*
  * Directory:
  * 	NOTE_EXTEND -> change directory entry count.
  * 	NOTE_RENAME -> rename directory.
  * 	NOTE_DELETE -> delete directory.
  */
 #define FLY_INOTIFY_WATCH_FLAG_MP	(NOTE_DELETE|NOTE_EXTEND|NOTE_RENAME|NOTE_WRITE)
-/* 
+/*
  * File:
  *	NOTE_EXTEND -> extend file size.
  *	NOTE_WRITE  -> change file content.

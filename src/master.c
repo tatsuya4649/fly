@@ -1005,47 +1005,30 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 {
 	/* ie->len includes null terminate */
 	int mask;
-	uint8_t mod = 0;
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
 
 	mask = ie->mask;
 	if (mask & IN_CREATE){
-		mod |= FLY_SIGNAL_ADDF;
 		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
 	}
-	if (mask & IN_DELETE){
-		mod |= FLY_SIGNAL_DELF;
-		if (fly_inotify_rm_watch(parts, ie->name, ie->len-1, mask) == -1)
-			return -1;
-	}
 	if (mask & IN_DELETE_SELF){
-		mod |= FLY_SIGNAL_UMOU;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 	}
-	if (mask & IN_MOVED_FROM){
-		mod |= FLY_SIGNAL_DELF;
-		if (fly_inotify_rm_watch(parts, ie->name, ie->len-1, mask) == -1)
-			return -1;
-	}
 	if (mask & IN_MOVED_TO){
-		mod |= FLY_SIGNAL_ADDF;
 		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVE_SELF){
-		mod |= FLY_SIGNAL_UMOU;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 	}
 
 	fly_for_each_bllist(__b, &master->workers){
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
-		int send_value;
-		FLY_CHANGE_MNT_SIGNAL(&send_value, &mod, &parts->mount_number);
-		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, send_value) == -1)
+		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, FLY_UNUSE_SIGNAL_VALUE) == -1)
 			return -1;
 	}
 
@@ -1110,39 +1093,6 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 }
 #endif
 
-#ifdef HAVE_INOTIFY
-__fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, struct inotify_event *ie)
-{
-	int mask;
-	char rpath[FLY_PATH_MAX];
-	fly_worker_t *__w;
-	int signum = 0;
-
-	if (fly_join_path(rpath, FLY_PATH_MAX, pf->parts->mount_path, pf->filename) == -1)
-		return -1;
-
-	mask = ie->mask;
-	if (mask & IN_MODIFY){
-		signum |= FLY_SIGNAL_MODF;
-		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
-			return -1;
-	}
-	if (mask & IN_ATTRIB){
-		signum |= FLY_SIGNAL_MODF;
-		if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
-			return -1;
-	}
-
-	struct fly_bllist *__b;
-	fly_for_each_bllist(__b, &master->workers){
-		__w = fly_bllist_data(__b, struct fly_worker, blelem);
-		if (fly_send_signal(__w->pid, signum, pf->parts->mount_number) == -1)
-			return -1;
-	}
-	return 0;
-}
-#elif defined HAVE_KQUEUE
-
 static int __fly_file_deleted(const char *path)
 {
 	struct stat st;
@@ -1151,6 +1101,70 @@ static int __fly_file_deleted(const char *path)
 	else
 		return 0;
 }
+
+
+#ifdef HAVE_INOTIFY
+__fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, struct inotify_event *ie)
+{
+	int mask;
+	char rpath[FLY_PATH_MAX];
+	fly_worker_t *__w;
+	int res;
+
+	res = snprintf(rpath, FLY_PATH_MAX, "%s/%s", pf->parts->mount_path, pf->filename);
+	if (res < 0 || res == FLY_PATH_MAX)
+		return -1;
+
+	if (__fly_file_deleted((const char *) rpath))
+		goto deleted;
+
+	mask = ie->mask;
+	if (mask & IN_DELETE_SELF)
+		goto deleted;
+	if (mask & IN_MOVE_SELF)
+		goto deleted;
+	if (pf->dir){
+		if (mask & IN_CREATE && mask & IN_MOVED_TO){
+			if (fly_inotify_add_watch(pf->parts, ie->name, ie->len) == -1)
+				return -1;
+
+#ifdef DEBUG
+			if (mask & IN_CREATE)
+				printf("MASTER: Detect added file(create).\n");
+			else
+				printf("MASTER: Detect added file(moved).\n");
+#endif
+		}
+	}else{
+		if (mask & IN_MODIFY){
+			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+				return -1;
+		}
+		if (mask & IN_ATTRIB){
+			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+				return -1;
+		}
+	}
+
+	goto send_signal;
+deleted:
+#ifdef DEBUG
+	printf("MASTER: Detect renamed/deleted file. Remove watch(%s)\n", rpath);
+#endif
+	if (fly_inotify_rm_watch(pf) == -1)
+		return -1;
+
+send_signal:
+	;
+	struct fly_bllist *__b;
+	fly_for_each_bllist(__b, &master->workers){
+		__w = fly_bllist_data(__b, struct fly_worker, blelem);
+		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, 0) == -1)
+			return -1;
+	}
+	return 0;
+}
+#elif defined HAVE_KQUEUE
 
 __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, int flag)
 {
@@ -1322,22 +1336,19 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 	inobuf_size = FLY_NUMBER_OF_INOBUF*(sizeof(struct inotify_event) + NAME_MAX + 1);
 	pool = e->manager->pool;
 	inobuf = fly_pballoc(pool, inobuf_size);
-	if (fly_unlikely_null(inobuf))
-		return -1;
-
 	while(true){
 		num_read = read(inofd, inobuf, inobuf_size);
 		if (num_read == -1){
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				break;
 			else
-				return -1;
+				goto error;
 		}
 
 		for (__ptr=inobuf; __ptr < (char *) (inobuf+num_read);){
 			__e = (struct inotify_event *) __ptr;
 			if (__fly_inotify_handle(master, ctx, __e) == -1)
-				return -1;
+				goto error;
 			__ptr += sizeof(struct inotify_event) + __e->len;
 		}
 	}
@@ -1345,6 +1356,9 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 	/* release buf */
 	fly_pbfree(pool, inobuf);
 	return 0;
+error:
+	fly_pbfree(pool, inobuf);
+	return -1;
 }
 
 #elif defined HAVE_KQUEUE

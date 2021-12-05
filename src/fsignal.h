@@ -48,4 +48,6 @@ __fly_noreturn int fly_signal_default_handler(fly_context_t *, fly_siginfo_t *);
 int fly_send_signal(pid_t pid, int signumber, int value);
 
 static inline void FLY_SIG_IGN(fly_context_t *ctx __fly_unused, fly_siginfo_t *__info __fly_unused){}
+
+#define FLY_UNUSE_SIGNAL_VALUE			0
 #endif
