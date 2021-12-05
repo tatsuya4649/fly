@@ -10,6 +10,7 @@
 #include <signal.h>
 #include "err.h"
 #include <sys/wait.h>
+#include <fcntl.h>
 
 int __fly_master_fork(fly_master_t *master, fly_proc_type type, void (*proc)(fly_context_t *, void *), fly_context_t *ctx);
 #ifdef HAVE_SIGNALFD
@@ -1010,19 +1011,31 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 
 	mask = ie->mask;
 	if (mask & IN_CREATE){
+#ifdef DEBUG
+		printf("MASTER: New file is created at mount point.\n");
+#endif
 		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
 	}
 	if (mask & IN_DELETE_SELF){
+#ifdef DEBUG
+		printf("MASTER: Mount point is deleted.\n");
+#endif
 		parts->deleted = true;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVED_TO){
+#ifdef DEBUG
+		printf("MASTER: New file is move to mount point.\n");
+#endif
 		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
 	}
 	if (mask & IN_MOVE_SELF){
+#ifdef DEBUG
+		printf("MASTER: Mount point is moved.\n");
+#endif
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 	}
@@ -1429,7 +1442,7 @@ __fly_static int __fly_master_inotify_event(fly_master_t *master, fly_event_mana
 
 #ifdef HAVE_INOTIFY
 	int inofd;
-	inofd = inotify_init1(IN_CLOEXEC|IN_NONBLOCK);
+	inofd = fly_inotify_init();
 	if (inofd == -1)
 		return -1;
 	if (fly_mount_inotify(ctx->mount, inofd) == -1)
@@ -1641,7 +1654,7 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 	int wd;
 	fly_event_t *e;
 
-	fd = inotify_init1(IN_CLOEXEC|IN_NONBLOCK);
+	fd = fly_inotify_init();
 	if (fd == -1)
 		return -1;
 
@@ -1732,4 +1745,34 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 	return 0;
 }
 
+#endif
+
+
+#ifdef HAVE_INOTIFY
+int fly_inotify_init(void)
+{
+#ifdef HAVE_INOTIFY_INIT1
+	return inotify_init1(IN_CLOEXEC|IN_NONBLOCK);
+#else
+	int ifd, flag;
+
+	ifd = inotify_init();
+	if (ifd == -1)
+		return -1;
+
+	flag = fcntl(ifd, F_GETFD);
+	if (flag == -1)
+		return -1;
+	if (fcntl(ifd, F_SETFD, flag|FD_CLOEXEC) == -1)
+		return -1;
+
+	flag = fcntl(ifd, F_GETFL);
+	if (flag == -1)
+		return -1;
+	if (fcntl(ifd, F_SETFL, flag|O_NONBLOCK) == -1)
+		return -1;
+
+	return ifd;
+#endif
+}
 #endif

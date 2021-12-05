@@ -109,4 +109,8 @@ void fly_master_setreload(fly_master_t *master, const char *reload_filepath, boo
 
 #endif
 
+#ifdef HAVE_INOTIFY
+int fly_inotify_init(void);
+#endif
+
 #endif
