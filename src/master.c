@@ -1014,6 +1014,7 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 			return -1;
 	}
 	if (mask & IN_DELETE_SELF){
+		parts->deleted = true;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 	}
@@ -1068,6 +1069,8 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #endif
 	}
 	if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
+		if (mask & NOTE_DELETE)
+			parts->deleted = true;
 		mod |= FLY_SIGNAL_UMOU;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
@@ -1115,12 +1118,11 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 	if (res < 0 || res == FLY_PATH_MAX)
 		return -1;
 
-	if (__fly_file_deleted((const char *) rpath))
-		goto deleted;
-
 	mask = ie->mask;
-	if (mask & IN_DELETE_SELF)
+	if (mask & IN_DELETE_SELF){
+		pf->deleted = true;
 		goto deleted;
+	}
 	if (mask & IN_MOVE_SELF)
 		goto deleted;
 	if (pf->dir){
@@ -1141,15 +1143,23 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 				return -1;
 		}
 		if (mask & IN_ATTRIB){
-			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
+			/*
+			 * If the file is deleted, IN_ATTRIB will occur which means that link count of file has changed.
+			 */
+			if (__fly_file_deleted((const char *) rpath)){
+				pf->deleted = true;
+				goto deleted;
+			}
+			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1){
 				return -1;
+			}
 		}
 	}
 
 	goto send_signal;
 deleted:
 #ifdef DEBUG
-	printf("MASTER: Detect renamed/deleted file. Remove watch(%s)\n", rpath);
+	printf("MASTER: Detect renamed/deleted file. Remove watch(%s). %s\n", rpath, pf->deleted ? "DELETE" : "ALIVE");
 #endif
 	if (fly_inotify_rm_watch(pf) == -1)
 		return -1;
@@ -1182,9 +1192,6 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 	if (res < 0 || res == FLY_PATH_MAX)
 		return -1;
 
-	if (__fly_file_deleted((const char *) rpath))
-		goto deleted;
-
 	mask = flag;
 	if (pf->dir){
 #ifdef DEBUG
@@ -1203,6 +1210,8 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 #endif
 		}
 		if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
+			if (mask & NOTE_DELETE)
+				pf->deleted = true;
 			mod |= FLY_SIGNAL_UMOU;
 			if (fly_inotify_rm_watch(pf) == -1)
 				return -1;
@@ -1211,8 +1220,10 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 #endif
 		}
 	}else{
-		if (mask & NOTE_DELETE)
+		if (mask & NOTE_DELETE){
+			pf->deleted = true;
 			goto deleted;
+		}
 		if (mask & NOTE_WRITE){
 			mod |= FLY_SIGNAL_MODF;
 			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
@@ -1230,6 +1241,11 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 		}
 		if (mask & NOTE_RENAME)
 			goto deleted;
+	}
+
+	if (__fly_file_deleted((const char *) rpath)){
+		pf->deleted = true;
+		goto deleted;
 	}
 
 	goto send_signal;
@@ -1268,12 +1284,20 @@ __fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, 
 	wd = ie->wd;
 	/* occurred in mount point directory */
 	parts = fly_parts_from_wd(wd, ctx->mount);
-	if (parts)
+	if (parts){
+#ifdef DEBUG
+		printf("MASTER: Detect at mount point\n");
+#endif
 		return __fly_inotify_in_mp(master, parts, ie);
+	}
 
 	pf = fly_pf_from_mount(wd, ctx->mount);
-	if (pf)
+	if (pf){
+#ifdef DEBUG
+		printf("MASTER: Detect at mount point file\n");
+#endif
 		return __fly_inotify_in_pf(master, pf, ie);
+	}
 
 	return 0;
 }
@@ -1299,7 +1323,7 @@ __fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, 
 	pf = fly_pf_from_mount(fd, ctx->mount);
 #ifdef DEBUG
 	if (pf != NULL)
-		printf("MASTER: Detect at point file\n");
+		printf("MASTER: Detect at mount point file\n");
 #endif
 	if (pf != NULL && \
 			__fly_inotify_in_pf(master, pf, __e->eflag) == -1)
@@ -1347,8 +1371,13 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 
 		for (__ptr=inobuf; __ptr < (char *) (inobuf+num_read);){
 			__e = (struct inotify_event *) __ptr;
-			if (__fly_inotify_handle(master, ctx, __e) == -1)
+			if (__fly_inotify_handle(master, ctx, __e) == -1){
+#ifdef DEBUG
+				perror("__fly_inotify_handle");
+				printf("MASTER: Inotify handle error.\n");
+#endif
 				goto error;
+			}
 			__ptr += sizeof(struct inotify_event) + __e->len;
 		}
 	}

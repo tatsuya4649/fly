@@ -191,6 +191,7 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 		pfile->dir = true;
 	else
 		pfile->dir = false;
+	pfile->deleted = false;
 
 	return pfile;
 }
@@ -416,6 +417,7 @@ int fly_mount(fly_context_t *ctx, const char *path)
 #endif
 	parts->pool = pool;
 	parts->file_count = 0;
+	parts->deleted = false;
 	fly_bllist_init(&parts->files);
 
 	if (__fly_mount_add(mnt, parts) == -1)
@@ -1144,7 +1146,11 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 
 	/* remove mount point */
 #ifdef HAVE_INOTIFY
-	if (inotify_rm_watch(parts->infd, parts->wd) == -1)
+	/*
+	 * If mount point is alive, do inotify_rm_watch.
+	 */
+	if (!parts->deleted && \
+			inotify_rm_watch(parts->infd, parts->wd) == -1)
 		return -1;
 #elif defined HAVE_KQUEUE
 	if (close(parts->fd) == -1)
@@ -1211,7 +1217,14 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 	printf("\t\"%s\": %d release resources\n", pf->filename, pf->fd);
 #endif
 #ifdef HAVE_INOTIFY
-	if (inotify_rm_watch(pf->parts->infd, pf->wd) == -1)
+	/*
+	 * If watching file is alive, do inotify_rm_watch.
+	 */
+#ifdef DEBUG
+	printf("%s is \"%s\"\n", pf->filename, pf->deleted ? "DELETED": "ALIVE");
+#endif
+	if (!pf->deleted && \
+			inotify_rm_watch(pf->parts->infd, pf->wd) == -1)
 		return -1;
 #elif defined HAVE_KQEUEU
 	pf->event->flag = FLY_CLOSE_EV;

@@ -898,7 +898,7 @@ __fly_static int __fly_event_handler_failure_logcontent(fly_logcont_t *lc, fly_e
 	res = snprintf(
 		(char *) lc->content,
 		(size_t) lc->contlen,
-		"event fd: %d. handler: %s",
+		"event fd: %d. handler: %s\n",
 		e->fd,
 		e->handler_name!=NULL ? e->handler_name : "?"
 	);
