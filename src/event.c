@@ -72,6 +72,9 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	manager->efd = fd;
 	manager->rbtree = fly_rb_tree_init(__fly_event_cmp);
 	manager->jbend_handle = NULL;
+#ifdef HAVE_KQUEUE
+	manager->reset = 0;
+#endif
 	return manager;
 error:
 	fly_delete_pool(manager->pool);
@@ -499,6 +502,7 @@ int fly_event_unregister(fly_event_t *event)
 #endif
 		}
 
+//release:
 		fly_pbfree(event->manager->pool, event);
 		return 0;
 	}
@@ -767,6 +771,7 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 #ifdef DEBUG_EVENT
 		printf("EVENT: %s\n", fly_event->handler_name);
 #endif
+		manager->reset = false;
 		fly_event->id = event->ident;
 		fly_event->eflag = event->fflags;
 		if (event->filter == EVFILT_READ)
@@ -785,6 +790,9 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 #endif
 		if (fly_event && !fly_nodelete(fly_event))
 			fly_event_unregister(fly_event);
+
+		if (manager->reset)
+			break;
 	}
 
 	__fly_event_handle_nomonitorable(manager);
@@ -825,12 +833,13 @@ int fly_event_handler(fly_event_manager_t *manager)
 #endif
 		/* the event with closest timeout */
 retry:
+		memset(manager->evlist, '\0', sizeof(struct kevent)*manager->maxevents);
 #ifdef HAVE_EPOLL
 		epoll_events = \
 				epoll_wait(manager->efd, manager->evlist, manager->maxevents, timeout_msec);
 #elif defined HAVE_KQUEUE
 		epoll_events = \
-				kevent(manager->efd, NULL, 0, manager->evlist, manager->maxevents, t_ptr);
+				kevent(manager->efd, NULL, 0, manager->evlist, 1, t_ptr);
 #endif
 		switch(epoll_events){
 		case 0:
@@ -956,50 +965,51 @@ __fly_direct_log static void fly_event_handle(fly_event_t *e)
 
 	struct fly_bllist *__b;
 	struct fly_err *__e;
-	fly_for_each_bllist(__b, &e->errors){
-		__e = (struct fly_err *) fly_bllist_data(__b, struct fly_err, blelem);
-		/* direct log here */
-		switch(fly_error_level(__e)){
-		case FLY_ERR_EMERG:
-			/* noreturn */
-			fly_em_jbhandle(e);
-			fly_emergency_error(__e);
-			break;
-		case FLY_ERR_CRIT:
-			/* noreturn */
-			fly_em_jbhandle(e);
-			fly_critical_error(__e);
-			break;
-		case FLY_ERR_ERR:
-			/* noreturn */
-			fly_em_jbhandle(e);
-			fly_error_error(__e);
-			break;
-		case FLY_ERR_ALERT:
-			/* return */
-			fly_alert_error(__e);
-			break;
-		case FLY_ERR_WARN:
-			/* return */
-			fly_warn_error(__e);
-			break;
-		case FLY_ERR_NOTICE:
-			/* return */
-			fly_notice_error(__e);
-			break;
-		case FLY_ERR_INFO:
-			/* return */
-			fly_info_error(__e);
-			break;
-		case FLY_ERR_DEBUG:
-			/* return */
-			fly_debug_error(__e);
-			break;
-		default:
-			FLY_NOT_COME_HERE
+	if (e->err_count > 0){
+		fly_for_each_bllist(__b, &e->errors){
+			__e = (struct fly_err *) fly_bllist_data(__b, struct fly_err, blelem);
+			/* direct log here */
+			switch(fly_error_level(__e)){
+			case FLY_ERR_EMERG:
+				/* noreturn */
+				fly_em_jbhandle(e);
+				fly_emergency_error(__e);
+				break;
+			case FLY_ERR_CRIT:
+				/* noreturn */
+				fly_em_jbhandle(e);
+				fly_critical_error(__e);
+				break;
+			case FLY_ERR_ERR:
+				/* noreturn */
+				fly_em_jbhandle(e);
+				fly_error_error(__e);
+				break;
+			case FLY_ERR_ALERT:
+				/* return */
+				fly_alert_error(__e);
+				break;
+			case FLY_ERR_WARN:
+				/* return */
+				fly_warn_error(__e);
+				break;
+			case FLY_ERR_NOTICE:
+				/* return */
+				fly_notice_error(__e);
+				break;
+			case FLY_ERR_INFO:
+				/* return */
+				fly_info_error(__e);
+				break;
+			case FLY_ERR_DEBUG:
+				/* return */
+				fly_debug_error(__e);
+				break;
+			default:
+				FLY_NOT_COME_HERE
+			}
 		}
 	}
-
 retry:
 	fly_for_each_bllist(__b, &e->errors){
 		__e = (struct fly_err *) fly_bllist_data(__b, struct fly_err, blelem);

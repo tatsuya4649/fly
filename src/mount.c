@@ -95,6 +95,7 @@ void fly_parts_file_add(fly_mount_parts_t *parts, struct fly_mount_parts_file *p
 {
 	fly_bllist_add_tail(&parts->files, &pf->blelem);
 	parts->file_count++;
+	parts->mount->file_count++;
 	return;
 }
 
@@ -145,6 +146,7 @@ void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file
 		fly_rb_delete(parts->mount->rbtree, pf->rbnode);
 	fly_pbfree(parts->mount->ctx->pool, pf);
 	parts->file_count--;
+	parts->mount->file_count--;
 }
 
 __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point, size_t dist_len)
@@ -349,7 +351,6 @@ __fly_static int __fly_nftw(fly_event_t *event, fly_mount_parts_t *parts, const 
 		fly_rbdata_set_size(&cmpdata, pfile->filename_len);
 		pfile->rbnode = fly_rb_tree_insert(parts->mount->rbtree, &data, &key, &pfile->rbnode, &cmpdata);
 		fly_parts_file_add(parts, pfile);
-		parts->mount->file_count++;
 	}
 
 	return closedir(__pathd);
@@ -428,7 +429,8 @@ int fly_mount(fly_context_t *ctx, const char *path)
 	}
 
 #ifdef DEBUG
-	assert(mnt->rbtree->node_count == mnt->file_count);
+	printf("MOUNT FILE COUNT: %ld\n", ctx->mount->file_count);
+	printf("MOUNT RBNODE COUNT: %ld\n", ctx->mount->rbtree->node_count);
 	__fly_mount_debug(mnt);
 #endif
 	return 0;
@@ -928,7 +930,6 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len)
 		fly_rbdata_set_size(&cmpdata, len);
 		__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, &data, &key, &__npf->rbnode, &cmpdata);
 		fly_parts_file_add(parts, __npf);
-		parts->mount->file_count++;
 	}
 	return 0;
 }
@@ -985,6 +986,14 @@ static int __fly_same_direntry(fly_mount_parts_t *parts, struct dirent *__de)
 
 	fly_for_each_bllist(__b, &parts->files){
 		__npf = (struct fly_mount_parts_file *) fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
+		/*
+		 *	continue if Directory and File.
+		 */
+		if (__de->d_type == DT_DIR && !__npf->dir)
+			continue;
+		if (__de->d_type == DT_REG && __npf->dir)
+			continue;
+
 		/* if same entry, continue */
 		if (strncmp(__de->d_name, __npf->filename, strlen(__de->d_name)) == 0)
 			return 1;
@@ -1035,6 +1044,7 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 		/* already exists parts file/directory. */
 		if (__fly_same_direntry(parts, __de))
 			continue;
+
 		struct stat sb;
 
 		if (stat(rpath, &sb) == -1)
@@ -1062,7 +1072,6 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 		fly_rbdata_set_size(&cmpdata, strlen(__npf->filename));
 		__npf->rbnode = fly_rb_tree_insert(parts->mount->rbtree, &data, &key, &__npf->rbnode, &cmpdata);
 		fly_parts_file_add(parts, __npf);
-		parts->mount->file_count++;
 #ifdef DEBUG
 		printf("\tADD WATCH! fd: %d, event fd: %d\n", __npf->fd, __npf->event->fd);
 		assert(fly_pf_from_fd(__npf->event->fd, parts) != NULL);
@@ -1186,19 +1195,52 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 #ifdef DEBUG
 	assert(pf != NULL);
 	assert(pf->event->read_or_write == FLY_KQ_INOTIFY);
+	assert(pf->parts->file_count > 0);
 #endif
 	struct fly_mount *__m;
 	if (pf->parts->file_count == 0)
 		return -1;
 
+	if (pf->dir){
+		struct fly_bllist *__b, *__n;
+		struct fly_mount_parts_file *__pf;
+		char *dirptr;
+		size_t dirlen;
+
+		dirptr = pf->filename;
+		if (strchr(dirptr, '/') == NULL){
+			dirlen = pf->filename_len;
+		}else{
+			while(strchr(dirptr, '/') != NULL)
+				dirptr = strchr(dirptr, '/');
+
+			dirlen = dirptr-pf->filename+1;
+		}
+
+		for (__b=pf->parts->files.next; __b!=&pf->parts->files; __b=__n){
+			__n = __b->next;
+			__pf = (struct fly_mount_parts_file *) fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
+			/* same directory but not directory */
+			if (dirlen != __pf->filename_len && \
+					strncmp(__pf->filename, pf->filename, dirlen) == 0){
+				fly_event_t *__etmp;
+				__etmp = __pf->event;
+				if (fly_inotify_rm_watch(__pf) == -1)
+					return -1;
+
+				if (fly_event_unregister(__etmp) == -1)
+					return -1;
+			}
+		} 
+	}
+#ifdef DEBUG
+	printf("\t\"%s\": %d release event and kevent\n", pf->filename, pf->fd);
+#endif
 	__m = pf->parts->mount;
+	pf->event->flag = FLY_CLOSE_EV;
+	fly_event_manager_reset(pf->event);
 	if (close(pf->fd) == -1)
 		return -1;
-
-	pf->event->flag = FLY_CLOSE_EV;
-	if (fly_event_unregister(pf->event) == -1)
-		return -1;
-
 	fly_parts_file_remove(pf->parts, pf);
 	__m->file_count--;
 	return 0;
@@ -1271,3 +1313,27 @@ const char *fly_index_path(void)
 	return (const char *) fly_config_value_str(FLY_INDEX_PATH);
 }
 
+#ifdef DEBUG
+void __fly_debug_mnt_content(fly_context_t *ctx)
+{
+	assert(ctx != NULL);
+	assert(ctx->mount != NULL);
+	struct fly_mount_parts *__p;
+	struct fly_bllist *__b;
+
+	printf("==============================\n");
+	fly_for_each_bllist(__b, &ctx->mount->parts){
+		struct fly_mount_parts_file *__pf;
+		struct fly_bllist * __pb;
+
+		__p = (struct fly_mount_parts *) fly_bllist_data(__b, fly_mount_parts_t, mbelem);
+		printf("MOUNT POINT: %s\n", __p->mount_path);
+
+		fly_for_each_bllist(__pb, &__p->files){
+			__pf = (struct fly_mount_parts_file *) fly_bllist_data(__pb, struct fly_mount_parts_file, blelem);
+			printf("\tWATCHING: %s\n", __pf->filename);
+		}
+	}
+	printf("==============================\n");
+}
+#endif

@@ -78,6 +78,9 @@ struct fly_worker *fly_worker_init(fly_context_t *mcontext)
 		goto w_error;
 
 	__w->context = mcontext;
+#ifdef DEBUG
+	assert(__w->context->mount != NULL);
+#endif
 	__w->context->event_pool = NULL;
 	__w->context->pool_manager = __pm;
 
@@ -283,7 +286,6 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 #endif
 
 		fly_parts_file_add(parts, __pf);
-		parts->mount->file_count++;
 		/* add rbtree of mount */
 		fly_rbdata_t data, key, cmpdata;
 
@@ -300,10 +302,9 @@ error:
 
 __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, const char *mount_point)
 {
-	if (parts->file_count == 0)
-		return -1;
-
+	int res;
 	char __path[FLY_PATH_MAX];
+	struct stat stbuf;
 	struct fly_mount_parts_file *__pf;
 	struct fly_bllist *__b, *__n;
 
@@ -311,18 +312,25 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, const char *mount
 		__n = __b->next;
 
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
-		if (fly_join_path(__path, FLY_PATH_MAX, (char *) mount_point, __pf->filename) == -1 \
-				&& errno == ENOENT){
+
+		res = snprintf(__path, FLY_PATH_MAX, "%s/%s", mount_point, __pf->filename);
+#ifdef DEBUG
+		assert(res < FLY_PATH_MAX);
+#endif
+		if (res < 0)
+			return -1;
+
+		if (stat(__path, &stbuf) == -1 && errno == ENOENT){
 #ifdef DEBUG
 			printf("WORKER[%d]: DETECT DELETED FILE: (%s)\n", \
 					getpid(), __path);
+			assert(__pf->fd != -1);
 #endif
 			if (__pf->fd != -1)
 				if (close(__pf->fd) == -1)
 					return -1;
 
 			fly_parts_file_remove(parts, __pf);
-			parts->mount->file_count--;
 		}
 	}
 
@@ -1037,13 +1045,14 @@ const char *fly_default_content_path(void)
 	return (const char *) fly_config_value_str(FLY_DEFAULT_CONTENT_PATH);
 }
 
-static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
+static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unused fly_siginfo_t *info)
 {
 #ifdef DEBUG
 	assert(ctx != NULL);
 	assert(ctx->mount != NULL);
 	assert(ctx->mount->mount_count > 0);
-	assert(ctx->mount->file_count == ctx->mount->rbtree->node_count);
+	printf("WORER: MOUNT FILE COUNT: %ld\n", ctx->mount->file_count);
+	printf("WORER: MOUNT RBNODE COUNT: %ld\n", ctx->mount->rbtree->node_count);
 #endif
 
 	struct fly_mount_parts *__p;
@@ -1085,6 +1094,10 @@ static void fly_worker_signal_change_mnt_content(__fly_unused fly_context_t *ctx
 		fly_check_del_file(__p);
 		fly_check_mod_file(__p);
 	}
+#ifdef DEBUG
+	printf("WORKER MOUNT CONTENT DEBUG\n");
+	__fly_debug_mnt_content(ctx);
+#endif
 	return;
 }
 

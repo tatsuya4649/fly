@@ -57,6 +57,11 @@ struct fly_event_manager{
 
 	/* if event occurred error termination the process, called */
 	void (*jbend_handle)(fly_context_t *ctx);
+#ifdef HAVE_KQUEUE
+#define fly_event_manager_reset(event)		\
+			((event)->manager->reset = true)
+	fly_bit_t					reset: 1;
+#endif
 };
 typedef struct fly_event_manager fly_event_manager_t;
 

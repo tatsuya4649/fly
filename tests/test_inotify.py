@@ -166,6 +166,9 @@ async def test_move_directory2(inotify_dir_remove, fly_servers):
 @pytest.mark.asyncio
 async def test_unmount_dir(inotify_dir_remove, fly_servers):
     assert(os.path.isdir("tests/mnt2"))
+    if not os.path.isfile("tests/mnt2/hello"):
+        with open("tests/mnt2/hello", "w") as f:
+            f.write("Hello test!")
     
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/hello")
@@ -180,3 +183,53 @@ async def test_unmount_dir(inotify_dir_remove, fly_servers):
 
     # move to mount directory 
     shutil.move("../mnt2", 'tests/mnt2')
+
+_INODIR = "tests/mnt2/inod"
+_INODIR_FILE = "tests/mnt2/inod/hello"
+@pytest.mark.asyncio
+async def test_mount_unmount(inotify_dir_remove, fly_servers):
+    # create directory
+    os.mkdir(os.path.dirname(_INOD_PATH))
+    with open(_INOD_PATH, "w") as f:
+        f.write("Hello new file!")
+    assert(os.path.isfile(_INOD_PATH))
+
+    if os.path.isdir(_INODIR):
+        shutil.rmtree(_INODIR)
+    assert not os.path.isdir(_INODIR)
+    assert not os.path.isfile(_INODIR_FILE)
+    
+    # test HTTP
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/inod/hello")
+    assert(res.status_code == 404)
+
+    # make directory
+    os.mkdir(_INODIR)
+    with open(_INODIR_FILE, "w") as f:
+        f.write("Hello test")
+
+    # test HTTP
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/inod/hello")
+    assert(res.status_code == 200)
+
+    # remove directory
+    assert os.path.isdir(_INODIR)
+    assert os.path.isfile(_INODIR_FILE)
+    shutil.move(_INODIR, "./inod")
+    assert not os.path.isdir(_INODIR)
+    assert not os.path.isfile(_INODIR_FILE)
+
+    # test HTTP
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/inod/hello")
+    assert(res.status_code == 404)
+
+    shutil.rmtree("./inod")
+
+    # test HTTP
+    for i in range(1000):
+        async with httpx.AsyncClient(http1=True, timeout=1) as client:
+            res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
+        assert(res.status_code == 200)
