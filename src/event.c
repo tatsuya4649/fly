@@ -759,6 +759,9 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 	struct kevent *event;
 #endif
 
+#ifdef DEBUG
+	printf("Start %d events\n", epoll_events);
+#endif
 	for (int i=0; i<epoll_events; i++){
 		fly_event_t *fly_event;
 		event = manager->evlist + i;

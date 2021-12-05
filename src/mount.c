@@ -1124,12 +1124,15 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 	for (__b=parts->files.next; __b!=&parts->files; __b=__n){
 		__n = __b->next;
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
-#ifdef DEBUG
+#if defined HAVE_KQUEUE && defined DEBUG
 		assert(__pf->fd > 0);
 #endif
 		if (__pf->fd > 0)
 			if (fly_inotify_rm_watch(__pf) == -1)
 				return -1;
+#ifdef KQUEUE
+		fly_event_manager_reset(__pf->event);
+#endif
 	}
 #ifdef DEBUG
 	/*
@@ -1147,8 +1150,8 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 	if (close(parts->fd) == -1)
 		return -1;
 	parts->event->flag = FLY_CLOSE_EV;
-	if (fly_event_unregister(parts->event) == -1)
-		return -1;
+//	if (fly_event_unregister(parts->event) == -1)
+//		return -1;
 
 #endif
 	if (fly_unmount(parts->mount, parts->mount_path) == -1)

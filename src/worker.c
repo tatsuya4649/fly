@@ -348,7 +348,7 @@ __fly_static int __fly_work_unmount(fly_mount_parts_t *parts)
 		fly_parts_file_remove(parts, __pf);
 	}
 #ifdef DEBUG
-	printf("WORKER[%d]: Unmount mouht point. (%s)\n", getpid(), parts->mount_path);
+	printf("WORKER[%d]: Unmount mount point. (%s)\n", getpid(), parts->mount_path);
 #endif
 	return fly_unmount(parts->mount, parts->mount_path);
 }
