@@ -539,6 +539,7 @@ AC_CHECK_HEADER([sys/inotify.h], [
 	], [
 		AC_DEFINE([HAVE_INOTIFY], [1], [Define to 1 if you have the inotify. ])
 		AC_MSG_RESULT([yes])
+		AC_CHECK_FUNCS([inotify_init1])
 		have_inotify="yes"
 	], [
 		AC_MSG_RESULT([no])

@@ -1129,9 +1129,8 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 #if defined HAVE_KQUEUE && defined DEBUG
 		assert(__pf->fd > 0);
 #endif
-		if (__pf->fd > 0)
-			if (fly_inotify_rm_watch(__pf) == -1)
-				return -1;
+		if (fly_inotify_rm_watch(__pf) == -1)
+			return -1;
 #ifdef KQUEUE
 		fly_event_manager_reset(__pf->event);
 #endif

@@ -166,21 +166,26 @@ async def test_move_directory2(inotify_dir_remove, fly_servers):
     shutil.move('../ino', _INOD2_PATH)
 
 
-@pytest.mark.asyncio
-async def test_unmount_dir(inotify_dir_remove, fly_servers):
-    assert(os.path.isdir("tests/mnt2"))
+@pytest.fixture(scope="function", autouse=False)
+def make_mnt2():
+    if not os.path.isdir("tests/mnt2"):
+        os.mkdir("tests/mnt2")
     if not os.path.isfile("tests/mnt2/hello"):
         with open("tests/mnt2/hello", "w") as f:
             f.write("Hello test!")
+    yield
 
+@pytest.mark.asyncio
+async def test_unmount_dir(inotify_dir_remove, make_mnt2, fly_servers):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/hello")
     assert(res.status_code == 200)
 
     # move mount point
+    assert(os.path.isdir('tests/mnt2'))
+    if os.path.isdir("../mnt2"):
+        shutil.rmtree("../mnt2")
     shutil.move("tests/mnt2", '../mnt2')
-
-    await asyncio.sleep(1)
 
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/hello")
