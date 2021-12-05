@@ -107,6 +107,8 @@ async def test_delete_directory(inotify_dir_remove, fly_servers):
         f.write("Hello new file!")
     assert(os.path.isfile(_INOD_PATH))
 
+    print("~~~~~ CREATE DIRECTORY ~~~~~")
+
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
     assert(res.status_code == 200)
@@ -114,6 +116,7 @@ async def test_delete_directory(inotify_dir_remove, fly_servers):
     # delete directory
     shutil.rmtree(os.path.dirname(_INOD_PATH))
 
+    print("~~~~~ DELETE DIRECTORY ~~~~~")
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
     assert(res.status_code == 404)

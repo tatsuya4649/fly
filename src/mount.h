@@ -51,6 +51,7 @@ struct fly_mount_parts_file{
 	fly_bit_t				encoded: 1;
 	fly_bit_t				dir: 1;
 	fly_bit_t				overflow: 1;
+	fly_bit_t				deleted: 1;
 };
 
 struct fly_mount_parts{
@@ -72,6 +73,7 @@ struct fly_mount_parts{
 	struct fly_bllist		mbelem;
 	struct fly_mount		*mount;
 	fly_pool_t				*pool;
+	fly_bit_t				deleted: 1;
 };
 
 struct fly_context;
