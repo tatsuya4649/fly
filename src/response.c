@@ -443,7 +443,7 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 	fly_logcont_setting(log_content, FLY_RESPONSE_LOG_LENGTH);
 
 #ifdef DEBUG
-	printf("WORKER: Setting Log content of HTTP2 Access\n");
+	printf("WORKER: Setting Log content of HTTP Access\n");
 #endif
 	switch(__fly_response_logcontent(res, e, log_content)){
 	case __FLY_RESPONSE_LOGCONTENT_SUCCESS:
@@ -478,7 +478,7 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 	}
 
 #ifdef DEBUG
-	printf("WORKER: End of setting log content of HTTP2 Access\n");
+	printf("WORKER: End of setting log content of HTTP Access\n");
 #endif
 	FLY_EVENT_HANDLER(le, fly_log_event_handler);
 	le->read_or_write = FLY_WRITE;

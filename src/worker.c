@@ -164,7 +164,14 @@ __fly_static void fly_check_mod_file(fly_mount_parts_t *parts)
 
 #ifdef DEBUG
 		printf("WORKER[%d]: DETECT MODIFIED FILE(%s)\n", getpid(), rpath);
+		assert(parts->mount != NULL);
+		assert(parts->mount->ctx != NULL);
+		assert(parts->mount->ctx->log != NULL);
 #endif
+		FLY_NOTICE_DIRECT_LOG(parts->mount->ctx->log,
+			"Worker[%d]: detected a deleted %s(%s).\n",
+			getpid(),
+			__f->dir ? "directory" : "file", rpath);
 		if (fly_hash_update_from_parts_file_path(rpath, __f) == -1)
 			FLY_EMERGENCY_ERROR(
 				"modify file error in worker."
@@ -229,6 +236,9 @@ __fly_static int __fly_work_add_nftw(fly_mount_parts_t *parts, char *path, const
 		if (fly_unlikely_null(__pf))
 			goto error;
 
+		FLY_NOTICE_DIRECT_LOG(parts->mount->ctx->log,
+			"Worker[%d]: detected a new %s(%s).\n",
+			getpid(), __pf->dir ? "directory" : "file", __path);
 #ifdef HAVE_KQUEUE
 		if (fly_isdir(__path) == 1){
 			__pf->dir = true;
@@ -321,7 +331,14 @@ __fly_static int __fly_work_del_nftw(fly_mount_parts_t *parts, const char *mount
 			printf("WORKER[%d]: DETECT DELETED FILE: (%s)\n", \
 					getpid(), __path);
 			assert(__pf->fd != -1);
+			assert(parts->mount != NULL);
+			assert(parts->mount->ctx != NULL);
+			assert(parts->mount->ctx->log != NULL);
 #endif
+			FLY_NOTICE_DIRECT_LOG(parts->mount->ctx->log,
+				"Worker[%d]: detected a deleted %s(%s).\n",
+				getpid(),
+				__pf->dir ? "directory" : "file", __path);
 			if (__pf->fd != -1)
 				if (close(__pf->fd) == -1)
 					return -1;
@@ -988,6 +1005,9 @@ static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unuse
 
 				printf("WORKER[%d]: DETECT UNMOUNT MOUNT POINT(%s)\n", getpid(), __p->mount_path);
 #endif
+				FLY_NOTICE_DIRECT_LOG(ctx->log,
+					"Worker[%d]: detected that mount point is unmounted(%s).\n",
+					getpid(), __p->mount_path);
 				/* unmount mount point */
 				__fly_work_unmount(__p);
 #ifdef DEBUG
