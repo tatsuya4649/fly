@@ -21,6 +21,9 @@
 #define FLY_ERRORLOG_FILENAME					"fly_error.log"
 #define FLY_ACCESLOG_FILENAME					"fly_access.log"
 #define FLY_NOTICLOG_FILENAME					"fly_notice.log"
+#ifdef DEBUG
+#define FLY_DEBUGLOG_FILENAME					"fly_debug.log"
+#endif
 #define FLY_ACCESLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_access.log")
 #define FLY_ERRORLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_error.log")
 #define FLY_NOTICLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_notice.log")
@@ -36,6 +39,9 @@ struct fly_log{
 	__fly_log_t *access;
 	__fly_log_t *error;
 	__fly_log_t *notice;
+#ifdef DEBUG
+	__fly_log_t *debug;
+#endif
 	fly_pool_t *pool;
 };
 
@@ -50,7 +56,7 @@ typedef enum fly_log_type fly_log_e;
 #define FLY_LOG_BODY_SIZE					1000
 
 struct __fly_log{
-	fly_logfile_t	file;
+	int				file;
 	fly_path_t		log_path[FLY_PATH_MAX];
 #define __FLY_LOGFILE_INIT_STDOUT			1 << 0
 #define __FLY_LOGFILE_INIT_STDERR			1 << 1

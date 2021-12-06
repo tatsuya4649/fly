@@ -12,6 +12,43 @@ __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc);
 __fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t);
 __fly_noreturn void __fly_log_error_handle(int res);
 
+#ifdef DEBUG
+__fly_static int __fly_debug_log_path(char *log_path_buf, size_t buflen)
+{
+	const char *path;
+	/* need to release of realpath memory. */
+	char *rpath;
+	char *__lp = log_path_buf;
+
+	assert(log_path_buf);
+	path = fly_log_path();
+	if (path == NULL|| (rpath=realpath(path, NULL)) == NULL)
+		return -1;
+
+	memset(log_path_buf, '\0', buflen);
+	if (log_path_buf+strlen(rpath) > __lp+buflen)
+		goto error;
+	memcpy(log_path_buf, rpath, strlen(rpath));
+	log_path_buf += strlen(rpath);
+
+	if (log_path_buf+1 > __lp+buflen)
+		goto error;
+	memcpy(log_path_buf, "/", 1);
+	log_path_buf += 1;
+
+	if (log_path_buf+strlen(FLY_DEBUGLOG_FILENAME) > __lp+buflen)
+		goto error;
+	memcpy(log_path_buf, FLY_DEBUGLOG_FILENAME, strlen(FLY_DEBUGLOG_FILENAME));
+
+	free(rpath);
+	printf("debug log file: %s\n", __lp);
+	return 0;
+error:
+	free(rpath);
+	return -1;
+}
+#endif
+
 __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 {
 	const char *path;
@@ -45,6 +82,7 @@ __fly_static int __fly_error_log_path(char *log_path_buf, size_t buflen)
 	printf("error log file: %s\n", __lp);
 #endif
 
+	free(rpath);
 	return 0;
 error:
 	free(rpath);
@@ -82,6 +120,7 @@ __fly_static int __fly_access_log_path(char *log_path_buf, size_t buflen)
 #ifdef DEBUG
 	printf("access log file: %s\n", __lp);
 #endif
+	free(rpath);
 	return 0;
 error:
 	free(rpath);
@@ -119,6 +158,7 @@ __fly_static int __fly_notice_log_path(char *log_path_buf, size_t buflen)
 #ifdef DEBUG
 	printf("notice log file: %s\n", __lp);
 #endif
+	free(rpath);
 	return 0;
 error:
 	free(rpath);
@@ -173,6 +213,9 @@ fly_log_t *fly_log_init(fly_context_t *ctx, struct fly_err *err)
 	char log_path_buf[FLY_PATH_MAX], *lpptr;
 	fly_log_t *lt;
 	__fly_log_t *alp, *elp, *nlp;
+#ifdef DEBUG
+	__fly_log_t *dlp;
+#endif
 
 	lt = fly_pballoc(ctx->pool, sizeof(fly_log_t));
 	if (__fly_log_path(access, log_path_buf, FLY_PATH_MAX) == -1)
@@ -211,9 +254,21 @@ fly_log_t *fly_log_init(fly_context_t *ctx, struct fly_err *err)
 		__fly_log_stderr()
 	);
 #ifdef DEBUG
+	if (__fly_log_path(debug, log_path_buf, FLY_PATH_MAX) == -1)
+		lpptr = NULL;
+	else
+		lpptr = log_path_buf;
+
+	dlp = __fly_logfile_init(
+		ctx->pool,
+		lpptr,
+		0
+	);
+	write(dlp->file, "Hello debug file!", strlen("Hello debug file!"));
 	assert(alp != NULL);
 	assert(elp != NULL);
 	assert(nlp != NULL);
+	assert(dlp != NULL);
 #endif
 	if (!alp || !elp || !nlp){
 		fly_error(
@@ -229,6 +284,9 @@ fly_log_t *fly_log_init(fly_context_t *ctx, struct fly_err *err)
 	lt->access = alp;
 	lt->error = elp;
 	lt->notice = nlp;
+#ifdef DEBUG
+	lt->debug = dlp;
+#endif
 	lt->pool = ctx->pool;
 	return lt;
 error:
@@ -454,7 +512,7 @@ __fly_noreturn void __fly_log_error_handle(int res)
 		snprintf(__filepath, FLY_PATH_MAX, "/proc/self/fd/%d", STDOUT_FILENO);
 		errno = 0;
 		if (readlink(__filepath, devname, FLY_PATH_MAX) == -1)
-			snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stdout) write error.. readlink error(%s)", strerror(errno));
+			snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stdout) write error. readlink error(%s)", strerror(errno));
 		else
 			snprintf(__logecont, FLY_LOGECONT_LENGTH, "log(stdout) write error.%s", devname);
 		break;

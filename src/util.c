@@ -31,6 +31,9 @@ int fly_daemon(fly_context_t *ctx)
 	int nullfd;
 
 	ctx->daemon = true;
+#ifdef DEBUG
+	printf("DEBUG LOG FD %d\n", ctx->log->debug->file);
+#endif
 	switch(fork()){
 	case -1:
 		return FLY_DAEMON_FORK_ERROR;
@@ -75,8 +78,24 @@ int fly_daemon(fly_context_t *ctx)
 	if (nullfd == -1 || nullfd != STDIN_FILENO)
 		return FLY_DAEMON_OPEN_ERROR;
 
+#ifdef DEBUG
+	__fly_log_t *dlog;
+
+	assert(ctx != NULL);
+	if (ctx->log == NULL || ctx->log->debug == NULL || \
+			ctx->log->debug->file == -1){
+		if (dup2(nullfd, STDOUT_FILENO) == -1)
+			return FLY_DAEMON_DUP_ERROR;
+	}else{
+		dlog = ctx->log->debug;
+		if (dup2(dlog->file, STDOUT_FILENO) == -1)
+			return FLY_DAEMON_DUP_ERROR;
+		printf("Hello daemon debug!\n");
+	}
+#else
 	if (dup2(nullfd, STDOUT_FILENO) == -1)
 		return FLY_DAEMON_DUP_ERROR;
+#endif
 	if (dup2(nullfd, STDERR_FILENO) == -1)
 		return FLY_DAEMON_DUP_ERROR;
 
