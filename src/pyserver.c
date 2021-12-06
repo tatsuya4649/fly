@@ -193,7 +193,7 @@ static fly_master_t *pyfly_master_init(void)
 
 	res = fly_master_init();
 	if (res == NULL)
-		PyErr_Format(PyExc_Exception, "master init error. (\"%s\")", strerror(errno));
+		PyErr_Format(PyExc_Exception, "Master init error. (\"%s\")", strerror(errno));
 
 	return res;
 }
@@ -904,12 +904,12 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 		Py_INCREF(routes);
 
 	if (!PyList_Check(routes)){
-		PyErr_SetString(PyExc_ValueError, "routes must be list type.");
+		PyErr_SetString(PyExc_ValueError, "Routes must be list type.");
 		goto error;
 	}
 
 	if (config_path && setenv(FLY_CONFIG_PATH, config_path, 1) == -1){
-		PyErr_SetString(PyExc_ValueError, "environment setting error.");
+		PyErr_SetString(PyExc_ValueError, "rnvironment setting error.");
 		goto error;
 	}
 
