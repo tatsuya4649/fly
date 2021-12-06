@@ -7,9 +7,6 @@ fly_route_reg_t *fly_route_reg_init(fly_context_t *ctx)
 	fly_route_reg_t *reg;
 
 	reg = fly_pballoc(ctx->pool, sizeof(fly_route_reg_t));
-	if (reg == NULL)
-		return NULL;
-
 	reg->pool = ctx->pool;
 	reg->regcount = 0;
 	fly_bllist_init(&reg->regs);

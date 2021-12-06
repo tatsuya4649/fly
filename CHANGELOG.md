@@ -10,6 +10,8 @@
 
 ## Changed
 
+* Changed Python UI.
+
 ### C
 
 * Change struct event member type(event\_data, ...) void \* to union.

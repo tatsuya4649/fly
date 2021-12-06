@@ -34,7 +34,7 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 static int __fly_master_reload_filepath_handler(fly_event_t *e);
 static struct fly_watch_path *__fly_search_wp(fly_master_t *__m, int wd);
 static void __fly_master_set_orig_sighandler(fly_master_t *__m);
-static int __fly_master_get_now_sighandler(fly_master_t *__m);
+static int __fly_master_get_now_sighandler(fly_master_t *__m, struct fly_err *err);
 static int fly_master_default_fail_close(fly_event_t *e, int fd);
 void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info);
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
@@ -545,7 +545,7 @@ fly_context_t *fly_master_release_except_context(fly_master_t *master)
 	return ctx;
 }
 
-static int __fly_master_get_now_sighandler(fly_master_t *__m)
+static int __fly_master_get_now_sighandler(fly_master_t *__m, struct fly_err *err)
 {
 	for (fly_signum_t *__a=fly_signals; *__a!=-1; __a++){
 		if (*__a == SIGKILL || *__a == SIGSTOP)
@@ -553,13 +553,18 @@ static int __fly_master_get_now_sighandler(fly_master_t *__m)
 
 		struct sigaction __osa;
 		struct fly_orig_signal *__s;
-		if (sigaction(*__a, NULL, &__osa) == -1)
+		if (sigaction(*__a, NULL, &__osa) == -1){
+			fly_error(
+				err,
+				errno,
+				FLY_ERR_ERR,
+				"Signal handler setting error. %s (%s: %s)",
+				strerror(errno), __FILE__, __LINE__
+			);
 			return -1;
+		}
 
 		__s = fly_malloc(sizeof(struct fly_orig_signal));
-		if (__s == NULL)
-			return -1;
-
 		__s->number = *__a;
 		memcpy(&__s->sa, &__osa, sizeof(struct sigaction));
 		fly_bllist_add_tail(&__m->orig_sighandler, &__s->blelem);
@@ -610,21 +615,15 @@ retry:
 	return;
 }
 
-fly_master_t *fly_master_init(void)
+fly_master_t *fly_master_init(struct fly_err *err)
 {
 	struct fly_pool_manager *__pm;
 	fly_master_t *__m;
 	fly_context_t *__ctx;
 
 	__pm = fly_pool_manager_init();
-	if (fly_unlikely_null(__pm))
-		return NULL;
-
 	__m = fly_malloc(sizeof(fly_master_t));
-	if (fly_unlikely_null(__m))
-		return NULL;
-
-	__ctx = fly_context_init(__pm);
+	__ctx = fly_context_init(__pm, err);
 	if (fly_unlikely_null(__ctx))
 		return NULL;
 
@@ -644,7 +643,7 @@ fly_master_t *fly_master_init(void)
 	fly_bllist_init(&__m->signals);
 
 	fly_bllist_init(&__m->orig_sighandler);
-	if (__fly_master_get_now_sighandler(__m) == -1)
+	if (__fly_master_get_now_sighandler(__m, err) == -1)
 		return NULL;
 
 	return __m;

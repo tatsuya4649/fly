@@ -54,7 +54,7 @@ class FlyNotFoundError(Exception):
     "--host",
     "host",
     default=None,
-    type=int,
+    type=str,
     help="Bind socket to this host",
     show_default=False
 )
