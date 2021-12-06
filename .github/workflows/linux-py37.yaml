@@ -1,0 +1,60 @@
+name: Test_Python37_on_Linux
+on:
+    push:
+        branches:
+            - master
+            - develop
+env:
+    LC_ALL: C.UTF-8
+    LANG: C.UTF-8
+jobs:
+    fly-test:
+        runs-on: ubuntu-latest
+        continue-on-error: false
+        strategy:
+            max-parallel: 1
+            matrix:
+                python-version: ['3.7']
+        steps:
+            - uses: actions/checkout@v2
+            - name: Setup Python
+              uses: actions/setup-python@v2
+              with:
+                  python-version: ${{ matrix.python-version }}
+                  architecture: 'x64'
+            - name: Get Python version
+              run: python3 -V
+            - name: Install dependencies
+              run: |
+                  sudo apt update
+                  sudo apt install -y build-essential m4 perl autotools-dev autoconf automake libtool-bin autoconf-archive lsof
+                  sudo apt install -y libssl-dev zlib1g-dev libbrotli-dev
+                  python3 -m pip install --upgrade pip
+                  python3 -m pip install -r requirements.txt
+            - name: Make fly library
+              run: |
+                  autoreconf --force --install
+                  ./configure
+                  cat config.h
+                  make
+                  make install
+            - name: Update resolv conf file
+              run: |
+                  echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+            - name: Build extension module
+              run: |
+                  python3 setup.py build
+                  cp -rf build/lib.linux*/fly/_fly_server.cpython* fly/
+
+            - name: Make self certificate for SSL/TLs
+              run: |
+                  openssl req \
+                  -subj '/CN=localhost' \
+                  -x509 -nodes -days 365 -newkey rsa:2048 \
+                  -keyout tests/fly_test.key \
+                  -out tests/fly_test.crt
+                  #            - name: Setup tmate session
+                  #              uses: mxschmitt/action-tmate@v3
+            - name: Run Python fly tes
+              run: python3 -m pytest tests -xv
+

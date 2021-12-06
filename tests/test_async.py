@@ -6,7 +6,7 @@ import conftest
 from conftest import *
 
 
-@pytest.fixture(scope="function", autouse=True)
+@pytest.fixture(scope="function", autouse=False)
 def access_check(newlog):
     access_log = conftest._LOGPATH + "/fly_access.log"
     if os.path.isfile(access_log):
@@ -27,7 +27,7 @@ _PORT=1234
 _HTTP="http"
 _HTTPS="https"
 @pytest.mark.asyncio
-async def test_http_get_index(fly_servers, emerge_log_size_check):
+async def test_http_get_index(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/")
 
@@ -36,7 +36,7 @@ async def test_http_get_index(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_get_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https_get_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         verify=False,
         timeout=1
@@ -53,7 +53,7 @@ async def test_https_get_index(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_get_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_get_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         verify = False,
         http1  = False,
@@ -74,7 +74,7 @@ async def test_https2_get_index(fly_servers_ssl, emerge_log_size_check):
 POST method test
 """
 @pytest.mark.asyncio
-async def test_http_post_data_index(fly_servers, emerge_log_size_check):
+async def test_http_post_data_index(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.post(
             f"{_HTTP}://{_HOST}:{_PORT}/",
@@ -88,7 +88,7 @@ async def test_http_post_data_index(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_post_data_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https_post_data_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         verify=False,
@@ -111,7 +111,7 @@ async def test_https_post_data_index(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_post_data_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_post_data_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         verify=False,
         http1=False,
@@ -134,7 +134,7 @@ async def test_https2_post_data_index(fly_servers_ssl, emerge_log_size_check):
     assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
-async def test_http_post_file_index(fly_servers, emerge_log_size_check):
+async def test_http_post_file_index(fly_servers, emerge_log_size_check, access_check):
     # send with multipart/form-data
     with open("tests/fly_dummy", 'rb') as _f:
         files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
@@ -153,7 +153,7 @@ async def test_http_post_file_index(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_post_file_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https_post_file_index(fly_servers_ssl, emerge_log_size_check, access_check):
     # send with multipart/form-data
     with open("tests/fly_dummy", 'rb') as _f:
         files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
@@ -179,7 +179,7 @@ async def test_https_post_file_index(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_post_file_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_post_file_index(fly_servers_ssl, emerge_log_size_check, access_check):
     with open("tests/fly_dummy", 'rb') as _f:
         # send with multipart/form-data
         files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
@@ -204,7 +204,7 @@ async def test_https2_post_file_index(fly_servers_ssl, emerge_log_size_check):
         assert(res.content.decode("utf-8") == "Success, POST")
 
 @pytest.mark.asyncio
-async def test_http_post_files_index(fly_servers, emerge_log_size_check):
+async def test_http_post_files_index(fly_servers, emerge_log_size_check, access_check):
     _f1 = open("tests/fly_dummy", 'rb')
     _f2 = open("tests/fly_dummy2", 'rb')
     # send with multipart/form-data
@@ -231,7 +231,7 @@ async def test_http_post_files_index(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_post_files_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https_post_files_index(fly_servers_ssl, emerge_log_size_check, access_check):
     _f1 = open("tests/fly_dummy", 'rb')
     _f2 = open("tests/fly_dummy2", 'rb')
     # send with multipart/form-data
@@ -265,7 +265,7 @@ async def test_https_post_files_index(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_post_files_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_post_files_index(fly_servers_ssl, emerge_log_size_check, access_check):
     _f1 = open("tests/fly_dummy", 'rb')
     _f2 = open("tests/fly_dummy2", 'rb')
     # send with multipart/form-data
@@ -299,7 +299,7 @@ async def test_https2_post_files_index(fly_servers_ssl, emerge_log_size_check):
     _f2.close()
 
 @pytest.mark.asyncio
-async def test_http_get_empty(fly_servers, emerge_log_size_check):
+async def test_http_get_empty(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/empty")
 
@@ -310,7 +310,7 @@ async def test_http_get_empty(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_get_empty(fly_servers_ssl, emerge_log_size_check):
+async def test_https_get_empty(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1 = True,
         verify = False,
@@ -330,7 +330,7 @@ async def test_https_get_empty(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_get_empty(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_get_empty(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1 = False,
         http2 = True,
@@ -350,7 +350,7 @@ async def test_https2_get_empty(fly_servers_ssl, emerge_log_size_check):
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
-async def test_http_head_index(fly_servers, emerge_log_size_check):
+async def test_http_head_index(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.head(f"{_HTTP}://{_HOST}:{_PORT}")
 
@@ -361,7 +361,7 @@ async def test_http_head_index(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_head_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https_head_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1 = True,
         verify = False,
@@ -381,7 +381,7 @@ async def test_https_head_index(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_head_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_head_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1 = False,
         http2 = True,
@@ -401,7 +401,7 @@ async def test_https2_head_index(fly_servers_ssl, emerge_log_size_check):
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
-async def test_http_head_500(fly_servers, emerge_log_size_check):
+async def test_http_head_500(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.head(f"{_HTTP}://{_HOST}:{_PORT}/head_body")
 
@@ -413,7 +413,7 @@ async def test_http_head_500(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_head_500(fly_servers_ssl, emerge_log_size_check):
+async def test_https_head_500(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         verify = False,
@@ -434,7 +434,7 @@ async def test_https_head_500(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_head_500(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_head_500(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1 = False,
         http2 = True,
@@ -455,7 +455,7 @@ async def test_https2_head_500(fly_servers_ssl, emerge_log_size_check):
     assert(len(res.content) == 0)
 
 @pytest.mark.asyncio
-async def test_http_put_index_data(fly_servers, emerge_log_size_check):
+async def test_http_put_index_data(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(http1=True, timeout=1) as client:
         res = await client.put(
             f"{_HTTP}://{_HOST}:{_PORT}",
@@ -469,7 +469,7 @@ async def test_http_put_index_data(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_put_index_data(fly_servers_ssl, emerge_log_size_check):
+async def test_https_put_index_data(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         verify=False,
@@ -492,7 +492,7 @@ async def test_https_put_index_data(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_put_index_data(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_put_index_data(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1 = False,
         http2 = True,
@@ -515,7 +515,7 @@ async def test_https2_put_index_data(fly_servers_ssl, emerge_log_size_check):
     assert(res.content.decode("utf-8") == "Success, PUT")
 
 @pytest.mark.asyncio
-async def test_http_put_index_files(fly_servers, emerge_log_size_check):
+async def test_http_put_index_files(fly_servers, emerge_log_size_check, access_check):
     _f1 = open("tests/fly_dummy", 'rb')
     _f2 = open("tests/fly_dummy2", 'rb')
     files = {
@@ -542,7 +542,7 @@ async def test_http_put_index_files(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_put_index_files(fly_servers_ssl, emerge_log_size_check):
+async def test_https_put_index_files(fly_servers_ssl, emerge_log_size_check, access_check):
     _f1 = open("tests/fly_dummy", 'rb')
     _f2 = open("tests/fly_dummy2", 'rb')
     files = {
@@ -575,7 +575,7 @@ async def test_https_put_index_files(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_put_index_files(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_put_index_files(fly_servers_ssl, emerge_log_size_check, access_check):
     _f1 = open("tests/fly_dummy", 'rb')
     _f2 = open("tests/fly_dummy2", 'rb')
     files = {
@@ -608,7 +608,7 @@ async def test_https2_put_index_files(fly_servers_ssl, emerge_log_size_check):
     _f2.close()
 
 @pytest.mark.asyncio
-async def test_http_delete_index(fly_servers, emerge_log_size_check):
+async def test_http_delete_index(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         timeout=1,
@@ -624,7 +624,7 @@ async def test_http_delete_index(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_delete_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https_delete_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         verify = False,
@@ -646,7 +646,7 @@ async def test_https_delete_index(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_delete_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_delete_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=False,
         http2=True,
@@ -668,7 +668,7 @@ async def test_https2_delete_index(fly_servers_ssl, emerge_log_size_check):
     assert(res.content.decode("utf-8") == "Success, DELETE")
 
 @pytest.mark.asyncio
-async def test_http_patch_index(fly_servers, emerge_log_size_check):
+async def test_http_patch_index(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         timeout=1,
@@ -684,7 +684,7 @@ async def test_http_patch_index(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_patch_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_patch_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=False,
         http2=True,
@@ -706,7 +706,7 @@ async def test_https2_patch_index(fly_servers_ssl, emerge_log_size_check):
     assert(res.content.decode("utf-8") == "Success, PATCH")
 
 @pytest.mark.asyncio
-async def test_http_options_index(fly_servers, emerge_log_size_check):
+async def test_http_options_index(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         timeout=1,
@@ -722,7 +722,7 @@ async def test_http_options_index(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_options_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https_options_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         verify=False,
@@ -744,7 +744,7 @@ async def test_https_options_index(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_options_index(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_options_index(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=False,
         http2=True,
@@ -766,7 +766,7 @@ async def test_https2_options_index(fly_servers_ssl, emerge_log_size_check):
     assert(res.content.decode("utf-8") == "Success, OPTIONS")
 
 @pytest.mark.asyncio
-async def test_http_return_query(fly_servers, emerge_log_size_check):
+async def test_http_return_query(fly_servers, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         params={"key1": "value1", "key2": "value2"},
@@ -782,7 +782,7 @@ async def test_http_return_query(fly_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https_return_query(fly_servers_ssl, emerge_log_size_check):
+async def test_https_return_query(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         verify=False,
@@ -804,7 +804,7 @@ async def test_https_return_query(fly_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_https2_return_query(fly_servers_ssl, emerge_log_size_check):
+async def test_https2_return_query(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=False,
         http2=True,
@@ -830,7 +830,7 @@ Illeagl test
 # SSL Server but, HTTP request
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_illegal_http(fly_servers_ssl, emerge_log_size_check):
+async def test_illegal_http(fly_servers_ssl, emerge_log_size_check, access_check):
     async with httpx.AsyncClient(
         http1=True,
         timeout=1,
@@ -864,7 +864,7 @@ async def test_illegal_https(fly_servers, emerge_log_size_check):
                 print(traceback.format_exc())
 
 @pytest.mark.asyncio
-async def test_request_over(fly_mini_servers, emerge_log_size_check):
+async def test_request_over(fly_mini_servers, emerge_log_size_check, access_check):
     with open("tests/fly_dummy", 'rb') as _f:
         files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
         async with httpx.AsyncClient(
@@ -880,7 +880,7 @@ async def test_request_over(fly_mini_servers, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_ssl_request_over(fly_mini_servers_ssl, emerge_log_size_check):
+async def test_ssl_request_over(fly_mini_servers_ssl, emerge_log_size_check, access_check):
     with open("tests/fly_dummy", 'rb') as _f:
         files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
         async with httpx.AsyncClient(
@@ -899,7 +899,7 @@ async def test_ssl_request_over(fly_mini_servers_ssl, emerge_log_size_check):
 
 @pytest.mark.asyncio
 @pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
-async def test_http2_ssl_request_over(fly_mini_servers_ssl, emerge_log_size_check):
+async def test_http2_ssl_request_over(fly_mini_servers_ssl, emerge_log_size_check, access_check):
     with open("tests/fly_dummy", 'rb') as _f:
         files = {'upload-file': ('fly_dummy', _f.read(), 'text/plain')}
         async with httpx.AsyncClient(
