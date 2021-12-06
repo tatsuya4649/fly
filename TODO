@@ -5,15 +5,3 @@ v 1.2.0
 * add test script(client session)
 
 * add test script(modify mount file/directory)
-
-* error handle(show errors in more detail)
-
-* error handle test(with gdb)
-
-* added auto reload fly server
-
-* supports macOS/freebsd
-
-* fix realpath bug
-
-* configure.ac:inotify_init1

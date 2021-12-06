@@ -243,3 +243,88 @@ async def test_mount_unmount(inotify_dir_remove, fly_servers):
         async with httpx.AsyncClient(http1=True, timeout=1) as client:
             res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/{_INOD}")
         assert(res.status_code == 200)
+
+@pytest.mark.asyncio
+async def test_mount_move(make_mnt2, fly_servers):
+    assert os.path.isdir("tests/mnt2")
+    if os.path.isfile("tests/mnt2/test1"):
+        os.remove("tests/mnt2/test1")
+    # test HTTP
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/test1")
+    assert(res.status_code == 404)
+
+    # create test file on mount point
+    if not os.path.isfile("tests/mnt2/test1"):
+        with open("tests/mnt2/test1", "w") as f:
+            f.write("Hello World")
+
+    # test HTTP
+    for i in range(1000):
+        async with httpx.AsyncClient(http1=True, timeout=1) as client:
+            res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/test1")
+        assert(res.status_code == 200)
+
+    # move mount point to different directory
+    shutil.move("tests/mnt2", "../mnt2")
+
+    # test HTTP
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/test1")
+    assert(res.status_code == 404)
+
+    # move mount point to different directory
+    shutil.move("../mnt2", "tests/mnt2")
+
+    # test HTTP
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/test1")
+    assert(res.status_code == 404)
+
+    assert(os.path.isfile("tests/mnt2/test1"))
+    os.remove("tests/mnt2/test1")
+
+@pytest.mark.asyncio
+async def test_mount_delete(make_mnt2, fly_servers):
+    assert os.path.isdir("tests/mnt2")
+    if os.path.isfile("tests/mnt2/test1"):
+        os.remove("tests/mnt2/test1")
+    # test HTTP
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/test1")
+    assert(res.status_code == 404)
+
+    # create test file on mount point
+    if not os.path.isfile("tests/mnt2/test1"):
+        with open("tests/mnt2/test1", "w") as f:
+            f.write("Hello World")
+
+    # test HTTP
+    for i in range(1000):
+        async with httpx.AsyncClient(http1=True, timeout=1) as client:
+            res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/test1")
+        assert(res.status_code == 200)
+
+    # move mount point to different directory
+    shutil.rmtree("tests/mnt2")
+
+    # test HTTP
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/test1")
+    assert(res.status_code == 404)
+
+    # move mount point to different directory
+    assert not os.path.isdir("tests/mnt2")
+    os.mkdir("tests/mnt2")
+    # create test file on mount point
+    assert not os.path.isfile("tests/mnt2/test1")
+    with open("tests/mnt2/test1", "w") as f:
+        f.write("Hello World")
+
+    # test HTTP
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/test1")
+    assert(res.status_code == 404)
+
+    assert(os.path.isfile("tests/mnt2/test1"))
+    os.remove("tests/mnt2/test1")
