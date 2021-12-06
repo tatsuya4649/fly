@@ -37,8 +37,8 @@ struct fly_context{
 	fly_bit_t					daemon;
 };
 typedef struct fly_context fly_context_t;
-
-fly_context_t *fly_context_init(struct fly_pool_manager *__pm);
+struct fly_err;
+fly_context_t *fly_context_init(struct fly_pool_manager *__pm, struct fly_err *err);
 void fly_context_release(fly_context_t *ctx);
 
 #define FLY_SEND_DEFAULT_CONTENT_BY_STCODE_SUCCESS		(1)

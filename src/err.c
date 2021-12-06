@@ -1,4 +1,5 @@
 #include "err.h"
+#include "log.h"
 
 void fly_emerge_memory_zero(void);
 
@@ -19,6 +20,27 @@ void fly_errsys_init(fly_context_t *ctx)
 }
 
 __attribute__ ((format (printf, 4, 5)))
+void fly_error(struct fly_err *err, int __errno, enum fly_error_level level, const char *fmt, ...)
+{
+	va_list ap;
+
+	memset(err->content, '\0', FLY_ERROR_CONTENT_SIZE);
+
+	va_start(ap, fmt);
+	vsnprintf(err->content, FLY_ERROR_CONTENT_SIZE, fmt, ap);
+	va_end(ap);
+
+	err->content_len = strlen(err->content);
+	err->__errno = __errno;
+	err->level	 = level;
+	err->event   = NULL;
+	err->pool	 = NULL;
+
+	fly_bllist_init(&err->blelem);
+	return;
+}
+
+__attribute__ ((format (printf, 4, 5)))
 fly_err_t *fly_err_init(fly_pool_t *pool, int __errno, enum fly_error_level level, const char *fmt, ...)
 {
 	fly_err_t *err;
@@ -29,7 +51,7 @@ fly_err_t *fly_err_init(fly_pool_t *pool, int __errno, enum fly_error_level leve
 	memset(err->content, '\0', FLY_ERROR_CONTENT_SIZE);
 
 	va_start(ap, fmt);
-	snprintf(err->content, FLY_ERROR_CONTENT_SIZE, fmt, ap);
+	vsnprintf(err->content, FLY_ERROR_CONTENT_SIZE, fmt, ap);
 	va_end(ap);
 
 	err->content_len = strlen(err->content);

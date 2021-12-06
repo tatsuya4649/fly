@@ -65,8 +65,7 @@ extern fly_signal_t fly_master_signals[];
 int fly_create_pidfile(void);
 int fly_create_pidfile_noexit(void);
 void fly_remove_pidfile(void);
-//fly_context_t *fly_master_init(void);
-fly_master_t *fly_master_init(void);
+fly_master_t *fly_master_init(struct fly_err *err);
 void fly_master_release(fly_master_t *master);
 fly_context_t *fly_master_release_except_context(fly_master_t *master);
 /*

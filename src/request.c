@@ -1234,19 +1234,15 @@ int fly_request_event_handler(fly_event_t *event)
 
 	switch(fase){
 	case EFLY_REQUEST_FASE_INIT:
-		printf("\t%s\n", "EFLY_REQUEST_FASE_INIT");
 		break;
 	case EFLY_REQUEST_FASE_REQUEST_LINE:
-		printf("\t%s\n", "EFLY_REQUEST_FASE_REQUEST_LINE");
 		goto __fase_request_line;
 	case EFLY_REQUEST_FASE_HEADER:
-		printf("\t%s\n", "EFLY_REQUEST_FASE_HEADER");
 #ifdef DEBUG
 		printf("HTTP GOTO HEADER\n");
 #endif
 		goto __fase_header;
 	case EFLY_REQUEST_FASE_BODY:
-		printf("\t%s\n", "EFLY_REQUEST_FASE_BODY");
 #ifdef DEBUG
 		printf("HTTP GOTO BODY\n");
 #endif
@@ -1283,7 +1279,9 @@ __fase_header:
 	;
 	fly_buffer_c *hdr_buf;
 
+#ifdef DEBUG
 	printf("\tFASE: HEADER\n");
+#endif
 	fly_event_request_fase(event, HEADER);
 	if (!request->receive_header){
 #ifdef DEBUG
@@ -1337,7 +1335,9 @@ __fase_header:
 __fase_body:
 	;
 
+#ifdef DEBUG
 	printf("\tFASE: BODY\n");
+#endif
 	fly_event_request_fase(event, BODY);
 	size_t content_length;
 	content_length = fly_content_length(request->header);

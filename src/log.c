@@ -133,9 +133,6 @@ __fly_static __fly_log_t *__fly_logfile_init(fly_pool_t *pool, const fly_path_t 
 	fly_logfile_t lfile;
 
 	lt = fly_pballoc(pool, sizeof(__fly_log_t));
-	if (lt == NULL)
-		return NULL;
-
 	if (fly_log_path != NULL){
 		lfile = open(fly_log_path, O_RDWR|O_CREAT, FLY_LOGFILE_MODE);
 		if (lfile == -1)
@@ -171,16 +168,13 @@ static inline int __fly_log_stderr()
 	return fly_log_stderr() ? __FLY_LOGFILE_INIT_STDERR: 0;
 }
 
-fly_log_t *fly_log_init(fly_context_t *ctx)
+fly_log_t *fly_log_init(fly_context_t *ctx, struct fly_err *err)
 {
 	char log_path_buf[FLY_PATH_MAX], *lpptr;
 	fly_log_t *lt;
 	__fly_log_t *alp, *elp, *nlp;
 
 	lt = fly_pballoc(ctx->pool, sizeof(fly_log_t));
-	if (!lt)
-		goto error;
-
 	if (__fly_log_path(access, log_path_buf, FLY_PATH_MAX) == -1)
 		lpptr = NULL;
 	else
@@ -216,8 +210,21 @@ fly_log_t *fly_log_init(fly_context_t *ctx)
 		__fly_log_stdout() | \
 		__fly_log_stderr()
 	);
-	if (!alp || !elp || !nlp)
+#ifdef DEBUG
+	assert(alp != NULL);
+	assert(elp != NULL);
+	assert(nlp != NULL);
+#endif
+	if (!alp || !elp || !nlp){
+		fly_error(
+			err,
+			errno,
+			FLY_ERR_ERR,
+			"Log file setting error error. %s (%s: %s)",
+			strerror(errno), __FILE__, __LINE__
+		);
 		goto error;
+	}
 
 	lt->access = alp;
 	lt->error = elp;

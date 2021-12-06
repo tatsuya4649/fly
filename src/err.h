@@ -12,7 +12,6 @@
 #include <string.h>
 #include "alloc.h"
 #include "event.h"
-#include "context.h"
 #include "bllist.h"
 
 /* errno */
@@ -102,8 +101,10 @@ typedef struct fly_err fly_err_t;
 #define FLY_NULL_ERRNO					-1
 #define FLY_NULL_ERRNO_DESC				"unknown error number(-1)"
 
-void fly_errsys_init(fly_context_t *ctx);
+struct fly_context;
+void fly_errsys_init(struct fly_context  *ctx);
 fly_err_t *fly_err_init(fly_pool_t *pool, int __errno, enum fly_error_level level, const char *fmt, ...);
+void fly_error(struct fly_err *err, int __errno, enum fly_error_level level, const char *fmt, ...);
 void fly_err_release(struct fly_err *__e);
 int fly_errlog_event(fly_event_manager_t *manager, fly_err_t *err);
 

@@ -10,6 +10,7 @@
 #include <sys/socket.h>
 #include <netdb.h>
 #include "version.h"
+#include "err.h"
 #include "method.h"
 
 #define FLY_IP_V4			4
@@ -32,7 +33,8 @@ struct fly_sockinfo{
 typedef struct fly_sockinfo fly_sockinfo_t;
 #define FLY_SOCKET_OPTION		1
 struct fly_context;
-int fly_socket_init(struct fly_context *ctx, int port, fly_sockinfo_t *info, int flag);
+struct fly_err;
+int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag, struct fly_err *err);
 int fly_socket_release(int sockfd);
 
 #define FLY_PORT				"FLY_PORT"

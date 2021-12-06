@@ -13,7 +13,7 @@ int main()
 	fly_parse_config_file();
 
 	/* master signal test */
-	assert((master=fly_master_init()) != NULL);
+	assert((master=fly_master_init(NULL)) != NULL);
 
 	/* mount setting */
 	assert(fly_mount_init(master->context) != -1);

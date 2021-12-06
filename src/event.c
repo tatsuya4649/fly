@@ -1,4 +1,5 @@
 #include "event.h"
+#include "context.h"
 #include "err.h"
 #ifdef HAVE_KQUEUE
 #include <signal.h>

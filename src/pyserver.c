@@ -3,6 +3,7 @@
 #ifdef DEBUG
 #include "log.h"
 #endif
+#include "err.h"
 
 struct __pyfly_server{
 	PyObject_HEAD
@@ -189,11 +190,13 @@ static int pyfly_parse_config_file(void)
 
 static fly_master_t *pyfly_master_init(void)
 {
+	struct fly_err err;
 	fly_master_t *res;
 
-	res = fly_master_init();
+	res = fly_master_init(&err);
 	if (res == NULL)
-		PyErr_Format(PyExc_Exception, "Master init error. (\"%s\")", strerror(errno));
+		PyErr_Format(PyExc_Exception,
+			"Master init. %s", err.content);
 
 	return res;
 }
