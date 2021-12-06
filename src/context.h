@@ -34,7 +34,7 @@ struct fly_context{
 	/* for SSL/TLS */
 	SSL_CTX						*ssl_ctx;
 
-	fly_bit_t					daemon;
+	fly_bit_t					daemon: 1;
 };
 typedef struct fly_context fly_context_t;
 struct fly_err;
@@ -60,6 +60,10 @@ __fly_unused static inline bool is_fly_log_fd(int i, fly_context_t *ctx){
 		return true;
 	else if (i == ctx->log->notice->file)
 		return true;
+#ifdef DEBUG
+	else if (i == ctx->log->debug->file)
+		return true;
+#endif
 	else
 		return false;
 

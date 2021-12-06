@@ -238,13 +238,15 @@ __fly_static void __fly_write_to_log_emerg(const char *err_content, enum fly_err
 	fly_context_t *ctx;
 	__fly_log_t *err, *notice;
 	fly_logfile_t errfile, noticefile;
-	void *__ptr;
+	uint8_t *__ptr;
 	char *errc, *noticec;
+	char time_buf[FLY_TIME_MAX];
+	time_t __t;
 
 	/* emergency pointer */
-	__ptr = fly_emerge_memory;
+	__ptr = fly_emerge_memory+strlen(err_content);
 	errc = (char *) __ptr;
-	noticec = __ptr + FLY_EMERGENCY_LOG_LENGTH;
+	noticec = (char *) __ptr + FLY_EMERGENCY_LOG_LENGTH;
 	ctx = __fly_errsys.ctx;
 	if (ctx == NULL)
 		return;
@@ -264,22 +266,18 @@ __fly_static void __fly_write_to_log_emerg(const char *err_content, enum fly_err
 	if (fcntl(errfile, F_SETLKW, &__fly_errsys.lock) == -1)
 		return;
 
+	memset(time_buf, '\0', FLY_TIME_MAX);
+	memset(errc, '\0', (__ptr-fly_emerge_memory)+FLY_EMERGENCY_LOG_LENGTH);
+	__t = time(NULL);
+	fly_imt_fixdate(time_buf, FLY_TIME_MAX, &__t);
 	snprintf(
 		errc,
 		FLY_EMERGENCY_LOG_LENGTH,
-		"[%d] Emergency Error. Worker Process is gone. (%s) (%s: %s)\n",
+		"[%d](%s): Emergency Error. Process is killed. (%s) (%s)\n",
 		__fly_errsys.pid,
+		time_buf,
 		err_content,
-#ifdef HAVE_STRERRORNAME_NP
-		strerrorname_np(__errno),
-#else
-		"",
-#endif
-#ifdef HAVE_STRERRORDESC_NP
-		strerrordesc_np(__errno)
-#else
 		strerror(__errno)
-#endif
 	);
 	if (errfile != -1)
 		if (write(errfile, errc, strlen(errc)) == -1)
@@ -486,13 +484,11 @@ void fly_emergency_verror(int __errno, const char *format, ...)
 	fly_emerge_memory_zero();
 
 	va_start(va, format);
-
-	snprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
-
+	vsnprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
 	va_end(va);
 
 	/* write error content in log */
-	__fly_write_to_log_emerg(err_content, FLY_ERR_EMERG, __errno);
+	__fly_write_to_log_emerg((const char *) err_content, FLY_ERR_EMERG, __errno);
 	exit((int) FLY_ERR_EMERG);
 }
 
@@ -528,7 +524,7 @@ void fly_nomem_verror(__fly_unused int __errno, const char *format, ...)
 	fly_emerge_memory_zero();
 
 	va_start(va, format);
-	snprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
+	vsnprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
 	va_end(va);
 
 	/* write error content in log */

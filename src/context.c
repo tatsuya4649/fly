@@ -41,6 +41,7 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm, struct fly_err *e
 
 	/* for SSL/TLS */
 	ctx->ssl_ctx = NULL;
+	ctx->daemon = false;
 	/* ready for emergency error */
 	fly_errsys_init(ctx);
 
