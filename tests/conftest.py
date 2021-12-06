@@ -4,6 +4,7 @@ from signal import SIGTERM, SIGINT
 import os
 import sys
 from fly import Fly
+import shutil
 try:
     import ssl
 except ModuleNotFoundError:
@@ -37,6 +38,59 @@ def make_mntdir():
     if not os.path.isdir("tests/mnt2"):
         os.mkdir("tests/mnt2")
     yield
+
+_LOGPATH="tests/log"
+@pytest.fixture(scope="function", autouse=True)
+def newlog():
+    if os.path.isdir(_LOGPATH):
+        shutil.rmtree(_LOGPATH)
+    os.mkdir(_LOGPATH)
+    yield {
+        "aceess": f'{_LOGPATH}/fly_access.log',
+        "notice": f'{_LOGPATH}/fly_notice.log',
+        "error":  f'{_LOGPATH}/fly_error.log'
+        }
+
+def fly_notice_log_size():
+    notice_log = f"{_LOGPATH}/fly_notice.log"
+    assert os.path.isfile(notice_log)
+    return os.path.getsize(notice_log)
+async def fly_notice_increment_check(pre_len):
+    notice_log = f"{_LOGPATH}/fly_notice.log"
+    await asyncio.sleep(0.5)
+    assert pre_len < os.path.getsize(notice_log)
+    return os.path.getsize(notice_log)
+async def fly_notice_noincrement_check(pre_len):
+    notice_log = f"{_LOGPATH}/fly_notice.log"
+    await asyncio.sleep(0.5)
+    assert pre_len == os.path.getsize(notice_log)
+    return os.path.getsize(notice_log)
+
+def fly_access_log_size():
+    access_log = f"{_LOGPATH}/fly_access.log"
+    assert os.path.isfile(access_log)
+    return os.path.getsize(access_log)
+async def fly_access_increment_check(pre_len):
+    access_log = f"{_LOGPATH}/fly_access.log"
+    await asyncio.sleep(0.5)
+    assert pre_len < os.path.getsize(access_log)
+    return os.path.getsize(access_log)
+async def fly_access_noincrement_check(pre_len):
+    access_log = f"{_LOGPATH}/fly_access.log"
+    await asyncio.sleep(0.5)
+    assert pre_len == os.path.getsize(access_log)
+    return os.path.getsize(access_log)
+
+@pytest.fixture(scope="function", autouse=False)
+def emerge_log_size_check():
+    emerge_log = f"{_LOGPATH}/fly_emerge.log"
+    if os.path.isfile(emerge_log):
+        _tmp_size = os.path.getsize(emerge_log)
+    else:
+        _tmp_size = 0
+    yield
+    if os.path.isfile(emerge_log):
+        assert _tmp_size == os.path.getsize(emerge_log)
 
 ssl_reason = "require SSL cert/key file"
 pid_path = "log/fly.pid"

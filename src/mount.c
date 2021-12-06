@@ -465,11 +465,21 @@ int fly_unmount(fly_mount_t *mnt, const char *path)
 	/* not found */
 	return 0;
 check_total_mount_count:
+#ifdef DEBUG
+	assert(mnt != NULL);
+	assert(mnt->ctx != NULL);
+	assert(mnt->ctx->log != NULL);
+#endif
 	/* no mount point */
 	if (mnt->mount_count == 0)
 		/* emergency error. log and end process. */
 		FLY_EMERGENCY_ERROR(
 			"There is no mount point."
+		);
+	else
+		FLY_NOTICE_DIRECT_LOG(
+			mnt->ctx->log,
+			"Unmount %s. goodbye.\n", path
 		);
 	return 0;
 }

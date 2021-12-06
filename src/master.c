@@ -1016,6 +1016,9 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #endif
 		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
+		FLY_NOTICE_DIRECT_LOG(master->context->log,
+				"Master detected a created file/directory(%s) on mount point(%s).\n",
+				ie->name, parts->mount_path);
 	}
 	if (mask & IN_DELETE_SELF){
 #ifdef DEBUG
@@ -1024,6 +1027,10 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 		parts->deleted = true;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
+
+		FLY_NOTICE_DIRECT_LOG(master->context->log,
+				"Master detected a deleted file/directory(%s) on mount point(%s).\n",
+				ie->name, parts->mount_path);
 	}
 	if (mask & IN_MOVED_TO){
 #ifdef DEBUG
@@ -1031,6 +1038,10 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #endif
 		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
+
+		FLY_NOTICE_DIRECT_LOG(master->context->log,
+				"Master detected a moved file/directory(%s) to mount point(%s).\n",
+				ie->name, parts->mount_path);
 	}
 	if (mask & IN_MOVE_SELF){
 #ifdef DEBUG
@@ -1038,6 +1049,10 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #endif
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
+
+		FLY_NOTICE_DIRECT_LOG(master->context->log,
+				"Master detected a moved mount point(%s).\n",
+				ie->name, parts->mount_path);
 	}
 
 	fly_for_each_bllist(__b, &master->workers){
@@ -1131,6 +1146,9 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 	if (res < 0 || res == FLY_PATH_MAX)
 		return -1;
 
+#ifdef DEBUG
+	printf("MASTER: Detected at %s(%s)\n", rpath, pf->dir ? "dir": "file");
+#endif
 	mask = ie->mask;
 	if (mask & IN_DELETE_SELF){
 		pf->deleted = true;
@@ -1139,21 +1157,33 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 	if (mask & IN_MOVE_SELF)
 		goto deleted;
 	if (pf->dir){
-		if (mask & IN_CREATE && mask & IN_MOVED_TO){
-			if (fly_inotify_add_watch(pf->parts, ie->name, ie->len) == -1)
-				return -1;
-
+		if ((mask & IN_CREATE) || (mask & IN_MOVED_TO)){
+			char rpath_from_mp[FLY_PATH_MAX], *rptr;
+			memset(rpath_from_mp, '\0', FLY_PATH_MAX);
+			rptr = rpath_from_mp;
 #ifdef DEBUG
 			if (mask & IN_CREATE)
-				printf("MASTER: Detect added file(create).\n");
+				printf("MASTER: Detect added file(create). %s\n", ie->name);
 			else
-				printf("MASTER: Detect added file(moved).\n");
+				printf("MASTER: Detect added file(moved). %s\n", ie->name);
 #endif
+			memcpy(rptr, pf->filename, pf->filename_len);
+			*(rptr+pf->filename_len) = '/';
+			memcpy(rptr+pf->filename_len+1, ie->name, ie->len);
+			if (fly_inotify_add_watch(pf->parts, rptr, strlen(rptr)) == -1)
+				return -1;
+
+			FLY_NOTICE_DIRECT_LOG(master->context->log,
+					"Master detected a new directory(%s).\n",
+					rpath);
 		}
 	}else{
 		if (mask & IN_MODIFY){
 			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
 				return -1;
+			FLY_NOTICE_DIRECT_LOG(master->context->log,
+					"Master detected modification of a directory.\n",
+					rpath);
 		}
 		if (mask & IN_ATTRIB){
 			/*
@@ -1166,6 +1196,9 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1){
 				return -1;
 			}
+			FLY_NOTICE_DIRECT_LOG(master->context->log,
+					"Master detected modification of metadata of a directory.\n",
+					rpath);
 		}
 	}
 
@@ -1174,6 +1207,9 @@ deleted:
 #ifdef DEBUG
 	printf("MASTER: Detect renamed/deleted file. Remove watch(%s). %s\n", rpath, pf->deleted ? "DELETE" : "ALIVE");
 #endif
+	FLY_NOTICE_DIRECT_LOG(master->context->log,
+			"Master detected a deleted %s(%s),\n",
+			pf->dir ? "directory" : "file", rpath);
 	if (fly_inotify_rm_watch(pf) == -1)
 		return -1;
 
@@ -1221,6 +1257,9 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 			else
 				printf("MASTER: Detect added file.\n");
 #endif
+			FLY_NOTICE_DIRECT_LOG(master->context->log,
+					"Master detected a changed directory(%s).\n",
+					rpath);
 		}
 		if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
 			if (mask & NOTE_DELETE)
@@ -1231,6 +1270,10 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 #ifdef DEBUG
 			printf("MASTER: Detect rename/detect of mount point.\n");
 #endif
+			FLY_NOTICE_DIRECT_LOG(master->context->log,
+					"Master detected a %s directory(%s).\n",
+					mask & NOTE_RENAME ? "renamed" : "deleted",
+					rpath);
 		}
 	}else{
 		if (mask & NOTE_DELETE){
