@@ -83,6 +83,15 @@ def _watch_dog(fly):
         print(_t)
         sys.exit(1)
 
+def _display_master_configure_error(_e):
+    print("", file=sys.stderr)
+    print("\033[1m" + '  fly error !' + '\033[0m', file=sys.stderr)
+    print(f"    {_e}", file=sys.stderr)
+    print("", file=sys.stderr)
+    _t = traceback.format_exc()
+    print(_t)
+    sys.exit(1)
+
 def _run(fly):
     app_filepath = fly._app_filepath
 
@@ -92,9 +101,7 @@ def _run(fly):
     try:
         fly._start_server(fly._daemon)
     except _FLY_MASTER_CONFIGURE_ERROR as e:
-        _t = traceback.format_exc()
-        print(_t)
-        sys.exit(1)
+        _display_master_configure_error(e)
     except Exception as e:
         _t = traceback.format_exc()
         print(_t)
@@ -247,7 +254,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
         try:
             super()._configure(self.config_path, self.routes)
         except Exception as e:
-            raise _FLY_MASTER_CONFIGURE_ERROR from e
+            raise _FLY_MASTER_CONFIGURE_ERROR(e) from e
 
         for _p in self.mounts:
             self._mount(_p)

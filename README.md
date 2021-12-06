@@ -18,11 +18,11 @@ fly currently supports the following platforms.
 
 | Python | Linux | macOS | FreeBSD |
 | :-: | :-: | :-: | :-: |
-| 3.6 | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py36.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py36.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py36.yml/badge.svg) |
-| 3.7 | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py37.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py37.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py37.yml/badge.svg) |
-| 3.8 | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py38.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py38.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py38.yml/badge.svg) |
-| 3.9 | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py39.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py39.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py39.yml/badge.svg) |
-| 3.10 | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py310.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py310.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py310.yml/badge.svg) |
+| **3.6** | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py36.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py36.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py36.yml/badge.svg) |
+| **3.7** | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py37.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py37.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py37.yml/badge.svg) |
+| **3.8** | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py38.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py38.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py38.yml/badge.svg) |
+| **3.9** | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py39.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py39.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py39.yml/badge.svg) |
+| **3.10** | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/linux-py310.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/macos-py310.yml/badge.svg) | ![Test](https://github.com/github/tatsuya4649/fly/actions/workflows/freebsd-py310.yml/badge.svg) |
 
 <!--
 | OS	 |  Python3.6 | Python3.7 | Python3.8 | Python3.9 | Python3.10 |
