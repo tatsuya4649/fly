@@ -82,6 +82,7 @@ struct fly_logcont{
 	__fly_log_t		*__log;
 
 	struct flock	lock;
+	bool			wait;
 };
 typedef struct fly_logcont fly_logcont_t;
 

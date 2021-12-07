@@ -454,6 +454,11 @@ __fly_static int __fly_worker_signal_handler(fly_event_t *e)
 #ifdef DEBUG
 	printf("WORKER: SIGNAL DEFAULT HANDLER\n");
 #endif
+	FLY_NOTICE_DIRECT_LOG(
+		ctx->log,
+		"Worker[%d]: Received signal.\n",
+		getpid()
+	);
 	while(true){
 		res = read(e->fd, (void *) &info,sizeof(fly_siginfo_t));
 		if (res == -1){
@@ -481,14 +486,6 @@ static int __fly_notice_master_now_pid(fly_worker_t *__w)
 		__w->orig_pid
 	);
 }
-
-//static void fly_worker_rtsig_added(fly_context_t *ctx)
-//{
-//	fly_add_worker_sig(ctx, FLY_SIGNAL_MODF, FLY_SIGNAL_MODF_HANDLER);
-//	fly_add_worker_sig(ctx, FLY_SIGNAL_ADDF, FLY_SIGNAL_ADDF_HANDLER);
-//	fly_add_worker_sig(ctx, FLY_SIGNAL_DELF, FLY_SIGNAL_DELF_HANDLER);
-//	fly_add_worker_sig(ctx, FLY_SIGNAL_UMOU, FLY_SIGNAL_UMOU_HANDLER);
-//}
 
 #ifdef HAVE_SIGNALFD
 
@@ -545,6 +542,15 @@ static fly_worker_t *__wptr;
 
 static void __fly_worker_sigaction(int signum __fly_unused, fly_siginfo_t *info, void *ucontext __fly_unused)
 {
+#ifdef DEBUG
+	assert(__wptr != NULL);
+	assert(__wptr->context != NULL);
+#endif
+	FLY_NOTICE_DIRECT_LOG(
+		__wptr->context->log,
+		"Worker[%d]: Received signal. %s\n",
+		getpid(), strsignal(info->si_signo)
+	);
 	__fly_wsignal_handle(__wptr, __wptr->context, info);
 }
 
@@ -557,7 +563,7 @@ __fly_static int __fly_worker_signal(fly_worker_t *worker, fly_event_manager_t *
 			if (sigfillset(&__sa.sa_mask) == -1)			\
 				return -1;									\
 			__sa.sa_sigaction = __fly_worker_sigaction;		\
-			__sa.sa_flags = SA_SIGINFO;						\
+			__sa.sa_flags = SA_SIGINFO|SA_NODEFER;			\
 			if (sigaction((signum), &__sa, NULL) == -1)		\
 				return -1;									\
 		} while(0)
@@ -641,7 +647,6 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 	fly_errsys_init(ctx);
 
 	worker->pid = getpid();
-
 	/* prevent from keyboard interrupts */
 	int __ifd;
 	if ((__ifd = open(FLY_DEVNULL, O_RDWR)) == -1)
@@ -790,6 +795,22 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 			__LINE__
 		);
 
+#ifdef DEBUG
+	assert(ctx->log != NULL);
+	assert(ctx->log->access != NULL);
+	assert(ctx->log->error != NULL);
+	assert(ctx->log->notice != NULL);
+	assert(ctx->log->debug != NULL);
+	printf("WORKER: ACCESS LOG PATH: path %s, fd %d, %s, flag %d\n", ctx->log->access->log_path, ctx->log->access->file, ctx->log->access->tty ? "tty" : "notty", ctx->log->access->flag);
+	printf("WORKER: ERROR LOG PATH: path %s, fd %d, %s, flag %d\n", ctx->log->error->log_path, ctx->log->error->file, ctx->log->error->tty ? "tty" : "notty", ctx->log->error->flag);
+	printf("WORKER: NOTICE LOG PATH: path %s, fd %d, %s, flag %d\n", ctx->log->notice->log_path, ctx->log->notice->file, ctx->log->notice->tty ? "tty" : "notty", ctx->log->notice->flag);
+	printf("WORKER: DEBUG LOG PATH: path %s, fd %d, %s, flag %d\n", ctx->log->debug->log_path, ctx->log->debug->file, ctx->log->debug->tty ? "tty" : "notty", ctx->log->debug->flag);
+	FLY_NOTICE_DIRECT_LOG(
+		ctx->log,
+		"notice log test on worker(%d).\n",
+		getpid()
+	);
+#endif
 	/* log event start here */
 #ifdef DEBUG
 	printf("WORKER PROCESS EVENT START!\n");
@@ -1032,6 +1053,11 @@ static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unuse
 #ifdef DEBUG
 	printf("WORKER MOUNT CONTENT DEBUG\n");
 	__fly_debug_mnt_content(ctx);
+	FLY_NOTICE_DIRECT_LOG(
+		__wptr->context->log,
+		"Worker[%d]: End of inotify.\n",
+		getpid()
+	);
 #endif
 	return;
 }

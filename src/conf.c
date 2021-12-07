@@ -32,6 +32,9 @@ FILE *fly_open_config_file(void)
 		return NULL;
 	__cf = fopen(__path, "r");
 
+#ifdef DEBUG
+	printf("CONFIGURE PATH: %s\n",__path);
+#endif
 	return __cf;
 }
 
@@ -245,6 +248,9 @@ newline:
 	}
 
 	if (feof(__cf)){
+#ifdef DEBUG
+		printf("END CONFIGURE FILE PARSE\n");
+#endif
 		return FLY_PARSE_CONFIG_SUCCESS;
 	}else
 		goto error;

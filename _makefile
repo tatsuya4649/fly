@@ -3,6 +3,7 @@ CPP = g++
 OS = $(shell uname)
 INCLUDE_PATH := -I/usr/local/include -I/usr/include
 ifdef DEBUG
+# -fsanitize=address,leak
 CFLAG := -g3 -O0 -W -Wall -Werror -Wcast-align $(INCLUDE_PATH) -Wno-deprecated-declarations -Wno-error=comment
 else
 CFLAG := -O0 -W -Wall -Werror -Wcast-align $(INCLUDE_PATH) -Wno-deprecated-declarations
