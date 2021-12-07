@@ -272,7 +272,11 @@ __fly_static int __fly_msignal_handle(fly_master_t *master, fly_context_t *ctx, 
 	struct fly_bllist *__b;
 
 #ifdef DEBUG
-	printf("MASTER: SIGNAL RECEIVED\n");
+#ifdef HAVE_SIGNALFD
+	printf("MASTER: SIGNAL RECEIVED (%s)\n", strsignal(info->ssi_signo));
+#else
+	printf("MASTER: SIGNAL RECEIVED (%s)\n", strsignal(info->si_signo));
+#endif
 #endif
 	fly_for_each_bllist(__b, &master->signals){
 		__s = fly_bllist_data(__b, struct fly_signal, blelem);
@@ -641,11 +645,14 @@ fly_master_t *fly_master_init(struct fly_err *err)
 	__m->detect_reload = false;
 	__m->sigcount = 0;
 	fly_bllist_init(&__m->signals);
-
+	printf("Hweer?\n");
+	printf("Hweer?\n");
 	fly_bllist_init(&__m->orig_sighandler);
 	if (__fly_master_get_now_sighandler(__m, err) == -1)
 		return NULL;
 
+	setvbuf(stdout, NULL, _IONBF, 0);
+	setvbuf(stderr, NULL, _IONBF, 0);
 	return __m;
 }
 
@@ -1016,7 +1023,7 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 		if (fly_inotify_add_watch(parts, ie->name, ie->len-1) == -1)
 			return -1;
 		FLY_NOTICE_DIRECT_LOG(master->context->log,
-				"Master detected a created file/directory(%s) on mount point(%s).\n",
+				"Master detected a created file/directory(%s) at mount point(%s).\n",
 				ie->name, parts->mount_path);
 	}
 	if (mask & IN_DELETE_SELF){
@@ -1028,7 +1035,7 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 			return -1;
 
 		FLY_NOTICE_DIRECT_LOG(master->context->log,
-				"Master detected a deleted file/directory(%s) on mount point(%s).\n",
+				"Master detected a deleted file/directory(%s) at mount point(%s).\n",
 				ie->name, parts->mount_path);
 	}
 	if (mask & IN_MOVED_TO){
@@ -1080,6 +1087,9 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #endif
 
 	mask = __e->eflag;
+	FLY_NOTICE_DIRECT_LOG(master->context->log,
+			"Master detected chnage at mount point(%s).\n",
+			parts->mount_path);
 #ifdef DEBUG
 	printf("MASTER: INOTIFY at mount point. mask is \"0x%x\"\n", mask);
 #endif
@@ -1110,6 +1120,9 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #endif
 	}
 
+	FLY_NOTICE_DIRECT_LOG(master->context->log,
+			"Master send signal to worker to tell changed mount content.\n"
+			);
 	fly_for_each_bllist(__b, &master->workers){
 		__w = fly_bllist_data(__b, fly_worker_t, blelem);
 #ifdef DEBUG
@@ -1207,8 +1220,9 @@ deleted:
 	printf("MASTER: Detect renamed/deleted file. Remove watch(%s). %s\n", rpath, pf->deleted ? "DELETE" : "ALIVE");
 #endif
 	FLY_NOTICE_DIRECT_LOG(master->context->log,
-			"Master detected a deleted %s(%s),\n",
+			"Master detected a deleted %s(%s).\n",
 			pf->dir ? "directory" : "file", rpath);
+	printf("SUCCESS DEBUG!!!\n");
 	if (fly_inotify_rm_watch(pf) == -1)
 		return -1;
 
@@ -1217,6 +1231,9 @@ send_signal:
 	struct fly_bllist *__b;
 	fly_for_each_bllist(__b, &master->workers){
 		__w = fly_bllist_data(__b, struct fly_worker, blelem);
+#ifdef DEBUG
+		printf("MASTER: Send signal to worker(\"%d\") to notificate chnaged content of mount point\n", __w->pid);
+#endif
 		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, 0) == -1)
 			return -1;
 	}
@@ -1226,7 +1243,7 @@ send_signal:
 
 __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, int flag)
 {
-	int mask, mod=0;
+	int mask;
 	char rpath[FLY_PATH_MAX];
 	fly_worker_t *__w;
 	int res;
@@ -1247,7 +1264,6 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 		__tmp = parts->file_count;
 #endif
 		if ((mask & NOTE_EXTEND) || (mask & NOTE_WRITE)){
-			mod |= FLY_SIGNAL_ADDF;
 			if (fly_inotify_add_watch(parts, pf->event) == -1)
 				return -1;
 #ifdef  DEBUG
@@ -1263,7 +1279,6 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 		if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
 			if (mask & NOTE_DELETE)
 				pf->deleted = true;
-			mod |= FLY_SIGNAL_UMOU;
 			if (fly_inotify_rm_watch(pf) == -1)
 				return -1;
 #ifdef DEBUG
@@ -1274,23 +1289,21 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 					mask & NOTE_RENAME ? "renamed" : "deleted",
 					rpath);
 		}
+		goto send_signal;
 	}else{
 		if (mask & NOTE_DELETE){
 			pf->deleted = true;
 			goto deleted;
 		}
 		if (mask & NOTE_WRITE){
-			mod |= FLY_SIGNAL_MODF;
 			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
 				return -1;
 		}
 		if (mask & NOTE_EXTEND){
-			mod |= FLY_SIGNAL_MODF;
 			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
 				return -1;
 		}
 		if (mask & NOTE_ATTRIB){
-			mod |= FLY_SIGNAL_MODF;
 			if (fly_hash_update_from_parts_file_path(rpath, pf) == -1)
 				return -1;
 		}
@@ -1308,20 +1321,23 @@ deleted:
 #ifdef DEBUG
 	printf("MASTER: Detect renamed/deleted file. Remove watch(%s)\n", rpath);
 #endif
-	mod |= FLY_SIGNAL_DELF;
+	FLY_NOTICE_DIRECT_LOG(master->context->log,
+			"Master detected a deleted %s(%s),\n",
+			pf->dir ? "directory" : "file", rpath);
 	if (fly_inotify_rm_watch(pf) == -1)
 		return -1;
 send_signal:
 	;
 
+	FLY_NOTICE_DIRECT_LOG(master->context->log,
+			"Master send signal to worker to tell changed mount content.\n"
+			);
 	struct fly_bllist *__b;
 	fly_for_each_bllist(__b, &master->workers){
 		__w = fly_bllist_data(__b, struct fly_worker, blelem);
 #ifdef DEBUG
 		printf("MASTER: Send signal to worker(\"%d\") to notificate chnaged content of mount point\n", __w->pid);
 #endif
-		//uint32_t send_value=0;
-		//FLY_CHANGE_MNT_SIGNAL(&send_value, &mod, &parts->mount_number);
 		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, 0) == -1)
 			return -1;
 	}
@@ -1367,26 +1383,28 @@ __fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, 
 
 	/* occurred in mount point directory */
 	parts = fly_parts_from_fd(fd, ctx->mount);
+	if (parts != NULL){
 #ifdef DEBUG
-	if (parts != NULL)
 		printf("MASTER: Detect at mount point\n");
 #endif
-	if (parts != NULL && \
-			__fly_inotify_in_mp(master, parts, __e) == -1)
-		return -1;
+		if (__fly_inotify_in_mp(master, parts, __e) == -1)
+			return -1;
+	}
 
 	pf = fly_pf_from_mount(fd, ctx->mount);
+	if (pf != NULL){
 #ifdef DEBUG
-	if (pf != NULL)
 		printf("MASTER: Detect at mount point file\n");
 #endif
-	if (pf != NULL && \
-			__fly_inotify_in_pf(master, pf, __e->eflag) == -1)
-		return -1;
+		if (__fly_inotify_in_pf(master, pf, __e->eflag) == -1)
+			return -1;
+	}
 
 #ifdef DEBUG
 	printf("MASTER MOUNT CONTENT DEBUG\n");
 	__fly_debug_mnt_content(ctx);
+	printf("MASTER: now total monitorable event count %d\n", fly_queue_count(&__e->manager->monitorable));
+	printf("MASTER: now total unmonitorable event count %d\n", fly_queue_count(&__e->manager->unmonitorable));
 #endif
 	return 0;
 }

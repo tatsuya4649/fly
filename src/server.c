@@ -44,25 +44,29 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 
 	res = snprintf(port_str, FLY_PORTSTR_LEN, "%d", port);
 	if (res <= 0 || res >= FLY_PORTSTR_LEN){
-		fly_error(
-			err,
-			errno,
-			FLY_ERR_ERR,
-			"Invalid port string error. (%s: %s)",
-			 __FILE__, __LINE__
-		);
+		if (err != NULL){
+			fly_error(
+				err,
+				errno,
+				FLY_ERR_ERR,
+				"Invalid port string error. (%s: %s)",
+				 __FILE__, __LINE__
+			);
+		}
 		return -1;
 	}
 
 	host = fly_server_host();
 	if ((res=getaddrinfo(host, port_str, &hints, &result)) != 0){
-		fly_error(
-			err,
-			errno,
-			FLY_ERR_ERR,
-			"getaddrinfo error %s. (%s: %s)",
-			gai_strerror(res), __FILE__, __LINE__
-		);
+		if (err != NULL){
+			fly_error(
+				err,
+				errno,
+				FLY_ERR_ERR,
+				"getaddrinfo error %s. (%s: %s)",
+				gai_strerror(res), __FILE__, __LINE__
+			);
+		}
 		return -1;
 	}
 
@@ -83,35 +87,41 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 	}
 	/* can't bind to port */
 	if (rp == NULL){
-		fly_error(
-			err,
-			errno,
-			FLY_ERR_ERR,
-			"can't bind error. %s (%s: %s)",
-			strerror(errno), __FILE__, __LINE__
-		);
+		if (err != NULL){
+			fly_error(
+				err,
+				errno,
+				FLY_ERR_ERR,
+				"can't bind error. %s (%s: %s)",
+				strerror(errno), __FILE__, __LINE__
+			);
+		}
 		return -1;
 	}
 
 	res = getnameinfo((const struct sockaddr *) rp->ai_addr, (socklen_t) rp->ai_addrlen, info->hostname, NI_MAXHOST, info->servname, NI_MAXSERV, FLY_LISTEN_SOCKINFO_FLAG);
 	if (res != 0){
-		fly_error(
-			err,
-			errno,
-			FLY_ERR_ERR,
-			"getnameinfo error. %s (%s: %s)",
-			strerror(res), __FILE__, __LINE__
-		);
+		if (err != NULL){
+			fly_error(
+				err,
+				errno,
+				FLY_ERR_ERR,
+				"getnameinfo error. %s (%s: %s)",
+				strerror(res), __FILE__, __LINE__
+			);
+		}
 		goto error;
 	}
 	if (listen(sockfd, fly_backlog()) == -1){
-		fly_error(
-			err,
-			errno,
-			FLY_ERR_ERR,
-			"liten error. %s (%s: %s)",
-			strerror(errno), __FILE__, __LINE__
-		);
+		if (err != NULL){
+			fly_error(
+				err,
+				errno,
+				FLY_ERR_ERR,
+				"liten error. %s (%s: %s)",
+				strerror(errno), __FILE__, __LINE__
+			);
+		}
 		goto error;
 	}
 
@@ -123,12 +133,14 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 		char *crt_path_env = fly_ssl_crt_path();
 		char *key_path_env = fly_ssl_key_path();
 		if (!crt_path_env || !key_path_env){
-			fly_error(
-				err,
-				errno,
-				FLY_ERR_ERR,
-				"SSL/TLS error. not found SSL/TLS certificate path and key path."
-			);
+			if (err != NULL){
+				fly_error(
+					err,
+					errno,
+					FLY_ERR_ERR,
+					"SSL/TLS error. not found SSL/TLS certificate path and key path."
+				);
+			}
 			goto error;
 		}
 
@@ -136,24 +148,28 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 		info->key_path = fly_pballoc(ctx->pool, sizeof(char)*FLY_PATH_MAX);
 		memset(info->crt_path, '\0', sizeof(char)*(strlen(crt_path_env)+1));
 		if (realpath((const char *) crt_path_env, info->crt_path) == NULL){
-			fly_error(
-				err,
-				errno,
-				FLY_ERR_ERR,
-				"SSL/TLS certificate path error(%s). %s",
-				crt_path_env, strerror(errno)
-			);
+			if (err != NULL){
+				fly_error(
+					err,
+					errno,
+					FLY_ERR_ERR,
+					"SSL/TLS certificate path error(%s). %s",
+					crt_path_env, strerror(errno)
+				);
+			}
 			goto error;
 		}
 		memset(info->key_path, '\0', sizeof(char)*(strlen(key_path_env)+1));
 		if (realpath((const char *) key_path_env, info->key_path) == NULL){
-			fly_error(
-				err,
-				errno,
-				FLY_ERR_ERR,
-				"SSL/TLS key path error(%s). %s",
-				key_path_env, strerror(errno)
-			);
+			if (err != NULL){
+				fly_error(
+					err,
+					errno,
+					FLY_ERR_ERR,
+					"SSL/TLS key path error(%s). %s",
+					key_path_env, strerror(errno)
+				);
+			}
 			goto error;
 		}
 	}

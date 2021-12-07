@@ -9,6 +9,10 @@ __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type);
 #define FLY_LOGECONT_LENGTH			(100+FLY_PATH_MAX)
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc);
 __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc);
+#define FLY_LOG_WRITE_SUCCESS			1
+#define FLY_LOG_WRITE_WAIT				0
+#define FLY_LOG_WRITE_ERROR				-1
+#define FLY_LOG_WRITE_INVALID_FILE		-2
 __fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t);
 __fly_noreturn void __fly_log_error_handle(int res);
 
@@ -262,22 +266,28 @@ fly_log_t *fly_log_init(fly_context_t *ctx, struct fly_err *err)
 	dlp = __fly_logfile_init(
 		ctx->pool,
 		lpptr,
-		0
+		__FLY_LOGFILE_INIT_STDOUT
 	);
 	write(dlp->file, "Hello debug file!", strlen("Hello debug file!"));
+	printf("ACCESS LOG FLAG: %d %s\n", alp->flag, alp->tty ? "tty" : "file");
+	printf("ERROR LOG FLAG: %d %s\n", elp->flag, elp->tty ? "tty" : "file");
+	printf("NOTICE LOG FLAG: %d %s\n", nlp->flag, nlp->tty ? "tty" : "file");
+	printf("DEBUG LOG FLAG: %d %s\n", dlp->flag, dlp->tty ? "tty" : "file");
 	assert(alp != NULL);
 	assert(elp != NULL);
 	assert(nlp != NULL);
 	assert(dlp != NULL);
 #endif
 	if (!alp || !elp || !nlp){
-		fly_error(
-			err,
-			errno,
-			FLY_ERR_ERR,
-			"Log file setting error error. %s (%s: %s)",
-			strerror(errno), __FILE__, __LINE__
-		);
+		if (err != NULL){
+			fly_error(
+				err,
+				errno,
+				FLY_ERR_ERR,
+				"Log file setting error error. %s (%s: %s)",
+				strerror(errno), __FILE__, __LINE__
+			);
+		}
 		goto error;
 	}
 
@@ -317,7 +327,7 @@ __fly_static int __fly_placeholder(char *plh, size_t plh_size, fly_time_t t)
 	return snprintf(plh, plh_size, "%s (%d): ", ftime, getpid());
 }
 
-__fly_static int __fly_log_lock(fly_logfile_t file, struct flock *lock)
+__fly_static int __fly_log_lock(fly_logfile_t file, struct flock *lock, bool wait)
 {
 #define FLY_LOG_LOCK_SUCCESS	1
 #define FLY_LOG_LOCK_WAIT		0
@@ -330,20 +340,38 @@ __fly_static int __fly_log_lock(fly_logfile_t file, struct flock *lock)
 	/* lock from end of log file */
 	lock->l_len = 0;
 
-	res = fcntl(file, F_SETLK, lock);
-
+	res = fcntl(file, wait ? F_SETLKW: F_SETLK, lock);
 	if (res == -1){
-		if (errno == EAGAIN || errno == EACCES)
+		if (errno == EAGAIN || errno == EACCES){
+#ifdef DEBUG
+			assert(wait != false);
+#endif
 			return FLY_LOG_LOCK_WAIT;
-		else
+		}else
 			return FLY_LOG_LOCK_ERROR;
 	}
 	return FLY_LOG_LOCK_SUCCESS;
 }
 
-__fly_static int __fly_log_unlock(fly_logfile_t file, struct flock *lock)
+__fly_static int __fly_log_unlock(fly_logfile_t file, struct flock *lock, bool wait)
 {
-	return fcntl(file, F_SETLK, lock);
+#ifdef DEBUG
+	assert(lock != NULL);
+	assert(file > 0);
+#endif
+	lock->l_type = F_UNLCK;
+	if (wait){
+#ifdef DEBUG
+		assert(fcntl(file, F_SETLKW, lock) == 0);
+#endif
+		return fcntl(file, F_SETLKW, lock);
+	}else{
+#ifdef DEBUG
+		assert(fcntl(file, F_SETLK, lock) == 0);
+#endif
+		return fcntl(file, F_SETLK, lock);
+	}
+	FLY_NOT_COME_HERE
 }
 
 __fly_static int __fly_write(fly_logfile_t file, size_t length, char *content)
@@ -388,18 +416,14 @@ __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc)
 	int phd_len;
 
 	if (file == -1)
-		return 0;
+		return FLY_LOG_WRITE_INVALID_FILE;
 
 	phd_len = __fly_placeholder(phd, FLY_LOG_PLACE_SIZE, lc->when);
 	if (phd_len < 0 || phd_len >= FLY_LOG_PLACE_SIZE)
-		return -1;
+		return FLY_LOG_WRITE_ERROR;
 
-#define FLY_LOG_WRITE_SUCCESS			1
-#define FLY_LOG_WRITE_WAIT				0
-#define FLY_LOG_WRITE_ERROR				-1
-	if (!(lc->__log->flag&__FLY_LOGFILE_INIT_STDOUT) && \
-			!(lc->__log->flag&__FLY_LOGFILE_INIT_STDERR)){
-		switch (__fly_log_lock(file, &lc->lock)){
+	if (!isatty(file)){
+		switch (__fly_log_lock(file, &lc->lock, lc->wait)){
 		case FLY_LOG_LOCK_SUCCESS:
 			break;
 		case FLY_LOG_LOCK_WAIT:
@@ -422,15 +446,17 @@ __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc)
 	/* release file lock */
 	goto success;
 error:
-	if (!(lc->__log->flag&__FLY_LOGFILE_INIT_STDOUT) && \
-			!(lc->__log->flag&__FLY_LOGFILE_INIT_STDERR))
-		__fly_log_unlock(file, &lc->lock);
-	return -1;
+	if (!isatty(file)){
+		if (__fly_log_unlock(file, &lc->lock, lc->wait) == -1)
+			return FLY_LOG_WRITE_ERROR;
+	}
+	return FLY_LOG_WRITE_ERROR;
 success:
-	if (!(lc->__log->flag&__FLY_LOGFILE_INIT_STDOUT) && \
-			!(lc->__log->flag&__FLY_LOGFILE_INIT_STDERR))
-		__fly_log_unlock(file, &lc->lock);
-	return 0;
+	if (!isatty(file)){
+		if (__fly_log_unlock(file, &lc->lock, lc->wait) == -1)
+			return FLY_LOG_WRITE_ERROR;
+	}
+	return FLY_LOG_WRITE_SUCCESS;
 }
 
 __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type)
@@ -447,18 +473,56 @@ __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type)
 	}
 }
 
+static inline bool fly_log_output_stdout(fly_logcont_t *lc)
+{
+	return lc->__log->flag & __FLY_LOGFILE_INIT_STDOUT ? true : false;
+}
+
+static inline bool fly_log_output_stderr(fly_logcont_t *lc)
+{
+	return lc->__log->flag & __FLY_LOGFILE_INIT_STDERR ? true : false;
+}
+
+#define __FLY_LOG_WRITE_LOGCONT_SUCCESS			0
+#define __FLY_LOG_WRITE_LOGCONT_ERROR			-1
 #define __FLY_LOG_WRITE_LOGCONT_STDOUTERR		-2
 #define __FLY_LOG_WRITE_LOGCONT_STDERRERR		-3
+#define __FLY_LOG_WRITE_LOGCONT_WAIT			-4
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc)
 {
-	if (lc->log != NULL && (lc->__log->flag & __FLY_LOGFILE_INIT_STDOUT))
-		if (__fly_log_write(STDOUT_FILENO, lc) == -1)
-			return __FLY_LOG_WRITE_LOGCONT_STDOUTERR;
-	if (lc->log != NULL && (lc->__log->flag & __FLY_LOGFILE_INIT_STDERR))
-		if (__fly_log_write(STDERR_FILENO, lc) == -1)
-			return __FLY_LOG_WRITE_LOGCONT_STDERRERR;
+#ifdef DEBUG
+	assert(lc->log != NULL);
+#else
+	if (lc->log == NULL)
+		return __FLY_LOG_WRITE_LOGCONT_SUCCESS;
+#endif
 
-	return __fly_log_write(lc->__log->file, lc);
+#ifdef DEBUG
+	printf("LOG WRITE LOGCONT fd %d, flag %d: %s %s\n", lc->__log->file, lc->__log->flag, lc->__log->log_path, lc->__log->tty ? "tty" : "notty");
+#endif
+	if (fly_log_output_stdout(lc)){
+		printf("%s", lc->content);
+		fflush(stdout);
+	}
+	if (fly_log_output_stderr(lc)){
+		printf("%s", lc->content);
+		fflush(stderr);
+	}
+
+	switch(__fly_log_write(lc->__log->file, lc)){
+	case FLY_LOG_WRITE_SUCCESS:
+		return __FLY_LOG_WRITE_LOGCONT_SUCCESS;
+	case FLY_LOG_WRITE_INVALID_FILE:
+		return __FLY_LOG_WRITE_LOGCONT_SUCCESS;
+	case FLY_LOG_WRITE_WAIT:
+		return __FLY_LOG_WRITE_LOGCONT_WAIT;
+	case FLY_LOG_WRITE_ERROR:
+		return __FLY_LOG_WRITE_LOGCONT_ERROR;
+	default:
+		FLY_NOT_COME_HERE
+	}
+
+	FLY_NOT_COME_HERE
 }
 
 void fly_logcont_setting(fly_logcont_t *lc, size_t content_length)
@@ -484,6 +548,7 @@ fly_logcont_t *fly_logcont_init(fly_log_t *log, fly_log_e type)
 	cont->type = type;
 	cont->content = NULL;
 	cont->contlen = 0;
+	cont->wait = true;
 	fly_time_null(cont->when);
 	return cont;
 }
@@ -540,13 +605,25 @@ int fly_log_event_handler(fly_event_t *e)
 	__fly_unused fly_logcont_t *content;
 	int res;
 
-	//content = (fly_logcont_t *) e->event_data;
 	content = (fly_logcont_t *) fly_event_data_get(e, __p);
 	res = __fly_log_write_logcont(content);
-	if (res < 0)
+	e->flag = 0;
+	switch(res){
+	case __FLY_LOG_WRITE_LOGCONT_SUCCESS:
+		break;
+	case __FLY_LOG_WRITE_LOGCONT_WAIT:
+		e->flag = FLY_NODELETE;
+		break;
+	case __FLY_LOG_WRITE_LOGCONT_ERROR:
+	case __FLY_LOG_WRITE_LOGCONT_STDOUTERR:
+	case __FLY_LOG_WRITE_LOGCONT_STDERRERR:
 		/* noreturn */
+		__fly_logcont_release(content);
 		__fly_log_error_handle(res);
-
+		return -1;
+	default:
+		FLY_NOT_COME_HERE
+	}
 	__fly_logcont_release(content);
 	return 0;
 }
@@ -556,12 +633,21 @@ int fly_log_now(fly_time_t *t)
 	return gettimeofday(t, NULL);
 }
 
+static inline void fly_log_wait(fly_logcont_t *lc)
+{
+	lc->wait = true;
+}
+
 __attribute__ ((format (printf, 2, 3)))
 void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 {
 	va_list va;
 	fly_logcont_t *lc;
 
+#ifdef DEBUG
+	assert(log != NULL);
+	assert(log->pool != NULL);
+#endif
 	lc = fly_logcont_init(log, FLY_LOG_NOTICE);
 	if (lc == NULL)
 		FLY_EMERGENCY_ERROR(
@@ -574,6 +660,7 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 	va_end(va);
 
 	lc->contlen = strlen(lc->content);
+	fly_log_wait(lc);
 	if (fly_log_now(&lc->when) == -1)
 		FLY_EMERGENCY_ERROR(
 			"can't set log time."
@@ -582,9 +669,21 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 	int res;
 
 	res = __fly_log_write_logcont(lc);
-	if (res < 0)
+	switch(res){
+	case __FLY_LOG_WRITE_LOGCONT_SUCCESS:
+		break;
+	case __FLY_LOG_WRITE_LOGCONT_WAIT:
+		FLY_NOT_COME_HERE
+	case __FLY_LOG_WRITE_LOGCONT_ERROR:
+	case __FLY_LOG_WRITE_LOGCONT_STDOUTERR:
+	case __FLY_LOG_WRITE_LOGCONT_STDERRERR:
+		__fly_logcont_release(lc);
 		/* noreturn */
 		__fly_log_error_handle(res);
+		return;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	__fly_logcont_release(lc);
 }
@@ -594,11 +693,23 @@ void fly_notice_direct_log_lc(fly_log_t *log, struct fly_logcont *lc)
 	int res;
 	assert(lc->__log == log->notice);
 
+	fly_log_wait(lc);
 	res = __fly_log_write_logcont(lc);
-	if (res < 0)
+	switch(res){
+	case __FLY_LOG_WRITE_LOGCONT_SUCCESS:
+		break;
+	case __FLY_LOG_WRITE_LOGCONT_WAIT:
+		FLY_NOT_COME_HERE
+	case __FLY_LOG_WRITE_LOGCONT_ERROR:
+	case __FLY_LOG_WRITE_LOGCONT_STDOUTERR:
+	case __FLY_LOG_WRITE_LOGCONT_STDERRERR:
 		/* noreturn */
+		__fly_logcont_release(lc);
 		__fly_log_error_handle(res);
-
+		return;
+	default:
+		FLY_NOT_COME_HERE
+	}
 	__fly_logcont_release(lc);
 }
 

@@ -86,7 +86,7 @@ struct fly_mount{
 	struct fly_mount_parts_file	*index;
 	struct fly_rb_tree			*rbtree;
 
-	fly_context_t *ctx;
+	fly_context_t				*ctx;
 };
 typedef struct fly_mount fly_mount_t;
 typedef struct fly_mount_parts fly_mount_parts_t;

@@ -451,6 +451,9 @@ int fly_event_unregister(fly_event_t *event)
 		fly_pbfree(event->manager->pool, event);
 		return 0;
 	}else{
+#ifdef DEBUG
+		printf("REMOVE EVENT FROM MANAGER QUEUE\n");
+#endif
 		fly_queue_remove(&event->qelem);
 		if (event->rbnode){
 #ifdef DEBUG_EVENT
@@ -762,6 +765,8 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 
 #ifdef DEBUG
 	printf("Start %d events\n", epoll_events);
+	printf("now total monitorable event count %d\n", fly_queue_count(&manager->monitorable));
+	printf("now total unmonitorable event count %d\n", fly_queue_count(&manager->unmonitorable));
 #endif
 	for (int i=0; i<epoll_events; i++){
 		fly_event_t *fly_event;
@@ -789,8 +794,9 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 		fly_event_handle(fly_event);
 
 #ifdef DEBUG
+		printf("EVENT FLAG %d\n", fly_event->flag);
 		/* check whethere event is invalid. */
-		assert(fly_event);
+		assert(fly_event != NULL);
 #endif
 		if (fly_event && !fly_nodelete(fly_event))
 			fly_event_unregister(fly_event);

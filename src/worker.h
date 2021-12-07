@@ -65,6 +65,5 @@ const char *fly_default_content_path(void);
 /* detect to unmount mount point */
 #define FLY_SIGNAL_UMOU					(1<<3)
 
-
 #endif
 

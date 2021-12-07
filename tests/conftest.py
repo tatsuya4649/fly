@@ -53,8 +53,10 @@ def newlog():
 
 def fly_notice_log_size():
     notice_log = f"{_LOGPATH}/fly_notice.log"
-    assert os.path.isfile(notice_log)
-    return os.path.getsize(notice_log)
+    if not os.path.isfile(notice_log):
+        return 0
+    else:
+        return os.path.getsize(notice_log)
 async def fly_notice_increment_check(pre_len):
     notice_log = f"{_LOGPATH}/fly_notice.log"
     await asyncio.sleep(0.5)

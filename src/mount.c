@@ -993,7 +993,8 @@ int fly_inotify_kevent_event(fly_event_t *e, struct fly_mount_parts_file *pf)
 		__e->eflag = FLY_INOTIFY_WATCH_FLAG_PF;
 	memcpy(&__e->event_data, &e->event_data, sizeof(fly_event_union));
 	memcpy(&__e->end_event_data, &e->end_event_data, sizeof(fly_event_union));
-	FLY_EVENT_HANDLER(__e, e->handler);
+	__e->handler = e->handler;
+	__e->handler_name = e->handler_name;
 	__e->end_handler = e->end_handler;
 	fly_event_inotify(__e);
 	pf->event = __e;
@@ -1071,14 +1072,10 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 			continue;
 
 		struct stat sb;
-
 		if (stat(rpath, &sb) == -1)
 			return -1;
 
 		__npf = fly_pf_init(parts, &sb);
-		if (fly_unlikely_null(__npf))
-			return -1;
-
 		__npf->parts = parts;
 		__fly_path_cpy_with_mp(__npf->filename, rpath, (const char *) parts->mount_path, FLY_PATH_MAX);
 		__npf->filename_len = strlen(__npf->filename);
@@ -1101,6 +1098,11 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 		printf("\tADD WATCH! fd: %d, event fd: %d\n", __npf->fd, __npf->event->fd);
 		assert(fly_pf_from_fd(__npf->event->fd, parts) != NULL);
 #endif
+		FLY_NOTICE_DIRECT_LOG(parts->mount->ctx->log,
+				"Master detected a new %s(%s) at %s. start watching.\n",
+				__npf->dir ? "directory" : "file",
+				__npf->filename, parts->mount_path
+		);
 	}
 	return 0;
 }
@@ -1180,6 +1182,7 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 #ifdef DEBUG
 	assert(pf != NULL);
 #ifdef HAVE_KQUEUE
+	assert(pf->event != NULL);
 	assert(pf->event->read_or_write == FLY_KQ_INOTIFY);
 #endif
 	assert(pf->parts->file_count > 0);
@@ -1187,6 +1190,9 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 	if (pf->parts->file_count == 0)
 		return 0;
 
+#ifdef DEBUG
+	printf("MASTER: %s %s: %d\n", pf->filename, __FILE__, __LINE__);
+#endif
 	if (pf->dir){
 		struct fly_bllist *__b, *__n;
 		struct fly_mount_parts_file *__pf;
@@ -1209,13 +1215,16 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 			/* same directory but not directory */
 			if (dirlen != __pf->filename_len && \
 					strncmp(__pf->filename, pf->filename, dirlen) == 0){
-#ifdef HAVE_KQEUEU
+#ifdef HAVE_KQUEUE
 				fly_event_t *__etmp;
 				__etmp = __pf->event;
 #endif
 				if (fly_inotify_rm_watch(__pf) == -1)
 					return -1;
-#ifdef HAVE_KQEUEU
+#ifdef HAVE_KQUEUE
+#ifdef DEBUG
+				assert(__pf->event->flag == FLY_CLOSE_EV);
+#endif
 				if (fly_event_unregister(__etmp) == -1)
 					return -1;
 #endif
@@ -1223,7 +1232,7 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 		}
 	}
 #ifdef DEBUG
-	printf("\t\"%s\": %d release resources\n", pf->filename, pf->fd);
+	printf("\t\"%s\"(fd %d): release resources\n", pf->filename, pf->fd);
 #endif
 #ifdef HAVE_INOTIFY
 	/*
@@ -1235,11 +1244,14 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 	if (!pf->deleted && \
 			inotify_rm_watch(pf->parts->infd, pf->wd) == -1)
 		return -1;
-#elif defined HAVE_KQEUEU
+#elif defined HAVE_KQUEUE
 	pf->event->flag = FLY_CLOSE_EV;
 	fly_event_manager_reset(pf->event);
 	if (close(pf->fd) == -1)
 		return -1;
+#ifdef DEBUG
+	printf("%s is \"%s\"\n", pf->filename, pf->deleted ? "DELETED": "ALIVE");
+#endif
 #endif
 	fly_parts_file_remove(pf->parts, pf);
 	return 0;
