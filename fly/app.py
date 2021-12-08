@@ -83,13 +83,16 @@ def _watch_dog(fly):
         print(_t)
         sys.exit(1)
 
-def _display_master_configure_error(_e):
+def _display_fly_error(_e):
     print("", file=sys.stderr)
     print("\033[1m" + '  fly error !' + '\033[0m', file=sys.stderr)
     print(f"    {_e}", file=sys.stderr)
     print("", file=sys.stderr)
     _t = traceback.format_exc()
-    print(_t)
+    print(_t, file=sys.stderr)
+
+def _display_master_configure_error(_e):
+    _display_fly_error(_e)
     sys.exit(1)
 
 def _run(fly):
@@ -103,8 +106,7 @@ def _run(fly):
     except _FLY_MASTER_CONFIGURE_ERROR as e:
         _display_master_configure_error(e)
     except Exception as e:
-        _t = traceback.format_exc()
-        print(_t)
+        _display_fly_error(e)
         err = True
 
     if err:
