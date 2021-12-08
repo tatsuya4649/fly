@@ -58,3 +58,6 @@ ltmain.sh
 compile
 config.guess
 aclocal.m4
+tests/mnt2
+tests/mnt
+!tests/mnt/*.html

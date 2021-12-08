@@ -1071,7 +1071,7 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	return 0;
 }
 #elif defined HAVE_KQUEUE
-__fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, fly_event_t *__e)
+__fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, fly_event_t *event)
 {
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
@@ -1086,16 +1086,16 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	__m = parts->mount;
 #endif
 
-	mask = __e->eflag;
+	mask = event->eflag;
 	FLY_NOTICE_DIRECT_LOG(master->context->log,
-			"Master detected chnage at mount point(%s).\n",
+			"Master detected change at mount point(%s).\n",
 			parts->mount_path);
 #ifdef DEBUG
 	printf("MASTER: INOTIFY at mount point. mask is \"0x%x\"\n", mask);
 #endif
 	/* create new file */
 	if ((mask & NOTE_EXTEND) || (mask & NOTE_WRITE)){
-		if (fly_inotify_add_watch(parts, __e) == -1)
+		if (fly_inotify_add_watch(parts, event) == -1)
 			return -1;
 #ifdef  DEBUG
 		if (__tmp == parts->file_count)
@@ -1105,10 +1105,9 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #endif
 	}
 	if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
+		fly_event_t *__e;
 		if (mask & NOTE_DELETE)
 			parts->deleted = true;
-		if (fly_inotify_rmmp(parts) == -1)
-			return -1;
 #ifdef DEBUG
 		printf("MASTER: Detect rename/detect of mount point.\n");
 		printf("MASTER: Unmount mount point. %s\n", parts->mount_path);
@@ -1116,6 +1115,13 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 		printf("\tMount point count %d --> %d\n", __tmpc, __m->mount_count);
 		printf("\tTotal file count %ld --> %ld\n", __tmpm, __m->file_count);
 #endif
+		__e = parts->event;
+		if (fly_inotify_rmmp(parts) == -1)
+			return -1;
+
+		if (__e->fd != event->fd && \
+				fly_event_unregister(__e) == -1)
+			return -1;
 	}
 
 	FLY_NOTICE_DIRECT_LOG(master->context->log,
@@ -1239,7 +1245,7 @@ send_signal:
 }
 #elif defined HAVE_KQUEUE
 
-__fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, int flag)
+__fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_parts_file *pf, struct fly_event *event, int flag)
 {
 	int mask;
 	char rpath[FLY_PATH_MAX];
@@ -1274,9 +1280,15 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 					__tmp == parts->file_count ? "not added" : "added", rpath);
 		}
 		if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
+			fly_event_t *__e;
+
+			__e = pf->event;
 			if (mask & NOTE_DELETE)
 				pf->deleted = true;
 			if (fly_inotify_rm_watch(pf) == -1)
+				return -1;
+			if (__e->fd != event->fd && \
+					fly_event_unregister(__e) == -1)
 				return -1;
 #ifdef DEBUG
 			printf("MASTER: Detect rename/detect of mount point.\n");
@@ -1315,13 +1327,19 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 
 	goto send_signal;
 deleted:
+	;
+	fly_event_t *__e;
 #ifdef DEBUG
 	printf("MASTER: Detect renamed/deleted file. Remove watch(%s)\n", rpath);
 #endif
+	__e = pf->event;
 	FLY_NOTICE_DIRECT_LOG(master->context->log,
 			"Master detected a deleted %s(%s),\n",
 			pf->dir ? "directory" : "file", rpath);
 	if (fly_inotify_rm_watch(pf) == -1)
+		return -1;
+	if (__e->fd != event->fd && \
+			fly_event_unregister(__e) == -1)
 		return -1;
 send_signal:
 	;
@@ -1397,7 +1415,7 @@ __fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, 
 #ifdef DEBUG
 		printf("MASTER: Detect at mount point file\n");
 #endif
-		if (__fly_inotify_in_pf(master, pf, __e->eflag) == -1)
+		if (__fly_inotify_in_pf(master, pf, __e, __e->eflag) == -1)
 			return -1;
 	}
 

@@ -527,8 +527,6 @@ int fly_event_unregister(fly_event_t *event)
 			}
 #endif
 		}
-
-//release:
 		fly_pbfree(event->manager->pool, event);
 		return 0;
 	}
@@ -788,8 +786,6 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 	manager->handle_count = epoll_events;
 #ifdef DEBUG
 	printf("Start %d events\n", epoll_events);
-//	printf("now total monitorable event count %d\n", fly_queue_count(&manager->monitorable));
-//	printf("now total unmonitorable event count %d\n", fly_queue_count(&manager->unmonitorable));
 #endif
 	for (int i=0; i<epoll_events; i++){
 		fly_event_t *fly_event;

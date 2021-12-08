@@ -1177,13 +1177,24 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 
 	/* remove parts file of mount point */
 	for (__b=parts->files.next; __b!=&parts->files; __b=__n){
+#ifdef HAVE_KQUEUE
+		fly_event_t *__e;
+#endif
 		__n = __b->next;
 		__pf = fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 #if defined HAVE_KQUEUE && defined DEBUG
 		assert(__pf->fd > 0);
+		assert(__pf->event != NULL);
+#endif
+#ifdef HAVE_KQUEUE
+		__e = __pf->event;
 #endif
 		if (fly_inotify_rm_watch(__pf) == -1)
 			return -1;
+#ifdef HAVE_KQUEUE
+		if (fly_event_unregister(__e) == -1)
+			return -1;
+#endif
 	}
 #ifdef DEBUG
 	/*
@@ -1208,9 +1219,6 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 	printf("INOTIFY RMMP %s:fd %d\n", parts->mount_path, parts->fd);
 #endif
 	parts->event->flag = FLY_CLOSE_EV;
-//	if (fly_event_unregister(parts->event) == -1)
-//		return -1;
-
 #endif
 	if (fly_unmount(parts->mount, parts->mount_path) == -1)
 		return -1;
@@ -1274,13 +1282,13 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 	}
 #ifdef DEBUG
 	printf("\t\"%s\"(fd %d): release resources\n", pf->filename, pf->fd);
+	printf("%s is \"%s\"\n", pf->filename, pf->deleted ? "DELETED": "ALIVE");
 #endif
 #ifdef HAVE_INOTIFY
 	/*
 	 * If watching file is alive, do inotify_rm_watch.
 	 */
 #ifdef DEBUG
-	printf("%s is \"%s\"\n", pf->filename, pf->deleted ? "DELETED": "ALIVE");
 #endif
 	if (!pf->deleted && \
 			inotify_rm_watch(pf->parts->infd, pf->wd) == -1)
@@ -1293,7 +1301,6 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 #ifdef DEBUG
 	printf("INOTIFY RMWATCH %s:fd %d\n", pf->filename, pf->fd);
 	assert(close(pf->fd) == -1 && errno == EBADF);
-	printf("%s is \"%s\"\n", pf->filename, pf->deleted ? "DELETED": "ALIVE");
 #endif
 #endif
 	fly_parts_file_remove(pf->parts, pf);
