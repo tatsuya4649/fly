@@ -1045,9 +1045,12 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 			case 0:
 				goto end_of_connection;
 			case -1:
-				if (errno == EINTR)
+				if (errno == EINTR){
+#ifdef DEBUG
+					printf("INTERRUPT SIGNAL\n");
+#endif
 					continue;
-				else if FLY_BLOCKING(recvlen)
+				}else if FLY_BLOCKING(recvlen)
 					goto read_blocking;
 				else if (errno == ECONNREFUSED)
 					goto end_of_connection;

@@ -545,6 +545,7 @@ static void __fly_worker_sigaction(int signum __fly_unused, fly_siginfo_t *info,
 #ifdef DEBUG
 	assert(__wptr != NULL);
 	assert(__wptr->context != NULL);
+	printf("WORKER[%d]: Received signal. %s\n", getpid(), strsignal(info->si_signo));
 #endif
 	FLY_NOTICE_DIRECT_LOG(
 		__wptr->context->log,
@@ -571,6 +572,8 @@ __fly_static int __fly_worker_signal(fly_worker_t *worker, fly_event_manager_t *
 	if (fly_refresh_signal() == -1)
 		return -1;
 
+	if (sigaddset(&manager->signal_mask, FLY_SIGNAL_CHANGE_MNT_CONTENT) == -1)
+		return -1;
 #ifdef DEBUG
 	printf("WORKER SIGNAL SETTING COUNT: \"%ld\"\n", FLY_WORKER_SIG_COUNT);
 #endif

@@ -7,6 +7,7 @@
 
 __fly_static __fly_log_t *__fly_log_from_type(fly_log_t *lt, fly_log_e type);
 #define FLY_LOGECONT_LENGTH			(100+FLY_PATH_MAX)
+static int fly_log_write_logcont(fly_logcont_t *lc);
 __fly_static int __fly_log_write_logcont(fly_logcont_t *lc);
 __fly_static int __fly_log_write(fly_logfile_t file, fly_logcont_t *lc);
 #define FLY_LOG_WRITE_SUCCESS			1
@@ -359,6 +360,9 @@ __fly_static int __fly_log_unlock(fly_logfile_t file, struct flock *lock, bool w
 	assert(lock != NULL);
 	assert(file > 0);
 #endif
+	lock->l_whence = SEEK_SET;
+	lock->l_start = 0;
+	lock->l_len = 0;
 	lock->l_type = F_UNLCK;
 	if (wait){
 #ifdef DEBUG
@@ -488,7 +492,31 @@ static inline bool fly_log_output_stderr(fly_logcont_t *lc)
 #define __FLY_LOG_WRITE_LOGCONT_STDOUTERR		-2
 #define __FLY_LOG_WRITE_LOGCONT_STDERRERR		-3
 #define __FLY_LOG_WRITE_LOGCONT_WAIT			-4
-__fly_static int __fly_log_write_logcont(fly_logcont_t *lc)
+static int fly_log_write_logcont(fly_logcont_t *lc)
+{
+	int res = __fly_log_write_logcont(lc);
+#ifdef DEBUG
+	/* must be unlock file here. */
+	struct flock flinfo;
+
+	printf("UNLOCK FILE CHECK\n");
+	flinfo.l_type = F_WRLCK;
+	flinfo.l_whence = SEEK_SET;
+	flinfo.l_start = 0;
+	flinfo.l_len = 0;
+	if (fcntl(lc->__log->file, F_GETLK, &flinfo) == -1){
+		FLY_EMERGENCY_ERROR(
+			"debug log fcntl error."
+		);
+	}
+	if (flinfo.l_type != F_UNLCK){
+		printf("Hold the lock by %d\n", flinfo.l_pid);
+	}else
+		printf("UNLOCK FILE\n");
+#endif
+	return res;
+}
+__fly_unused __fly_static int __fly_log_write_logcont(fly_logcont_t *lc)
 {
 #ifdef DEBUG
 	assert(lc->log != NULL);
@@ -606,7 +634,7 @@ int fly_log_event_handler(fly_event_t *e)
 	int res;
 
 	content = (fly_logcont_t *) fly_event_data_get(e, __p);
-	res = __fly_log_write_logcont(content);
+	res = fly_log_write_logcont(content);
 	e->flag = 0;
 	switch(res){
 	case __FLY_LOG_WRITE_LOGCONT_SUCCESS:
@@ -668,7 +696,7 @@ void fly_notice_direct_log(fly_log_t *log, const char *fmt, ...)
 
 	int res;
 
-	res = __fly_log_write_logcont(lc);
+	res = fly_log_write_logcont(lc);
 	switch(res){
 	case __FLY_LOG_WRITE_LOGCONT_SUCCESS:
 		break;
@@ -694,7 +722,7 @@ void fly_notice_direct_log_lc(fly_log_t *log, struct fly_logcont *lc)
 	assert(lc->__log == log->notice);
 
 	fly_log_wait(lc);
-	res = __fly_log_write_logcont(lc);
+	res = fly_log_write_logcont(lc);
 	switch(res){
 	case __FLY_LOG_WRITE_LOGCONT_SUCCESS:
 		break;

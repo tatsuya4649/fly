@@ -37,6 +37,9 @@ static void __fly_master_set_orig_sighandler(fly_master_t *__m);
 static int __fly_master_get_now_sighandler(fly_master_t *__m, struct fly_err *err);
 static int fly_master_default_fail_close(fly_event_t *e, int fd);
 void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info);
+#ifdef DEBUG
+static void fly_master_mount_parts_debug(fly_master_t *master, fly_event_manager_t *__m, fly_event_t *event);
+#endif
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
 #if defined HAVE_SIGLONGJMP && defined HAVE_SIGSETJMP
 static sigjmp_buf env;
@@ -645,8 +648,6 @@ fly_master_t *fly_master_init(struct fly_err *err)
 	__m->detect_reload = false;
 	__m->sigcount = 0;
 	fly_bllist_init(&__m->signals);
-	printf("Hweer?\n");
-	printf("Hweer?\n");
 	fly_bllist_init(&__m->orig_sighandler);
 	if (__fly_master_get_now_sighandler(__m, err) == -1)
 		return NULL;
@@ -1072,7 +1073,6 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #elif defined HAVE_KQUEUE
 __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *parts, fly_event_t *__e)
 {
-	int mod = 0;
 	fly_worker_t *__w;
 	struct fly_bllist *__b;
 	int mask;
@@ -1095,7 +1095,6 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 #endif
 	/* create new file */
 	if ((mask & NOTE_EXTEND) || (mask & NOTE_WRITE)){
-		mod |= FLY_SIGNAL_ADDF;
 		if (fly_inotify_add_watch(parts, __e) == -1)
 			return -1;
 #ifdef  DEBUG
@@ -1108,7 +1107,6 @@ __fly_static int __fly_inotify_in_mp(fly_master_t *master, fly_mount_parts_t *pa
 	if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
 		if (mask & NOTE_DELETE)
 			parts->deleted = true;
-		mod |= FLY_SIGNAL_UMOU;
 		if (fly_inotify_rmmp(parts) == -1)
 			return -1;
 #ifdef DEBUG
@@ -1259,10 +1257,9 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 
 	mask = flag;
 	if (pf->dir){
-#ifdef DEBUG
 		int __tmp;
 		__tmp = parts->file_count;
-#endif
+
 		if ((mask & NOTE_EXTEND) || (mask & NOTE_WRITE)){
 			if (fly_inotify_add_watch(parts, pf->event) == -1)
 				return -1;
@@ -1273,8 +1270,8 @@ __fly_static int __fly_inotify_in_pf(fly_master_t *master, struct fly_mount_part
 				printf("MASTER: Detect added file.\n");
 #endif
 			FLY_NOTICE_DIRECT_LOG(master->context->log,
-					"Master detected a changed directory(%s).\n",
-					rpath);
+					"Master detected that the number of files to be watched at directory has %s (%s).\n",
+					__tmp == parts->file_count ? "not added" : "added", rpath);
 		}
 		if ((mask & NOTE_RENAME) || (mask & NOTE_DELETE)){
 			if (mask & NOTE_DELETE)
@@ -1338,8 +1335,12 @@ send_signal:
 #ifdef DEBUG
 		printf("MASTER: Send signal to worker(\"%d\") to notificate chnaged content of mount point\n", __w->pid);
 #endif
-		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, 0) == -1)
+		if (fly_send_signal(__w->pid, FLY_SIGNAL_CHANGE_MNT_CONTENT, 0) == -1){
+#ifdef DEBUG
+			perror("fly_send_signal");
+#endif
 			return -1;
+		}
 	}
 	return 0;
 }
@@ -1405,6 +1406,7 @@ __fly_static int __fly_inotify_handle(fly_master_t *master, fly_context_t *ctx, 
 	__fly_debug_mnt_content(ctx);
 	printf("MASTER: now total monitorable event count %d\n", fly_queue_count(&__e->manager->monitorable));
 	printf("MASTER: now total unmonitorable event count %d\n", fly_queue_count(&__e->manager->unmonitorable));
+	fly_master_mount_parts_debug(master, __e->manager, __e);
 #endif
 	return 0;
 }
@@ -1422,7 +1424,6 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 	struct inotify_event *__e;
 	fly_pool_t *pool;
 
-	//master = (fly_master_t *) e->event_data;
 	master = (fly_master_t *) fly_event_data_get(e, __p);
 #ifdef DEBUG
 	assert(master != NULL);
@@ -1438,8 +1439,9 @@ __fly_static int __fly_master_inotify_handler(fly_event_t *e)
 		if (num_read == -1){
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
 				break;
-			else
+			else{
 				goto error;
+			}
 		}
 
 		for (__ptr=inobuf; __ptr < (char *) (inobuf+num_read);){
@@ -1782,13 +1784,12 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 			return -1;
 
 		e->fd = fd;
-		e->read_or_write = FLY_KQ_INOTIFY;
+		e->read_or_write = FLY_KQ_RELOAD;
 		e->flag = FLY_PERSISTENT;
 		e->tflag = FLY_INFINITY;
 		e->eflag = (NOTE_DELETE|NOTE_EXTEND|NOTE_WRITE|NOTE_RENAME);
 		e->expired = false;
 		e->available = false;
-		//e->event_data = (void *) master;
 		fly_event_data_set(e, __p, master);
 		e->if_fail_term = true;
 		e->fail_close = fly_master_default_fail_close;
@@ -1796,12 +1797,11 @@ static int __fly_master_reload_filepath(fly_master_t *master, fly_event_manager_
 		FLY_EVENT_HANDLER(e, __fly_master_reload_filepath_handler);
 
 		fly_time_null(e->timeout);
-		fly_event_inotify(e);
+		fly_event_reload(e);
 
 		if (fly_event_register(e) == -1)
 			return -1;
 	}
-
 	return 0;
 }
 
@@ -1834,5 +1834,56 @@ int fly_inotify_init(void)
 
 	return ifd;
 #endif
+}
+#endif
+
+#if defined DEBUG && defined HAVE_KQUEUE
+static void fly_master_mount_parts_debug(fly_master_t *master, fly_event_manager_t *__m, fly_event_t *event)
+{
+	fly_mount_t *mount;
+	fly_mount_parts_t *__p;
+	struct fly_mount_parts_file *__pf;
+	struct fly_bllist *__b, *__b2;
+	struct fly_event *__e;
+	struct fly_queue *__q;
+
+	mount = master->context->mount;
+	printf("~~~~~~~~~~~~~~~~ MASTER MOUNT DEBUG ~~~~~~~~~~~~~~~~\n");
+	printf("event fd: %d\n", event->fd);
+	fly_for_each_bllist(__b, &mount->parts){
+		__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
+		printf("\tmount point %s: \n", __p->mount_path);
+		fly_for_each_bllist(__b2, &__p->files){
+			__pf = fly_bllist_data(__b2, struct fly_mount_parts_file, blelem);
+			printf("\t\tpath %s: %s, fd: %d\n", __p->mount_path, __pf->filename, __pf->fd);
+			assert(fly_event_from_fd(__pf->event->manager, __pf->fd) != NULL);
+		}
+	}
+
+	fly_for_each_queue(__q, &__m->monitorable){
+		__e = fly_queue_data(__q, struct fly_event, qelem);
+		printf("\tevent fd %d\n", __e->fd);
+		if (fly_event_is_inotify(__e)){
+			printf("\tinotify event\n");
+			fly_for_each_bllist(__b, &mount->parts){
+				__p = fly_bllist_data(__b, fly_mount_parts_t, mbelem);
+				if (fly_pf_from_fd(__e->fd, __p) != NULL ||
+						__e->fd == event->fd)
+					goto next_event;
+				if (__p->fd == __e->fd)
+					goto next_event;
+			}
+			printf("\t!!!! Not found event fd %d !!!!\n", __e->fd);
+			assert(0);
+next_event:
+			continue;
+		}
+	}
+	fly_for_each_queue(__q, &__m->unmonitorable){
+		__e = fly_queue_data(__q, struct fly_event, qelem);
+		assert(!fly_event_is_inotify(__e));
+	}
+	printf("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n");
+	return;
 }
 #endif

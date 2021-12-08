@@ -73,9 +73,12 @@ fly_event_manager_t *fly_event_manager_init(fly_context_t *ctx)
 	manager->efd = fd;
 	manager->rbtree = fly_rb_tree_init(__fly_event_cmp);
 	manager->jbend_handle = NULL;
+	manager->handle_count = 0;
 #ifdef HAVE_KQUEUE
 	manager->reset = 0;
 #endif
+	if (sigemptyset(&manager->signal_mask) == -1)
+		return NULL;
 	return manager;
 error:
 	fly_delete_pool(manager->pool);
@@ -122,6 +125,25 @@ __fly_static int __fly_event_cmp(fly_rbdata_t *k1, fly_rbdata_t *k2, fly_rbdata_
 		FLY_NOT_COME_HERE;
 	}
 	FLY_NOT_COME_HERE;
+}
+
+struct fly_event *fly_event_from_fd(fly_event_manager_t *manager, int fd)
+{
+	struct fly_queue *__q;
+	struct fly_event *__e;
+
+	fly_for_each_bllist(__q, &manager->monitorable){
+		__e = fly_queue_data(__q, struct fly_event, qelem);
+		if (fd == __e->fd)
+			return __e;
+	}
+	fly_for_each_bllist(__q, &manager->unmonitorable){
+		__e = fly_queue_data(__q, struct fly_event, uqelem);
+		if (fd == __e->fd)
+			return __e;
+	}
+
+	return NULL;
 }
 
 /* event end handle */
@@ -393,7 +415,7 @@ int fly_event_register(fly_event_t *event)
 #ifdef DEBUG
 		assert(!fly_event_is_signal(event));
 #endif
-		if (fly_event_is_inotify(event)){
+		if (fly_event_is_inotify(event) || fly_event_is_reload(event)){
 			if (__fly_event_kevent_inotify(event) == -1){
 				struct fly_err *__err;
 				__err = fly_event_err_init(
@@ -763,15 +785,17 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 	struct kevent *event;
 #endif
 
+	manager->handle_count = epoll_events;
 #ifdef DEBUG
 	printf("Start %d events\n", epoll_events);
-	printf("now total monitorable event count %d\n", fly_queue_count(&manager->monitorable));
-	printf("now total unmonitorable event count %d\n", fly_queue_count(&manager->unmonitorable));
+//	printf("now total monitorable event count %d\n", fly_queue_count(&manager->monitorable));
+//	printf("now total unmonitorable event count %d\n", fly_queue_count(&manager->unmonitorable));
 #endif
 	for (int i=0; i<epoll_events; i++){
 		fly_event_t *fly_event;
 		event = manager->evlist + i;
 
+		manager->now_handle = event;
 #ifdef HAVE_EPOLL
 		fly_event = (fly_event_t *) event->data.ptr;
 		fly_event->available_row = event->events;
@@ -780,7 +804,7 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 #ifdef DEBUG_EVENT
 		printf("EVENT: %s\n", fly_event->handler_name);
 #endif
-		manager->reset = false;
+		manager->reset = 0;
 		fly_event->id = event->ident;
 		fly_event->eflag = event->fflags;
 		if (event->filter == EVFILT_READ)
@@ -792,6 +816,7 @@ static void __fly_event_handle(int epoll_events, fly_event_manager_t *manager)
 #endif
 		fly_event->available = true;
 		fly_event_handle(fly_event);
+		manager->handle_count--;
 
 #ifdef DEBUG
 		printf("EVENT FLAG %d\n", fly_event->flag);
@@ -852,7 +877,7 @@ retry:
 #elif defined HAVE_KQUEUE
 		memset(manager->evlist, '\0', sizeof(struct kevent)*manager->maxevents);
 		epoll_events = \
-				kevent(manager->efd, NULL, 0, manager->evlist, 1, t_ptr);
+				kevent(manager->efd, NULL, 0, manager->evlist, manager->maxevents, t_ptr);
 #endif
 		switch(epoll_events){
 		case 0:
@@ -905,9 +930,10 @@ __fly_static int __fly_event_handler_failure_logcontent(fly_logcont_t *lc, fly_e
 	res = snprintf(
 		(char *) lc->content,
 		(size_t) lc->contlen,
-		"event fd: %d. handler: %s\n",
+		"Failure event fd: %d. event handler: %s, %s\n",
 		e->fd,
-		e->handler_name!=NULL ? e->handler_name : "?"
+		e->handler_name!=NULL ? e->handler_name : "?",
+		strerror(errno)
 	);
 
 	if (res >= (int) fly_maxlog_length(lc->contlen)){
@@ -963,10 +989,21 @@ __fly_direct_log static void fly_event_handle(fly_event_t *e)
 #ifdef DEBUG
 	assert(e->err_count == 0);
 #endif
+	/* don't receive signal */
+	if (sigprocmask(SIG_BLOCK, &e->manager->signal_mask, NULL) == -1){
+		FLY_EMERGENCY_ERROR(
+			"sigprocmask block error in event handler."
+		);
+	}
 	if (e->handler != NULL)
 		handle_result = e->handler(e);
 	else
 		return;
+	if (sigprocmask(SIG_UNBLOCK, &e->manager->signal_mask, NULL) == -1){
+		FLY_EMERGENCY_ERROR(
+			"sigprocmask unblock error in event handler."
+		);
+	}
 
 	if (handle_result == FLY_EVENT_HANDLE_FAILURE){
 		/* log error handle in notice log. */
@@ -1078,3 +1115,30 @@ static void fly_timeout_spec_from_msec(struct timespec *spec, long msec)
 	return;
 }
 #endif
+
+void fly_event_manager_remove_event(fly_event_t *event)
+{
+	fly_event_manager_t *__m;
+
+	__m = event->manager;
+#ifdef DEBUG
+	assert(__m != NULL);
+#endif
+#ifdef HAVE_KQUEUE
+	struct kevent *__nev, *__ev;
+
+	__nev = __m->now_handle;
+	for (int i=1; i<__m->handle_count; i++){
+		fly_event_t *__e;
+		__ev = __nev+i;
+		__e = (fly_event_t *) __ev->udata;
+		if (__e->fd == event->fd){
+			for (int j=i+1; j<__m->handle_count; j++){
+				memcpy(__ev+j-1, __ev+j, sizeof(struct kevent));
+				__m->handle_count--;
+			}
+		}
+	}
+#endif
+	return;
+}

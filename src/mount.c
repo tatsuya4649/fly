@@ -15,6 +15,7 @@ __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *moun
 static int fly_mount_max_limit(void);
 static size_t fly_file_max_limit(void);
 static int __fly_mount_search_cmp(fly_rbdata_t *k1, fly_rbdata_t *k2, fly_rbdata_t *cmpdata);
+static int fly_parts_set_newdir(fly_mount_parts_t *parts, DIR *dir);
 
 int fly_mount_init(fly_context_t *ctx)
 {
@@ -170,8 +171,8 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 
 	pool = parts->mount->ctx->pool;
 	pfile = fly_pballoc(pool, sizeof(struct fly_mount_parts_file));
-#ifdef HAVE_INOTIFY
 	pfile->fd = -1;
+#ifdef HAVE_INOTIFY
 	pfile->wd = -1;
 	pfile->infd = parts->infd;
 #elif defined HAVE_KQUEUE
@@ -196,6 +197,18 @@ struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *
 	return pfile;
 }
 
+void fly_pf_release(struct fly_mount_parts_file *__pf)
+{
+#ifdef DEBUG
+	assert(__pf != NULL);
+	assert(__pf->parts != NULL);
+	assert(__pf->parts->mount != NULL);
+	assert(__pf->parts->mount->ctx != NULL);
+	assert(__pf->parts->mount->ctx->pool != NULL);
+#endif
+	fly_pbfree(__pf->parts->mount->ctx->pool, __pf);
+}
+
 #ifdef DEBUG
 static void __fly_mount_debug(struct fly_mount *mnt)
 {
@@ -209,10 +222,11 @@ static void __fly_mount_debug(struct fly_mount *mnt)
 		__p = fly_bllist_data(__b, struct fly_mount_parts, mbelem);
 		printf("\tMOUNT POINT[%d]: %s(file count: %d)\n", __p->mount_number, __p->mount_path, __p->file_count);
 
+		printf("\t\tmount point %s, fd %d\n", __p->mount_path, __p->fd);
 		fly_for_each_bllist(__pb, &__p->files)
 		{
 			__pf = fly_bllist_data(__pb, struct fly_mount_parts_file, blelem);
-			printf("\t\t%s: %s\n", __pf->dir ? "DIR ": "FILE", __pf->filename);
+			printf("\t\t%s: %s, fd %d\n", __pf->dir ? "DIR ": "FILE", __pf->filename, __pf->fd);
 		}
 	}
 }
@@ -660,7 +674,7 @@ int fly_mount_inotify(fly_mount_t *mount, int ifd)
 int __fly_mount_inotify_kevent_dir(
 	struct fly_mount_parts *parts,
 	fly_event_manager_t *__m, int fd, void *data,
-	fly_event_handler_t *handler,
+	fly_event_handler_t *inotify_handler,
 	fly_event_handler_t *end_handler
 )
 {
@@ -675,7 +689,7 @@ int __fly_mount_inotify_kevent_dir(
 	__e->tflag = FLY_INFINITY;
 	//__e->event_data = data;
 	fly_event_data_set(__e, __p, data);
-	FLY_EVENT_HANDLER(__e, handler);
+	FLY_EVENT_HANDLER(__e, inotify_handler);
 	fly_event_inotify(__e);
 	__e->end_handler = end_handler;
 
@@ -687,7 +701,7 @@ int __fly_mount_inotify_kevent_dir(
 int __fly_mount_inotify_kevent_file(
 	struct fly_mount_parts_file *__pf,
 	fly_event_manager_t *__m, int fd, void *data,
-	fly_event_handler_t *handler,
+	fly_event_handler_t *inotify_handler,
 	fly_event_handler_t *end_handler
 )
 {
@@ -700,9 +714,8 @@ int __fly_mount_inotify_kevent_file(
 	__e->eflag = FLY_INOTIFY_WATCH_FLAG_PF;
 	__e->flag = FLY_PERSISTENT;
 	__e->tflag = FLY_INFINITY;
-	//__e->event_data = data;
 	fly_event_data_set(__e, __p, data);
-	FLY_EVENT_HANDLER(__e, handler);
+	FLY_EVENT_HANDLER(__e, inotify_handler);
 	fly_event_inotify(__e);
 	__e->end_handler = end_handler;
 
@@ -728,6 +741,7 @@ int fly_mount_inotify_kevent(
 		if (fd == -1)
 			return -1;
 
+		parts->fd = fd;
 		if (__fly_mount_inotify_kevent_dir( \
 				parts, manager, fd, data, handler, end_handler) == -1)
 			return -1;
@@ -745,12 +759,18 @@ int fly_mount_inotify_kevent(
 			pfd = open(rpath, O_RDONLY);
 			if (pfd == -1)
 				return -1;
+			__pf->fd = pfd;
 
 			if (__fly_mount_inotify_kevent_file( \
 					__pf, manager, pfd, data, handler, end_handler) == -1)
 				return -1;
 		}
 	}
+#ifdef DEBUG
+	printf("MOUNT FILE COUNT: %ld\n", mount->file_count);
+	printf("MOUNT RBNODE COUNT: %ld\n", mount->rbtree->node_count);
+	__fly_mount_debug(mount);
+#endif
 	return 0;
 }
 #endif
@@ -978,6 +998,9 @@ int fly_inotify_kevent_event(fly_event_t *e, struct fly_mount_parts_file *pf)
 	fd = open(rpath, O_RDONLY);
 	if (fd == -1)
 		return -1;
+#ifdef DEBUG
+	printf("@@@ INOTIFY KEVENT OPEN FILE: %d @@@\n", fd);
+#endif
 
 	__e = fly_event_init(e->manager);
 	__e->fd = fd;
@@ -1021,8 +1044,9 @@ static int __fly_same_direntry(fly_mount_parts_t *parts, struct dirent *__de)
 			continue;
 
 		/* if same entry, continue */
-		if (strncmp(__de->d_name, __npf->filename, strlen(__de->d_name)) == 0)
+		if (strncmp(__de->d_name, __npf->filename, strlen(__de->d_name)) == 0){
 			return 1;
+		}
 	}
 	return 0;
 }
@@ -1038,7 +1062,6 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 	__d = opendir(parts->mount_path);
 	if (__d == NULL)
 		return -1;
-
 	while((__de=readdir(__d)) != NULL){
 #ifdef DEBUG
 		printf("\t%s: %s\n", parts->mount_path, __de->d_name);
@@ -1063,28 +1086,35 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 		}
 
 		if (fly_isdir(rpath)){
+#ifdef DEBUG
+			printf("\t%s is directory. will nftw\n", rpath);
+#endif
 			if (__fly_nftw(__e, parts, (const char *) rpath, parts->mount_path, parts->fd) == -1)
 
-				return -1;
+				goto error;
 		}
 		/* already exists parts file/directory. */
-		if (__fly_same_direntry(parts, __de))
+		if (__fly_same_direntry(parts, __de)){
+#ifdef DEBUG
+			printf("\tsame_direntry %s: %s\n", parts->mount_path, __de->d_name);
+#endif
 			continue;
+		}
 
 		struct stat sb;
 		if (stat(rpath, &sb) == -1)
-			return -1;
+			goto error;
 
 		__npf = fly_pf_init(parts, &sb);
 		__npf->parts = parts;
 		__fly_path_cpy_with_mp(__npf->filename, rpath, (const char *) parts->mount_path, FLY_PATH_MAX);
 		__npf->filename_len = strlen(__npf->filename);
 		if (fly_hash_from_parts_file_path(rpath, __npf) == -1)
-			return -1;
+			goto error_pf;
 
 		/* event of kevent make */
 		if (fly_inotify_kevent_event(__e, __npf) == -1)
-			return -1;
+			goto error_pf;
 
 		/* add rbtree of mount */
 		fly_rbdata_t data, key, cmpdata;
@@ -1103,8 +1133,19 @@ int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e)
 				__npf->dir ? "directory" : "file",
 				__npf->filename, parts->mount_path
 		);
+		continue;
+error_pf:
+		fly_pf_release(__npf);
+		goto error;
 	}
+
+	if (closedir(__d) == -1)
+		return -1;
 	return 0;
+error:
+	if (closedir(__d) == -1)
+		return -1;
+	return -1;
 }
 #endif
 
@@ -1143,9 +1184,6 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 #endif
 		if (fly_inotify_rm_watch(__pf) == -1)
 			return -1;
-#ifdef KQUEUE
-		fly_event_manager_reset(__pf->event);
-#endif
 	}
 #ifdef DEBUG
 	/*
@@ -1166,6 +1204,9 @@ int fly_inotify_rmmp(fly_mount_parts_t *parts)
 #elif defined HAVE_KQUEUE
 	if (close(parts->fd) == -1)
 		return -1;
+#ifdef DEBUG
+	printf("INOTIFY RMMP %s:fd %d\n", parts->mount_path, parts->fd);
+#endif
 	parts->event->flag = FLY_CLOSE_EV;
 //	if (fly_event_unregister(parts->event) == -1)
 //		return -1;
@@ -1246,10 +1287,12 @@ int fly_inotify_rm_watch(struct fly_mount_parts_file *pf)
 		return -1;
 #elif defined HAVE_KQUEUE
 	pf->event->flag = FLY_CLOSE_EV;
-	fly_event_manager_reset(pf->event);
+	fly_event_manager_remove_event(pf->event);
 	if (close(pf->fd) == -1)
 		return -1;
 #ifdef DEBUG
+	printf("INOTIFY RMWATCH %s:fd %d\n", pf->filename, pf->fd);
+	assert(close(pf->fd) == -1 && errno == EBADF);
 	printf("%s is \"%s\"\n", pf->filename, pf->deleted ? "DELETED": "ALIVE");
 #endif
 #endif
@@ -1347,3 +1390,15 @@ void __fly_debug_mnt_content(fly_context_t *ctx)
 	printf("==============================\n");
 }
 #endif
+
+__fly_unused int fly_parts_set_newdir(fly_mount_parts_t *parts, DIR *dir)
+{
+	int fd;
+
+	fd = dirfd(dir);
+	/* close old fd, and set new fd*/
+	if (close(parts->fd) == -1)
+		return -1;
+	parts->fd = fd;
+	return 0;
+}
