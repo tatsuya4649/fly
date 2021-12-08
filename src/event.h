@@ -35,6 +35,7 @@ extern fly_pool_t *fly_event_pool;
 #define FLY_READ		(1<<0)
 #define FLY_WRITE		(1<<1)
 #define FLY_KQ_INOTIFY	(1<<4)
+#define FLY_KQ_RELOAD   (1<<5)
 #endif
 
 #define FLY_EVLIST_ELES			1000
@@ -46,11 +47,15 @@ struct fly_event_manager{
 	int							efd;
 #ifdef HAVE_EPOLL
 	struct epoll_event			*evlist;
+	struct epoll_event			*now_handle;
 #elif defined HAVE_KQUEUE
 	struct kevent				*evlist;
+	struct kevent				*now_handle;
 #endif
 	int							maxevents;
+	int							handle_count;
 
+	sigset_t					signal_mask;
 	struct fly_rb_tree			*rbtree;
 	struct fly_queue			monitorable;
 	struct fly_queue			unmonitorable;
@@ -165,11 +170,6 @@ struct fly_event{
 			__fly_event_get(__e, event_state, name)
 #define fly_event_state_set(__e, name, value)				\
 			__fly_event_set(__e, event_state, name, value)
-//	void							*event_data;
-//	void							*end_event_data;
-//	void							*expired_event_data;
-//	void 							*event_fase;
-//	void 							*event_state;
 	uint8_t							*emerge_ptr;
 
 	/*
@@ -283,6 +283,7 @@ int fly_event_inherit_register(fly_event_t *e);
 #define __FLY_EPOLL			0x06
 #define __FLY_SIGNAL		0x07
 #define __FLY_INOTIFY		0x08
+#define __FLY_RELOAD		0x09
 
 #define	fly_event_is_file_type(e, type)	((e)->file_type == __FLY_ ## type)
 #define fly_event_file_type(e, type)		((e)->file_type =  __FLY_ ## type)
@@ -296,6 +297,9 @@ int fly_event_inherit_register(fly_event_t *e);
 #define fly_event_is_epoll(e)		fly_event_is_file_type((e), EPOLL)
 #define fly_event_is_signal(e)		fly_event_is_file_type((e), SIGNAL)
 #define fly_event_is_inotify(e)		fly_event_is_file_type((e), INOTIFY)
+#ifdef HAVE_KQUEUE
+#define fly_event_is_reload(e)		fly_event_is_file_type((e), RELOAD)
+#endif
 
 #define fly_event_regular(e)		fly_event_file_type((e), REGULAR)
 #define fly_event_dir(e)			fly_event_file_type((e), DIRECTORY)
@@ -306,6 +310,9 @@ int fly_event_inherit_register(fly_event_t *e);
 #define fly_event_epoll(e)			fly_event_file_type((e), EPOLL)
 #define fly_event_signal(e)			fly_event_file_type((e), SIGNAL)
 #define fly_event_inotify(e)		fly_event_file_type((e), INOTIFY)
+#ifdef HAVE_KQUEUE
+#define fly_event_reload(e)			fly_event_file_type((e), RELOAD)
+#endif
 
 #define fly_event_monitorable(e)	\
 	(!fly_event_is_regular((e)) && !fly_event_is_dir((e)))
@@ -352,6 +359,8 @@ void fly_jbhandle_setting(fly_event_manager_t *em, void (*handle)(fly_context_t 
 struct fly_err;
 enum fly_error_level;
 struct fly_err *fly_event_err_init(fly_event_t *e, int __errno, enum fly_error_level level, const char *fmt, ...);
+struct fly_event *fly_event_from_fd(fly_event_manager_t *manager, int fd);
+void fly_event_manager_remove_event(fly_event_t *event);
 
 
 #define fly_event_err_init(ev, err_num, level, fmt, ...) \
