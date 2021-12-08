@@ -453,9 +453,13 @@ __fly_static int __fly_worker_signal_handler(fly_event_t *e)
 
 #ifdef DEBUG
 	printf("WORKER: SIGNAL DEFAULT HANDLER\n");
+	assert(e);
+	assert(e->manager);
+	assert(e->manager->ctx);
+	assert(e->manager->ctx->log);
 #endif
 	FLY_NOTICE_DIRECT_LOG(
-		ctx->log,
+		e->manager->ctx->log,
 		"Worker[%d]: Received signal.\n",
 		getpid()
 	);
@@ -1057,7 +1061,7 @@ static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unuse
 	printf("WORKER MOUNT CONTENT DEBUG\n");
 	__fly_debug_mnt_content(ctx);
 	FLY_NOTICE_DIRECT_LOG(
-		__wptr->context->log,
+		ctx->log,
 		"Worker[%d]: End of inotify.\n",
 		getpid()
 	);

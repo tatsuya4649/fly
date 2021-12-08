@@ -37,7 +37,7 @@ static void __fly_master_set_orig_sighandler(fly_master_t *__m);
 static int __fly_master_get_now_sighandler(fly_master_t *__m, struct fly_err *err);
 static int fly_master_default_fail_close(fly_event_t *e, int fd);
 void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info);
-#ifdef DEBUG
+#if defined DEBUG && defined HAVE_KQUEUE
 static void fly_master_mount_parts_debug(fly_master_t *master, fly_event_manager_t *__m, fly_event_t *event);
 #endif
 #define FLY_MASTER_SIG_COUNT				(sizeof(fly_master_signals)/sizeof(fly_signal_t))
