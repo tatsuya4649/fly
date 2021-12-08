@@ -15,7 +15,9 @@ __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *moun
 static int fly_mount_max_limit(void);
 static size_t fly_file_max_limit(void);
 static int __fly_mount_search_cmp(fly_rbdata_t *k1, fly_rbdata_t *k2, fly_rbdata_t *cmpdata);
+#ifdef HAVE_KQUEUE
 static int fly_parts_set_newdir(fly_mount_parts_t *parts, DIR *dir);
+#endif
 
 int fly_mount_init(fly_context_t *ctx)
 {
@@ -222,7 +224,11 @@ static void __fly_mount_debug(struct fly_mount *mnt)
 		__p = fly_bllist_data(__b, struct fly_mount_parts, mbelem);
 		printf("\tMOUNT POINT[%d]: %s(file count: %d)\n", __p->mount_number, __p->mount_path, __p->file_count);
 
+#ifdef HAVE_INOTIFY
+		printf("\t\tmount point %s, wd %d\n", __p->mount_path, __p->wd);
+#else
 		printf("\t\tmount point %s, fd %d\n", __p->mount_path, __p->fd);
+#endif
 		fly_for_each_bllist(__pb, &__p->files)
 		{
 			__pf = fly_bllist_data(__pb, struct fly_mount_parts_file, blelem);
@@ -1398,6 +1404,7 @@ void __fly_debug_mnt_content(fly_context_t *ctx)
 }
 #endif
 
+#ifdef HAVE_KQUEUE
 __fly_unused int fly_parts_set_newdir(fly_mount_parts_t *parts, DIR *dir)
 {
 	int fd;
@@ -1409,3 +1416,4 @@ __fly_unused int fly_parts_set_newdir(fly_mount_parts_t *parts, DIR *dir)
 	parts->fd = fd;
 	return 0;
 }
+#endif

@@ -1,9 +1,7 @@
 #include "event.h"
 #include "context.h"
 #include "err.h"
-#ifdef HAVE_KQUEUE
 #include <signal.h>
-#endif
 
 
 __fly_static fly_pool_t *__fly_event_pool_init(fly_context_t *ctx);
@@ -1114,7 +1112,7 @@ static void fly_timeout_spec_from_msec(struct timespec *spec, long msec)
 
 void fly_event_manager_remove_event(fly_event_t *event)
 {
-	fly_event_manager_t *__m;
+	__fly_unused fly_event_manager_t *__m;
 
 	__m = event->manager;
 #ifdef DEBUG
