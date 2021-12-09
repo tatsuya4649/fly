@@ -1,4 +1,4 @@
-name: Test_Python37_on_macOS
+name: Test
 on:
     push:
         branches:
