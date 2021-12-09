@@ -496,6 +496,8 @@ static int fly_log_write_logcont(fly_logcont_t *lc)
 {
 	int res = __fly_log_write_logcont(lc);
 #ifdef DEBUG
+	if (lc->__log->file == -1)
+		return res;
 	/* must be unlock file here. */
 	struct flock flinfo;
 
