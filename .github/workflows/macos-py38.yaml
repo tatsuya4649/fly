@@ -1,4 +1,4 @@
-name: TestPython38_on_macOS
+name: Test
 on:
     push:
         branches:
