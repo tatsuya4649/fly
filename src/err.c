@@ -312,6 +312,9 @@ __fly_static void __fly_write_to_log_emerg(const char *err_content, enum fly_err
 		fprintf(stderr, "%s", noticec);
 
 	__fly_errsys.lock.l_type = F_UNLCK;
+	__fly_errsys.lock.l_whence = SEEK_SET;
+	__fly_errsys.lock.l_start = 0;
+	__fly_errsys.lock.l_len = 0;
 	fcntl(noticefile, F_SETLKW, &__fly_errsys.lock);
 
 	return;

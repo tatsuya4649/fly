@@ -238,8 +238,8 @@ def fly_command_line(
         "log_stdout":           stdout,
         "log_stderr":           stderr,
         "backlog":              backlog,
-        "max_response_len":     max_response_len,
-        "max_request_len":      max_request_len,
+        "max_response_content_length":     max_response_len,
+        "max_request_length":      max_request_len,
         "request_timeout":      request_timeout,
         "test":                 test,
     }
@@ -288,7 +288,9 @@ def run(**kwargs):
         # argument parameter write to tempolary file
         CONF_PARAMETES = [
             "mount_max",
+            "file_max",
             "workers",
+            "workers_max",
             "encode_threshold",
             "host",
             "port",
@@ -301,8 +303,8 @@ def run(**kwargs):
             "log_stdout",
             "log_stderr",
             "backlog",
-            "max_response_len",
-            "max_request_len",
+            "max_response_content_length",
+            "max_request_length",
             "request_timeout"
         ]
         _fp.flush()
