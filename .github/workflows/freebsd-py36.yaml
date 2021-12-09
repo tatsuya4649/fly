@@ -1,4 +1,4 @@
-name: Test_Python36_on_FreeBSD
+name: Test
 on:
     push:
         branches:

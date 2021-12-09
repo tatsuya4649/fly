@@ -1,4 +1,4 @@
-name: Test_Python38_on_Linux
+name: Test
 on:
     push:
         branches:
