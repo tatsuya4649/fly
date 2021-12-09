@@ -79,7 +79,7 @@ int fly_imt_fixdate(char *buf, size_t buflen, time_t *time)
 	return 0;
 }
 
-int fly_cmp_imt_fixdate(char *t1, __unused size_t t1_len, char *t2, __unused size_t t2_len)
+int fly_cmp_imt_fixdate(char *t1, __fly_unused size_t t1_len, char *t2, __fly_unused size_t t2_len)
 {
 	struct tm t1_tm, t2_tm;
 	time_t t1_time, t2_time;

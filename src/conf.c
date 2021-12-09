@@ -32,6 +32,9 @@ FILE *fly_open_config_file(void)
 		return NULL;
 	__cf = fopen(__path, "r");
 
+#ifdef DEBUG
+	printf("CONFIGURE PATH: %s\n",__path);
+#endif
 	return __cf;
 }
 
@@ -140,11 +143,18 @@ int fly_parse_config_file(void)
 				goto newline;
 			case NAME:
 				if (FLY_PARSE_CONFIG_SPACE(ptr)){
+#ifdef DEBUG
+					printf("NAME-PARSE\n");
+#endif
 					name_len = ptr - name;
 					state = NAME_END;
 					break;
 				} else if (fly_equal(*ptr)){
 					name_len = ptr - name;
+#ifdef DEBUG
+					printf("NAME-EQUAL. name length %ld\n", name_len);
+#endif
+					ptr++;
 					state = EQUAL;
 					break;
 				} else if (FLY_PARSE_CONFIG_NAME_CHAR(ptr)){
@@ -155,9 +165,15 @@ int fly_parse_config_file(void)
 				goto syntax_error;
 			case NAME_END:
 				if (FLY_PARSE_CONFIG_SPACE(ptr)){
+#ifdef DEBUG
+					printf("NAME_END-SPACE.\n");
+#endif
 					ptr++;
 					break;
 				}else if (fly_equal(*ptr)){
+#ifdef DEBUG
+					printf("NAME_END-EQUAL. name length %ld\n", name_len);
+#endif
 					ptr++;
 					state = EQUAL;
 					break;
@@ -182,9 +198,15 @@ int fly_parse_config_file(void)
 				} else if (FLY_PARSE_CONFIG_SPACE(ptr)){
 					value_len = ptr-value;
 					state = VALUE_END;
+#ifdef DEBUG
+					printf("VALUE: value len %ld\n", value_len);
+#endif
 					break;
 				} else if (fly_cr(*ptr) || fly_lf(*ptr)){
 					value_len = ptr-value;
+#ifdef DEBUG
+					printf("VALUE: value len %ld\n", value_len);
+#endif
 					state = VALUE_END;
 					break;
 				}
@@ -201,6 +223,9 @@ int fly_parse_config_file(void)
 		}
 
 end_line:
+#ifdef DEBUG
+		printf("PARSE RESULT=> name: %.*s, value=: %.*s|\n", (int) name_len, name, (int) value_len, value);
+#endif
 		/* syntax check */
 		if (!name || name_len == 0)
 			fly_syntax_error_no_name(lines);
@@ -223,6 +248,9 @@ newline:
 	}
 
 	if (feof(__cf)){
+#ifdef DEBUG
+		printf("END CONFIGURE FILE PARSE\n");
+#endif
 		return FLY_PARSE_CONFIG_SUCCESS;
 	}else
 		goto error;

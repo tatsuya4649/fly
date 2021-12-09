@@ -8,23 +8,6 @@
 
 #define TEST_PORT			"1234"
 
-fly_response_t *hello(fly_request_t *request)
-{
-	fly_response_t *res;
-	res = fly_response_init(request->ctx);
-	if (res == NULL)
-		return NULL;
-	res->header = fly_header_init(request->ctx);
-	res->body = fly_body_init(request->ctx);
-	if (fly_header_add(res->header, fly_header_name_length("Hello"), fly_header_value_length("World")) == -1)
-		return NULL;
-	if (fly_header_add(res->header, fly_header_name_length("Connection"), fly_header_value_length("keep-alive")) == -1)
-		return NULL;
-	res->status_code = _200;
-	res->version = V1_1;
-	return res;
-}
-
 int main()
 {
 	fly_worker_t *worker;
@@ -47,7 +30,7 @@ int main()
 //		return -1;
 //	if (fly_mount(ctx, "./lib") == -1)
 //		return -1;
-	if (fly_mount(ctx, "./mnt") == -1)
+	if (fly_mount(ctx, "./tests/mnt") == -1)
 		return -1;
 
 	worker = fly_worker_init(ctx);

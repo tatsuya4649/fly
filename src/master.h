@@ -1,6 +1,7 @@
 #ifndef _MASTER_H
 #define _MASTER_H
 
+#include "util.h"
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,7 +10,13 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/resource.h>
+#ifdef HAVE_INOTIFY
 #include <sys/inotify.h>
+#elif HAVE_KQUEUE
+#include <sys/event.h>
+#else
+#error	not found inotify or kqueue on your system.
+#endif
 #include "fsignal.h"
 #include "conf.h"
 #include "alloc.h"
@@ -41,7 +48,11 @@ struct fly_master{
 };
 
 struct fly_watch_path{
+#ifdef HAVE_INOTIFY
 	int							wd;
+#elif defined HAVE_KQUEUE
+	int							fd;
+#endif
 	const char					*path;
 	struct fly_bllist			blelem;
 	fly_bit_t					configure:1;
@@ -54,8 +65,7 @@ extern fly_signal_t fly_master_signals[];
 int fly_create_pidfile(void);
 int fly_create_pidfile_noexit(void);
 void fly_remove_pidfile(void);
-//fly_context_t *fly_master_init(void);
-fly_master_t *fly_master_init(void);
+fly_master_t *fly_master_init(struct fly_err *err);
 void fly_master_release(fly_master_t *master);
 fly_context_t *fly_master_release_except_context(fly_master_t *master);
 /*
@@ -65,7 +75,7 @@ fly_context_t *fly_master_release_except_context(fly_master_t *master);
 #define FLY_MASTER_CONTINUE				0
 #define FLY_MASTER_SIGNAL_END			1
 #define FLY_MASTER_RELOAD				2
-__direct_log int fly_master_process(fly_master_t *master);
+__fly_direct_log int fly_master_process(fly_master_t *master);
 void fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *, void *));
 
 #define fly_master_pid		getpid
@@ -77,6 +87,29 @@ void fly_master_worker_spawn(fly_master_t *master, void (*proc)(fly_context_t *,
 bool fly_is_create_pidfile(void);
 void fly_master_setreload(fly_master_t *master, const char *reload_filepath, bool configure);
 
-#define FLY_NOTICE_WORKER_DAEMON_PID		(SIGRTMIN)
+#define FLY_NOTICE_WORKER_DAEMON_PID		(SIGUSR1)
+
+#ifdef WORDS_BIGENDIAN
+
+#define FLY_CHANGE_MNT_SIGNAL(__s, __m, __v)	\
+		do{										\
+		 	uint8_t *__ptr = (uint8_t *) __v;			\
+		 	*__ptr = (__m);						\
+			*__s = *__ptr;						\
+		} while(0)
+
+#else
+
+#define FLY_CHANGE_MNT_SIGNAL(__s, __m, __v)	\
+		do {									\
+			memcpy((uint8_t *) __s, (uint8_t *) __v, 3);	\
+			memcpy((((uint8_t *) __s)+3), (uint8_t *) __m, 1);	\
+		 } while(0)
+
+#endif
+
+#ifdef HAVE_INOTIFY
+int fly_inotify_init(void);
+#endif
 
 #endif

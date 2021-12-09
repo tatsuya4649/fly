@@ -1,0 +1,51 @@
+name: Test_Python38_on_FreeBSD
+on:
+    push:
+        branches:
+            - master
+            - develop
+
+env:
+    LC_ALL: C.UTF-8
+    LANG: C.UTF-8
+jobs:
+    fly-test:
+        runs-on: macos-10.15
+        steps:
+            - uses: actions/checkout@v2
+            - name: Setup FreeBSD
+              uses: vmactions/freebsd-vm@v0.1.5
+              with:
+                  usesh: true
+                  mem: 4096
+                  prepare: |
+                      pkg update
+                      pkg install -y autoconf autoconf-archive automake autotools gcc sqlite3 python38 py38-sqlite3 lsof
+                      python3.8 -m ensurepip
+                      python3.8 -m pip install --upgrade pip
+                  run: |
+                      autoreconf --force --install
+                      ./configure
+                      cat config.h
+                      make
+                      make install
+                      echo "nameserver 8.8.8.8" | tee /etc/resolv.conf
+
+                      # prepare fo SSL/TLS
+                      openssl req \
+                      -subj '/CN=localhsot' \
+                      -x509 -nodes -days 365 -newkey rsa:2048 \
+                      -keyout tests/fly_test.key \
+                      -out tests/fly_test.crt
+
+                      # Python3.8
+                      python3.8 -m pip install -r ./requirements.txt
+                      python3.8 setup.py build
+                      cp -rf build/lib.*/fly/_fly_server* fly/
+                      export _PATH_PYTHON=$(which python3.8)
+                      ln -sf $_PATH_PYTHON $(dirname $_PATH_PYTHON)/python3
+                      echo $_PATH_PYTHON
+                      which python3
+                      python3 -m pytest tests -xv
+                      rm fly/_fly_server*
+                      rm -rf build

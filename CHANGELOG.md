@@ -1,5 +1,27 @@
 # Change Log
 
+## 1.2.0
+
+## Added
+
+* Support macOS
+
+* Support FreeBSD
+
+## Changed
+
+* Changed Python UI.
+
+### C
+
+* Change struct event member type(event\_data, ...) void \* to union.
+
+## Fixed
+
+* signal handler of master/worker.
+
+* handling of chnaged the content of mount point.
+
 ## 1.1.3
 
 Released: 2021/11/22
@@ -20,7 +42,7 @@ Released: 2021/11/21
 
 ## Added
 
-* Debug mode (realtime automatic update)
+* Debug mode (realtime automatic reload)
 
 * Detection of master process app file updates
 

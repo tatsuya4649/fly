@@ -1,5 +1,9 @@
 #include "pyserver.h"
 #include "v2.h"
+#ifdef DEBUG
+#include "log.h"
+#endif
+#include "err.h"
 
 struct __pyfly_server{
 	PyObject_HEAD
@@ -9,9 +13,9 @@ struct __pyfly_server{
 	long 				worker;
 	long 				reqworker;
 	bool 				ssl;
-	const char			*log;
-	const char			*ssl_crt_path;
-	const char 			*ssl_key_path;
+	char				*log;
+	char				*ssl_crt_path;
+	char 				*ssl_key_path;
 };
 
 struct PyMemberDef __pyfly_server_members[] = {
@@ -154,7 +158,7 @@ static void __pyfly_server_dealloc(__pyfly_server_t *self)
 }
 
 
-__unused static PyObject *__pyfly_server_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
+__fly_unused static PyObject *__pyfly_server_new(PyTypeObject *type, PyObject *args, PyObject *kwargs)
 {
 	__pyfly_server_t *self;
 	self = (__pyfly_server_t *) type->tp_alloc(type, 0);
@@ -186,11 +190,13 @@ static int pyfly_parse_config_file(void)
 
 static fly_master_t *pyfly_master_init(void)
 {
+	struct fly_err err;
 	fly_master_t *res;
 
-	res = fly_master_init();
+	res = fly_master_init(&err);
 	if (res == NULL)
-		PyErr_Format(PyExc_Exception, "master init error. (\"%s\")", strerror(errno));
+		PyErr_Format(PyExc_Exception,
+			"Master init. %s", err.content);
 
 	return res;
 }
@@ -901,12 +907,12 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 		Py_INCREF(routes);
 
 	if (!PyList_Check(routes)){
-		PyErr_SetString(PyExc_ValueError, "routes must be list type.");
+		PyErr_SetString(PyExc_ValueError, "Routes must be list type.");
 		goto error;
 	}
 
 	if (config_path && setenv(FLY_CONFIG_PATH, config_path, 1) == -1){
-		PyErr_SetString(PyExc_ValueError, "environment setting error.");
+		PyErr_SetString(PyExc_ValueError, "rnvironment setting error.");
 		goto error;
 	}
 
@@ -1004,29 +1010,48 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 		printf("%s\n", fly_log_path());
 #endif
 	if (self->ssl && fly_ssl_crt_path() != NULL){
-		self->ssl_crt_path = realpath((const char *) fly_ssl_crt_path(), NULL);
-		if (self->ssl_crt_path == NULL){
+		char *__tmp;
+
+		__tmp = realpath((const char *) fly_ssl_crt_path(), NULL);
+		if (__tmp == NULL){
 			PyErr_Format(PyExc_ValueError, "SSL certificate path: %s", strerror(errno));
 			goto error;
 		}
+		self->ssl_crt_path = fly_pballoc(self->master->context->pool, sizeof(char)*(strlen(__tmp)+1));
+		memset(self->ssl_crt_path, '\0', sizeof(char)*(strlen(__tmp)+1));
+		memcpy(self->ssl_crt_path, __tmp, sizeof(char)*strlen(__tmp));
+		free(__tmp);
 	}else
 		self->ssl_crt_path = NULL;
 
 	if (self->ssl && fly_ssl_key_path() != NULL){
-		self->ssl_key_path = realpath((const char *) fly_ssl_key_path(), NULL);
-		if (self->ssl_key_path == NULL){
+		char *__tmp;
+
+		__tmp = realpath((const char *) fly_ssl_key_path(), NULL);
+		if (__tmp == NULL){
 			PyErr_Format(PyExc_ValueError, "SSL key path:%s", strerror(errno));
 			goto error;
 		}
+		self->ssl_key_path = fly_pballoc(self->master->context->pool, sizeof(char)*(strlen(__tmp)+1));
+		memset(self->ssl_key_path, '\0', sizeof(char)*(strlen(__tmp)+1));
+		memcpy(self->ssl_key_path, __tmp, sizeof(char)*strlen(__tmp));
+		free(__tmp);
 	}else
 		self->ssl_key_path = NULL;
 
 	if (fly_log_path() != NULL){
-		self->log = realpath((const char *) fly_log_path(), NULL);
-		if (self->log == NULL){
+		char *__tmp;
+
+		__tmp = realpath((const char *) fly_log_path(), NULL);
+		if (__tmp == NULL){
 			PyErr_Format(PyExc_ValueError, "Log path: %s", strerror(errno));
 			goto error;
 		}
+
+		self->log = fly_pballoc(self->master->context->pool, sizeof(char)*(strlen(__tmp)+1));
+		memset(self->log, '\0', sizeof(char)*(strlen(__tmp)+1));
+		memcpy(self->log, __tmp, sizeof(char)*strlen(__tmp));
+		free(__tmp);
 	}else
 		self->log = NULL;
 

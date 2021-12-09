@@ -139,7 +139,7 @@ int fly_response_event(fly_event_t *e);
 
 #define FLY_DEFAULT_HTTP_VERSION		V1_1
 #define FLY_RESPONSE_LOG_LENGTH			300
-#define FLY_RESPONSE_NONSTRING			""
+#define FLY_RESPONSE_NONSTRING			"?"
 
 struct fly_itm_response{
 	fly_stcode_t status_code;
@@ -214,7 +214,7 @@ static inline bool fly_encode_do(fly_response_t *res)
 #define FLY_MAX_RESPONSE_CONTENT_LENGTH	"FLY_MAX_RESPONSE_CONTENT_LENGTH"
 int fly_response_content_max_length(void);
 void fly_response_timeout_end_setting(fly_event_t *e, fly_response_t *res);
-int fly_response_fail_close_handler(fly_event_t *e, int fd __unused);
+int fly_response_fail_close_handler(fly_event_t *e, int fd __fly_unused);
 
 #define FLY_RESPONSE_DECBUF_INIT_LEN		(1)
 #define FLY_RESPONSE_DECBUF_CHAIN_MAX		(1)

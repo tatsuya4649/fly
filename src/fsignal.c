@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include "fsignal.h"
@@ -31,9 +30,15 @@ fly_signum_t fly_signals[] = {
 	SIGXFSZ,
 	SIGVTALRM,
 	SIGPROF,
+#ifdef SIGWINCH
 	SIGWINCH,
+#endif
+#ifdef SIGIO
 	SIGIO,
+#endif
+#ifdef SIGPWR
 	SIGPWR,
+#endif
 	SIGSYS,
 	-1
 };
@@ -51,14 +56,14 @@ int fly_signal_init(void)
 	return FLY_SUCCESS;
 }
 
-__attribute__((noreturn)) void fly_sigint_handler(__unused int signo)
+__attribute__((noreturn)) void fly_sigint_handler(__fly_unused int signo)
 {
     fprintf(stderr, "Interrupt now (Ctrl+C)...\n");
     exit(0);
 }
 
 
-void __fly_only_recv(fly_context_t *ctx __unused, struct signalfd_siginfo *info __unused)
+void __fly_only_recv(fly_context_t *ctx __fly_unused, fly_siginfo_t *info __fly_unused)
 {
 	return;
 }
@@ -66,12 +71,17 @@ void __fly_only_recv(fly_context_t *ctx __unused, struct signalfd_siginfo *info 
 int fly_refresh_signal(void)
 {
 	for (fly_signum_t *__sig=fly_signals; *__sig>0; __sig++){
-		if (*__sig!=SIGKILL && *__sig!=SIGSTOP && signal(*__sig, SIG_DFL) == SIG_ERR)
+#ifdef HAVE_KQUEUE
+		if (*__sig!=SIGKILL && *__sig!=SIGSTOP &&  signal(*__sig, SIG_IGN) == SIG_ERR)
+#else
+		if (*__sig!=SIGKILL && *__sig!=SIGSTOP &&  signal(*__sig, SIG_DFL) == SIG_ERR)
+#endif
 			return -1;
 	}
 	return 0;
 }
 
+#ifdef HAVE_SIGNALFD
 int fly_signal_register(sigset_t *mask)
 {
 	int sigfd;
@@ -81,13 +91,18 @@ int fly_signal_register(sigset_t *mask)
 	sigfd = signalfd(-1, mask, SFD_CLOEXEC|SFD_NONBLOCK);
 	return sigfd;
 }
+#endif
 
-__noreturn int fly_signal_default_handler(fly_context_t *ctx __unused, struct signalfd_siginfo *info __unused)
+__fly_noreturn int fly_signal_default_handler(fly_context_t *ctx __fly_unused, fly_siginfo_t *info __fly_unused)
 {
 	exit(0);
 }
 
-int fly_send_signal(pid_t pid, int signumber, int value)
+int fly_send_signal(pid_t pid, int signumber, int value __fly_unused)
 {
+#ifdef HAVE_SIGQUEUE
 	return sigqueue(pid, signumber, (const union sigval) value);
+#else
+	return kill(pid, signumber);
+#endif
 }

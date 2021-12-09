@@ -6,16 +6,17 @@
 #include <assert.h>
 #include <errno.h>
 #include <stddef.h>
+#include <sys/types.h>
 #include "../config.h"
 
 #ifndef __GNUC__
 #define __attribute__((x))		/* NOTHING */
 #endif
 
-#define __unused			__attribute__((unused))
-#define __noreturn			__attribute__((noreturn))
-#define __destructor		__attribute__((destructor))
-#define __direct_log
+#define __fly_unused			__attribute__((unused))
+#define __fly_noreturn			__attribute__((noreturn))
+#define __fly_destructor		__attribute__((destructor))
+#define __fly_direct_log
 
 #ifdef DEBUG
 #define __fly_static
@@ -29,7 +30,7 @@
 #define FLY_CRLF_LENGTH				(strlen(FLY_CRLF))
 
 #define FLY_STRING_ARRAY(...)		(char *[]) {__VA_ARGS__}
-#define fly_bit_t				int
+#define fly_bit_t				unsigned int
 
 int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr);
 
@@ -45,10 +46,17 @@ int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr
 #define FLY_SPACE				(0x20)
 #define FLY_CR					(0xD)
 
+#ifdef FLY_GCC_COMPILER
 #define fly_container_of(ptr, type , member)		({	\
 		const typeof( ((type *) 0)->member ) *__p = (ptr); \
 		(type *) ((char *) __p - offsetof(type, member));	\
 	})
+#else
+#define fly_container_of(ptr, type , member)		({	\
+		const typeof( ((type *) 0)->member ) *__p = (ptr); \
+		(type *) ((void *) __p - offsetof(type, member));	\
+	})
+#endif
 
 #ifdef WORDS_BIGENDIAN
 #define FLY_BIG_ENDIAN			1
@@ -75,5 +83,24 @@ struct fly_context;
 #define FLY_DAEMON_OPEN_ERROR				-6
 #define FLY_DAEMON_DUP_ERROR				-7
 int fly_daemon(struct fly_context *ctx);
+
+#if defined(__GNUC__) && !defined(__clang__)
+#define FLY_GCC_COMPILER		1
+#else
+#undef FLY_GCC_COMPILER
+#endif
+
+ssize_t fly_sendfile(int out_fd, int in_fd, off_t *offset, size_t count);
+
+#ifdef MSG_NOSIGNAL
+#define FLY_MSG_NOSIGNAL			MSG_NOSIGNAL
+#else
+#define FLY_MSG_NOSIGNAL			0
+#endif
+
+static inline size_t fly_min(size_t a, size_t b)
+{
+	return a < b ? a : b;
+}
 
 #endif

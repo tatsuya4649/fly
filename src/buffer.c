@@ -28,6 +28,8 @@ fly_buffer_t *fly_buffer_init(fly_pool_t *pool, size_t init_len, size_t chain_ma
 				return NULL;
 			case FLY_BUF_ADD_CHAIN_ERROR:
 				return NULL;
+			default:
+				FLY_NOT_COME_HERE
 			}
 	}
 	return buffer;
@@ -191,15 +193,8 @@ __fly_static char *__fly_buffer_strstr(fly_buffer_c *__c, const char *str, int f
 	char *n;
 
 	n = (char *) __c->use_ptr;
-#ifdef DEBUG
-	printf("%s", n);
-#endif
 	while(true){
 		char *__s = (char *) str;
-#ifdef DEBUG
-		printf("%c", *n);
-		fflush(stdout);
-#endif
 		while(*n == *__s++){
 #ifdef DEBUG
 			assert(__fly_bufp_inc(&__c, (fly_buf_p *) &n) != NULL);
@@ -208,14 +203,8 @@ __fly_static char *__fly_buffer_strstr(fly_buffer_c *__c, const char *str, int f
 #endif
 			if (*__s == '\0'){
 				if (flag & FLY_BUFFER_STRSTR_AFTER){
-#ifdef DEBUG
-					printf("STRSTR After: %s\n", (char *) n);
-#endif
 					return (char *) n;
 				}else{
-#ifdef DEBUG
-					printf("STRSTR: %s\n", (char *) (n-strlen(str)));
-#endif
 					return (char *) (n - strlen(str));
 				}
 			}

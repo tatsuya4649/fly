@@ -3,20 +3,15 @@
 #include "connect.h"
 #include "err.h"
 
-__fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool);
+__fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool, struct fly_err *err);
 
-fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
+fly_context_t *fly_context_init(struct fly_pool_manager *__pm, struct fly_err *err)
 {
 	fly_context_t *ctx;
 	fly_pool_t *pool;
 
 	ctx = fly_malloc(sizeof(fly_context_t));
-	if (!ctx)
-		return NULL;
-
 	pool = fly_create_pool(__pm, FLY_CONTEXT_POOL_SIZE);
-	if (!pool)
-		return NULL;
 	pool->self_delete = true;
 
 	memset(ctx, 0, sizeof(fly_context_t));
@@ -24,23 +19,19 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 	ctx->event_pool = NULL;
 	ctx->pool_manager = __pm;
 	ctx->misc_pool = fly_create_pool(__pm, FLY_CONTEXT_POOL_SIZE);
-	if (!ctx->misc_pool)
-		return NULL;
 	ctx->misc_pool->self_delete = true;
 	ctx->listen_count = 0;
-	ctx->listen_sock = __fly_listen_sock(ctx, pool);
+	ctx->listen_sock = __fly_listen_sock(ctx, pool, err);
 	if (ctx->listen_sock == NULL)
 		return NULL;
 	ctx->max_response_content_length = fly_response_content_max_length();
 	ctx->max_request_length = fly_max_request_length();
 	ctx->request_timeout = fly_request_timeout();
 	ctx->response_encode_threshold = fly_encode_threshold();
-	ctx->log = fly_log_init(ctx);
+	ctx->log = fly_log_init(ctx, err);
 	if (ctx->log == NULL)
 		return NULL;
 	ctx->route_reg = fly_route_reg_init(ctx);
-	if (ctx->route_reg == NULL)
-		return NULL;
 	ctx->mount = NULL;
 	ctx->log_stdout = fly_log_stdout();
 	ctx->log_stderr = fly_log_stderr();
@@ -50,6 +41,7 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm)
 
 	/* for SSL/TLS */
 	ctx->ssl_ctx = NULL;
+	ctx->daemon = false;
 	/* ready for emergency error */
 	fly_errsys_init(ctx);
 
@@ -71,17 +63,14 @@ void fly_context_release(fly_context_t *ctx)
 	fly_free(ctx);
 }
 
-__fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool)
+__fly_static fly_sockinfo_t *__fly_listen_sock(fly_context_t *ctx, fly_pool_t *pool, struct fly_err *err)
 {
 	fly_sockinfo_t *info;
 	int port;
 
 	info = fly_pballoc(pool, sizeof(fly_sockinfo_t));
-	if (!info)
-		return NULL;
-
 	port = fly_server_port();
-	if (fly_socket_init(ctx, port, info, fly_ssl()) == -1)
+	if (fly_socket_init(ctx, port, info, fly_ssl(), err) == -1)
 		return NULL;
 	return info;
 }
