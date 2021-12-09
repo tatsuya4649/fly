@@ -20,6 +20,8 @@
 
 * signal handler of master/worker.
 
+* handling of chnaged the content of mount point.
+
 ## 1.1.3
 
 Released: 2021/11/22
