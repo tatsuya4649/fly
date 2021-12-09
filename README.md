@@ -4,9 +4,9 @@
 ![python](https://img.shields.io/badge/python-3.6%20%7C%203.7%20%7C%203.8%20%7C%203.9%20%7C%203.10-blue)
 ![pypi](https://badge.fury.io/py/fly-server.svg)
 
-fly is lightweight web application framework. This is a library with Python, but all the core parts of the server are implemented in C language to speed up the operation.
+fly is lightweight web application framework. This is a library with Python, but all the core parts of the server are implemented in C language to speed up.
 
-* Event driven architecture.(non-blocking network I/O)
+* Event driven architecture. (non-blocking network I/O)
 
 * Usable as Web server and Application server.
 
