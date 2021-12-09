@@ -1,0 +1,225 @@
+if [ "Linux" = "Darwin" ]; then \
+	rm -rf /home/tatsuya/fly/fly/lib/libfly.dylib*; \
+else \
+	rm -f /home/tatsuya/fly/fly/lib/libfly.so*; \
+fi;
+rm -f /home/tatsuya/fly/fly/lib/_fly_server*
+rm -rf /home/tatsuya/fly/fly/lib/__pycache__
+rm -f src/*.o
+rm -f src/*.o
+rm -f src/*.lo
+rm -f .*.swp
+rm -f fly/_fly_server.*
+rm -rf build
+rm -rf tests/__fly_*
+gcc -g3 -O0 -W -Wall -Werror -Wcast-align -I/usr/local/include -I/usr/include -Wno-deprecated-declarations -Wno-error=comment -shared  -D DEBUG -fPIC -Wl,-soname,libfly.so.0 -o /home/tatsuya/fly/fly/lib/libfly.so.0.0.0 src/server.c src/response.c src/header.c src/alloc.c src/mount.c src/method.c src/version.c src/math.c src/request.c src/util.c src/connect.c src/body.c src/route.c src/fsignal.c src/mime.c src/encode.c src/log.c src/worker.c src/master.c src/ftime.c src/event.c src/context.c src/err.c src/charset.c src/lang.c src/cache.c src/scheme.c src/buffer.c src/rbtree.c src/ssl.c src/v2.c src/queue.c src/bllist.c src/conf.c src/uri.c  -lz -lcrypto -lssl -lbrotlienc -lbrotlidec -L /usr/lib -L /usr/local/lib -L ./fly/lib
+src/server.c: In function 'fly_socket_init':
+src/server.c:53:25: error: expected expression before ',' token
+   53 |                         , __FILE__, __LINE__
+      |                         ^
+src/server.c:68:25: error: expected expression before ',' token
+   68 |                         , __FILE__, __LINE__
+      |                         ^
+src/server.c:98:25: error: expected expression before ',' token
+   98 |                         , __FILE__, __LINE__
+      |                         ^
+src/master.c:613:15: error: conflicting types for 'fly_master_init'; have 'fly_master_t *(struct fly_err *)' {aka 'struct fly_master *(struct fly_err *)'}
+  613 | fly_master_t *fly_master_init(struct fly_err *err)
+      |               ^~~~~~~~~~~~~~~
+In file included from src/master.c:4:
+src/master.h:69:15: note: previous declaration of 'fly_master_init' with type 'fly_master_t *(void)' {aka 'struct fly_master *(void)'}
+   69 | fly_master_t *fly_master_init(void);
+      |               ^~~~~~~~~~~~~~~
+src/event.c: In function '__fly_event_pool_init':
+src/event.c:30:35: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+   30 |         __ep = fly_create_pool(ctx->pool_manager, FLY_EVENT_POOL_SIZE);
+      |                                   ^~
+src/event.c:31:12: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+   31 |         ctx->event_pool = __ep;
+      |            ^~
+src/event.c: In function 'fly_event_init':
+src/event.c:194:41: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  194 |         event->emerge_ptr = manager->ctx->emerge_ptr;
+      |                                         ^~
+src/event.c: In function 'fly_event_unregister':
+src/event.c:465:49: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  465 |                                         __m->ctx->pool, errno, FLY_ERR_ERR,
+      |                                                 ^~
+src/event.c:514:25: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  514 |                 __m->ctx->pool, errno, FLY_ERR_ALERT,
+      |                         ^~
+src/err.c:5:52: error: unknown type name 'fly_logcont_t'; did you mean 'fly_event_t'?
+    5 | __fly_static int __fly_err_logcont(fly_err_t *err, fly_logcont_t *lc);
+      |                                                    ^~~~~~~~~~~~~
+      |                                                    fly_event_t
+src/err.c:12:22: error: field 'lock' has incomplete type
+   12 |         struct flock lock;
+      |                      ^~~~
+src/err.c:104:65: error: unknown type name 'fly_logcont_t'; did you mean 'fly_event_t'?
+  104 | __fly_static int __fly_err_logcont(__fly_unused fly_err_t *err, fly_logcont_t *lc)
+      |                                                                 ^~~~~~~~~~~~~
+      |                                                                 fly_event_t
+src/err.c: In function 'fly_errlog_event_handler':
+src/err.c:130:22: error: unknown type name 'fly_logcont_t'
+  130 |         __fly_unused fly_logcont_t *lc;
+      |                      ^~~~~~~~~~~~~
+src/err.c:132:14: error: implicit declaration of function 'fly_logcont_init'; did you mean 'fly_event_init'? [-Werror=implicit-function-declaration]
+  132 |         lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_ERROR);
+      |              ^~~~~~~~~~~~~~~~
+      |              fly_event_init
+src/err.c:132:31: error: implicit declaration of function 'fly_log_from_event'; did you mean 'fly_context_from_event'? [-Werror=implicit-function-declaration]
+  132 |         lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_ERROR);
+      |                               ^~~~~~~~~~~~~~~~~~
+      |                               fly_context_from_event
+src/err.c:132:54: error: 'FLY_LOG_ERROR' undeclared (first use in this function); did you mean 'FLY_EXIT_ERROR'?
+  132 |         lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_ERROR);
+      |                                                      ^~~~~~~~~~~~~
+      |                                                      FLY_EXIT_ERROR
+src/err.c:132:54: note: each undeclared identifier is reported only once for each function it appears in
+src/err.c:138:9: error: implicit declaration of function 'fly_logcont_setting' [-Werror=implicit-function-declaration]
+  138 |         fly_logcont_setting(lc, FLY_ERROR_LOG_LENGTH);
+      |         ^~~~~~~~~~~~~~~~~~~
+src/err.c:139:13: error: implicit declaration of function '__fly_err_logcont' [-Werror=implicit-function-declaration]
+  139 |         if (__fly_err_logcont(err, lc) == __FLY_ERROR_LOGCONTENT_ERROR)
+      |             ^~~~~~~~~~~~~~~~~
+src/err.c:141:13: error: implicit declaration of function 'fly_log_now' [-Werror=implicit-function-declaration]
+  141 |         if (fly_log_now(&lc->when) == -1)
+      |             ^~~~~~~~~~~
+src/err.c:141:28: error: request for member 'when' in something not a structure or union
+  141 |         if (fly_log_now(&lc->when) == -1)
+      |                            ^~
+In file included from src/err.h:14,
+                 from src/err.c:1:
+src/err.c:150:30: error: 'fly_log_event_handler' undeclared (first use in this function); did you mean 'fly_errlog_event_handler'?
+  150 |         FLY_EVENT_HANDLER(e, fly_log_event_handler);
+      |                              ^~~~~~~~~~~~~~~~~~~~~
+src/event.h:210:33: note: in definition of macro 'FLY_EVENT_HANDLER'
+  210 |                 (e)->handler = (__handler);             \
+      |                                 ^~~~~~~~~
+In file included from src/err.c:1:
+src/err.c: In function 'fly_errlog_event':
+src/err.h:96:50: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+   96 | #define fly_errlogfile_from_manager(m)  ((m)->ctx->log->error->file)
+      |                                                  ^~
+src/err.c:168:17: note: in expansion of macro 'fly_errlogfile_from_manager'
+  168 |         e->fd = fly_errlogfile_from_manager(manager);
+      |                 ^~~~~~~~~~~~~~~~~~~~~~~~~~~
+src/err.c: In function '__fly_write_to_log_emerg':
+src/err.c:217:9: error: unknown type name '__fly_log_t'
+  217 |         __fly_log_t *err, *notice;
+      |         ^~~~~~~~~~~
+src/err.c:218:9: error: unknown type name 'fly_logfile_t'; did you mean 'fly_time_t'?
+  218 |         fly_logfile_t errfile, noticefile;
+      |         ^~~~~~~~~~~~~
+      |         fly_time_t
+src/err.c:230:18: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  230 |         err = ctx->log->error;
+      |                  ^~
+src/err.c:231:21: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  231 |         notice = ctx->log->notice;
+      |                     ^~
+src/err.c:232:22: error: request for member 'file' in something not a structure or union
+  232 |         errfile = err->file;
+      |                      ^~
+src/err.c:233:28: error: request for member 'file' in something not a structure or union
+  233 |         noticefile = notice->file;
+      |                            ^~
+src/err.c:236:36: error: 'F_WRLCK' undeclared (first use in this function)
+  236 |         __fly_errsys.lock.l_type = F_WRLCK;
+      |                                    ^~~~~~~
+src/err.c:242:13: error: implicit declaration of function 'fcntl' [-Werror=implicit-function-declaration]
+  242 |         if (fcntl(errfile, F_SETLKW, &__fly_errsys.lock) == -1)
+      |             ^~~~~
+src/err.c:242:28: error: 'F_SETLKW' undeclared (first use in this function)
+  242 |         if (fcntl(errfile, F_SETLKW, &__fly_errsys.lock) == -1)
+      |                            ^~~~~~~~
+src/err.c:265:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  265 |         if (ctx->log_stdout)
+      |                ^~
+src/err.c:267:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  267 |         if (ctx->log_stderr)
+      |                ^~
+src/err.c:271:36: error: 'F_UNLCK' undeclared (first use in this function); did you mean 'F_ULOCK'?
+  271 |         __fly_errsys.lock.l_type = F_UNLCK;
+      |                                    ^~~~~~~
+      |                                    F_ULOCK
+src/err.c:289:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  289 |         if (ctx->log_stdout)
+      |                ^~
+src/err.c:291:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  291 |         if (ctx->log_stderr)
+      |                ^~
+src/err.c: In function '__fly_write_to_log_err':
+src/err.c:303:9: error: unknown type name '__fly_log_t'
+  303 |         __fly_log_t *err, *notice;
+      |         ^~~~~~~~~~~
+src/err.c:304:9: error: unknown type name 'fly_logfile_t'; did you mean 'fly_time_t'?
+  304 |         fly_logfile_t errfile, noticefile;
+      |         ^~~~~~~~~~~~~
+      |         fly_time_t
+src/err.c:320:18: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  320 |         err = ctx->log->error;
+      |                  ^~
+src/err.c:321:21: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  321 |         notice = ctx->log->notice;
+      |                     ^~
+src/err.c:322:22: error: request for member 'file' in something not a structure or union
+  322 |         errfile = err->file;
+      |                      ^~
+src/err.c:323:28: error: request for member 'file' in something not a structure or union
+  323 |         noticefile = notice->file;
+      |                            ^~
+src/err.c:326:36: error: 'F_WRLCK' undeclared (first use in this function)
+  326 |         __fly_errsys.lock.l_type = F_WRLCK;
+      |                                    ^~~~~~~
+src/err.c:332:28: error: 'F_SETLKW' undeclared (first use in this function)
+  332 |         if (fcntl(errfile, F_SETLKW, &__fly_errsys.lock) == -1)
+      |                            ^~~~~~~~
+src/err.c:345:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  345 |         if (ctx->log_stdout)
+      |                ^~
+src/err.c:347:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  347 |         if (ctx->log_stderr)
+      |                ^~
+src/err.c:352:36: error: 'F_UNLCK' undeclared (first use in this function); did you mean 'F_ULOCK'?
+  352 |         __fly_errsys.lock.l_type = F_UNLCK;
+      |                                    ^~~~~~~
+      |                                    F_ULOCK
+src/err.c:387:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  387 |         if (ctx->log_stdout)
+      |                ^~
+src/err.c:389:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  389 |         if (ctx->log_stderr)
+      |                ^~
+src/err.c: In function '__fly_write_to_log_info':
+src/err.c:402:9: error: unknown type name '__fly_log_t'
+  402 |         __fly_log_t *notice;
+      |         ^~~~~~~~~~~
+src/err.c:403:9: error: unknown type name 'fly_logfile_t'; did you mean 'fly_time_t'?
+  403 |         fly_logfile_t noticefile;
+      |         ^~~~~~~~~~~~~
+      |         fly_time_t
+src/err.c:412:21: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  412 |         notice = ctx->log->notice;
+      |                     ^~
+src/err.c:413:28: error: request for member 'file' in something not a structure or union
+  413 |         noticefile = notice->file;
+      |                            ^~
+src/err.c:416:36: error: 'F_WRLCK' undeclared (first use in this function)
+  416 |         __fly_errsys.lock.l_type = F_WRLCK;
+      |                                    ^~~~~~~
+src/err.c:420:31: error: 'F_SETLKW' undeclared (first use in this function)
+  420 |         if (fcntl(noticefile, F_SETLKW, &__fly_errsys.lock) == -1)
+      |                               ^~~~~~~~
+src/err.c:439:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  439 |         if (ctx->log_stdout)
+      |                ^~
+src/err.c:441:16: error: invalid use of incomplete typedef 'fly_context_t' {aka 'struct fly_context'}
+  441 |         if (ctx->log_stderr)
+      |                ^~
+src/err.c:445:36: error: 'F_UNLCK' undeclared (first use in this function); did you mean 'F_ULOCK'?
+  445 |         __fly_errsys.lock.l_type = F_UNLCK;
+      |                                    ^~~~~~~
+      |                                    F_ULOCK
+cc1: all warnings being treated as errors
+make: *** [_makefile:81: lib] Error 1

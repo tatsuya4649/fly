@@ -34,11 +34,11 @@ struct fly_context{
 	/* for SSL/TLS */
 	SSL_CTX						*ssl_ctx;
 
-	fly_bit_t					daemon;
+	fly_bit_t					daemon: 1;
 };
 typedef struct fly_context fly_context_t;
-
-fly_context_t *fly_context_init(struct fly_pool_manager *__pm);
+struct fly_err;
+fly_context_t *fly_context_init(struct fly_pool_manager *__pm, struct fly_err *err);
 void fly_context_release(fly_context_t *ctx);
 
 #define FLY_SEND_DEFAULT_CONTENT_BY_STCODE_SUCCESS		(1)
@@ -53,20 +53,24 @@ struct fly_response_content_by_stcode *fly_default_content_by_stcode_from_event(
 //int fly_send_default_content(fly_event_t *e, struct fly_response_content_by_stcode *__r);
 #define FLY_SEND_BUF_LENGTH			(4096)
 
-__unused static inline bool is_fly_log_fd(int i, fly_context_t *ctx){
+__fly_unused static inline bool is_fly_log_fd(int i, fly_context_t *ctx){
 	if (i == ctx->log->access->file)
 		return true;
 	else if (i == ctx->log->error->file)
 		return true;
 	else if (i == ctx->log->notice->file)
 		return true;
+#ifdef DEBUG
+	else if (i == ctx->log->debug->file)
+		return true;
+#endif
 	else
 		return false;
 
 	FLY_NOT_COME_HERE
 }
 
-__unused static inline bool is_fly_listen_socket(int i, fly_context_t *ctx){
+__fly_unused static inline bool is_fly_listen_socket(int i, fly_context_t *ctx){
 	if (i == ctx->listen_sock->fd)
 		return true;
 	else

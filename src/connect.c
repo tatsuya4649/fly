@@ -114,21 +114,30 @@ __fly_static int __fly_info_of_connect(fly_connect_t *conn)
  */
 int fly_listen_connected(fly_event_t *e)
 {
+#ifdef DEBUG
+	printf("WORKER: Listen socket is connected\n");
+#endif
 	fly_connect_t *conn;
 	fly_request_t *req;
 
-	conn = (fly_connect_t *) e->event_data;
+	//conn = (fly_connect_t *) e->event_data;
+	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 	e->read_or_write = FLY_READ;
 	/* event only modify (no add, no delete) */
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
-	e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
-	e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
+	//e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
+	//e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
+	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_INIT);
+	fly_event_fase_set(e, __e, EFLY_REQUEST_FASE_INIT);
 	fly_event_socket(e);
 
 	switch(FLY_CONNECT_HTTP_VERSION(conn)){
 	case V1_1:
+#ifdef DEBUG
+	printf("WORKER: Start HTTP1.1 communication\n");
+#endif
 		req = fly_request_init(conn);
 		if (fly_unlikely_null(req)){
 			struct fly_err *__err;
@@ -139,13 +148,18 @@ int fly_listen_connected(fly_event_t *e)
 			fly_event_error_add(e, __err);
 			return -1;
 		}
-		e->event_data = (void *) req;
+		fly_event_data_set(e, __p, (void *) req);
+		//e->event_data = (void *) req;
 
 		e->fail_close = fly_request_fail_close_handler;
 		FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
 		return fly_request_event_handler(e);
 	case V2:
-		e->event_data = (void *) conn;
+#ifdef DEBUG
+	printf("WORKER: Start HTTP2 communication\n");
+#endif
+		//e->event_data = (void *) conn;
+		fly_event_data_set(e, __p, conn);
 		FLY_EVENT_END_HANDLER(e, fly_hv2_end_handle, conn);
 		FLY_EVENT_EXPIRED_HANDLER(e, fly_hv2_timeout_handle, conn);
 		return fly_hv2_init_handler(e);
@@ -154,11 +168,12 @@ int fly_listen_connected(fly_event_t *e)
 	}
 }
 
-int fly_fail_recognize_protocol(fly_event_t *e, int fd __unused)
+int fly_fail_recognize_protocol(fly_event_t *e, int fd __fly_unused)
 {
 	fly_connect_t *con;
 
-	con = (fly_connect_t *) e->expired_event_data;
+	con = (fly_connect_t *) fly_expired_event_data_get(e, __p);
+	//con = (fly_connect_t *) e->expired_event_data;
 	return fly_connect_release(con);
 }
 
@@ -182,17 +197,30 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	fly_sock_t			listen_sock = event->fd;
 	struct sockaddr_storage addr;
 	socklen_t			addrlen;
-	int					flag;
 	fly_event_t			*ne;
 
 #ifdef DEBUG
+	printf("WORKER: ACCEPT LISTEN EVENT\n");
 	assert(event->err_count == 0);
 #endif
 	ctx = fly_context_from_event(event);
 	addrlen = sizeof(struct sockaddr_storage);
-	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
 	memset(&addr, '\0', sizeof(addr));
+#ifdef HAVE_ACCEPT4
+	int	flag;
+	flag = SOCK_NONBLOCK | SOCK_CLOEXEC;
 	conn_sock = accept4(listen_sock, (struct sockaddr *) &addr, &addrlen, flag);
+#else
+	int __sockval;
+	conn_sock = accept(listen_sock, (struct sockaddr *) &addr, &addrlen);
+	/* set non blocking */
+	__sockval = fcntl(conn_sock, F_GETFL, 0);
+	if (__sockval == -1)
+		return -1;
+
+	if (fcntl(conn_sock, F_SETFL, __sockval|O_NONBLOCK) == -1)
+		return -1;
+#endif
 	if (conn_sock == -1){
 		if (FLY_BLOCKING(conn_sock))
 			goto read_blocking;
@@ -227,8 +255,10 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	/* for end of connection */
 	FLY_EVENT_EXPIRED_HANDLER(ne, fly_listen_socket_end_handler, conn);
 	FLY_EVENT_END_HANDLER(ne, fly_listen_socket_end_handler, conn);
-	ne->event_data = conn;
-	ne->expired_event_data = conn;
+	//ne->event_data = conn;
+	//ne->expired_event_data = conn;
+	fly_event_data_set(ne, __p, conn);
+	fly_expired_event_data_set(ne, __p, conn);
 	ne->fail_close = fly_fail_recognize_protocol;
 	fly_event_socket(ne);
 
@@ -240,11 +270,15 @@ read_blocking:
 
 static int fly_recognize_protocol_of_connected(fly_event_t *e)
 {
+#ifdef DEBUG
+	printf("WORKER: RECOGNIZE PROTOCOL EVENT\n");
+#endif
 	fly_connect_t *conn;
 	fly_sock_t conn_sock;
 	fly_sockinfo_t *sockinfo;
 
-	conn = (fly_connect_t *) e->event_data;
+	//conn = (fly_connect_t *) e->event_data;
+	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 	conn_sock = conn->c_sockfd;
 	sockinfo = e->manager->ctx->listen_sock;
 
@@ -275,6 +309,9 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 			goto disconnect;
 		}
 
+#ifdef DEBUG
+		printf("WORKER: SSL Received!\n");
+#endif
 		/* HTTP request over TLS */
 		return fly_accept_listen_socket_ssl_handler(e, conn);
 	}else{
@@ -286,6 +323,9 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 			goto response_400;
 		}
 
+#ifdef DEBUG
+		printf("WORKER: HTTP Received!\n");
+#endif
 		return fly_listen_connected(e);
 	}
 read_blocking:
@@ -314,7 +354,8 @@ int fly_listen_socket_end_handler(fly_event_t *__e)
 {
 	fly_connect_t *conn;
 
-	conn = (fly_connect_t *) __e->end_event_data;
+	//conn = (fly_connect_t *) __e->end_event_data;
+	conn = (fly_connect_t *) fly_end_event_data_get(__e, __p);
 
 	__e->flag = FLY_CLOSE_EV;
 	return fly_connect_release(conn);

@@ -6,9 +6,19 @@
 #endif
 #include <stdio.h>
 #include <stdbool.h>
+#include "../config.h"
+
+#ifdef HAVE_EPOLL
+/* for linux */
 #include <sys/epoll.h>
-#include <sys/signalfd.h>
-#include <sys/timerfd.h>
+#elif defined HAVE_KQUEUE
+/* for macos */
+#include <sys/event.h>
+/* other system */
+#else
+#error not found C header for "event"on your system.
+#endif
+
 #include <sys/time.h>
 #include "alloc.h"
 #include "util.h"
@@ -17,8 +27,17 @@
 
 extern fly_pool_t *fly_event_pool;
 #define FLY_EVENT_POOL_SIZE			100
+
+#ifdef HAVE_EPOLL
 #define FLY_READ		EPOLLIN
 #define FLY_WRITE		EPOLLOUT
+#elif defined HAVE_KQUEUE
+#define FLY_READ		(1<<0)
+#define FLY_WRITE		(1<<1)
+#define FLY_KQ_INOTIFY	(1<<4)
+#define FLY_KQ_RELOAD   (1<<5)
+#endif
+
 #define FLY_EVLIST_ELES			1000
 
 typedef struct fly_context fly_context_t;
@@ -26,15 +45,28 @@ struct fly_event_manager{
 	fly_pool_t					*pool;
 	fly_context_t				*ctx;
 	int							efd;
+#ifdef HAVE_EPOLL
 	struct epoll_event			*evlist;
+	struct epoll_event			*now_handle;
+#elif defined HAVE_KQUEUE
+	struct kevent				*evlist;
+	struct kevent				*now_handle;
+#endif
 	int							maxevents;
+	int							handle_count;
 
+	sigset_t					signal_mask;
 	struct fly_rb_tree			*rbtree;
 	struct fly_queue			monitorable;
 	struct fly_queue			unmonitorable;
 
-	/* if event occurred error termination the process, called*/
+	/* if event occurred error termination the process, called */
 	void (*jbend_handle)(fly_context_t *ctx);
+#ifdef HAVE_KQUEUE
+#define fly_event_manager_reset(event)		\
+			((event)->manager->reset = true)
+	fly_bit_t					reset: 1;
+#endif
 };
 typedef struct fly_event_manager fly_event_manager_t;
 
@@ -49,11 +81,42 @@ struct __fly_event_for_rbtree{
 		(__e)->rbtree_elem.ptr = (__e);		\
 	} while(0)
 
+#ifdef HAVE_EPOLL
+	typedef  epoll_data_t	fly_event_data_t;
+#elif defined HAVE_KQUEUE
+	typedef  void			*fly_event_data_t;
+#else
+#error not defined HAVE_EPOLL AND HAVE_KQUEUE
+#endif
+
+union __eu{
+	int		__i;
+	void	*__p;
+	enum __fly_dummy{
+		FLY_EU_DUMMY_A,
+		FLY_EU_DUMMY_B,
+		FLY_EU_DUMMY_C
+	}		__e;
+};
+
+typedef union __eu		fly_event_union;
+
 struct fly_err;
 struct fly_event{
 	fly_event_manager_t				*manager;
 	int								fd;
+#ifdef DEBUG
+	int 						post_fd;
+#endif
+#ifdef HAVE_KQUEUE
+	int								id;
+#endif
 	int								read_or_write;
+#ifdef HAVE_KQUEUE
+	/* for saving previous read_or_write */
+	int								post_row;
+#define FLY_NO_POST_ROW				999
+#endif
 	int 							available_row;
 	int 							eflag;
 
@@ -78,11 +141,35 @@ struct fly_event{
 	int								(*expired_handler)(struct fly_event *);
 	char							*handler_name;
 
-	void							*event_data;
-	void							*end_event_data;
-	void							*expired_event_data;
-	void 							*event_fase;
-	void 							*event_state;
+#define __fly_event_get(__e, param, name)			\
+			((__e)->param.name)
+#define __fly_event_set(__e, param, name, value)			\
+			((__e)->param.name = (typeof((__e)->param.name)) (value))
+	fly_event_union					event_data;
+#define fly_event_data_get(__e, name)			\
+			__fly_event_get(__e, event_data, name)
+#define fly_event_data_set(__e, name, value)	\
+			__fly_event_set(__e, event_data, name, value)
+	fly_event_union					end_event_data;
+#define fly_end_event_data_get(__e, name)				\
+			__fly_event_get(__e, end_event_data, name)
+#define fly_end_event_data_set(__e, name, value)				\
+			__fly_event_set(__e, end_event_data, name, value)
+	fly_event_union					expired_event_data;
+#define fly_expired_event_data_get(__e, name)				\
+			__fly_event_get(__e, expired_event_data, name)
+#define fly_expired_event_data_set(__e, name, value)				\
+			__fly_event_set(__e, expired_event_data, name, value)
+	fly_event_union					event_fase;
+#define fly_event_fase_get(__e, name)				\
+			__fly_event_get(__e, event_fase, name)
+#define fly_event_fase_set(__e, name, value)				\
+			__fly_event_set(__e, event_fase, name, value)
+	fly_event_union					event_state;
+#define fly_event_state_get(__e, name)				\
+			__fly_event_get(__e, event_state, name)
+#define fly_event_state_set(__e, name, value)				\
+			__fly_event_set(__e, event_state, name, value)
 	uint8_t							*emerge_ptr;
 
 	/*
@@ -94,6 +181,10 @@ struct fly_event{
 	struct fly_bllist				errors;
 	size_t							err_count;
 
+#ifdef HAVE_KQUEUE
+	sigset_t						sigset;
+#endif
+
 	/* event bit fields */
 	fly_bit_t						file_type: 4;
 	fly_bit_t 						expired: 1;
@@ -102,8 +193,9 @@ struct fly_event{
 	fly_bit_t						if_fail_term: 1;
 };
 
+typedef int (fly_event_handler_t)(struct fly_event *);
 #ifdef DEBUG
-__unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
+__fly_unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
 {
 	return (struct fly_event *) fly_queue_data(__q, struct fly_event, qelem);
 }
@@ -128,12 +220,12 @@ __unused static struct fly_event *fly_event_debug(struct fly_queue*__q)
 #define FLY_EVENT_END_HANDLER(e, __handler, __data)	\
 	do{									\
 		(e)->end_handler = (__handler);		\
-		(e)->end_event_data = (void *) (__data);	\
+		fly_event_data_set((e), __p, __data);		\
 	} while(0)
 #define FLY_EVENT_EXPIRED_HANDLER(e, __handler, __data)	\
 	do{									\
 		(e)->expired_handler = (__handler);		\
-		(e)->expired_event_data = (void *) (__data);	\
+		fly_expired_event_data_set((e), __p, __data);	\
 	} while(0)
 
 typedef struct fly_event fly_event_t;
@@ -191,9 +283,10 @@ int fly_event_inherit_register(fly_event_t *e);
 #define __FLY_EPOLL			0x06
 #define __FLY_SIGNAL		0x07
 #define __FLY_INOTIFY		0x08
+#define __FLY_RELOAD		0x09
 
 #define	fly_event_is_file_type(e, type)	((e)->file_type == __FLY_ ## type)
-#define fly_event_file_type(e, type)			((e)->file_type = __FLY_ ## type)
+#define fly_event_file_type(e, type)		((e)->file_type =  __FLY_ ## type)
 
 #define fly_event_is_regular(e)		fly_event_is_file_type((e), REGULAR)
 #define fly_event_is_dir(e)			fly_event_is_file_type((e), DIRECTORY)
@@ -203,7 +296,10 @@ int fly_event_inherit_register(fly_event_t *e);
 #define fly_event_is_symlink(e)		fly_event_is_file_type((e), SLINK)
 #define fly_event_is_epoll(e)		fly_event_is_file_type((e), EPOLL)
 #define fly_event_is_signal(e)		fly_event_is_file_type((e), SIGNAL)
-#define fly_evnet_is_inotify(e)		fly_event_is_file_type((e), INOTIFY)
+#define fly_event_is_inotify(e)		fly_event_is_file_type((e), INOTIFY)
+#ifdef HAVE_KQUEUE
+#define fly_event_is_reload(e)		fly_event_is_file_type((e), RELOAD)
+#endif
 
 #define fly_event_regular(e)		fly_event_file_type((e), REGULAR)
 #define fly_event_dir(e)			fly_event_file_type((e), DIRECTORY)
@@ -214,13 +310,24 @@ int fly_event_inherit_register(fly_event_t *e);
 #define fly_event_epoll(e)			fly_event_file_type((e), EPOLL)
 #define fly_event_signal(e)			fly_event_file_type((e), SIGNAL)
 #define fly_event_inotify(e)		fly_event_file_type((e), INOTIFY)
+#ifdef HAVE_KQUEUE
+#define fly_event_reload(e)			fly_event_file_type((e), RELOAD)
+#endif
 
 #define fly_event_monitorable(e)	\
 	(!fly_event_is_regular((e)) && !fly_event_is_dir((e)))
 #define fly_event_unmonitorable(e)	(!(fly_event_monitorable((e))))
 
+#ifdef HAVE_EPOLL
+#define FLY_EVENT_CTL_ADD			EPOLL_CTL_ADD
+#define FLY_EVENT_CTL_MOD			EPOLL_CTL_MOD
+#elif defined HAVE_KQUEUE
+#define FLY_EVENT_CTL_ADD			0
+#define FLY_EVENT_CTL_MOD			1
+#endif
+
 #define fly_event_op(__e)			\
-	((__e)->flag&FLY_MODIFY) ? EPOLL_CTL_MOD: EPOLL_CTL_ADD
+	((__e)->flag&FLY_MODIFY) ? FLY_EVENT_CTL_MOD: FLY_EVENT_CTL_ADD
 #define fly_event_already_added(__e)	\
 	(!(__e)->yetadd)
 
@@ -252,6 +359,8 @@ void fly_jbhandle_setting(fly_event_manager_t *em, void (*handle)(fly_context_t 
 struct fly_err;
 enum fly_error_level;
 struct fly_err *fly_event_err_init(fly_event_t *e, int __errno, enum fly_error_level level, const char *fmt, ...);
+struct fly_event *fly_event_from_fd(fly_event_manager_t *manager, int fd);
+void fly_event_manager_remove_event(fly_event_t *event);
 
 
 #define fly_event_err_init(ev, err_num, level, fmt, ...) \

@@ -15,7 +15,7 @@ struct __fly_lang{
 	fly_bit_t				asterisk: 1;
 };
 
-__unused static inline const char *fly_lang_name(struct __fly_lang *__l)
+__fly_unused static inline const char *fly_lang_name(struct __fly_lang *__l)
 {
 	return __l->asterisk ? FLY_LANG_ASTERISK : __l->lname;
 }

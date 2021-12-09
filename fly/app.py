@@ -1,5 +1,6 @@
 import sys
 import os
+import platform
 import ctypes
 import inspect
 import importlib.machinery as imm
@@ -9,14 +10,32 @@ import traceback
 import time
 import signal
 
-ctypes.cdll.LoadLibrary(
-    os.path.abspath(
+_os = platform.system()
+_libfly_dir = os.path.abspath(
         os.path.join(
             os.path.dirname(__file__),
-            "lib/libfly.so"
+            'lib'
         )
-    )
 )
+
+if _os == 'Linux' or _os == 'FreeBSD':
+    _lib = 'libfly.so'
+elif _os == 'Darwin':
+    _lib = 'libfly.dylib'
+else:
+    raise RuntimeError(f"your system \"{_os}\" not supported.")
+
+_libfly_abs = os.path.abspath(
+        os.path.join(
+            _libfly_dir,
+            _lib
+        )
+)
+_libfly = _libfly_abs
+libfly = ctypes.cdll.LoadLibrary(
+    _libfly
+)
+
 from enum import Enum
 from .mount import Mount
 from ._fly_server import _fly_server
@@ -64,6 +83,18 @@ def _watch_dog(fly):
         print(_t)
         sys.exit(1)
 
+def _display_fly_error(_e):
+    print("", file=sys.stderr)
+    print("\033[1m" + '  fly error !' + '\033[0m', file=sys.stderr)
+    print(f"    {_e}", file=sys.stderr)
+    print("", file=sys.stderr)
+    _t = traceback.format_exc()
+    print(_t, file=sys.stderr)
+
+def _display_master_configure_error(_e):
+    _display_fly_error(_e)
+    sys.exit(1)
+
 def _run(fly):
     app_filepath = fly._app_filepath
 
@@ -73,12 +104,9 @@ def _run(fly):
     try:
         fly._start_server(fly._daemon)
     except _FLY_MASTER_CONFIGURE_ERROR as e:
-        _t = traceback.format_exc()
-        print(_t)
-        sys.exit(1)
+        _display_master_configure_error(e)
     except Exception as e:
-        _t = traceback.format_exc()
-        print(_t)
+        _display_fly_error(e)
         err = True
 
     if err:
@@ -228,7 +256,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
         try:
             super()._configure(self.config_path, self.routes)
         except Exception as e:
-            raise _FLY_MASTER_CONFIGURE_ERROR from e
+            raise _FLY_MASTER_CONFIGURE_ERROR(e) from e
 
         for _p in self.mounts:
             self._mount(_p)

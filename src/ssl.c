@@ -9,7 +9,7 @@
 #include "version.h"
 
 __fly_static int __fly_ssl_alpn(SSL *ssl, const unsigned char **out, unsigned char *outlen, const unsigned char *in, unsigned int inlen, void *arg);
-__fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e __unused);
+__fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e __fly_unused);
 
 struct fly_ssl_accept{
 	fly_pool_t				*pool;
@@ -50,7 +50,8 @@ int fly_accept_end_timeout_handler(fly_event_t *e)
 {
 	fly_connect_t *conn;
 
-	conn = (fly_connect_t *) e->expired_event_data;
+	//conn = (fly_connect_t *) e->expired_event_data;
+	conn = (fly_connect_t *) fly_expired_event_data_get(e, __p);
 	fly_ssl_connected_release(conn);
 
 	return fly_listen_socket_end_handler(e);
@@ -65,7 +66,30 @@ int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 	context = e->manager->ctx;
 	/* non blocking accept */
 	ssl = SSL_new(context->ssl_ctx);
-	SSL_set_fd(ssl, conn->c_sockfd);
+	if (ssl == NULL){
+		if (fly_ssl_error_log(e->manager) == -1){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"SSL/TLS connection setting error . (%s: %s)", __FILE__, __LINE__
+			);
+			fly_event_error_add(e, __err);
+			return -1;
+		}
+		return -1;
+	}
+	if (SSL_set_fd(ssl, conn->c_sockfd) == 0){
+		if (fly_ssl_error_log(e->manager) == -1){
+			struct fly_err *__err;
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"SSL/TLS connection setting error . (%s: %s)", __FILE__, __LINE__
+			);
+			fly_event_error_add(e, __err);
+			return -1;
+		}
+		return -1;
+	}
 
 	conn->ssl = ssl;
 	conn->flag = FLY_SSL_CONNECT;
@@ -131,7 +155,7 @@ __fly_static int __fly_ssl_alpn_cmp(fly_http_version_t *__v, const unsigned char
 	}
 }
 
-__fly_static int __fly_ssl_alpn(SSL *ssl __unused, const unsigned char **out __unused, unsigned char *outlen __unused, const unsigned char *in __unused, unsigned int inlen __unused, void *arg __unused)
+__fly_static int __fly_ssl_alpn(SSL *ssl __fly_unused, const unsigned char **out __fly_unused, unsigned char *outlen __fly_unused, const unsigned char *in __fly_unused, unsigned int inlen __fly_unused, void *arg __fly_unused)
 {
 	for (fly_http_version_t *__v=versions; __v->full; __v++){
 		if (!__v->alpn)
@@ -205,7 +229,8 @@ __fly_static int __fly_ssl_accept_event_handler(fly_event_t *e, struct fly_ssl_a
 		goto disconnect;
 	}
 
-	e->event_data = __ac->connect;
+	//e->event_data = __ac->connect;
+	fly_event_data_set(e, __p, __ac->connect);
 	/* release accept resource */
 	fly_pbfree(__ac->pool, __ac);
 	return fly_listen_connected(e);
@@ -226,7 +251,8 @@ blocking:
 	e->eflag = 0;
 	e->expired = false;
 	e->available = false;
-	e->event_data = (struct fly_ssl_accept *) __ac;
+	//e->event_data = (struct fly_ssl_accept *) __ac;
+	fly_event_data_set(e, __p, __ac);
 	fly_event_socket(e);
 	return fly_event_register(e);
 
@@ -249,11 +275,12 @@ __fly_static int __fly_ssl_accept_blocking_handler(fly_event_t *e)
 {
 	struct fly_ssl_accept *__ac;
 
-	__ac = (struct fly_ssl_accept *) e->event_data;
+	//__ac = (struct fly_ssl_accept *) e->event_data;
+	__ac = (struct fly_ssl_accept *) fly_event_data_get(e, __p);
 	return __fly_ssl_accept_event_handler(e, __ac);
 }
 
-__noreturn void FLY_SSL_EMERGENCY_ERROR(fly_context_t *ctx)
+__fly_noreturn void FLY_SSL_EMERGENCY_ERROR(fly_context_t *ctx)
 {
 	unsigned long err_code;
 

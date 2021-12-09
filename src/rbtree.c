@@ -9,14 +9,10 @@ struct fly_rb_node nil_node = {
 	.c_left = nil_node_ptr,
 	.parent = nil_node_ptr,
 	.color = FLY_RB_BLACK,
-	.data = NULL,
 };
 
 static inline void fly_rb_color_update(struct fly_rb_node *node, fly_rb_color_t color);
-static inline void fly_rb_subst(struct fly_rb_node **dist, struct fly_rb_node **src);
 static inline bool fly_rb_no_child(struct fly_rb_node *node);
-static inline bool fly_rb_all_child(struct fly_rb_node *node);
-static inline bool fly_rb_part_child(struct fly_rb_node *node);
 static inline void fly_rb_root(struct fly_rb_tree *tree, struct fly_rb_node *node);
 #ifdef DEBUG
 enum __fly_rbtree_debug_type{
@@ -27,12 +23,12 @@ enum __fly_rbtree_debug_type{
 	__FLY_RBTREE_DEBUG_TWOCHILD
 };
 
-void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __unused);
-void __fly_rbtree_node_debug(fly_rb_tree_t *tree __unused, fly_rb_node_t *node, int *black_count);
+void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __fly_unused);
+void __fly_rbtree_node_debug(fly_rb_tree_t *tree __fly_unused, fly_rb_node_t *node, int *black_count);
 #define FLY_RBTREE_NODE_FOUND			1
 #define FLY_RBTREE_NODE_NOTFOUND		0
 int __fly_rbtree_node_in_tree(fly_rb_node_t *node, fly_rb_node_t *target);
-void __fly_rbtree_free_node_in_node_data(fly_rb_node_t *node, fly_rb_node_t *freed, enum __fly_rbtree_debug_type type __unused);
+void __fly_rbtree_free_node_in_node_data(fly_rb_node_t *node, fly_rb_node_t *freed, enum __fly_rbtree_debug_type type __fly_unused);
 void __fly_rbtree_node_in_node_data(fly_rb_node_t *node);
 #endif
 
@@ -70,11 +66,6 @@ void fly_rb_tree_release(struct fly_rb_tree *tree)
 		fly_free(tree->root);
 	}
 	fly_free(tree);
-}
-
-static inline int fly_rb_tree_node_count(struct fly_rb_tree *tree)
-{
-	return tree->node_count;
 }
 
 static struct fly_rb_root *fly_rb_root_init(struct fly_rb_tree *tree, struct fly_rb_node *node)
@@ -131,22 +122,6 @@ static inline void fly_rb_parent(struct fly_rb_node *node, struct fly_rb_node *p
 		node->parent = parent;
 }
 
-static inline bool fly_rb_parent_is_red(struct fly_rb_node *node)
-{
-    return node->parent->color & FLY_RB_RED ? true : false;
-}
-
-static inline bool fly_rb_parent_is_black(struct fly_rb_node *node)
-{
-    return node->parent->color == FLY_RB_BLACK? true : false;
-}
-
-
-static inline void fly_rb_reverse_color(struct fly_rb_node *node)
-{
-    node->color = ~node->color;
-}
-
 struct fly_rb_node *fly_rb_get_uncle(struct fly_rb_node *node)
 {
     if (node->parent == nil_node_ptr)
@@ -174,12 +149,12 @@ static inline bool fly_is_black(fly_rb_color_t __c)
 	return !fly_is_red(__c);
 }
 
-__unused static bool fly_rb_uncle_is_red(struct fly_rb_node *node)
+__fly_unused static bool fly_rb_uncle_is_red(struct fly_rb_node *node)
 {
     return fly_is_red(fly_rb_get_uncle(node)->color);
 }
 
-__unused static bool fly_rb_uncle_is_black(struct fly_rb_node *node)
+__fly_unused static bool fly_rb_uncle_is_black(struct fly_rb_node *node)
 {
     return fly_is_black(fly_rb_get_uncle(node)->color);
 }
@@ -247,11 +222,6 @@ static void fly_rb_rotate_right(struct fly_rb_node *node, struct fly_rb_tree *tr
     fly_rb_node_parent(node, left);
 }
 
-static inline void fly_rb_subst(struct fly_rb_node **dist, struct fly_rb_node **src)
-{
-	*dist = *src;
-}
-
 static inline void fly_rb_color_update(struct fly_rb_node *node, fly_rb_color_t color)
 {
     /* nil node color must not change */
@@ -267,8 +237,8 @@ fly_rb_node_t *__fly_node_init(void *data, void *key)
 	if (fly_unlikely_null(node))
 		return NULL;
 
-	node->data = data;
-	node->key = key;
+	fly_rbdata_set(node, __p, data);
+	fly_rbkey_set(node, __p, key);
 	node->parent = nil_node_ptr;
 	node->c_right = nil_node_ptr;
 	node->c_left = nil_node_ptr;
@@ -278,23 +248,28 @@ fly_rb_node_t *__fly_node_init(void *data, void *key)
 	return node;
 }
 
-__fly_static int __fly_rb_node_from_key(struct fly_rb_tree *tree, struct fly_rb_node *node, void *key, void *data)
+fly_rb_node_t *fly_node_init(void)
 {
-	return tree->cmp(key, node->key, data);
+	return __fly_node_init(NULL, NULL);
 }
 
-void *fly_rb_node_data_from_key(struct fly_rb_tree *tree, void *key, void *data)
+__fly_static int __fly_rb_node_from_key(struct fly_rb_tree *tree, struct fly_rb_node *node, fly_rbdata_t *key, fly_rbdata_t *cmpdata)
+{
+	return tree->cmp(key, &node->key, cmpdata);
+}
+
+fly_rbdata_t *fly_rb_node_data_from_key(struct fly_rb_tree *tree, fly_rbdata_t *key, fly_rbdata_t *cmpdata)
 {
 	fly_rb_node_t *__n;
 
-	__n = fly_rb_node_from_key(tree, key, data);
+	__n = fly_rb_node_from_key(tree, key, cmpdata);
 	if (fly_unlikely_null(__n))
 		return NULL;
 	else
-		return __n->data;
+		return &__n->data;
 }
 
-fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key, void *data)
+fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, fly_rbdata_t *key, fly_rbdata_t *cmpdata)
 {
 	struct fly_rb_node *__n;
 	if (!tree->cmp)
@@ -302,7 +277,7 @@ fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key, void *d
 
 	__n = tree->root->node;
 	while(__n != nil_node_ptr){
-		switch(__fly_rb_node_from_key(tree, __n, key, data)){
+		switch(__fly_rb_node_from_key(tree, __n, key, cmpdata)){
 		case FLY_RB_CMP_BIG:
 			__n = __n->c_right;
 			break;
@@ -311,19 +286,23 @@ fly_rb_node_t *fly_rb_node_from_key(struct fly_rb_tree *tree, void *key, void *d
 		case FLY_RB_CMP_SMALL:
 			__n = __n->c_left;
 			break;
+		default:
+			FLY_NOT_COME_HERE
 		}
 	}
 	return NULL;
 }
 
-fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *key, struct fly_rb_node **node_data, void *__cmpdata)
+fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, fly_rbdata_t *data, fly_rbdata_t *key, struct fly_rb_node **node_data, fly_rbdata_t *__cmpdata)
 {
 	fly_rb_node_t *node;
 
-	node = __fly_node_init(data, key);
+	node = fly_node_init();
 	if (fly_unlikely_null(node))
 		return NULL;
 
+	memcpy(&node->data, data, sizeof(fly_rbdata_t));
+	memcpy(&node->key, key, sizeof(fly_rbdata_t));
 #ifdef DEBUG
 	size_t count = tree->node_count;
 	assert(tree!=NULL);
@@ -356,7 +335,7 @@ fly_rb_node_t *fly_rb_tree_insert(struct fly_rb_tree *tree, void *data, void *ke
 	return node;
 }
 
-struct fly_rb_node *fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node, void *data)
+struct fly_rb_node *fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly_rb_node *node, fly_rbdata_t *cmpdata)
 {
 	struct fly_rb_node *origin_node = node;
     struct fly_rb_node *__n, *__p, *__g, *__u;
@@ -368,7 +347,7 @@ struct fly_rb_node *fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly
 
     __n = tree->root->node;
     while(true){
-		switch(tree->cmp(node->key, __n->key, data)){
+		switch(tree->cmp(&node->key, &__n->key, cmpdata)){
 		case FLY_RB_CMP_EQUAL:
 			fly_free(node);
             return __n;
@@ -446,7 +425,7 @@ struct fly_rb_node *fly_rb_tree_insert_node(struct fly_rb_tree *tree, struct fly
     return origin_node;
 }
 
-static inline void fly_rb_swap(fly_rb_tree_t *tree, struct fly_rb_node *dist, struct fly_rb_node *src)
+__fly_unused static inline void fly_rb_swap(fly_rb_tree_t *tree, struct fly_rb_node *dist, struct fly_rb_node *src)
 {
 	struct fly_rb_node __tmp;
 
@@ -498,17 +477,12 @@ static inline void fly_rb_swap(fly_rb_tree_t *tree, struct fly_rb_node *dist, st
 	}
 }
 
-static inline struct fly_rb_node *fly_rb_sibling(struct fly_rb_node *node)
+__fly_unused static inline struct fly_rb_node *fly_rb_sibling(struct fly_rb_node *node)
 {
     if (node->parent->c_left == node)
         return node->parent->c_right;
     else
         return node->parent->c_left;
-}
-
-static inline bool fly_rb_have_right_child(struct fly_rb_node *node)
-{
-	return node->c_right != nil_node_ptr ? true : false;
 }
 
 __fly_static void __fly_rb_delete_rebalance(struct fly_rb_tree *tree, struct fly_rb_node *node, struct fly_rb_node *parent)
@@ -526,8 +500,8 @@ recursion:
 		if (fly_rb_node_is_root(tree, node))
 			return;
 
-#ifdef DEBUG
-		printf("RTREE REBALANCE\n");
+#ifdef DEBUG_RBTREE
+		printf("\tRTREE REBALANCE\n");
 #endif
 		/* node and child is black. */
 		/* sibling is red */
@@ -661,16 +635,6 @@ static inline bool fly_rb_no_child(struct fly_rb_node *node)
     return node->c_left == nil_node_ptr && node->c_right == nil_node_ptr;
 }
 
-static inline bool fly_rb_all_child(struct fly_rb_node *node)
-{
-    return node->c_left != nil_node_ptr && node->c_right != nil_node_ptr;
-}
-
-static inline bool fly_rb_part_child(struct fly_rb_node *node)
-{
-	return !fly_rb_no_child(node) && !fly_rb_all_child(node);
-}
-
 #ifdef DEBUG
 #include <stdio.h>
 #endif
@@ -702,8 +666,8 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
 			*node->node_data = NULL;
 
 		if (fly_rb_node_is_root(tree, node)){
-#ifdef DEBUG
-			printf("__FLY_RBTREE_DEBUG_DELETE_ROOT\n");
+#ifdef DEBUG_RBTREE
+			printf("\t__FLY_RBTREE_DEBUG_DELETE_ROOT\n");
 			fflush(stdout);
 #endif
 			return fly_rb_root_release(tree);
@@ -816,14 +780,14 @@ void fly_rb_delete(struct fly_rb_tree *tree, struct fly_rb_node *node)
  */
 #ifdef DEBUG
 #include <stdio.h>
-void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __unused)
+void __fly_rbtree_debug(fly_rb_tree_t *tree, enum __fly_rbtree_debug_type type __fly_unused)
 {
 	fly_rb_node_t *node;
 	int black_count=0;
 	if (tree->node_count == 0)
 		return;
 
-#if defined DEBUG && defined RBTREE_DEBUG
+#if defined DEBUG && defined DEBUG_RBTREE
 	switch(type){
 	case __FLY_RBTREE_DEBUG_DELETE:
 		printf("__FLY_RBTREE_DEBUG_DELETE\n");
@@ -940,7 +904,7 @@ void __fly_rbtree_node_in_node_data(fly_rb_node_t *node)
 		__fly_rbtree_node_in_node_data(node->c_right);
 }
 
-void __fly_rbtree_free_node_in_node_data(fly_rb_node_t *node, fly_rb_node_t *freed, enum __fly_rbtree_debug_type type __unused)
+void __fly_rbtree_free_node_in_node_data(fly_rb_node_t *node, fly_rb_node_t *freed, enum __fly_rbtree_debug_type type __fly_unused)
 {
 	if (node->node_data != NULL)
 		assert(*node->node_data != freed);

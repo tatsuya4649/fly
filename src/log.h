@@ -21,12 +21,14 @@
 #define FLY_ERRORLOG_FILENAME					"fly_error.log"
 #define FLY_ACCESLOG_FILENAME					"fly_access.log"
 #define FLY_NOTICLOG_FILENAME					"fly_notice.log"
+#ifdef DEBUG
+#define FLY_DEBUGLOG_FILENAME					"fly_debug.log"
+#endif
 #define FLY_ACCESLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_access.log")
 #define FLY_ERRORLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_error.log")
 #define FLY_NOTICLOG_DEFAULT			(FLY_DEFAULT_LOGDIR "fly_notice.log")
 #define FLY_LOG_PATH					"FLY_LOG_PATH"
 typedef char				fly_path_t;
-typedef char				fly_logc_t;
 typedef int					fly_logfile_t;
 typedef struct __fly_log	__fly_log_t;
 typedef struct fly_log		fly_log_t;
@@ -37,6 +39,9 @@ struct fly_log{
 	__fly_log_t *access;
 	__fly_log_t *error;
 	__fly_log_t *notice;
+#ifdef DEBUG
+	__fly_log_t *debug;
+#endif
 	fly_pool_t *pool;
 };
 
@@ -51,7 +56,7 @@ typedef enum fly_log_type fly_log_e;
 #define FLY_LOG_BODY_SIZE					1000
 
 struct __fly_log{
-	fly_logfile_t	file;
+	int				file;
 	fly_path_t		log_path[FLY_PATH_MAX];
 #define __FLY_LOGFILE_INIT_STDOUT			1 << 0
 #define __FLY_LOGFILE_INIT_STDERR			1 << 1
@@ -59,13 +64,14 @@ struct __fly_log{
 	fly_bit_t		tty: 1;
 };
 
-fly_log_t *fly_log_init(fly_context_t *ctx);
+struct fly_err;
+fly_log_t *fly_log_init(fly_context_t *ctx, struct fly_err *err);
 int fly_log_release(fly_log_t *log);
 
 #include "ftime.h"
 struct fly_logcont{
 	/* log content */
-	fly_logc_t		*content;
+	char			*content;
 	/* length of content(not including end of \0). */
 	size_t			contlen;
 	/* log type */
@@ -76,6 +82,7 @@ struct fly_logcont{
 	__fly_log_t		*__log;
 
 	struct flock	lock;
+	bool			wait;
 };
 typedef struct fly_logcont fly_logcont_t;
 

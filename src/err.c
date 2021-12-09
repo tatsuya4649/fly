@@ -1,4 +1,5 @@
 #include "err.h"
+#include "log.h"
 
 void fly_emerge_memory_zero(void);
 
@@ -19,6 +20,27 @@ void fly_errsys_init(fly_context_t *ctx)
 }
 
 __attribute__ ((format (printf, 4, 5)))
+void fly_error(struct fly_err *err, int __errno, enum fly_error_level level, const char *fmt, ...)
+{
+	va_list ap;
+
+	memset(err->content, '\0', FLY_ERROR_CONTENT_SIZE);
+
+	va_start(ap, fmt);
+	vsnprintf(err->content, FLY_ERROR_CONTENT_SIZE, fmt, ap);
+	va_end(ap);
+
+	err->content_len = strlen(err->content);
+	err->__errno = __errno;
+	err->level	 = level;
+	err->event   = NULL;
+	err->pool	 = NULL;
+
+	fly_bllist_init(&err->blelem);
+	return;
+}
+
+__attribute__ ((format (printf, 4, 5)))
 fly_err_t *fly_err_init(fly_pool_t *pool, int __errno, enum fly_error_level level, const char *fmt, ...)
 {
 	fly_err_t *err;
@@ -29,7 +51,7 @@ fly_err_t *fly_err_init(fly_pool_t *pool, int __errno, enum fly_error_level leve
 	memset(err->content, '\0', FLY_ERROR_CONTENT_SIZE);
 
 	va_start(ap, fmt);
-	snprintf(err->content, FLY_ERROR_CONTENT_SIZE, fmt, ap);
+	vsnprintf(err->content, FLY_ERROR_CONTENT_SIZE, fmt, ap);
 	va_end(ap);
 
 	err->content_len = strlen(err->content);
@@ -101,7 +123,7 @@ static inline const char *__fly_level_str(fly_err_t *err)
 	}
 }
 
-__fly_static int __fly_err_logcont(__unused fly_err_t *err, fly_logcont_t *lc)
+__fly_static int __fly_err_logcont(__fly_unused fly_err_t *err, fly_logcont_t *lc)
 {
 #define __FLY_ERROR_LOGCONTENT_SUCCESS			1
 #define __FLY_ERROR_LOGCONTENT_ERROR			-1
@@ -126,12 +148,13 @@ __fly_static int __fly_err_logcont(__unused fly_err_t *err, fly_logcont_t *lc)
 
 int fly_errlog_event_handler(fly_event_t *e)
 {
-	__unused fly_err_t *err;
-	__unused fly_logcont_t *lc;
+	__fly_unused fly_err_t *err;
+	__fly_unused fly_logcont_t *lc;
 
 	lc = fly_logcont_init(fly_log_from_event(e), FLY_LOG_ERROR);
 
-	err = (fly_err_t *) e->event_data;
+	//err = (fly_err_t *) e->event_data;
+	err = (fly_err_t *) fly_event_data_get(e, __p);
 	if (lc == NULL)
 		return -1;
 	fly_logcont_setting(lc, FLY_ERROR_LOG_LENGTH);
@@ -140,7 +163,8 @@ int fly_errlog_event_handler(fly_event_t *e)
 	if (fly_log_now(&lc->when) == -1)
 		return -1;
 
-	e->event_data = (void *) lc;
+	//e->event_data = (void *) lc;
+	fly_event_data_set(e, __p, lc);
 	e->flag = 0;
 	e->tflag = FLY_INFINITY;
 	e->expired = false;
@@ -169,7 +193,8 @@ int fly_errlog_event(fly_event_manager_t *manager, fly_err_t *err)
 	e->flag = 0;
 	e->eflag = 0;
 	FLY_EVENT_HANDLER(e, fly_errlog_event_handler);
-	e->event_data = (void *) err;
+	//e->event_data = (void *) err;
+	fly_event_data_set(e, __p, err);
 	e->available = false;
 	e->expired = false;
 	fly_time_zero(e->timeout);
@@ -179,7 +204,7 @@ int fly_errlog_event(fly_event_manager_t *manager, fly_err_t *err)
 }
 
 #include <string.h>
-__unused __fly_static void __fly_printf_error(fly_errp_t *errp, FILE *fp)
+__fly_unused __fly_static void __fly_printf_error(fly_errp_t *errp, FILE *fp)
 {
 	fprintf(
 		fp,
@@ -213,13 +238,15 @@ __fly_static void __fly_write_to_log_emerg(const char *err_content, enum fly_err
 	fly_context_t *ctx;
 	__fly_log_t *err, *notice;
 	fly_logfile_t errfile, noticefile;
-	void *__ptr;
+	uint8_t *__ptr;
 	char *errc, *noticec;
+	char time_buf[FLY_TIME_MAX];
+	time_t __t;
 
 	/* emergency pointer */
-	__ptr = fly_emerge_memory;
+	__ptr = fly_emerge_memory+strlen(err_content);
 	errc = (char *) __ptr;
-	noticec = __ptr + FLY_EMERGENCY_LOG_LENGTH;
+	noticec = (char *) __ptr + FLY_EMERGENCY_LOG_LENGTH;
 	ctx = __fly_errsys.ctx;
 	if (ctx == NULL)
 		return;
@@ -239,25 +266,22 @@ __fly_static void __fly_write_to_log_emerg(const char *err_content, enum fly_err
 	if (fcntl(errfile, F_SETLKW, &__fly_errsys.lock) == -1)
 		return;
 
+	memset(time_buf, '\0', FLY_TIME_MAX);
+	memset(errc, '\0', (__ptr-fly_emerge_memory)+FLY_EMERGENCY_LOG_LENGTH);
+	__t = time(NULL);
+	fly_imt_fixdate(time_buf, FLY_TIME_MAX, &__t);
 	snprintf(
 		errc,
 		FLY_EMERGENCY_LOG_LENGTH,
-		"[%d] Emergency Error. Worker Process is gone. (%s) (%s: %s)\n",
+		"[%d](%s): Emergency Error. Process is killed. (%s) (%s)\n",
 		__fly_errsys.pid,
+		time_buf,
 		err_content,
-#ifdef HAVE_STRERRORNAME_NP
-		strerrorname_np(__errno),
-#else
-		"",
-#endif
-#ifdef HAVE_STRERRORDESC_NP
-		strerrordesc_np(__errno)
-#else
 		strerror(__errno)
-#endif
 	);
 	if (errfile != -1)
-		write(errfile, errc, strlen(errc));
+		if (write(errfile, errc, strlen(errc)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", errc);
 	if (ctx->log_stderr)
@@ -280,7 +304,8 @@ __fly_static void __fly_write_to_log_emerg(const char *err_content, enum fly_err
 		__fly_errsys.pid
 	);
 	if (noticefile != -1)
-		write(noticefile, noticec, strlen(noticec));
+		if (write(noticefile, noticec, strlen(noticec)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", noticec);
 	if (ctx->log_stderr)
@@ -335,7 +360,8 @@ __fly_static void __fly_write_to_log_err(const char *err_content, size_t len, en
 		err_content
 	);
 	if (errfile != -1)
-		write(errfile, errc, strlen(errc));
+		if (write(errfile, errc, strlen(errc)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", errc);
 	if (ctx->log_stderr)
@@ -376,7 +402,8 @@ __fly_static void __fly_write_to_log_err(const char *err_content, size_t len, en
 		__fly_errsys.pid
 	);
 	if (noticefile != -1)
-		write(noticefile, noticec, strlen(noticec));
+		if (write(noticefile, noticec, strlen(noticec)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", noticec);
 	if (ctx->log_stderr)
@@ -427,7 +454,8 @@ __fly_static void __fly_write_to_log_info(const char *content, size_t len, enum 
 		content
 	);
 	if (noticefile != -1)
-		write(noticefile, noticec, strlen(noticec));
+		if (write(noticefile, noticec, strlen(noticec)) == -1)
+			return;
 	if (ctx->log_stdout)
 		fprintf(stdout, "%s", noticec);
 	if (ctx->log_stderr)
@@ -446,7 +474,7 @@ void fly_emerge_memory_zero(void)
 	memset(fly_emerge_memory, '\0', FLY_EMERGE_MEMORY_SIZE);
 }
 
-__noreturn __attribute__ ((format (printf, 2, 3)))
+__fly_noreturn __attribute__ ((format (printf, 2, 3)))
 void fly_emergency_verror(int __errno, const char *format, ...)
 {
 	va_list va;
@@ -456,13 +484,11 @@ void fly_emergency_verror(int __errno, const char *format, ...)
 	fly_emerge_memory_zero();
 
 	va_start(va, format);
-
-	snprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
-
+	vsnprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
 	va_end(va);
 
 	/* write error content in log */
-	__fly_write_to_log_emerg(err_content, FLY_ERR_EMERG, __errno);
+	__fly_write_to_log_emerg((const char *) err_content, FLY_ERR_EMERG, __errno);
 	exit((int) FLY_ERR_EMERG);
 }
 
@@ -477,7 +503,7 @@ void fly_emergency_error(struct fly_err *err)
 	exit((int) FLY_ERR_EMERG);
 }
 
-__noreturn void fly_critical_error(struct fly_err *err)
+__fly_noreturn void fly_critical_error(struct fly_err *err)
 {
 	assert(err != NULL);
 #ifdef DEBUG
@@ -488,8 +514,8 @@ __noreturn void fly_critical_error(struct fly_err *err)
 	exit((int) FLY_ERR_CRIT);
 }
 
-__noreturn __attribute__ ((format (printf, 2, 3)))
-void fly_nomem_verror(__unused int __errno, const char *format, ...)
+__fly_noreturn __attribute__ ((format (printf, 2, 3)))
+void fly_nomem_verror(__fly_unused int __errno, const char *format, ...)
 {
 	va_list va;
 	char *err_content;
@@ -498,7 +524,7 @@ void fly_nomem_verror(__unused int __errno, const char *format, ...)
 	fly_emerge_memory_zero();
 
 	va_start(va, format);
-	snprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
+	vsnprintf(err_content, FLY_EMERGE_MEMORY_SIZE, format, va);
 	va_end(va);
 
 	/* write error content in log */
@@ -506,7 +532,7 @@ void fly_nomem_verror(__unused int __errno, const char *format, ...)
 	exit((int) FLY_ERR_ERR);
 }
 
-__noreturn void fly_error_error(struct fly_err *err)
+__fly_noreturn void fly_error_error(struct fly_err *err)
 {
 	assert(err != NULL);
 #ifdef DEBUG

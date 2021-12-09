@@ -1,11 +1,7 @@
 TODO list:
 
-* add test script(mount server tests)
+v 1.2.0
 
-* error handle(show errors in more detail)
+* add test script(client session)
 
-* error handle test(with gdb)
-
-* added auto reload fly server
-
-* configure.ac update
+* add test script(modify mount file/directory)

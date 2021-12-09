@@ -54,7 +54,7 @@ class FlyNotFoundError(Exception):
     "--host",
     "host",
     default=None,
-    type=int,
+    type=str,
     help="Bind socket to this host",
     show_default=False
 )
@@ -211,6 +211,8 @@ def fly_command_line(
     test:               bool,
 ):
     """This is fly operation script.\n
+    If the same name is specified in the configure file and the argument,
+    the argument value will be selected. \n
 
     detail: https://github.com/tatsuya4649/fly
     """

@@ -1,10 +1,13 @@
 #ifndef _MOUNT_H
 #define _MOUNT_H
 
+#include "../config.h"
 #include <dirent.h>
 #include <limits.h>
 #include <sys/stat.h>
+#ifdef HAVE_INOTIFY
 #include <sys/inotify.h>
+#endif
 #include "alloc.h"
 #include "header.h"
 #include "mime.h"
@@ -13,8 +16,10 @@
 #include "rbtree.h"
 #include "str.h"
 
-#define FLY_PATHNAME_MAX	_POSIX_NAME_MAX
-#define FLY_PATH_MAX	_POSIX_PATH_MAX
+#define FLY_PATHNAME_MAX	NAME_MAX
+//_POSIX_NAME_MAX
+#define FLY_PATH_MAX		PATH_MAX
+//_POSIX_PATH_MAX
 #define FLY_MOUNT_POOL_PAGE		((fly_page_t) 10)
 #define FLY_MOUNT_INIT_NUMBER		0
 #define FLY_DATE_LENGTH			(50)
@@ -24,8 +29,12 @@
 #define FLY_MOUNT_DEFAULT_ENCODE_TYPE			fly_gzip
 struct fly_mount_parts_file{
 	int						fd;
+#ifdef HAVE_INOTIFY
 	int 					wd;
 	int 					infd;
+#elif HAVE_KQUEUE
+	struct fly_event		*event;
+#endif
 	struct stat				fs;
 	char					filename[FLY_PATH_MAX];
 	size_t					filename_len;
@@ -42,13 +51,21 @@ struct fly_mount_parts_file{
 	fly_bit_t				encoded: 1;
 	fly_bit_t				dir: 1;
 	fly_bit_t				overflow: 1;
+	fly_bit_t				deleted: 1;
 };
 
 struct fly_mount_parts{
+#ifdef HAVE_INOTIFY
 	int						wd;
 	int 					infd;
+#elif defined HAVE_KQUEUE
+	int						fd;
+#endif
 	char					mount_path[FLY_PATH_MAX];
 	int						mount_number;
+#ifdef HAVE_KQUEUE
+	struct fly_event 		*event;
+#endif
 
 	struct fly_bllist		files;
 	int						file_count;
@@ -56,6 +73,7 @@ struct fly_mount_parts{
 	struct fly_bllist		mbelem;
 	struct fly_mount		*mount;
 	fly_pool_t				*pool;
+	fly_bit_t				deleted: 1;
 };
 
 struct fly_context;
@@ -63,12 +81,12 @@ typedef struct fly_context fly_context_t;
 struct fly_mount{
 	struct fly_bllist			parts;
 	int							mount_count;
-	int 						file_count;
+	size_t 						file_count;
 
 	struct fly_mount_parts_file	*index;
 	struct fly_rb_tree			*rbtree;
 
-	fly_context_t *ctx;
+	fly_context_t				*ctx;
 };
 typedef struct fly_mount fly_mount_t;
 typedef struct fly_mount_parts fly_mount_parts_t;
@@ -84,26 +102,65 @@ ssize_t fly_file_size(const char *path);
 int fly_mount_number(fly_mount_t *mnt, const char *path);
 int fly_mount_files_count(fly_mount_t *mnt, int mount_number);
 char *fly_content_from_path(int mount_number, char *filepath);
-int fly_join_path(char *buffer, char *join1, char *join2);
+int fly_join_path(char *buffer, size_t buflen, char *join1, char *join2);
 
+#ifdef HAVE_INOTIFY
 int fly_mount_inotify(fly_mount_t *mount, int ifd);
+#elif defined HAVE_KQUEUE
+int fly_mount_inotify_kevent(fly_event_manager_t *manager, fly_mount_t *mount, void *data, fly_event_handler_t *handler, fly_event_handler_t *end_handler);
+int fly_inotify_kevent_event(fly_event_t *event, struct fly_mount_parts_file *pf);
+#endif
 void fly_parts_file_remove(fly_mount_parts_t *parts, struct fly_mount_parts_file *pf);
 struct fly_mount_parts_file *fly_pf_init(fly_mount_parts_t *parts, struct stat *sb);
 
-struct fly_mount_parts_file *fly_wd_from_pf(int wd, fly_mount_parts_t *parts);
-fly_mount_parts_t *fly_wd_from_parts(int wd, fly_mount_t *mnt);
-struct fly_mount_parts_file *fly_wd_from_mount(int wd, fly_mount_t *mnt);
+fly_mount_parts_t *fly_parts_from_wd(int wd, fly_mount_t *mnt);
+fly_mount_parts_t *fly_parts_from_fd(int fd, fly_mount_t *mnt);
+#ifdef HAVE_INOTIFY
+struct fly_mount_parts_file *fly_pf_from_mount(int wd, fly_mount_t *mnt);
+struct fly_mount_parts_file *fly_pf_from_wd(int wd, fly_mount_parts_t *parts);
+#elif defined HAVE_KQUEUE
+struct fly_mount_parts_file *fly_pf_from_mount(int fd, fly_mount_t *mnt);
+struct fly_mount_parts_file *fly_pf_from_fd(int fd, fly_mount_parts_t *parts);
+#endif
+#ifdef HAVE_INOTIFY
 int fly_inotify_add_watch(fly_mount_parts_t *parts, char *path, size_t len);
+#elif defined HAVE_KQUEUE
+int fly_inotify_add_watch(fly_mount_parts_t *parts, fly_event_t *__e);
+#endif
 #define FLY_INOTIFY_RM_WATCH_PF				(1<<0)
 #define FLY_INOTIFY_RM_WATCH_MP				(1<<1)
 #define FLY_INOTIFY_RM_WATCH_IGNORED		(1<<2)
 #define FLY_INOTIFY_RM_WATCH_DELETED		(1<<3)
 
-int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len, int mask);
+//#ifdef HAVE_INOTIFY
+//int fly_inotify_rm_watch(fly_mount_parts_t *parts, char *path, size_t path_len);
+//#elif defined HAVE_KQUEUE
+//int fly_inotify_rm_watch(struct fly_mount_parts_file *pf);
+//#endif
+int fly_inotify_rm_watch(struct fly_mount_parts_file *pf);
 int fly_inotify_rmmp(fly_mount_parts_t *parts);
 
-#define FLY_INOTIFY_WATCH_FLAG_PF	(IN_MODIFY|IN_ATTRIB)
-#define FLY_INOTIFY_WATCH_FLAG_MP	(IN_CREATE|IN_DELETE_SELF|IN_DELETE|IN_MOVE|IN_MOVE_SELF|IN_ONLYDIR)
+#ifdef HAVE_INOTIFY
+#define FLY_INOTIFY_WATCH_FLAG_PF	(IN_MODIFY|IN_MOVE_SELF|IN_DELETE_SELF|IN_ATTRIB)
+#define FLY_INOTIFY_WATCH_FLAG_MP	(IN_CREATE|IN_MOVED_TO|IN_DELETE_SELF|IN_MOVE_SELF|IN_ONLYDIR)
+#elif defined HAVE_KQUEUE
+/*
+ * Directory:
+ * 	NOTE_EXTEND -> change directory entry count.
+ * 	NOTE_RENAME -> rename directory.
+ * 	NOTE_DELETE -> delete directory.
+ */
+#define FLY_INOTIFY_WATCH_FLAG_MP	(NOTE_DELETE|NOTE_EXTEND|NOTE_RENAME|NOTE_WRITE)
+/*
+ * File:
+ *	NOTE_EXTEND -> extend file size.
+ *	NOTE_WRITE  -> change file content.
+ *	NOTE_DELETE -> delete file.
+ *	NOTE_ATTRIB -> change file attribute.
+ *	NOTE_RENAME -> rename file.
+ */
+#define FLY_INOTIFY_WATCH_FLAG_PF	(NOTE_DELETE|NOTE_WRITE|NOTE_EXTEND|NOTE_ATTRIB|NOTE_RENAME)
+#endif
 #define FLY_NUMBER_OF_INOBUF				(100)
 #define is_fly_myself(ie)				((ie)->len == 0)
 
@@ -129,14 +186,36 @@ static inline bool fly_have_mount_index(struct fly_mount *mount)
 }
 
 #ifdef DEBUG
-__unused static struct fly_mount_parts_file *fly_pf_debug(struct fly_bllist *__b)
+__fly_unused static struct fly_mount_parts_file *fly_pf_debug(struct fly_bllist *__b)
 {
 	return (struct fly_mount_parts_file *) fly_bllist_data(__b, struct fly_mount_parts_file, blelem);
 }
-__unused static struct fly_mount_parts *fly_parts_debug(struct fly_bllist *__b)
+__fly_unused static struct fly_mount_parts *fly_parts_debug(struct fly_bllist *__b)
 {
 	return (struct fly_mount_parts *) fly_bllist_data(__b, struct fly_mount_parts, mbelem);
 }
+#endif
+
+/*
+ * If file is changed, return true, false otherwise.
+ */
+static inline bool fly_pf_modified(struct stat *sb, struct fly_mount_parts_file *__pf)
+{
+	struct stat *__fs;
+
+	__fs = &__pf->fs;
+
+	/*
+	 *  Check last modification time and last status change time
+	 */
+	if (__fs->st_mtime == sb->st_mtime && __fs->st_ctime == sb->st_ctime)
+		return false;
+	else
+		return true;
+}
+
+#ifdef DEBUG
+void __fly_debug_mnt_content(fly_context_t *ctx);
 #endif
 
 #endif
