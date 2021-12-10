@@ -19,9 +19,5 @@ async def test_daemon(remove_already_in_use):
     for i in pro.split('\n'):
         if (len(i) > 0):
             j+=1
-            os.kill(int(i), signal.SIGINT)
-            if os.path.isfile("./log/fly.pid"):
-                os.remove("./log/fly.pid")
-
     assert(j == 2)
 
