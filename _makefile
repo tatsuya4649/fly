@@ -48,8 +48,11 @@ endif
 ifdef DEBUG_RESPONSE_ERROR
 MACROS := $(MACROS) -D DEBUG_RESPONSE_ERROR
 endif
+ifdef DEBUG_EMERGE
+MACROS := $(MACROS) -D DEBUG_EMERGE
+endif
 ifdef DEBUG
-PYTHON := python3
+PYTHON := ~/.local/bin/python3.10
 else
 PYTHON := python3
 endif
