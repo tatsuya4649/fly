@@ -12,6 +12,10 @@ Released: 2021/12/10
 
 * Fixed dictionary of main.py
 
+* Fixed encoding bug
+
+* Fixed emergency error handle
+
 ## 1.2.0
 
 Released: 2021/12/9
