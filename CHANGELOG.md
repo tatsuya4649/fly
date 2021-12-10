@@ -1,6 +1,20 @@
 # Change Log
 
+## 1.2.1
+
+Released: 2021/12/10
+
+## Changed
+
+* configure default value
+
+## Fixed
+
+* Fixed dictionary of main.py
+
 ## 1.2.0
+
+Released: 2021/12/9
 
 ## Added
 
