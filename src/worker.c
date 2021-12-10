@@ -642,6 +642,11 @@ __fly_static int __fly_worker_signal(fly_worker_t *worker, fly_event_manager_t *
  */
 __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fly_unused void *data)
 {
+#ifdef DEBUG_EMERGE
+	FLY_EMERGENCY_ERROR(
+		"Worker emergency test."
+	);
+#endif
 	fly_worker_t *worker;
 	fly_event_manager_t *manager;
 
@@ -716,6 +721,9 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 		);
 	}
 
+#ifdef DEBUG
+	printf("worker pid %d\n", getpid());
+#endif
 	switch(__fly_worker_open_default_content(ctx)){
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_NOCONTENT:
 		break;
@@ -1072,7 +1080,8 @@ static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unuse
 
 static int fly_preencode_pf(fly_context_t *ctx, struct fly_mount_parts_file *__pf)
 {
-	if (!fly_over_encoding_threshold(ctx, (size_t) __pf->fs.st_size))
+	if (!fly_over_encoding_threshold(ctx, (size_t) __pf->fs.st_size) || \
+			!S_ISREG(__pf->fs.st_mode))
 		return 0;
 
 	struct fly_de *__de;
@@ -1125,7 +1134,8 @@ static int fly_preencode_pf(fly_context_t *ctx, struct fly_mount_parts_file *__p
 
 static int fly_preencode_frc(fly_context_t *ctx, struct fly_response_content_by_stcode *__frc)
 {
-	if (!fly_over_encoding_threshold(ctx, (size_t) __frc->fs.st_size))
+	if (!fly_over_encoding_threshold(ctx, (size_t) __frc->fs.st_size) || \
+			!S_ISREG(__frc->fs.st_mode))
 		return FLY_PREENCODE_FILE_ENCODE_SUCCESS;
 
 	struct fly_de *__de;

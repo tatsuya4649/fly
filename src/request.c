@@ -1199,9 +1199,6 @@ int fly_request_event_handler(fly_event_t *event)
 	fly_request_fase_t				fase;
 	fly_connect_t					*conn;
 
-	//state = *(fly_request_state_t *) &event->event_state;
-	//fase = *(fly_request_fase_t *) &event->event_fase;
-	//request = (fly_request_t *) event->event_data;
 	state = (fly_request_state_t) fly_event_state_get(event, __e);
 	fase = (fly_request_fase_t) fly_event_fase_get(event, __e);
 	request = (fly_request_t *) fly_event_data_get(event, __p);
