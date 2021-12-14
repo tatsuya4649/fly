@@ -151,7 +151,6 @@ class JSONResponse(Response):
                 not isinstance(body, list):
             raise TypeError("body must be list/dict type.")
 
-        print(json.dumps(body))
         super().__init__(
             status_code,
             header,
