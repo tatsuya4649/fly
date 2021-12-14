@@ -1,7 +1,5 @@
 TODO list:
 
-v 1.2.0
+v 1.2.2
 
-* add test script(client session)
-
-* add test script(modify mount file/directory)
+* user custom url

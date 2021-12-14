@@ -261,7 +261,7 @@ def run(**kwargs):
         _ml = imm.SourceFileLoader("_app", _abs_app)
         _m = _ml.load_module("_app")
     except SyntaxError as e:
-        display_help(fly_command_line, f"\"{app}\" can't import as module.")
+        display_help(fly_command_line, f"\"{app}\" can't import as module. {e}")
         sys.exit(1)
     except RuntimeError as e:
         print(e)
