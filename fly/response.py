@@ -1,7 +1,7 @@
 from ._fly_server import _fly_response
 import json
-from cookie import *
-from exceptions import *
+from .cookie import *
+from .exceptions import *
 
 
 class _Response(_fly_response):
@@ -151,7 +151,6 @@ class JSONResponse(Response):
                 not isinstance(body, list):
             raise TypeError("body must be list/dict type.")
 
-        print(json.dumps(body))
         super().__init__(
             status_code,
             header,
