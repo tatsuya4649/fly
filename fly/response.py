@@ -1,7 +1,7 @@
 from ._fly_server import _fly_response
 import json
-from cookie import *
-from exceptions import *
+from .cookie import *
+from .exceptions import *
 
 
 class _Response(_fly_response):
