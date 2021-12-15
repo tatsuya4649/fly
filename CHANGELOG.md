@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.2.2
+
+Released: 2021/12/15
+
+## Fixed
+
+* Fixed bug of exceptions in \_base.py.
+
 ## 1.2.1
 
 Released: 2021/12/10
