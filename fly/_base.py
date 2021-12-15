@@ -62,12 +62,12 @@ class _BaseRoute:
                 body=res_body,
             )
         finally:
-            if self.is_debug:
-                if isinstance(res, Response):
-                    if res.body is not None and len(res.body) > 0:
-                        print(res.body.decode("utf-8"), flush=True)
-                elif isinstance(res, str):
-                    print(res, flush=True)
-                else:
-                    print(res, flush=True)
+#            if self.is_debug:
+#                if isinstance(res, Response):
+#                    if res.body is not None and len(res.body) > 0:
+#                        print(res.body.decode("utf-8"), flush=True)
+#                elif isinstance(res, str):
+#                    print(res, flush=True)
+#                else:
+#                    print(res, flush=True)
             return res
