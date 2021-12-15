@@ -52,7 +52,7 @@ ifdef DEBUG_EMERGE
 MACROS := $(MACROS) -D DEBUG_EMERGE
 endif
 ifdef DEBUG
-PYTHON := ~/.local/bin/python3.10
+PYTHON := python3
 else
 PYTHON := python3
 endif

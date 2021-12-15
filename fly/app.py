@@ -278,7 +278,6 @@ class Fly(_Fly, Mount, Route, _fly_server):
             sys.exit(result)
         else:
             # not come here
-            print(result)
             sys.exit(result)
 
     @property
