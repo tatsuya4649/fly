@@ -91,7 +91,7 @@ __fly_static void __fly_sigchld(fly_context_t *ctx, fly_siginfo_t *info)
 	if (waitpid(info->si_pid, NULL, WNOHANG) == -1)
 #endif
 		FLY_EMERGENCY_ERROR(
-			"master waitpid error. (%s: %s)",
+			"master waitpid error. (%s: %d)",
 			__FILE__, __LINE__
 		);
 
@@ -565,7 +565,7 @@ static int __fly_master_get_now_sighandler(fly_master_t *__m, struct fly_err *er
 				err,
 				errno,
 				FLY_ERR_ERR,
-				"Signal handler setting error. %s (%s: %s)",
+				"Signal handler setting error. %s (%s: %d)",
 				strerror(errno), __FILE__, __LINE__
 			);
 			return -1;
@@ -582,17 +582,18 @@ static int __fly_master_get_now_sighandler(fly_master_t *__m, struct fly_err *er
 
 static void __fly_master_set_orig_sighandler(fly_master_t *__m)
 {
-	struct fly_bllist *__b;
+	struct fly_bllist *__b, *__n;
 	struct fly_orig_signal *__s;
 
 retry:
-	fly_for_each_bllist(__b, &__m->orig_sighandler)
+	for (__b=__m->orig_sighandler.next; __b!=&__m->orig_sighandler; __b=__n)
 	{
+		__n = __b->next;
 		__s = (struct fly_orig_signal *) fly_bllist_data(__b, struct fly_orig_signal, blelem);
 		if (__s->number != SIGKILL && __s->number != SIGSTOP){
 			if (sigaction(__s->number, &__s->sa, NULL) == -1)
 				FLY_EMERGENCY_ERROR(
-					"master setting original signal handler error. (%s: %s)",
+					"master setting original signal handler error. (%s: %d)",
 					__FILE__, __LINE__
 				);
 		}
@@ -610,12 +611,12 @@ retry:
 
 	if (sigfillset(&set) == -1)
 		FLY_EMERGENCY_ERROR(
-			"master release sigfillset error. (%s: %s)",
+			"master release sigfillset error. (%s: %d)",
 			__FILE__, __LINE__
 		);
 	if (sigprocmask(SIG_UNBLOCK, &set, NULL) == -1)
 		FLY_EMERGENCY_ERROR(
-			"master release sigprocmask error. (%s: %s)",
+			"master release sigprocmask error. (%s: %d)",
 			__FILE__, __LINE__
 		);
 
@@ -672,7 +673,7 @@ retry:
 
 		if (wait(NULL) == -1)
 			FLY_EMERGENCY_ERROR(
-				"master process wait error. (%s: %s)",
+				"master process wait error. (%s: %d)",
 				__FILE__, __LINE__
 			);
 
@@ -734,25 +735,22 @@ __fly_direct_log int fly_master_process(fly_master_t *master)
 		case FLY_EVENT_HANDLER_INVALID_MANAGER:
 			FLY_EMERGENCY_ERROR(
 				"event handle error. \
-				event manager is invalid. (%s: %s)",
-				__FILE__,
-				__LINE__
+				event manager is invalid. (%s: %d)",
+				__FILE__, __LINE__
 			);
 			break;
 		case FLY_EVENT_HANDLER_EPOLL_ERROR:
 			FLY_EMERGENCY_ERROR(
 				"event handle error. \
-				epoll was broken. (%s: %s)",
-				__FILE__,
-				__LINE__
+				epoll was broken. (%s: %d)",
+				__FILE__, __LINE__
 			);
 			break;
 		case FLY_EVENT_HANDLER_EXPIRED_EVENT_ERROR:
 			FLY_EMERGENCY_ERROR(
 				"event handle error. \
-				occurred error in expired event handler. (%s: %s)",
-				__FILE__,
-				__LINE__
+				occurred error in expired event handler. (%s: %d)",
+				__FILE__, __LINE__
 			);
 			break;
 		default:

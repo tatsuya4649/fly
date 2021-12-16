@@ -82,6 +82,8 @@ void fly_request_line_init(fly_request_t *req)
 		req->request_line->scheme = fly_match_scheme_type(fly_https);
 	else
 		req->request_line->scheme = fly_match_scheme_type(fly_http);
+
+	fly_path_param_init(&req->request_line->path_params);
 }
 
 void fly_request_line_release(fly_request_t *req)
@@ -1088,9 +1090,6 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 		if (!req->receive_header){
 			/* CRLF in buffer */
 #define FLY_END_OF_HEADER				("\r\n\r\n")
-#ifdef DEBUG
-			printf("RECV HEADER[\\r\\n\\r\\n]:\n%*.s\n", recvlen, (char *) fly_buffer_first_useptr(__buf));
-#endif
 			if(fly_buffer_strstr(fly_buffer_first_chain(__buf), FLY_END_OF_HEADER) != NULL){
 				req->receive_header = true;
 				__gc = true;
@@ -1448,7 +1447,11 @@ __fase_end_of_parse:
 	}
 
 	/* defined handler */
-	response = route->function(request, route->data);
+	if (fly_path_param_count(route->path_param) > 0){
+		if (fly_parse_path_params_from_request(request, route) == -1)
+			goto response_500;
+	}
+	response = route->function(request, route, route->data);
 	if (response == NULL)
 		goto response_500;
 	fly_response_header_init(response, request);

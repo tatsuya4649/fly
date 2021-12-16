@@ -113,4 +113,6 @@ static inline bool fly_question(char c)
 	return c == 0x3F ? true : false;
 }
 
+#define FLY_SLASH						'/'
+
 #endif

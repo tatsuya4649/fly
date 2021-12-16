@@ -450,7 +450,7 @@ int fly_add_content_length_from_fd(fly_hdr_ci *ci, int fd, bool v2)
 		struct fly_err *__err;
 		__err = fly_err_init(
 			ci->pool, errno, FLY_ERR_CRIT,
-			"trying to response to an invalid file. (%s: %s)",
+			"trying to response to an invalid file. (%s: %d)",
 			__FILE__, __LINE__
 		);
 		fly_critical_error(__err);

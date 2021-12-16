@@ -531,7 +531,7 @@ int fly_receive_v2(fly_sock_t fd, fly_connect_t *connect)
 		struct fly_err *__err;
 		__err = fly_err_init(
 			connect->pool, 0, FLY_ERR_ERR,
-			"http2 request receive no buffer chain error in receiving request . (%s: %s)",
+			"http2 request receive no buffer chain error in receiving request . (%s: %d)",
 			__FILE__, __LINE__
 		);
 		fly_error_error(__err);
@@ -1727,7 +1727,7 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			struct fly_err *__err;
 			__err = fly_event_err_init(
 				event, errno, FLY_ERR_CRIT,
-				"time handler is broken. (%s: %s)",
+				"time handler is broken. (%s: %d)",
 				__FILE__, __LINE__
 			);
 			fly_event_error_add(event, __err);
@@ -2063,7 +2063,7 @@ emergency:
 			event,
 			errno,
 			FLY_ERR_ERR,
-			"HTTP2 received emergency error. (%s: %s)",
+			"HTTP2 received emergency error. (%s: %d)",
 			__FILE__, __LINE__
 		);
 		fly_event_error_add(event, __err);
@@ -2591,7 +2591,7 @@ send:
 							state->pool,
 							errno,
 							FLY_ERR_ERR,
-							"send frame error. (%s: %s)",
+							"send frame error. (%s: %d)",
 							__FILE__, __LINE__
 						);
 						fly_error_error(__err);
@@ -2651,7 +2651,7 @@ send:
 							state->pool,
 							errno,
 							FLY_ERR_ERR,
-							"send frame error. (%s: %s)",
+							"send frame error. (%s: %d)",
 							__FILE__, __LINE__
 						);
 						fly_error_error(__err);
@@ -2716,7 +2716,7 @@ send:
 							state->pool,
 							errno,
 							FLY_ERR_ERR,
-							"send frame error. (%s: %s)",
+							"send frame error. (%s: %d)",
 							__FILE__, __LINE__
 						);
 						fly_error_error(__err);
@@ -2784,7 +2784,7 @@ send:
 							state->pool,
 							errno,
 							FLY_ERR_ERR,
-							"send frame error. (%s: %s)",
+							"send frame error. (%s: %d)",
 							__FILE__, __LINE__
 						);
 						fly_error_error(__err);
@@ -3271,7 +3271,7 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame)
 					frame->pool,
 					errno,
 					FLY_ERR_ERR,
-					"send frame error. (%s: %s)",
+					"send frame error. (%s: %d)",
 					__FILE__, __LINE__
 				);
 				fly_error_error(__err);
@@ -4760,7 +4760,11 @@ __response:
 	}
 
 	/* defined handler */
-	response = route->function(request, route->data);
+	if (fly_path_param_count(route->path_param) > 0){
+		if (fly_parse_path_params_from_request(request, route) == -1)
+			goto response_500;
+	}
+	response = route->function(request, route, route->data);
 	if (response == NULL)
 		goto response_500;
 	fly_response_header_init(response, request);

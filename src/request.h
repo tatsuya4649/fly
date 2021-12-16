@@ -45,6 +45,7 @@ struct fly_request_line{
 	fly_query_t				query;
 	fly_http_version_t		*version;
 	fly_scheme_t			*scheme;
+	struct fly_path_param	path_params;
 };
 #define is_fly_request_http_v2(req)		((req)->request_line->version->type == V2)
 typedef struct fly_request_line fly_reqline_t;

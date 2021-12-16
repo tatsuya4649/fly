@@ -24,6 +24,7 @@ void fly_error(struct fly_err *err, int __errno, enum fly_error_level level, con
 {
 	va_list ap;
 
+	assert(err != NULL);
 	memset(err->content, '\0', FLY_ERROR_CONTENT_SIZE);
 
 	va_start(ap, fmt);
