@@ -79,3 +79,8 @@ def set_cookie(request):
 @app.get("/raise_404")
 def raise_404(request):
     raise HTTP404Exception
+
+@app.get("/user/{ user_id: int}")
+def path_parameter(uri, request, user_id, *args, **kwargs):
+    print(request)
+    return None

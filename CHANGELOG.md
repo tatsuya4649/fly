@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.3.0
+
+Released: 2021/12/16
+
+## Added
+
+* Custom Path parameter(ex. /user/{ user\_id: int})
+
 ## 1.2.2
 
 Released: 2021/12/15
