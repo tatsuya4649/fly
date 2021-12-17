@@ -16,6 +16,7 @@ __pycache__/
 /.pytest_cache/
 /server
 /fly/_fly_server.*
+/fly/_fly_types.*
 .deps/
 .eggs/
 .libs/

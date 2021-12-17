@@ -38,6 +38,9 @@ class Route():
         _rd.setdefault("func", _base.handler)
         _rd.setdefault("method", method_str)
 
+        for _r in self._routes:
+            if _r["method"] == method_str and _r["uri"] == uri:
+                raise ValueError("Already registered same route({_r['uri']}, {_r['method']}).")
         self._routes.append(_rd)
 
     def _change_route(self, uri, method, func):

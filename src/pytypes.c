@@ -16,7 +16,7 @@ struct pyfly_Request{
 };
 typedef struct pyfly_Request RequestObject;
 static PyTypeObject RequestType = {
-	.tp_name = "types.Request",
+	.tp_name = "_fly_types.Request",
 	.tp_doc = "Request object for fly request",
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_itemsize = 0,
@@ -29,7 +29,7 @@ struct pyfly_Header{
 };
 typedef struct pyfly_Header HeaderObject;
 static PyTypeObject HeaderType = {
-	.tp_name = "types.Header",
+	.tp_name = "_fly_types.Header",
 	.tp_doc = "Header object for fly request",
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_itemsize = 0,
@@ -42,7 +42,7 @@ struct pyfly_Body{
 };
 typedef struct pyfly_Body BodyObject;
 static PyTypeObject BodyType = {
-	.tp_name = "types.Body",
+	.tp_name = "_fly_types.Body",
 	.tp_doc = "Body object for fly request",
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_itemsize = 0,
@@ -55,7 +55,7 @@ struct pyfly_Cookie{
 };
 typedef struct pyfly_Cookie CookieObject;
 static PyTypeObject CookieType = {
-	.tp_name = "types.Cookie",
+	.tp_name = "_fly_types.Cookie",
 	.tp_doc = "Cookie object for fly request",
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_itemsize = 0,
@@ -68,7 +68,7 @@ struct pyfly_Path{
 };
 typedef struct pyfly_Path PathObject;
 static PyTypeObject PathType = {
-	.tp_name = "types.Path",
+	.tp_name = "_fly_types.Path",
 	.tp_doc = "Path object for fly request",
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_itemsize = 0,
@@ -81,7 +81,7 @@ struct pyfly_Query{
 };
 typedef struct pyfly_Query QueryObject;
 static PyTypeObject QueryType = {
-	.tp_name = "types.Query",
+	.tp_name = "_fly_types.Query",
 	.tp_doc = "Query object for fly request",
 	.tp_flags = Py_TPFLAGS_DEFAULT,
 	.tp_itemsize = 0,
@@ -92,13 +92,13 @@ static PyTypeObject QueryType = {
 
 static PyModuleDef pyfly_typesmodule = {
 	PyModuleDef_HEAD_INIT,
-	.m_name = "types",
+	.m_name = "_fly_types",
 	.m_doc = "Type module for fly request.",
 	.m_size = -1,
 };
 
 PyMODINIT_FUNC
-PyInit_types(void){
+PyInit__fly_types(void){
 	PyObject *module;
 	if (PyType_Ready(&RequestType) < 0)
 		return NULL;

@@ -72,8 +72,7 @@ build:	$(SOURCE_FILES)
 
 pybuild:
 	$(PYTHON) setup.py build
-	cp build/lib*/fly/_fly_server.* fly/
-	cp build/lib*/fly/types.* fly/
+	cp build/lib*/fly/_fly_* fly/
 
 ifeq ($(OS), Darwin)
  lib: $(SOURCE_FILES)
@@ -118,7 +117,7 @@ clean_lib:
 	else \
 		rm -f $(LIBDIR)/lib$(TARGET).so*; \
 	fi;
-	rm -f $(LIBDIR)/_fly_server*
+	rm -f $(LIBDIR)/_fly_*
 	rm -rf $(LIBDIR)/__pycache__
 	rm -f $(SRCDIR)/*.o
 
@@ -126,6 +125,6 @@ clean: clean_lib
 	rm -f src/*.o
 	rm -f src/*.lo
 	rm -f .*.swp
-	rm -f fly/_fly_server.*
+	rm -f fly/_fly_*
 	rm -rf build
 	rm -rf $(TESTDIR)/__fly_*
