@@ -73,6 +73,7 @@ build:	$(SOURCE_FILES)
 pybuild:
 	$(PYTHON) setup.py build
 	cp build/lib*/fly/_fly_server.* fly/
+	cp build/lib*/fly/types.* fly/
 
 ifeq ($(OS), Darwin)
  lib: $(SOURCE_FILES)

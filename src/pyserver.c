@@ -381,44 +381,48 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, fly_route_t *
 				return NULL;
 
 			if (__c->cookie){
-				PyDictObject *__cookie = (PyDictObject *) PyDict_New();
-				PyObject *__cn=NULL, *__cv=NULL;
-				char *__cn_ptr=NULL, *__cv_ptr=NULL, *np;
-				size_t __cn_len=0, __cv_len=0;
+				PyObject *__cookie;
 
-				np = __c->value;
-
-				__cn_ptr = __c->value;
-				while(!fly_equal(*np) && \
-						np<__c->value+__c->value_len-1){
-					np++;
-				}
-
-				__cn_len = np-__cn_ptr;
-				if (++np<=__c->value+__c->value_len-1){
-					__cv_ptr = np;
-					__cv_len = (size_t) ((__c->value+__c->value_len)-np);
-#ifdef DEBUG
-					assert(__cv_len>0);
-#endif
-				}
-
-				__cn = PyUnicode_FromStringAndSize(__cn_ptr, __cn_len);
-				if (PyDict_SetItemString((PyObject *) __cookie, "name", __cn) == -1)
-					return NULL;
-
-				if (__cv_ptr){
-					__cv = PyUnicode_FromStringAndSize(__cv_ptr, __cv_len);
-					if (PyDict_SetItemString((PyObject *) __cookie, "value", __cv) == -1)
-						return NULL;
-				}
+				__cookie = PyUnicode_FromStringAndSize(__c->value, __c->value_len);
+//				PyDictObject *__cookie = (PyDictObject *) PyDict_New();
+//				PyObject *__cn=NULL, *__cv=NULL;
+//				char *__cn_ptr=NULL, *__cv_ptr=NULL, *np;
+//				size_t __cn_len=0, __cv_len=0;
+//
+//				/* FIXME: INVALID PARSE */
+//				np = __c->value;
+//				__cn_ptr = __c->value;
+//				while(!fly_equal(*np) && \
+//						np<__c->value+__c->value_len-1){
+//					np++;
+//				}
+//
+//				__cn_len = np-__cn_ptr;
+//				if (++np<=__c->value+__c->value_len-1){
+//					__cv_ptr = np;
+//					__cv_len = (size_t) ((__c->value+__c->value_len)-np);
+//#ifdef DEBUG
+//					assert(__cv_len>0);
+//#endif
+//				}
+//
+//				__cn = PyUnicode_FromStringAndSize(__cn_ptr, __cn_len);
+//				if (PyDict_SetItemString((PyObject *) __cookie, "name", __cn) == -1)
+//					return NULL;
+//
+//				if (__cv_ptr){
+//					__cv = PyUnicode_FromStringAndSize(__cv_ptr, __cv_len);
+//					if (PyDict_SetItemString((PyObject *) __cookie, "value", __cv) == -1)
+//						return NULL;
+//				}
 
 				if (PyList_Append((PyObject *) __pycookie, (PyObject *) __cookie) == -1)
 					return NULL;
 
-				Py_DECREF(__cn);
-				if (__cv != NULL)
-					Py_DECREF(__cv);
+				Py_DECREF(__cookie);
+//				Py_DECREF(__cn);
+//				if (__cv != NULL)
+//					Py_DECREF(__cv);
 			}
 			i++;
 			Py_DECREF(__n);

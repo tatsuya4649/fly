@@ -6,6 +6,7 @@ sys.path.append(
 )
 from fly import Fly, Response
 from fly.response import *
+from fly.types import *
 
 app = Fly()
 app.mount("tests/mnt")
@@ -81,6 +82,6 @@ def raise_404(request):
     raise HTTP404Exception
 
 @app.get("/user/{ user_id: int}")
-def path_parameter(uri, request, user_id, *args, **kwargs):
-    print(request)
+def path_parameter(user_agent: Header, name: Query, user_id, *args, **kwargs):
+    print(name)
     return None

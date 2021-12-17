@@ -122,12 +122,21 @@ server = Extension(
     define_macros = macros,
 )
 
+types = Extension(
+    name="fly.types",
+    sources=["src/pytypes.c"],
+    language='c',
+    libraries=[],
+    define_macros = macros,
+)
+
 setup(
 	name="fly-server",
 	version=version_from_init(),
 	description="lightweight web framework",
 	ext_modules = [
 		server,
+        types,
 	],
     packages = get_packages("fly"),
     include_package_data=True,

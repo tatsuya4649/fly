@@ -47,6 +47,7 @@ test_read.conf
 fly_test.crt
 fly_test.key
 __fly_*
+types.*
 valgrind*
 missing
 libtool
