@@ -1,8 +1,6 @@
 #ifndef _ROUTE_H
 #define _ROUTE_H
 
-//#include "request.h"
-//#include "response.h"
 #include "method.h"
 #include "alloc.h"
 #include "uri.h"
@@ -37,7 +35,6 @@ struct fly_route{
 
 #define FLY_ROUTEREG_POOL_PAGE			100
 #define FLY_ROUTEREG_POOL_SIZE			(FLY_PAGESIZE*FLY_ROUTEREG_POOL_PAGE)
-//extern fly_pool_t *fly_route_pool;
 
 typedef struct __fly_route __fly_route_t;
 struct fly_route_reg{

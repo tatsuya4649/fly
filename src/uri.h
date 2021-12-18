@@ -13,11 +13,11 @@ struct fly_uri{
 };
 
 enum fly_path_param_type{
-	FLY_PPT_INT,
-	FLY_PPT_FLOAT,
-	FLY_PPT_BOOL,
-	FLY_PPT_STR,
-	FLY_PPT_UNKNOWN,
+	FLY_PPT_INT		=0,
+	FLY_PPT_FLOAT	=1,
+	FLY_PPT_BOOL	=2,
+	FLY_PPT_STR		=3,
+	FLY_PPT_UNKNOWN	=4,
 };
 
 struct fly_param{
