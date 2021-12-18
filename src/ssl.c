@@ -71,7 +71,7 @@ int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 			struct fly_err *__err;
 			__err = fly_event_err_init(
 				e, errno, FLY_ERR_ERR,
-				"SSL/TLS connection setting error . (%s: %s)", __FILE__, __LINE__
+				"SSL/TLS connection setting error . (%s: %d)", __FILE__, __LINE__
 			);
 			fly_event_error_add(e, __err);
 			return -1;
@@ -83,7 +83,7 @@ int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 			struct fly_err *__err;
 			__err = fly_event_err_init(
 				e, errno, FLY_ERR_ERR,
-				"SSL/TLS connection setting error . (%s: %s)", __FILE__, __LINE__
+				"SSL/TLS connection setting error . (%s: %d)", __FILE__, __LINE__
 			);
 			fly_event_error_add(e, __err);
 			return -1;
@@ -100,7 +100,7 @@ int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 		struct fly_err *__err;
 		__err = fly_event_err_init(
 			e, errno, FLY_ERR_ERR,
-			"SSL/TLS connection setting error . (%s: %s)", __FILE__, __LINE__
+			"SSL/TLS connection setting error . (%s: %d)", __FILE__, __LINE__
 		);
 		fly_event_error_add(e, __err);
 		return -1;

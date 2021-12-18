@@ -250,7 +250,7 @@ extern PyTypeObject FlyResponseType;
 #define PYFLY_HEADER_KEY						"header"
 #define PYFLY_STATUS_CODE_KEY					"status_code"
 #define PYFLY_CONTENT_TYPE_KEY					"content_type"
-static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
+static fly_response_t *pyfly_route_handler(fly_request_t *request, fly_route_t *route, void *data)
 {
 #define PYFLY_RESHANDLER_ARGS_COUNT			1
 	PyObject *__func, *__args, *__reqdict, *pyres=NULL, *__margs;
@@ -311,7 +311,7 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 
 	Py_DECREF(__margs);
 	Py_DECREF(__pyscheme);
-	/* peer connection info */
+	/* Peer connection info */
 	PyObject *__pyhost = PyUnicode_FromString((const char *) request->connect->hostname);
 	if (PyDict_SetItemString(__reqdict, "host", (PyObject *) __pyhost) == -1)
 		return NULL;
@@ -322,7 +322,43 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 
 	Py_DECREF(__pyhost);
 	Py_DECREF(__pyport);
-	/* header */
+
+	/* Path parameter */
+	if (fly_path_param_count(&reqline->path_params) > 0){
+		struct fly_param *__pp;
+		int i=0;
+		PyListObject *__pyparams = (PyListObject *) PyList_New((Py_ssize_t) fly_path_param_count(&reqline->path_params));
+		fly_for_each_bllist(__b, &reqline->path_params.params){
+			__pp = fly_bllist_data(__b, struct fly_param, blelem);
+
+			PyDictObject *__pd = (PyDictObject *) PyDict_New();
+			PyObject *__n, *type, *value;
+
+			__n = PyUnicode_FromStringAndSize(__pp->var_ptr, __pp->var_len);
+			if (__n == NULL || PyDict_SetItemString((PyObject *) __pd, "param", __n) == -1)
+				return NULL;
+
+			type = PyLong_FromLong((long) __pp->type);
+			if (type == NULL || PyDict_SetItemString((PyObject *) __pd, "type", type) == -1)
+				return NULL;
+
+			value = PyUnicode_FromStringAndSize((const char *) __pp->value, (Py_ssize_t) __pp->value_len);
+			if (value == NULL || PyDict_SetItemString((PyObject *) __pd, "value", value) == -1)
+				return NULL;
+
+
+			if (PyList_SetItem((PyObject *) __pyparams, i, (PyObject *) __pd) == -1)
+				return NULL;
+			Py_DECREF(__n);
+			Py_DECREF(type);
+			Py_DECREF(value);
+			i++;
+		}
+		if (PyDict_SetItemString((PyObject *) __reqdict, "path_params", (PyObject *) __pyparams) == -1)
+			return NULL;
+		Py_DECREF(__pyparams);
+	}
+	/* Header */
 	if (request->header){
 		header = request->header;
 		PyListObject *__pylist = (PyListObject *) PyList_New((Py_ssize_t) header->chain_count);
@@ -345,44 +381,48 @@ static fly_response_t *pyfly_route_handler(fly_request_t *request, void *data)
 				return NULL;
 
 			if (__c->cookie){
-				PyDictObject *__cookie = (PyDictObject *) PyDict_New();
-				PyObject *__cn=NULL, *__cv=NULL;
-				char *__cn_ptr=NULL, *__cv_ptr=NULL, *np;
-				size_t __cn_len=0, __cv_len=0;
+				PyObject *__cookie;
 
-				np = __c->value;
-
-				__cn_ptr = __c->value;
-				while(!fly_equal(*np) && \
-						np<__c->value+__c->value_len-1){
-					np++;
-				}
-
-				__cn_len = np-__cn_ptr;
-				if (++np<=__c->value+__c->value_len-1){
-					__cv_ptr = np;
-					__cv_len = (size_t) ((__c->value+__c->value_len)-np);
-#ifdef DEBUG
-					assert(__cv_len>0);
-#endif
-				}
-
-				__cn = PyUnicode_FromStringAndSize(__cn_ptr, __cn_len);
-				if (PyDict_SetItemString((PyObject *) __cookie, "name", __cn) == -1)
-					return NULL;
-
-				if (__cv_ptr){
-					__cv = PyUnicode_FromStringAndSize(__cv_ptr, __cv_len);
-					if (PyDict_SetItemString((PyObject *) __cookie, "value", __cv) == -1)
-						return NULL;
-				}
+				__cookie = PyUnicode_FromStringAndSize(__c->value, __c->value_len);
+//				PyDictObject *__cookie = (PyDictObject *) PyDict_New();
+//				PyObject *__cn=NULL, *__cv=NULL;
+//				char *__cn_ptr=NULL, *__cv_ptr=NULL, *np;
+//				size_t __cn_len=0, __cv_len=0;
+//
+//				/* FIXME: INVALID PARSE */
+//				np = __c->value;
+//				__cn_ptr = __c->value;
+//				while(!fly_equal(*np) && \
+//						np<__c->value+__c->value_len-1){
+//					np++;
+//				}
+//
+//				__cn_len = np-__cn_ptr;
+//				if (++np<=__c->value+__c->value_len-1){
+//					__cv_ptr = np;
+//					__cv_len = (size_t) ((__c->value+__c->value_len)-np);
+//#ifdef DEBUG
+//					assert(__cv_len>0);
+//#endif
+//				}
+//
+//				__cn = PyUnicode_FromStringAndSize(__cn_ptr, __cn_len);
+//				if (PyDict_SetItemString((PyObject *) __cookie, "name", __cn) == -1)
+//					return NULL;
+//
+//				if (__cv_ptr){
+//					__cv = PyUnicode_FromStringAndSize(__cv_ptr, __cv_len);
+//					if (PyDict_SetItemString((PyObject *) __cookie, "value", __cv) == -1)
+//						return NULL;
+//				}
 
 				if (PyList_Append((PyObject *) __pycookie, (PyObject *) __cookie) == -1)
 					return NULL;
 
-				Py_DECREF(__cn);
-				if (__cv != NULL)
-					Py_DECREF(__cv);
+				Py_DECREF(__cookie);
+//				Py_DECREF(__cn);
+//				if (__cv != NULL)
+//					Py_DECREF(__cv);
 			}
 			i++;
 			Py_DECREF(__n);
@@ -947,6 +987,7 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 		for (Py_ssize_t j=0; j<routes_len; j++){
 			PyObject *__d, *uri, *func, *method;
 			const char *uri_c, *method_c;
+			Py_ssize_t uri_size;
 			fly_method_e *m;
 
 			__d = PyList_GetItem(routes, j);
@@ -972,7 +1013,9 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 				goto error;
 			}
 
-			uri_c = PyUnicode_AsUTF8AndSize(uri, NULL);
+			/* NULL termination */
+			uri_c = PyUnicode_AsUTF8AndSize(uri, &uri_size);
+			/* NULL termination */
 			method_c = PyUnicode_AsUTF8AndSize(method, NULL);
 			if (uri_c == NULL || method_c == NULL)
 				goto error;
@@ -986,8 +1029,9 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 			if (!PyCallable_Check(func))
 				goto error;
 
-			if (fly_register_route(ctx->route_reg, pyfly_route_handler, uri_c, *m, FLY_ROUTE_FLAG_PYTHON, (void *) func) == -1){
-				PyErr_SetString(PyExc_ValueError, "fly route register error");
+			struct fly_err err;
+			if (fly_register_route(ctx->route_reg, pyfly_route_handler, (char *) uri_c, uri_size, *m, FLY_ROUTE_FLAG_PYTHON, (void *) func, &err) != FLY_REGISTER_ROUTE_SUCCESS){
+				PyErr_Format(PyExc_ValueError, "Register route error. %s", err.content);
 				goto error;
 			}
 		}

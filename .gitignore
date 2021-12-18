@@ -16,6 +16,7 @@ __pycache__/
 /.pytest_cache/
 /server
 /fly/_fly_server.*
+/fly/_fly_types.*
 .deps/
 .eggs/
 .libs/
@@ -31,6 +32,7 @@ configure.scan
 gdb.*
 *~
 *.crt
+*.csr
 *.key
 *.lo
 *.la
@@ -47,18 +49,13 @@ fly_test.crt
 fly_test.key
 __fly_*
 valgrind*
-missing
 libtool
-install-sh
 config.log
 config.status
-config.sub
 depcomp
-ltmain.sh
-compile
-config.guess
 aclocal.m4
 tests/mnt2
+configure~
 tests/mnt
 !tests/mnt/*.html
 ex.py

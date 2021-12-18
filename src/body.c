@@ -331,6 +331,13 @@ body_parse:
 			body_ptr++;
 			continue;
 		}
+		/* previous content_length setting */
+		if (body->multipart_count > 0){
+			struct fly_body_parts *__ppb;
+			__ppb = (struct fly_body_parts *) \
+				   fly_bllist_data(body->multipart_parts.prev, struct fly_body_parts, blelem);
+			__ppb->parts_len = (body_ptr)-__ppb->ptr-(FLY_CRLF_LENGTH);
+		}
 		body_ptr += FLY_BOUNDARY_START_LENGTH;
 
 		size_t i=0;
@@ -340,12 +347,6 @@ body_parse:
 
 				if (fly_minus(body_ptr[0]) && fly_minus(body_ptr[1])){
 					/* end of parse */
-					/* previous content_length setting */
-					if (body->multipart_count > 0){
-						__pb = (struct fly_body_parts *) \
-							   fly_bllist_data(body->multipart_parts.prev, struct fly_body_parts, blelem);
-						__pb->parts_len = (body_ptr-i)-__pb->ptr-(2*FLY_CRLF_LENGTH);
-					}
 					return;
 				}else if (!fly_cr(body_ptr[0]) || !fly_lf(body_ptr[1]))
 					/* parse error */
@@ -365,14 +366,9 @@ body_parse:
 					/* error */
 					return;
 
+				/* Content */
 				__pb->ptr = body_ptr;
 				fly_bllist_add_tail(&body->multipart_parts, &__pb->blelem);
-				/* previous content_length setting */
-				if (body->multipart_count > 0){
-					__pb = (struct fly_body_parts *) \
-						   fly_bllist_data(body->multipart_parts.prev, struct fly_body_parts, blelem);
-					__pb->parts_len = (body_ptr-i)-__pb->ptr-(FLY_CRLF_LENGTH);
-				}
 				body->multipart_count++;
 				body->multipart = true;
 			}

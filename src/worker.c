@@ -663,23 +663,20 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 	int __ifd;
 	if ((__ifd = open(FLY_DEVNULL, O_RDWR)) == -1)
 		FLY_EMERGENCY_ERROR(
-			"worker open %s error. (%s: %s)",
+			"worker open %s error. (%s: %d)",
 			FLY_ROOT_DIR,
-			__FILE__,
-			__LINE__
+			__FILE__, __LINE__
 		);
 	if (dup2(__ifd, STDIN_FILENO) == -1)
 		FLY_EMERGENCY_ERROR(
-			"worker dup error. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker dup error. (%s: %d)",
+			__FILE__, __LINE__
 		);
 
 	if (__fly_notice_master_now_pid(worker) == -1)
 		FLY_EMERGENCY_ERROR(
-			"worker notice daemon pid error. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker notice daemon pid error. (%s: %d)",
+			__FILE__, __LINE__
 		);
 
 	switch (__fly_worker_open_file(ctx)){
@@ -687,37 +684,32 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 		break;
 	case FLY_WORKER_OPEN_FILE_CTX_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. worker context is invalid. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker opening file error. worker context is invalid. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_FILE_SETTING_DATE_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. occurred error when solving time. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker opening file error. occurred error when solving time. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_FILE_ENCODE_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. occurred error when encoding opening file. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker opening file error. occurred error when encoding opening file. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_FILE_ENCODE_UNKNOWN_RETURN:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. unknown return value in encoding opening file. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker opening file error. unknown return value in encoding opening file. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	default:
 		FLY_EMERGENCY_ERROR(
-			"worker opening file error. unknown return value. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker opening file error. unknown return value. (%s: %d)",
+			__FILE__, __LINE__
 		);
 	}
 
@@ -733,54 +725,47 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_SOLVPATH_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error. solving path error in opening worker default content.",
-			__FILE__,
-			__LINE__
+			"worker opening default content error. solving path error in opening worker default content. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_FRC_INIT_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error. frc init error in opening worker default content.",
-			__FILE__,
-			__LINE__
+			"worker opening default content error. frc init error in opening worker default content. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_INVALID_FILE:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error. found invalid file in opening worker default content.",
-			__FILE__,
-			__LINE__
+			"worker opening default content error. found invalid file in opening worker default content. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error. occurred error when encoding default content. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker opening default content error. occurred error when encoding default content. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	case FLY_WORKER_OPEN_DEFAULT_CONTENT_ENCODE_UNKNOWN_RETURN:
 		FLY_EMERGENCY_ERROR(
-			"worker opening default content error. unknown return value in encoding default content. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker opening default content error. unknown return value in encoding default content. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	default:
 		FLY_EMERGENCY_ERROR(
-			"worker open default content error.	unknown return value in opening default content. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"worker open default content error.	unknown return value in opening default content. (%s: %d)",
+			__FILE__, __LINE__
 		);
 	}
 
 	manager = fly_event_manager_init(ctx);
 	if (manager == NULL)
 		FLY_EXIT_ERROR(
-			"worker event manager init error. %s (%s: %s)",
+			"worker event manager init error. %s (%s: %d)",
 			strerror(errno),
-			__FILE__,
-			__LINE__
+			__FILE__, __LINE__
 		);
 
 	worker->event_manager = manager;
@@ -789,25 +774,22 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 #ifdef HAVE_SIGNALFD
 	if (__fly_worker_signal_event(worker, manager, ctx) == -1)
 		FLY_EMERGENCY_ERROR(
-			"initialize worker signal error. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"initialize worker signal error. (%s: %d)",
+			__FILE__, __LINE__
 		);
 #else
 	if (__fly_worker_signal(worker, manager, ctx) == -1)
 		FLY_EMERGENCY_ERROR(
-			"initialize worker signal error. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"initialize worker signal error. (%s: %d)",
+			__FILE__, __LINE__
 		);
 #endif
 
 	/* make socket for each socket info */
 	if (fly_wainting_for_connection_event(manager, ctx->listen_sock) == -1)
 		FLY_EMERGENCY_ERROR(
-			"fail to register listen socket event. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"fail to register listen socket event. (%s: %d)",
+			__FILE__, __LINE__
 		);
 
 #ifdef DEBUG
@@ -833,23 +815,20 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 	switch(fly_event_handler(manager)){
 	case FLY_EVENT_HANDLER_INVALID_MANAGER:
 		FLY_EMERGENCY_ERROR(
-			"event handle error. event manager is invalid. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"event handle error. event manager is invalid. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	case FLY_EVENT_HANDLER_EPOLL_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"event handle error. epoll was broken. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"event handle error. epoll was broken. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	case FLY_EVENT_HANDLER_EXPIRED_EVENT_ERROR:
 		FLY_EMERGENCY_ERROR(
-			"event handle error. occurred error in expired event handler. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"event handle error. occurred error in expired event handler. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		break;
 	default:

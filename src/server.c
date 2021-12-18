@@ -49,7 +49,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 				err,
 				errno,
 				FLY_ERR_ERR,
-				"Invalid port string error. (%s: %s)",
+				"Invalid port string error. (%s: %d)",
 				 __FILE__, __LINE__
 			);
 		}
@@ -63,7 +63,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 				err,
 				errno,
 				FLY_ERR_ERR,
-				"getaddrinfo error %s. (%s: %s)",
+				"getaddrinfo error %s. (%s: %d)",
 				gai_strerror(res), __FILE__, __LINE__
 			);
 		}
@@ -92,7 +92,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 				err,
 				errno,
 				FLY_ERR_ERR,
-				"can't bind error. %s (%s: %s)",
+				"can't bind error. %s (%s: %d)",
 				strerror(errno), __FILE__, __LINE__
 			);
 		}
@@ -106,7 +106,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 				err,
 				errno,
 				FLY_ERR_ERR,
-				"getnameinfo error. %s (%s: %s)",
+				"getnameinfo error. %s (%s: %d)",
 				strerror(res), __FILE__, __LINE__
 			);
 		}
@@ -118,7 +118,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 				err,
 				errno,
 				FLY_ERR_ERR,
-				"liten error. %s (%s: %s)",
+				"liten error. %s (%s: %d)",
 				strerror(errno), __FILE__, __LINE__
 			);
 		}
