@@ -1,4 +1,5 @@
-#include "pyserver.h"
+#include <Python.h>
+#include <structmember.h>
 
 static PyObject *typeobject_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {

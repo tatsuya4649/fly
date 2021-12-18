@@ -128,6 +128,7 @@ types = Extension(
     language='c',
     libraries=[],
     define_macros = macros,
+    extra_compile_args = extra_compile_args,
 )
 
 setup(
