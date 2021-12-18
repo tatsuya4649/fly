@@ -1,10 +1,12 @@
-#from _fly_route import _fly_route
+import sys
+import re
 from .method import method_from_name, Method
 from ._base import _BaseRoute
-import sys
 
 
 class Route():
+    URI_RE_SYNTAX_PATTERN       = r"^/(.*/?)*$"
+    URI_RE_SUB_REPEAT_PATTERN   = r"(/{2,})"
     def __init__(self):
         self._routes = list()
 
@@ -29,6 +31,16 @@ class Route():
             raise TypeError(
                 "debug must be bool type."
             )
+
+        # Check URI syntax
+        res = re.match(self.URI_RE_SYNTAX_PATTERN, uri)
+        if res is None:
+            raise ValueError(
+                f"URI syntax error. ({uri})"
+            )
+        uri = res.group(0)
+        # Check URI repeat slash
+        uri = re.sub(self.URI_RE_SUB_REPEAT_PATTERN, '/', uri)
 
         method_str = method if isinstance(method, str) else method.value
 
