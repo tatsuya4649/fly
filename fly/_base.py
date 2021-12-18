@@ -329,6 +329,7 @@ class _BaseRoute:
         return self._handler(*_args, **_kwargs)
 
     def handler(self, request):
+        print(request)
         try:
             res = self.parse_func_args(request)
             if self.is_debug:

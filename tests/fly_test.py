@@ -130,6 +130,10 @@ def types_header_item(hello: Header):
 def types_body_item(user: User):
     return f"Success, Header item {user.userid}:{user.username}"
 
-@app.get("/types/path_param_item/<user_id: int>")
+@app.get("/types/path_param_item/{user_id: int}")
 def types_path_param_item(user_id: Path):
     return f"Success, path_param item: {user_id}"
+
+@app.get("/types/path_param_item/{postid}")
+def types_path_param_default(postid: Path):
+    return f"Success, path_param_default: {postid}"

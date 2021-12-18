@@ -190,6 +190,7 @@ static int fly_rr_parse_path_param(fly_route_reg_t *reg, fly_route_t *route, cha
 	fly_pool_t *pool;
 
 #ifdef DEBUG
+	printf("Register Route Parse %s\n", path);
 	assert(reg->pool != NULL);
 #endif
 	pool = reg->pool;
@@ -199,6 +200,9 @@ static int fly_rr_parse_path_param(fly_route_reg_t *reg, fly_route_t *route, cha
 	route->path_param = __pp;
 
 	while((path_ptr = memchr(path_ptr, FLY_RR_PATH_PARAM_START, path_size)) != NULL){
+#ifdef DEBUG
+		printf("Register Path Param %s\n", path_ptr);
+#endif
 		/* Syntax error */
 		if (memchr(path_ptr, FLY_RR_PATH_PARAM_END, path_size) == NULL){
 			__fly_release_path_param(pool, route, __pp);
@@ -266,6 +270,11 @@ static int fly_rr_parse_path_param(fly_route_reg_t *reg, fly_route_t *route, cha
 					status = COLON;
 					break;
 				}
+				if (*__p == FLY_RR_PATH_PARAM_END){
+					var_len = __p - var_ptr;
+					status = END;
+					continue;
+				}
 				goto syntax_error;
 			case VAR_SPACE:
 				if (fly_space(*__p) || fly_ht(*__p))
@@ -273,6 +282,10 @@ static int fly_rr_parse_path_param(fly_route_reg_t *reg, fly_route_t *route, cha
 				if (fly_colon(*__p)){
 					status = COLON;
 					break;
+				}
+				if (*__p == FLY_RR_PATH_PARAM_END){
+					status = END;
+					continue;
 				}
 				goto syntax_error;
 			case COLON:
@@ -292,7 +305,8 @@ static int fly_rr_parse_path_param(fly_route_reg_t *reg, fly_route_t *route, cha
 				continue;
 			case END:
 				if (type == FLY_PPT_UNKNOWN)
-					goto error;
+					type = FLY_PPT_STR;
+
 				if (var_ptr == NULL)
 					goto error;
 				if (var_len == 0)
@@ -315,6 +329,9 @@ error:
 			__fly_release_path_param(pool, route, __pp);
 			return FLY_RR_PARSE_PATH_PARAM_INTERNAL_ERROR;
 register_param:
+#ifdef DEBUG
+			printf("Register Path Parameter: varlen %ld: type %d: var %.*s\n", var_len, type, (int) var_len, var_ptr);
+#endif
 			__fp = fly_pballoc(pool, sizeof(struct fly_param));
 			__fp->var_ptr = var_ptr;
 			__fp->var_len = var_len;
