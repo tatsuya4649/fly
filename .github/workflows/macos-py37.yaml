@@ -49,7 +49,7 @@ jobs:
         - name: Build extension module
           run: |
               python3 setup.py build
-              cp -rf build/lib.*/fly/_fly_server* fly/
+              cp -rf build/lib.*/fly/_fly_* fly/
         - name: Make self certificate for SSL/TLS
           run: |
               openssl req \

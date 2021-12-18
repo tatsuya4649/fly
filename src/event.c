@@ -430,7 +430,7 @@ int fly_event_register(fly_event_t *event)
 					struct fly_err *__err;
 					__err = fly_event_err_init(
 						event, errno, FLY_ERR_ERR,
-						"kevent error in event_register. (%s:%s)",
+						"kevent error in event_register. (%s:%d)",
 						__FILE__, __LINE__
 					);
 					fly_event_error_add(event, __err);
@@ -444,7 +444,7 @@ int fly_event_register(fly_event_t *event)
 					struct fly_err *__err;
 					__err = fly_event_err_init(
 						event, errno, FLY_ERR_ERR,
-						"kevent error in event_register. (%s:%s)",
+						"kevent error in event_register. (%s:%d)",
 						__FILE__, __LINE__
 					);
 					fly_event_error_add(event, __err);
@@ -487,7 +487,7 @@ int fly_event_unregister(fly_event_t *event)
 				struct fly_err *__err;
 				__err = fly_err_init(
 					__m->ctx->pool, errno, FLY_ERR_ERR,
-					"unregister event error in event_unregister. (%s: %s)",
+					"unregister event error in event_unregister. (%s: %d)",
 					__FILE__, __LINE__
 				);
 				fly_error_error(__err);
@@ -502,7 +502,7 @@ int fly_event_unregister(fly_event_t *event)
 					struct fly_err *__err;
 					__err = fly_err_init(
 						__m->ctx->pool, errno, FLY_ERR_ERR,
-						"unregister event error in event_unregister. (%s: %s)",
+						"unregister event error in event_unregister. (%s: %d)",
 						__FILE__, __LINE__
 					);
 					fly_error_error(__err);
@@ -516,7 +516,7 @@ int fly_event_unregister(fly_event_t *event)
 					struct fly_err *__err;
 					__err = fly_err_init(
 						__m->ctx->pool, errno, FLY_ERR_ERR,
-						"unregister event error in event_unregister. (s: %s)",
+						"unregister event error in event_unregister. (s: %d)",
 						__FILE__, __LINE__
 					);
 					fly_error_error(__err);
@@ -534,7 +534,7 @@ int fly_event_unregister(fly_event_t *event)
 	struct fly_err *__err;
 	__err = fly_err_init(
 		__m->ctx->pool, errno, FLY_ERR_ALERT,
-		"not found event in unregistering event. (%s: %s)",
+		"not found event in unregistering event. (%s: %d)",
 		__FILE__,
 		__LINE__
 	);

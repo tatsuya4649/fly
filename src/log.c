@@ -285,7 +285,7 @@ fly_log_t *fly_log_init(fly_context_t *ctx, struct fly_err *err)
 				err,
 				errno,
 				FLY_ERR_ERR,
-				"Log file setting error error. %s (%s: %s)",
+				"Log file setting error error. %s (%s: %d)",
 				strerror(errno), __FILE__, __LINE__
 			);
 		}

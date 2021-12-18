@@ -432,10 +432,9 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 		struct fly_err *__err;
 		__err = fly_event_err_init(
 			e, errno, FLY_ERR_ERR,
-			"creat log content error. %s (%s: %s)",
+			"creat log content error. %s (%s: %d)",
 			strerror(errno),
-			__FILE__,
-			__LINE__
+			__FILE__, __LINE__
 		);
 		fly_event_error_add(e, __err);
 		return -1;
@@ -454,10 +453,9 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 		struct fly_err *__err;
 		__err = fly_event_err_init(
 			e, errno, FLY_ERR_CRIT,
-			"log content error. %s (%s: %s)",
+			"log content error. %s (%s: %d)",
 			strerror(errno),
-			__FILE__,
-			__LINE__
+			__FILE__, __LINE__
 		);
 		fly_event_error_add(e, __err);
 		return -1;
@@ -468,10 +466,9 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 		struct fly_err *__err;
 		__err = fly_event_err_init(
 			e, errno, FLY_ERR_ERR,
-			"qetting log time error. %s (%s: %s)",
+			"qetting log time error. %s (%s: %d)",
 			strerror(errno),
-			__FILE__,
-			__LINE__
+			__FILE__, __LINE__
 		);
 		fly_event_error_add(e, __err);
 		return -1;
@@ -737,7 +734,7 @@ void fly_response_release(fly_response_t *response)
 //	struct fly_err *__err;
 //	__err = fly_err_init(
 //		pool, errno, FLY_ERR_ERR,
-//		"response init error. (%s: %s)",
+//		"response init error. (%s: %d)",
 //		__FILE__,
 //		__LINE__
 //	);
@@ -832,9 +829,8 @@ int fly_400_event_norequest(fly_event_t *e, fly_connect_t *conn)
 		struct fly_err *__err;
 		__err = fly_err_init(
 			conn->pool, errno, FLY_ERR_ERR,
-			"request init error in 400 response. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"request init error in 400 response. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		fly_error_error(__err);
 	}
@@ -1288,9 +1284,8 @@ int fly_response_set_send_ptr(fly_response_t *response)
 		struct fly_err *__err;
 		__err = fly_err_init(
 			response->pool, errno, FLY_ERR_ERR,
-			"send ptr alloc memory error. (%s: %s)",
-			__FILE__,
-			__LINE__
+			"send ptr alloc memory error. (%s: %d)",
+			__FILE__, __LINE__
 		);
 		fly_error_error(__err);
 	}
@@ -1360,7 +1355,7 @@ copy_file:
 							struct fly_err *__err;
 							__err = fly_err_init(
 								response->pool, errno, FLY_ERR_ERR,
-								"lseek error in set send ptr of response. (%s: %s)",
+								"lseek error in set send ptr of response. (%s: %d)",
 								__FILE__, __LINE__
 							);
 							fly_error_error(__err);
@@ -1389,7 +1384,7 @@ retry_read:
 								struct fly_err *__err;
 								__err = fly_err_init(
 									response->pool, errno, FLY_ERR_ERR,
-									"read error in set send ptr of response. (%s: %s)",
+									"read error in set send ptr of response. (%s: %d)",
 									__FILE__, __LINE__
 								);
 								fly_error_error(__err);

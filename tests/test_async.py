@@ -6,18 +6,6 @@ import conftest
 from conftest import *
 
 
-@pytest.fixture(scope="function", autouse=False)
-def access_check(newlog):
-    access_log = conftest._LOGPATH + "/fly_access.log"
-    if os.path.isfile(access_log):
-        _tmp_access_log_size = os.path.getsize(access_log)
-    else:
-        _tmp_access_log_size = 0
-    print(f"~~~~~ now access log size {_tmp_access_log_size} ~~~~~")
-    yield _tmp_access_log_size
-    assert(_tmp_access_log_size < os.path.getsize(access_log))
-    print(f"~~~~~ access log size {os.path.getsize(access_log)} ~~~~~")
-
 
 """
 GET method test

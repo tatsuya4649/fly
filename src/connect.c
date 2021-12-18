@@ -67,7 +67,7 @@ void fly_connect_buffer_refresh(fly_connect_t *conn)
 	conn->buffer = fly_buffer_init(conn->pool, conn->buffer_init_len, FLY_CONNECT_BUFFER_CHAIN_MAX(conn->event->manager->ctx, conn->buffer_per_len), conn->buffer_per_len);
 	if (fly_unlikely_null(conn->buffer))
 		FLY_EXIT_ERROR(
-			"connection buffer refresh error. (%s: %s)",
+			"connection buffer refresh error. (%s: %d)",
 			__FILE__, __LINE__
 		);
 
@@ -228,7 +228,7 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 			goto read_blocking;
 		else{
 			struct fly_err	*error;
-			error = fly_event_err_init(event, errno, FLY_ERR_ERR, "an error occurred while accepting a listening socket(%s: %s)", __FILE__, __LINE__);
+			error = fly_event_err_init(event, errno, FLY_ERR_ERR, "an error occurred while accepting a listening socket(%s: %d)", __FILE__, __LINE__);
 			fly_event_error_add(event, error);
 			return FLY_EVENT_HANDLE_FAILURE;
 		}
@@ -238,7 +238,7 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	ne = fly_event_init(event->manager);
 	if (ne == NULL){
 		struct fly_err	*error;
-		error = fly_event_err_init(event, errno, FLY_ERR_EMERG, "an error occurred in event init (%s: %s)", __FILE__, __LINE__);
+		error = fly_event_err_init(event, errno, FLY_ERR_EMERG, "an error occurred in event init (%s: %d)", __FILE__, __LINE__);
 		fly_event_error_add(event, error);
 		return FLY_EVENT_HANDLE_FAILURE;
 	}
@@ -295,7 +295,7 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 			goto disconnect;
 		else{
 			struct fly_err *__err;
-			__err = fly_event_err_init(e, errno, FLY_ERR_ERR, "recv error in recognizeing protocol of connection(%s: %s)", __FILE__, __LINE__);
+			__err = fly_event_err_init(e, errno, FLY_ERR_ERR, "recv error in recognizeing protocol of connection(%s: %d)", __FILE__, __LINE__);
 			fly_event_error_add(e, __err);
 			return -1;
 		}
@@ -338,7 +338,7 @@ read_blocking:
 disconnect:
 	if (fly_connect_release(conn) == -1){
 		struct fly_err *__err;
-		__err = fly_event_err_init(e, errno, FLY_ERR_ERR, "release resources of connection error in recognizeing protocol of connection(%s: %s)", __FILE__, __LINE__);
+		__err = fly_event_err_init(e, errno, FLY_ERR_ERR, "release resources of connection error in recognizeing protocol of connection(%s: %d)", __FILE__, __LINE__);
 		fly_event_error_add(e, __err);
 		return -1;
 	}
