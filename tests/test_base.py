@@ -233,4 +233,3 @@ def test_data():
     })
     assert isinstance(res, str)
     assert res == str(10)
-

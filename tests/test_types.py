@@ -478,3 +478,136 @@ async def test_https2_path_param_item_type_error(fly_servers_ssl, emerge_log_siz
     assert(res.status_code == 404)
     assert(res.http_version == http2_scheme())
 
+@pytest.mark.asyncio
+async def test_path_param_item_default(fly_servers, emerge_log_size_check, access_check):
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(f"{_HTTP}://{_HOST}:{_PORT}/types/path_param_item_default/10")
+
+    assert(res.status_code == 200)
+    assert(res.http_version == http_scheme())
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
+async def test_https_path_param_item_default(fly_servers_ssl, emerge_log_size_check, access_check):
+    async with httpx.AsyncClient(
+            http1=True,
+            verify=False,
+            timeout=1) as client:
+        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/types/path_param_item_default/10")
+
+    assert(res.status_code == 200)
+    assert(res.http_version == http_scheme())
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
+async def test_https2_path_param_item_default(fly_servers_ssl, emerge_log_size_check, access_check):
+    async with httpx.AsyncClient(
+            verify=False,
+            http1=False,
+            http2=True,
+            timeout=1
+    ) as client:
+        res = await client.get(f"{_HTTPS}://{_HOST}:{_PORT}/types/path_param_item_default/10")
+
+    assert(res.status_code == 200)
+    assert(res.http_version == http2_scheme())
+
+@pytest.mark.asyncio
+async def test_cookie_item(fly_servers, emerge_log_size_check, access_check):
+    cookies = {
+        "user_id": "10",
+        "username": "user",
+        "userpwd": "secret",
+    }
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(
+                f"{_HTTP}://{_HOST}:{_PORT}/types/cookie_item",
+                cookies=cookies
+        )
+
+    assert(res.status_code == 200)
+    assert(res.http_version == http_scheme())
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
+async def test_https_cookie_item(fly_servers_ssl, emerge_log_size_check, access_check):
+    cookies = {
+        "user_id": "10",
+        "username": "user",
+        "userpwd": "secret",
+    }
+    async with httpx.AsyncClient(
+            http1=True,
+            verify=False,
+            timeout=1) as client:
+        res = await client.get(
+                f"{_HTTPS}://{_HOST}:{_PORT}/types/cookie_item",
+                cookies=cookies
+        )
+
+    assert(res.status_code == 200)
+    assert(res.http_version == http_scheme())
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
+async def test_https2_cookie_item(fly_servers_ssl, emerge_log_size_check, access_check):
+    cookies = {
+        "user_id": "10",
+        "username": "user",
+        "userpwd": "secret",
+    }
+    async with httpx.AsyncClient(
+            verify=False,
+            http1=False,
+            http2=True,
+            timeout=1
+    ) as client:
+        res = await client.get(
+                f"{_HTTPS}://{_HOST}:{_PORT}/types/cookie_item",
+                cookies=cookies
+        )
+
+    assert(res.status_code == 200)
+    assert(res.http_version == http2_scheme())
+
+@pytest.mark.asyncio
+async def test_query_item(fly_servers, emerge_log_size_check, access_check):
+    async with httpx.AsyncClient(http1=True, timeout=1) as client:
+        res = await client.get(
+                f"{_HTTP}://{_HOST}:{_PORT}/types/query_item?user_id=10&username=user&userpwd=secret"
+        )
+
+    assert(res.status_code == 200)
+    assert(res.http_version == http_scheme())
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
+async def test_https_query_item(fly_servers_ssl, emerge_log_size_check, access_check):
+    async with httpx.AsyncClient(
+            http1=True,
+            verify=False,
+            timeout=1) as client:
+        res = await client.get(
+                f"{_HTTPS}://{_HOST}:{_PORT}/types/query_item?user_id=10&username=user&userpwd=secret"
+        )
+
+    assert(res.status_code == 200)
+    assert(res.http_version == http_scheme())
+
+@pytest.mark.asyncio
+@pytest.mark.skipif(not_have_ssl_crt_key_file(), reason=conftest.ssl_reason)
+async def test_https2_query_item(fly_servers_ssl, emerge_log_size_check, access_check):
+    async with httpx.AsyncClient(
+            verify=False,
+            http1=False,
+            http2=True,
+            timeout=1
+    ) as client:
+        res = await client.get(
+                f"{_HTTPS}://{_HOST}:{_PORT}/types/query_item?user_id=10&username=user&userpwd=secret"
+        )
+
+    print(res.content)
+    assert(res.status_code == 200)
+    assert(res.http_version == http2_scheme())
+

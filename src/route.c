@@ -190,7 +190,7 @@ static int fly_rr_parse_path_param(fly_route_reg_t *reg, fly_route_t *route, cha
 	fly_pool_t *pool;
 
 #ifdef DEBUG
-	printf("Register Route Parse %s\n", path);
+	printf("Register Route Parse %s: %ld\n", path, path_size);
 	assert(reg->pool != NULL);
 #endif
 	pool = reg->pool;
@@ -199,9 +199,12 @@ static int fly_rr_parse_path_param(fly_route_reg_t *reg, fly_route_t *route, cha
 	fly_bllist_init(&__pp->params);
 	route->path_param = __pp;
 
-	while((path_ptr = memchr(path_ptr, FLY_RR_PATH_PARAM_START, path_size)) != NULL){
 #ifdef DEBUG
-		printf("Register Path Param %s\n", path_ptr);
+	assert(((path+path_size)-path_ptr) == path_size);
+#endif
+	while((path_ptr = memchr(path_ptr, FLY_RR_PATH_PARAM_START, (path+path_size)-path_ptr)) != NULL){
+#ifdef DEBUG
+		printf("Register Path Param %s: %ld\n", path_ptr, path_ptr-path);
 #endif
 		/* Syntax error */
 		if (memchr(path_ptr, FLY_RR_PATH_PARAM_END, path_size) == NULL){

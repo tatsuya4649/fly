@@ -105,7 +105,6 @@ static inline uint32_t fly_hv2_length_from_frame_header(fly_hv2_frame_header_t *
 		*(__l+1) = (uint8_t) (*__fh)[1];
 		*(__l+2) = (uint8_t) (*__fh)[0];
 #endif
-//		length |= (uint32_t) (*__fh)[2] << 0;
 	}
 	return length;
 }
@@ -4587,6 +4586,8 @@ int fly_hv2_request_line_from_header(fly_request_t *req)
 						printf("\tRequest uri: %s\n", *__p);
 #endif
 						fly_uri_set(req, __c->value, __c->value_len);
+//						if (fly_query_parse_from_uri(req, &req->request_line->uri) == -1)
+//							return -1;
 					}else{
 						FLY_NOT_COME_HERE
 					}

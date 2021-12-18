@@ -45,5 +45,7 @@ typedef struct fly_uri fly_uri_t;
 		(__req)->request_line->uri.len = (__len);		\
 	} while(0)
 bool fly_is_uri_index(fly_uri_t *uri);
+struct fly_request;
+int fly_query_parse_from_uri(struct fly_request *req, fly_uri_t *uri);
 
 #endif

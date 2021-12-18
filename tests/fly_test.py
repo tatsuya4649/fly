@@ -130,10 +130,28 @@ def types_header_item(hello: Header):
 def types_body_item(user: User):
     return f"Success, Header item {user.userid}:{user.username}"
 
+@app.get("/types/cookie_item")
+def types_cookie_item(user_id: Cookie, username: Cookie, userpwd):
+    assert user_id is not None
+    assert username is not None
+    assert userpwd is not None
+    return f"Success, Cookie item {user_id}"
+
+@app.get("/types/query_item")
+def types_query_item(user_id: Query, username: Query, userpwd):
+    print(user_id)
+    print(username)
+    print(userpwd)
+    assert user_id is not None
+    assert username is not None
+    assert userpwd is not None
+    return f"Success, Query item {user_id}"
+
 @app.get("/types/path_param_item/{user_id: int}")
 def types_path_param_item(user_id: Path):
     return f"Success, path_param item: {user_id}"
 
-@app.get("/types/path_param_item/{postid}")
+@app.get("/types/path_param_item_default/{postid}")
 def types_path_param_default(postid: Path):
     return f"Success, path_param_default: {postid}"
+
