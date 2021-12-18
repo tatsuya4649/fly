@@ -114,5 +114,6 @@ static inline bool fly_question(char c)
 }
 
 #define FLY_SLASH						'/'
+#define FLY_QUESTION					'?'
 
 #endif

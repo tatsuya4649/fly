@@ -2,8 +2,4 @@ TODO list:
 
 v 1.3.0
 
-* Support user custom url parameter
-
 * Change Python UI. request -> header, body, etc...
-
-* Add test script of registering route(path parameter)

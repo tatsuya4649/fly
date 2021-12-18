@@ -81,7 +81,77 @@ def set_cookie(request):
 def raise_404(request):
     raise HTTP404Exception
 
-@app.get("/user/{ user_id: int}")
-def path_parameter(user_agent: Header, name: Query, user_id, *args, **kwargs):
-    print(name)
-    return None
+class User(FormData):
+    userid: int
+    username: str
+
+@app.get("/types")
+def types_index(request: Request):
+    return "Success, request"
+
+@app.get("/types/body")
+def types_body(body: Request):
+    return "Success, body"
+
+@app.get("/types/header")
+def types_header(header: Request):
+    return "Success, header"
+
+@app.get("/types/cookie")
+def types_cookie(cookie: Request):
+    return "Success, cookie"
+
+@app.get("/types/query")
+def types_cookie(query: Request):
+    return "Success, query"
+
+@app.get("/types/path_params")
+def types_cookie(path_params: Request):
+    return "Success, path_params"
+
+@app.get("/types/no_request")
+def types_norequest(norequest: Request):
+    assert norequest is None
+    return "Success, norequest"
+
+@app.get("/types/no_request_error")
+def types_norequest(norequest):
+    return "Success, norequest"
+
+@app.get("/types/multi")
+def types_multi(request: Request, body: Request, header: Request):
+    return "Success, Multi"
+
+@app.get("/types/header_item")
+def types_header_item(hello: Header):
+    return f"Success, Header item {hello}"
+
+@app.post("/types/body_item")
+def types_body_item(user: User):
+    return f"Success, Header item {user.userid}:{user.username}"
+
+@app.get("/types/cookie_item")
+def types_cookie_item(user_id: Cookie, username: Cookie, userpwd):
+    assert user_id is not None
+    assert username is not None
+    assert userpwd is not None
+    return f"Success, Cookie item {user_id}"
+
+@app.get("/types/query_item")
+def types_query_item(user_id: Query, username: Query, userpwd):
+    print(user_id)
+    print(username)
+    print(userpwd)
+    assert user_id is not None
+    assert username is not None
+    assert userpwd is not None
+    return f"Success, Query item {user_id}"
+
+@app.get("/types/path_param_item/{user_id: int}")
+def types_path_param_item(user_id: Path):
+    return f"Success, path_param item: {user_id}"
+
+@app.get("/types/path_param_item_default/{postid}")
+def types_path_param_default(postid: Path):
+    return f"Success, path_param_default: {postid}"
+

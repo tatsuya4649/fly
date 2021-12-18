@@ -123,7 +123,7 @@ server = Extension(
 )
 
 types = Extension(
-    name="fly.types",
+    name="fly._fly_types",
     sources=["src/pytypes.c"],
     language='c',
     libraries=[],
