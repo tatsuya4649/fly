@@ -41,7 +41,7 @@ jobs:
                       # Python3.10
                       python3.10 -m pip install -r ./requirements.txt
                       python3.10 setup.py build
-                      cp -rf build/lib.*/fly/_fly_server* fly/
+                      cp -rf build/lib.*/fly/_fly_* fly/
                       export _PATH_PYTHON=$(which python3.10)
                       ln -sf $_PATH_PYTHON $(dirname $_PATH_PYTHON)/python3
                       echo $_PATH_PYTHON

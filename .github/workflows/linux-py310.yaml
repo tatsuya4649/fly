@@ -44,7 +44,7 @@ jobs:
             - name: Build extension module
               run: |
                   python3 setup.py build
-                  cp -rf build/lib.linux*/fly/_fly_server.cpython* fly/
+                  cp -rf build/lib.linux*/fly/_fly_*.cpython* fly/
 
             - name: Make self certificate for SSL/TLs
               run: |
