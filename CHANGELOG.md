@@ -2,11 +2,23 @@
 
 ## 1.3.0
 
-Released: 2021/12/16
+Released: 2021/12/18
 
 ## Added
 
 * Custom Path parameter(ex. /user/{ user\_id: int})
+
+* Hint of parameter of route function.
+
+	ex.
+		def index(host: Header, userid: Query):
+			return None
+
+* Add new class for hint of parameters of route function. (Request, Header, Body, Path, Query, Cookie, FormData in types.py)
+
+## Fixed
+
+* URI syntax check when registering route function.
 
 ## 1.2.2
 
