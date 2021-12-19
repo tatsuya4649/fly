@@ -60,3 +60,4 @@ tests/mnt
 !tests/mnt/*.html
 ex.py
 Pipfile*
+.coverage
