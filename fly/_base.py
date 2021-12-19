@@ -6,10 +6,6 @@ from . import types
 from .types import *
 from ._parse import RequestParser
 import sys
-from urllib.parse import unquote_plus, unquote
-import pydantic
-import re
-
 
 
 class _BaseRoute:

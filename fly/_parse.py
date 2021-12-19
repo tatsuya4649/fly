@@ -1,5 +1,11 @@
 from .exceptions import *
 from .types import *
+from . import types
+import pydantic
+from urllib.parse import unquote_plus, unquote
+import pydantic
+import re
+
 
 """
 
@@ -60,6 +66,21 @@ class RequestParser:
             except Exception:
                 raise HTTP400Exception
 
+    def _parse_multipart_form_data(self, body):
+        _res = dict()
+        for _bi in body:
+            _header = _bi["header"]
+            for _hi in _header:
+                if _hi["name"].lower() == "content-disposition":
+                    _hv = _hi["value"]
+                    _name = self._parse_multipart_content_name(_hv)
+                    if _name is None:
+                        raise HTTP400Exception
+
+                    _res[_name] = _bi["content"]
+        return _res
+
+
     def _parse_application_x_www_form_urlencoded(self, body):
         _parse = unquote_plus(body.decode("utf-8"))
         _res = dict()
@@ -73,6 +94,7 @@ class RequestParser:
         except Exception as e:
             raise HTTP400Exception
         return _res
+
 
     """
     Convert lower:
@@ -165,7 +187,6 @@ class RequestParser:
                 return i["value"]
 
         return None
-
 
     def _parse_data_form(self, body, content_type):
         if body is None:

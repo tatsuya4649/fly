@@ -126,7 +126,7 @@ def test_key_error():
             )
 
     with pytest.raises(KeyError) as e:
-        base.parse_func_args({
+        base._parse_func_args({
         })
 
 def test_same_item():

@@ -1,5 +1,13 @@
 # Change Log
 
+## 1.4.0
+
+Released: 2021/12/19
+
+## Added
+
+* RequestParser to parse dict of request
+
 ## 1.3.0
 
 Released: 2021/12/18
