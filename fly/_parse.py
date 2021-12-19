@@ -5,6 +5,7 @@ import pydantic
 from urllib.parse import unquote_plus, unquote
 import pydantic
 import re
+import inspect
 
 
 """
@@ -28,8 +29,8 @@ BOOL        = 2
 STR         = 3
 
 class RequestParser:
-    def __init__(self, func_spec):
-        self._func_spec = func_spec
+    def __init__(self, func):
+        self._func_spec = inspect.getfullargspec(func)
 
     """
 

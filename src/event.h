@@ -66,6 +66,7 @@ struct fly_event_manager{
 #define fly_event_manager_reset(event)		\
 			((event)->manager->reset = true)
 	fly_bit_t					reset: 1;
+	fly_bit_t					end_process: 1;
 #endif
 };
 typedef struct fly_event_manager fly_event_manager_t;

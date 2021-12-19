@@ -148,6 +148,7 @@ struct fly_itm_response{
 typedef struct fly_itm_response fly_itm_response_t;
 struct fly_response_content;
 int fly_304_event(fly_event_t *e);
+int fly_100_event(fly_event_t *e, fly_request_t *req);
 int fly_400_event_norequest(fly_event_t *e, fly_connect_t *conn);
 int fly_400_event(fly_event_t *e, fly_request_t *req);
 int fly_404_event(fly_event_t *e, fly_request_t *req);
@@ -155,15 +156,18 @@ int fly_405_event(fly_event_t *e, fly_request_t *req);
 int fly_413_event(fly_event_t *e, fly_request_t *req);
 int fly_414_event(fly_event_t *e, fly_request_t *req);
 int fly_415_event(fly_event_t *e, fly_request_t *req);
+int fly_417_event(fly_event_t *e, fly_request_t *req);
 int fly_500_event(fly_event_t *e, fly_request_t *req);
 
 fly_response_t *fly_304_response(fly_request_t *req, struct fly_mount_parts_file *pf);
+fly_response_t *fly_100_response(fly_request_t *req);
 fly_response_t *fly_400_response(fly_request_t *req);
 fly_response_t *fly_404_response(fly_request_t *req);
 fly_response_t *fly_405_response(fly_request_t *req);
 fly_response_t *fly_413_response(fly_request_t *req);
 fly_response_t *fly_414_response(fly_request_t *req);
 fly_response_t *fly_415_response(fly_request_t *req);
+fly_response_t *fly_417_response(fly_request_t *req);
 fly_response_t *fly_500_response(fly_request_t *req);
 
 void __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf, int (*handler)(fly_event_t *e));

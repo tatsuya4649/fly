@@ -1042,7 +1042,8 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 		}else{
 			recvlen = recv(fd, fly_buffer_lunuse_ptr(__buf), fly_buffer_lunuse_len(__buf), MSG_DONTWAIT);
 #ifdef DEBUG
-			printf("RECV[%d]:\n%.*s----end----\n", recvlen, recvlen, (char *) fly_buffer_lunuse_ptr(__buf));
+			printf("RECV %dbytes\n", recvlen);
+			fflush(stdout);
 #endif
 			switch(recvlen){
 			case 0:
@@ -1341,18 +1342,42 @@ __fase_body:
 	fly_event_request_fase(event, BODY);
 	size_t content_length;
 	content_length = fly_content_length(request->header);
+	/* Check Expect: 100-continue */
+	if (fly_check_expect_100(request->header)){
+		/* Too payload large */
+		if (content_length > request->ctx->max_request_length)
+			goto response_417;
+		else
+			goto response_100;
+
+	}
 	/* Too payload large */
 	if (content_length > request->ctx->max_request_length){
 		switch (__fly_discard_body(request, content_length)){
 		case  FLY_DISCARD_BODY_END:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_END\n");
+#endif
 			goto response_413;
 		case  FLY_DISCARD_BODY_WRITE_YET:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_WRITE_YET\n");
+#endif
 			goto write_continuation;
 		case  FLY_DISCARD_BODY_READ_YET:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_READ_YET\n");
+#endif
 			goto read_continuation;
 		case  FLY_DISCARD_BODY_ERROR:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_ERROR\n");
+#endif
 			goto error;
 		case  FLY_DISCARD_BODY_DISCONNECT:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_DISCONNECT\n");
+#endif
 			goto disconnection;
 		default:
 			FLY_NOT_COME_HERE
@@ -1468,6 +1493,8 @@ __fase_end_of_parse:
 	fly_response_http_version_from_request(response, request);
 	goto response;
 
+response_100:
+	return fly_100_event(event, request);
 response_400_norequest:
 	return fly_400_event_norequest(event, conn);
 response_400:
@@ -1485,6 +1512,8 @@ response_414:
 	return fly_414_event(event, request);
 response_415:
 	return fly_415_event(event, request);
+response_417:
+	return fly_417_event(event, request);
 response_500:
 	return fly_500_event(event, request);
 

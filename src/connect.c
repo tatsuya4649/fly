@@ -255,8 +255,6 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	/* for end of connection */
 	FLY_EVENT_EXPIRED_HANDLER(ne, fly_listen_socket_end_handler, conn);
 	FLY_EVENT_END_HANDLER(ne, fly_listen_socket_end_handler, conn);
-	//ne->event_data = conn;
-	//ne->expired_event_data = conn;
 	fly_event_data_set(ne, __p, conn);
 	fly_expired_event_data_set(ne, __p, conn);
 	ne->fail_close = fly_fail_recognize_protocol;

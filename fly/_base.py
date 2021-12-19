@@ -1,5 +1,4 @@
 import traceback
-import inspect
 from .exceptions import *
 from .response import Response
 from . import types
@@ -17,9 +16,7 @@ class _BaseRoute:
 
         self._handler = handler
         self._debug = debug
-
-        self._func_spec = inspect.getfullargspec(handler)
-        self._parser = RequestParser(self._func_spec)
+        self._parser = RequestParser(handler)
 
     @property
     def is_debug(self):

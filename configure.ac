@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 # fly version number (used in fly/__init__.py and setup.py)
-m4_define(_FLY_VERSION, 1.3.0)
+m4_define(_FLY_VERSION, 1.4.0)
 
 AC_PREREQ([2.69])
 

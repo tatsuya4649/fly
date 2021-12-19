@@ -1,5 +1,7 @@
 TODO list:
 
-v 1.3.0
+v 1.4.0
 
-* Change Python UI. request -> header, body, etc...
+* Add Rquest Parser
+
+* Add helper function(redirect, ...)

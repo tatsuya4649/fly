@@ -115,11 +115,12 @@ void fly_header_state(fly_hdr_ci *__ci, struct fly_request *__req);
 void fly_response_header_init(struct fly_response *__res, struct fly_request *__req);
 bool fly_is_multipart_form_data(fly_hdr_ci *ci);
 
-#define FLY_COOKIE_HEADER_NAME			"Cookie"
-#define FLY_COOKIE_HEADER_NAME_S		"cookie"
+#define FLY_COOKIE_HEADER_NAME			"cookie"
 #define FLY_COOKIE_HEADER_NAME_LEN		6
 bool fly_is_cookie(char *name, size_t len);
 bool fly_is_cookie_chain(fly_hdr_c *__c);
 void fly_check_cookie(fly_hdr_ci *__ci);
+
+bool fly_check_expect_100(fly_hdr_ci *__ci);
 
 #endif

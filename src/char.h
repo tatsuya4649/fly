@@ -2,6 +2,7 @@
 #define _CHAR_H
 
 #include <stdbool.h>
+#include <stddef.h>
 
 static inline bool fly_equal(char c)
 {
@@ -72,6 +73,11 @@ static inline void fly_alpha_upper_to_lower(char *c)
 		return;
 }
 
+static inline char fly_alpha_lower(char c)
+{
+	return fly_ualpha(c) ? c + 0x20 : c;
+}
+
 
 static inline bool fly_alpha(char c)
 {
@@ -115,5 +121,15 @@ static inline bool fly_question(char c)
 
 #define FLY_SLASH						'/'
 #define FLY_QUESTION					'?'
+
+/* Check whether string are same when ignore lower and upper. */
+static inline bool fly_same_string_ignore_lu(char *c1, char *c2, size_t n)
+{
+	for (size_t i=0; i<n; i++){
+		if (fly_alpha_lower(c1[i]) != fly_alpha_lower(c2[i]))
+			return false;
+	}
+	return true;
+}
 
 #endif

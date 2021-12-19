@@ -108,6 +108,12 @@ pm_error:
 
 void fly_worker_release(fly_worker_t *worker)
 {
+#ifdef DEBUG
+	sleep(1);
+	printf("WORKER: ==================release resource==================\n");
+	printf("WORKER: now event count %d: %d\n", worker->event_manager->monitorable.count, worker->event_manager->unmonitorable.count);
+	fflush(stdout);
+#endif
 	assert(worker != NULL);
 
 	if (worker->event_manager)
@@ -118,6 +124,10 @@ void fly_worker_release(fly_worker_t *worker)
 
 	fly_pool_manager_release(worker->pool_manager);
 	fly_free(worker);
+#ifdef DEBUG
+	printf("WORKER: ====================================================\n");
+	fflush(stdout);
+#endif
 }
 
 __fly_static void fly_add_worker_sig(fly_context_t *ctx, int num, fly_sighand_t *handler)
@@ -513,10 +523,12 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 
 	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++)
 		fly_add_worker_sig(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler);
-//	fly_worker_rtsig_added(ctx);
 
 	int sigfd;
 	sigfd = fly_signal_register(&sset);
+#ifdef DEBUG
+	printf("WORKER: signalfd %d\n", sigfd);
+#endif
 	if (sigfd == -1)
 		return FLY_WORKER_SIGNAL_EVENT_SIGNAL_REGISTER_ERROR;
 
@@ -531,10 +543,9 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 	e->flag = FLY_PERSISTENT;
 	e->expired = false;
 	e->available = false;
-	e->handler = __fly_worker_signal_handler;
-	e->end_handler = __fly_worker_signal_end_handler;
+	FLY_EVENT_HANDLER(e, __fly_worker_signal_handler);
+	FLY_EVENT_END_HANDLER(e, __fly_worker_signal_end_handler, NULL);
 	e->if_fail_term = true;
-	//e->event_data = (void *) worker;
 	fly_event_data_set(e, __p, worker);
 
 	fly_time_null(e->timeout);
@@ -863,7 +874,6 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
 	fly_time_null(e->timeout);
-	//e->event_data = sockinfo;
 	fly_event_data_set(e, __p, sockinfo);
 	e->expired = false;
 	e->available = false;
