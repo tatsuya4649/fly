@@ -10,6 +10,7 @@
 #include "v2.h"
 #include "encode.h"
 #include "response.h"
+#include "request.h"
 
 fly_status_code responses[] = {
 	/* 1xx Info */
@@ -87,6 +88,7 @@ fly_response_t *fly_response_init(struct fly_context *ctx)
 	response->rcbs = NULL;
 	response->send_len = 0;
 	response->response_len = 0;
+	response->flag = 0;
 	response->original_response_len = 0;
 	return response;
 }
@@ -244,7 +246,6 @@ __fly_static int __fly_response_release_handler(fly_event_t *e)
 	fly_connect_t *con;
 	fly_response_t *res;
 
-	//res = (fly_response_t *) e->event_data;
 	res = (fly_response_t *) fly_event_data_get(e, __p);
 	req = res->request;
 	con = req->connect;
@@ -266,7 +267,6 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	fly_connect_t *con;
 	fly_context_t *ctx;
 
-	//res = (fly_response_t *) e->event_data;
 	res = (fly_response_t *) fly_event_data_get(e, __p);
 	req = res->request;
 	con = req->connect;
@@ -288,16 +288,12 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->eflag = 0;
 	fly_sec(&e->timeout, ctx->request_timeout);
 	FLY_EVENT_HANDLER(e, fly_request_event_handler);
-	//e->event_data = (void *) req;
 	fly_event_data_set(e, __p, req);
 	e->available = false;
 	e->expired = false;
-	//e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
-	//e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
 	fly_event_fase_set(e, __e, EFLY_REQUEST_FASE_INIT);
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_INIT);
 	FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
-	//e->expired_event_data = req;
 	fly_expired_event_data_set(e, __p, req);
 	fly_event_socket(e);
 
@@ -498,7 +494,6 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 
 __fly_static int fly_after_response(fly_event_t *e, fly_response_t *response)
 {
-	//e->event_data = (void *) response;
 	fly_event_data_set(e, __p, response);
 	switch (fly_connection(response->header)){
 	case FLY_CONNECTION_CLOSE:
@@ -540,7 +535,6 @@ int fly_response_event(fly_event_t *e)
 	fly_request_t *req;
 	fly_rcbs_t *rcbs=NULL;
 
-	//res = (fly_response_t *) e->event_data;
 	res = (fly_response_t *) fly_event_data_get(e, __p);
 	if (res->send_ptr)
 		goto end_of_encoding;
@@ -691,7 +685,26 @@ end_of_encoding:
 
 	if (fly_response_log(res, e) == -1)
 		return -1;
-	return fly_after_response(e, res);
+
+	if (res->flag & FLY_RESPONSE_BACK_TO_REQUEST_100){
+		fly_response_release(res);
+
+		e->read_or_write = FLY_READ;
+		e->flag = FLY_MODIFY;
+		e->tflag = FLY_INHERIT;
+		fly_event_data_set(e, __p, res->request);
+		FLY_EVENT_HANDLER(e, fly_request_event_handler);
+		fly_event_request_fase(e, BODY);
+		fly_event_request_state(e, CONT);
+		e->available = false;
+		e->expired = false;
+		fly_expired_event_data_set(e, __p, res->request);
+		fly_event_socket(e);
+
+		fly_remove_expect_from_header(res->request->header);
+		return fly_event_register(e);
+	}else
+		return fly_after_response(e, res);
 
 response_413:
 
@@ -740,6 +753,7 @@ fly_response_t *fly_100_response(fly_request_t *req)
 	res->encoded = false;
 	res->offset = 0;
 	res->byte_from_start = 0;
+	res->flag = FLY_RESPONSE_BACK_TO_REQUEST_100;
 
 	fly_add_server(res->header, is_fly_request_http_v2(req));
 	fly_add_date(res->header, is_fly_request_http_v2(req));
@@ -748,13 +762,21 @@ fly_response_t *fly_100_response(fly_request_t *req)
 
 	return res;
 }
+
 int fly_100_event(fly_event_t *e, fly_request_t *req)
 {
 	fly_response_t *res;
+	/* Response(100) event*/
+//	fly_event_t *ne;
+//
+//	ne = fly_event_init(e->manager);
+	e->read_or_write = FLY_WRITE;
 
 	res = fly_100_response(req);
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
+//	memcpy(&ne->timeout, &e->timeout, sizeof(fly_time_t));
+//	memcpy(&ne->start, &e->start, sizeof(fly_time_t));
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
@@ -763,6 +785,7 @@ int fly_100_event(fly_event_t *e, fly_request_t *req)
 	fly_event_socket(e);
 	fly_response_timeout_end_setting(e, res);
 	e->fail_close = fly_response_fail_close_handler;
+
 	return fly_event_register(e);
 }
 

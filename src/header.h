@@ -51,12 +51,12 @@ struct fly_hdr_chain{
 
 struct fly_hv2_state;
 struct fly_hdr_chain_info{
-	fly_pool_t *pool;
-	struct fly_bllist	chain;
-	unsigned chain_count;
+	fly_pool_t					*pool;
+	struct fly_bllist			chain;
+	unsigned					chain_count;
 
 	/* for HTTP2 */
-	struct fly_hv2_state *state;
+	struct fly_hv2_state		*state;
 };
 typedef struct fly_hdr_chain fly_hdr_c;
 typedef struct fly_hdr_chain_info fly_hdr_ci;
@@ -122,5 +122,7 @@ bool fly_is_cookie_chain(fly_hdr_c *__c);
 void fly_check_cookie(fly_hdr_ci *__ci);
 
 bool fly_check_expect_100(fly_hdr_ci *__ci);
+void fly_remove_header_chain(fly_hdr_ci *__ci, char *name, size_t name_len);
+void fly_remove_expect_from_header(fly_hdr_ci *__ci);
 
 #endif

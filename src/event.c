@@ -389,6 +389,7 @@ int fly_event_register(fly_event_t *event)
 			}
 		}
 	}
+	event->available_row = 0;
 #ifdef HAVE_EPOLL
 	data.ptr = event;
 	ev.data = data;

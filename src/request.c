@@ -1344,6 +1344,9 @@ __fase_body:
 	content_length = fly_content_length(request->header);
 	/* Check Expect: 100-continue */
 	if (fly_check_expect_100(request->header)){
+#ifdef DEBUG
+		printf("\tDetect EXPECT: 100-continue %ld: %ld\n", content_length, request->ctx->max_request_length);
+#endif
 		/* Too payload large */
 		if (content_length > request->ctx->max_request_length)
 			goto response_417;
@@ -1531,7 +1534,6 @@ read_continuation:
 	event->read_or_write = FLY_READ;
 	goto continuation;
 continuation:
-	//event->event_state = (void *) EFLY_REQUEST_STATE_CONT;
 	fly_event_state_set(event, __e, EFLY_REQUEST_STATE_CONT);
 	event->flag = FLY_MODIFY;
 	FLY_EVENT_HANDLER(event, fly_request_event_handler);

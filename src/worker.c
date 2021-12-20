@@ -109,7 +109,6 @@ pm_error:
 void fly_worker_release(fly_worker_t *worker)
 {
 #ifdef DEBUG
-	sleep(1);
 	printf("WORKER: ==================release resource==================\n");
 	printf("WORKER: now event count %d: %d\n", worker->event_manager->monitorable.count, worker->event_manager->unmonitorable.count);
 	fflush(stdout);

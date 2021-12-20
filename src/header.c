@@ -176,8 +176,6 @@ int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name
 	memset(new_chain->value, '\0', value_len+1);
 	/* To lower value */
 	fly_buffer_memcpy(new_chain->value, value, bc, value_len);
-	for (int i=0; i<value_len; i++)
-		new_chain->value[i] = fly_alpha_lower(value[i]);
 
 	new_chain->name[name_len] = '\0';
 	new_chain->value[value_len] = '\0';
@@ -645,7 +643,7 @@ void fly_check_cookie(fly_hdr_ci *__ci)
 
 bool fly_check_expect_100(fly_hdr_ci *__ci)
 {
-#define FLY_HEADER_EXPECT			"Expect"
+#define FLY_HEADER_EXPECT			"expect"
 #define FLY_HEADER_100_CONTINUE		"100-continue"
 #ifdef DEBUG
 	assert(__ci);
@@ -664,4 +662,35 @@ bool fly_check_expect_100(fly_hdr_ci *__ci)
 		}
 	}
 	return false;
+}
+
+void fly_remove_header_chain(fly_hdr_ci *__ci, char *name, size_t name_len)
+{
+#ifdef DEBUG
+	assert(__ci != NULL);
+#endif
+	if (__ci == NULL || __ci->chain_count == 0)
+		return;
+
+	struct fly_bllist *__b;
+	fly_hdr_c *__c;
+	fly_for_each_bllist(__b, &__ci->chain){
+		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (__c->name_len == name_len && \
+				strncmp(__c->name, name, name_len) == 0){
+			/* Remove founded header item */
+			fly_bllist_remove(&__c->blelem);
+
+			__ci->chain_count--;
+			fly_pbfree(__ci->pool, __c->name);
+			fly_pbfree(__ci->pool, __c->value);
+			fly_pbfree(__ci->pool, __c);
+		}
+	}
+	return;
+}
+
+void fly_remove_expect_from_header(fly_hdr_ci *__ci)
+{
+	return fly_remove_header_chain(__ci, FLY_HEADER_EXPECT, strlen(FLY_HEADER_EXPECT));
 }

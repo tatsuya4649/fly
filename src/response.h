@@ -108,6 +108,8 @@ struct fly_response{
 		void *					datav;
 		long					datal;
 	};
+#define FLY_RESPONSE_BACK_TO_REQUEST_100		(1 << 0)
+	int							flag;
 
 	fly_bit_t					encoded: 1;
 	fly_bit_t					blocking: 1;

@@ -415,14 +415,11 @@ void fly_buffer_chain_release_from_length(fly_buffer_c *__c, size_t len)
 
 		fly_for_each_bllist(__b, &__n->buffer->chain){
 			__c = fly_bllist_data(__b, struct fly_buffer_chain, blelem);
-			printf("%ld\n", __c->unuse_ptr-__c->use_ptr+1);
 			if (__c->status == FLY_BUF_FULL)
 				total += (__c->unuse_ptr-__c->use_ptr+1);
 			else
 				total += (__c->unuse_ptr-__c->use_ptr);
 		}
-		printf("%ld\n", total);
-		printf("%ld\n", __n->buffer->use_len);
 		assert(total == __n->buffer->use_len);
 #endif
 	}

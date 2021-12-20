@@ -4,6 +4,9 @@
 #include <stddef.h>
 #include <stdbool.h>
 #include "util.h"
+#ifdef DEBUG
+#include <stdio.h>
+#endif
 
 struct fly_queue{
 	int				 count;
@@ -40,6 +43,51 @@ static inline struct fly_queue *fly_queue_last(struct fly_queue *__h)
 {
 	return __h->prev;
 }
+
+//static inline void fly_queue_swap(struct fly_queue *__q1, struct fly_queue *__q2)
+//{
+//#ifdef DEBUG
+//	struct fly_queue *__dq1n, *__dq1p;
+//	struct fly_queue *__dq2n, *__dq2p;
+//
+//	__dq1n = __q1->next;
+//	__dq1p = __q1->prev;
+//	__dq2n = __q2->next;
+//	__dq2p = __q2->prev;
+//#endif
+//	struct fly_queue  *__tmp1n, *__tmp1p, *__tmp1pn, *__tmp1np;
+//	struct fly_queue  *__tmp2n, *__tmp2p, *__tmp2pn, *__tmp2np;
+//	__tmp1p = __q1->prev;
+//	__tmp1n = __q1->next;
+//	__tmp2p = __q2->prev;
+//	__tmp2n = __q2->next;
+//
+//	__tmp1pn = __q1->prev->next;
+//	__tmp1np = __q1->next->prev;
+//	__tmp2pn = __q2->prev->next;
+//	__tmp2np = __q2->next->prev;
+//	__q1->prev->next = __tmp2pn;
+//	__q1->next->prev = __tmp2np;
+//	__q2->prev->next = __tmp1pn;
+//	__q2->next->prev = __tmp1np;
+//
+//	__q1->prev = __tmp2p;
+//	__q1->next = __tmp2n;
+//	__q2->prev = __tmp1p;
+//	__q2->next = __tmp1n;
+//
+//#ifdef DEBUG
+//	printf("%p == %p\n", __q1->next, __dq2n);
+//	printf("%p == %p\n", __q1->prev, __dq2p);
+//	printf("%p == %p\n", __q2->next, __dq1n);
+//	printf("%p == %p\n", __q2->prev, __dq1p);
+//	assert(__q1->next == __dq2n);
+//	assert(__q1->prev == __dq2p);
+//	assert(__q2->next == __dq1n);
+//	assert(__q2->prev == __dq1p);
+//#endif
+//	return;
+//}
 
 static inline void fly_queue_remove(struct fly_queue *__x)
 {
