@@ -469,4 +469,19 @@ bool fly_hv2_is_index_header_noupdate(uint8_t *pl);
 bool fly_hv2_is_index_header_noindex(uint8_t *pl);
 #endif
 
+static inline void fly_hv2_max_handled_sid(fly_hv2_stream_t *stream)
+{
+#ifdef DEBUG
+	assert(stream != NULL);
+	assert(stream->state != NULL);
+#endif
+	if (stream->id > stream->state->max_handled_sid)
+		stream->state->max_handled_sid = stream->id;
+}
+
+static inline void fly_hv2_stream_end_request_response(fly_hv2_stream_t *stream)
+{
+	stream->end_request_response = true;
+}
+
 #endif

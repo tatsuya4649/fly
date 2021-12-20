@@ -6,6 +6,8 @@
 #include "mime.h"
 
 int fly_hv2_request_event_handler(fly_event_t *e);
+int fly_hv2_response_event(fly_event_t *e);
+int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream);
 fly_hv2_stream_t *fly_hv2_create_stream(fly_hv2_state_t *state, fly_sid_t id, bool from_client);
 fly_hv2_stream_t *fly_hv2_stream_search_from_sid(fly_hv2_state_t *state, fly_sid_t sid); void fly_send_settings_frame(fly_hv2_stream_t *stream, uint16_t *id, uint32_t *value, size_t count, bool ack);
 
@@ -1309,6 +1311,7 @@ int fly_send_window_update_frame(fly_hv2_stream_t *stream, uint32_t update_size,
 	frame->payload = fly_pballoc(frame->pool, frame->payload_len);
 
 	fly_fh_setting(&frame->frame_header, frame->payload_len, frame->type, 0, false, frame->sid);
+	/* TODO: Search window update frame, and combine */
 	/* copy error_code/last-stream-id/r to payload */
 	uint8_t *ptr = frame->payload;
 	uint32_t *uptr = &update_size;
@@ -1371,7 +1374,6 @@ int fly_send_rst_stream_frame(fly_hv2_stream_t *stream, uint32_t error_code)
 }
 
 int fly_send_goaway_frame(fly_hv2_state_t *state, bool r, uint32_t error_code);
-int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream);
 
 /*
  * if expired or end of process, this function is called
@@ -1435,12 +1437,15 @@ int fly_hv2_goaway_handle(fly_event_t *e, fly_hv2_state_t *state)
 	fly_hv2_stream_t *__s;
 	struct fly_bllist *__b;
 
+retry:
+	if (state->stream_count == 0)
+		goto close_connection;
 	fly_for_each_bllist(__b, &state->streams){
 		__s = fly_bllist_data(__b, fly_hv2_stream_t, blelem);
 		if (!__s->peer_end_headers || (!__s->can_response && !__s->yetsend_count)){
 			if (fly_hv2_close_stream(__s) == -1)
 				return -1;
-			continue;
+			goto retry;
 		}
 
 
@@ -1580,18 +1585,11 @@ static inline bool fly_hv2_settings_frame_ack_from_flags(uint8_t flags)
 
 int fly_send_frame(fly_event_t *e, fly_hv2_stream_t *stream);
 int fly_hv2_responses(fly_event_t *e, fly_hv2_state_t *state __fly_unused);
-int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream);
 int fly_state_send_frame(fly_event_t *e, fly_hv2_state_t *state);
 
 int fly_hv2_request_event_handler(fly_event_t *event)
 {
 	do{
-#ifdef DEBUG
-		if (event->read_or_write & FLY_READ)
-			printf("HTTP2 READ ENABLE\n");
-		if (event->read_or_write & FLY_WRITE)
-			printf("HTTP2 WRITE ENABLE\n");
-#endif
 		fly_connect_t *conn;
 		fly_buf_p *bufp;
 		fly_buffer_c *bufc, *plbufc;
@@ -4732,7 +4730,6 @@ next_header:
 	return 0;
 }
 
-int fly_hv2_response_event(fly_event_t *e);
 
 int fly_hv2_responses(fly_event_t *e, fly_hv2_state_t *state __fly_unused)
 {
@@ -4756,6 +4753,10 @@ void fly_hv2_add_response(fly_hv2_state_t *state, struct fly_hv2_response *res)
 
 void fly_hv2_remove_hv2_response(fly_hv2_state_t *state, struct fly_hv2_response *res)
 {
+	fly_response_t *__res;
+
+	__res = res->response;
+	fly_response_release(__res);
 	fly_queue_remove(&res->qelem);
 	fly_pbfree(state->pool, res);
 	state->response_count--;
@@ -5142,6 +5143,9 @@ int fly_hv2_response_event(fly_event_t *e)
 	else
 		fly_add_content_length(res->header, res->response_len, true);
 send_header:
+#ifdef DEBUG
+	printf("WORKER: Send Header\n");
+#endif
 	fly_send_headers_frame(stream, res);
 	e->read_or_write |= FLY_WRITE;
 	//e->event_data = (void *) res->request->connect;
@@ -5149,6 +5153,9 @@ send_header:
 	goto register_handler;
 
 send_body:
+#ifdef DEBUG
+	printf("WORKER: Send Body\n");
+#endif
 	/* only send */
 	return fly_send_data_frame(e, res);
 
@@ -5159,15 +5166,13 @@ log:
 	if (fly_response_log(res, e) == -1)
 		return -1;
 
-	/* release response resources */
+	/* Release response resources */
 	res->fase = FLY_RESPONSE_RELEASE;
-	//e->event_data = (void *) res->request->connect;
 	fly_event_data_set(e, __p, res->request->connect);
+	/* Release hv2 response/response */
 	fly_hv2_remove_response(stream->state, res);
-	fly_response_release(res);
-	if (stream->id > stream->state->max_handled_sid)
-		stream->state->max_handled_sid = stream->id;
-	stream->end_request_response = true;
+	fly_hv2_max_handled_sid(stream);
+	fly_hv2_stream_end_request_response(stream);
 
 	if (stream->state->response_count == 0 && \
 			stream->state->send_count == 0)

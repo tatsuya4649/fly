@@ -5,3 +5,5 @@ v 1.4.0
 * Add Rquest Parser
 
 * Add helper function(redirect, ...)
+
+* Fix memory leak(in disconnection)
