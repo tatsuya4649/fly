@@ -52,4 +52,8 @@ int fly_server_port(void);
 char *fly_server_host(void);
 int fly_backlog(void);
 
+#ifdef DEBUG
+int fly_can_recv(int fd);
+#endif
+
 #endif

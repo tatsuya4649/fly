@@ -7,6 +7,7 @@
 #include "err.h"
 #include "ssl.h"
 #include "conf.h"
+#include <sys/ioctl.h>
 
 int fly_socket_nonblocking(fly_sock_t s)
 {
@@ -206,3 +207,13 @@ retry:
 	}
 	return 0;
 }
+
+#ifdef DEBUG
+int fly_can_recv(int fd)
+{
+	int _b;
+	if (ioctl(fd, FIONREAD, &_b) == -1)
+		return -1;
+	return _b;
+}
+#endif

@@ -536,6 +536,9 @@ int fly_receive_v2(fly_sock_t fd, fly_connect_t *connect)
 		fly_error_error(__err);
 	}
 
+#ifdef DEBUG
+	printf("Now can receive %d\n", fly_can_recv(fd));
+#endif
 	int recvlen=0, total=0;
 	if (FLY_CONNECT_ON_SSL(connect)){
 		SSL *ssl = connect->ssl;
@@ -731,9 +734,6 @@ struct fly_hv2_send_frame *fly_hv2_send_frame_init(fly_hv2_stream_t *stream)
 	struct fly_hv2_send_frame *frame;
 
 	frame = fly_pballoc(stream->state->pool, sizeof(struct fly_hv2_send_frame));
-	if (fly_unlikely_null(frame))
-		return NULL;
-
 	frame->stream = stream;
 	frame->pool = stream->state->pool;
 	frame->sid = stream->id;
@@ -1297,10 +1297,10 @@ int fly_send_window_update_frame(fly_hv2_stream_t *stream, uint32_t update_size,
 {
 	struct fly_hv2_send_frame *frame;
 
+#ifdef DEBUG
+	assert(update_size >= 1 && update_size <= FLY_HV2_WINDOW_SIZE_MAX);
+#endif
 	frame = fly_hv2_send_frame_init(stream);
-	if (fly_unlikely_null(frame))
-		return -1;
-
 	frame->send_fase = FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER;
 	frame->send_len = 0;
 	frame->type = FLY_HV2_FRAME_TYPE_WINDOW_UPDATE;
@@ -1326,38 +1326,7 @@ int fly_send_window_update_frame(fly_hv2_stream_t *stream, uint32_t update_size,
 	*ptr++ = *(((uint8_t *) uptr)+0);
 #endif
 
-
-	struct fly_queue *__q;
-	struct fly_hv2_send_frame *__s;
-	fly_for_each_queue(__q, &stream->yetsend){
-		__s = fly_queue_data(__q, struct fly_hv2_send_frame, qelem);
-		if (__s->sid == stream->id && \
-				__s->type == FLY_HV2_FRAME_TYPE_WINDOW_UPDATE){
-			fly_hv2_send_frame_release(__s);
-			break;
-		}
-	}
 	__fly_hv2_add_yet_send_frame(frame);
-
-#ifdef DEBUG
-	int i=0;
-	fly_for_each_queue(__q, &stream->yetsend){
-		__s = fly_queue_data(__q, struct fly_hv2_send_frame, qelem);
-		if (__s->sid == stream->id && \
-				__s->type == FLY_HV2_FRAME_TYPE_WINDOW_UPDATE)
-			i++;
-	}
-	assert(i == 1);
-
-	i=0;
-	fly_for_each_queue(__q, &stream->state->send){
-		__s = fly_queue_data(__q, struct fly_hv2_send_frame, sqelem);
-		if (__s->sid == stream->id && \
-				__s->type == FLY_HV2_FRAME_TYPE_WINDOW_UPDATE)
-			i++;
-	}
-	assert(i == 1);
-#endif
 	return 0;
 }
 
@@ -1527,7 +1496,6 @@ int fly_hv2_request_event_blocking_handler(fly_event_t *e)
 	fly_connect_t *conn;
 
 	conn = (fly_connect_t *) fly_event_data_get(e, __p);
-
 	/* receive from peer */
 	switch(fly_receive_v2(conn->c_sockfd, conn)){
 	case FLY_REQUEST_RECEIVE_ERROR:
@@ -1586,13 +1554,22 @@ overflow:
 
 int fly_hv2_request_event_blocking(fly_event_t *e, fly_connect_t *conn)
 {
+	fly_event_data_set(e, __p, conn);
 
+	if (FLY_CONNECT_ON_SSL(conn)){
+		SSL *ssl = conn->ssl;
+
+		if (SSL_has_pending(ssl)){
+#ifdef DEBUG
+			printf("Have SSL buffered data %dbytes\n", SSL_pending(ssl));
+#endif
+			return fly_hv2_request_event_blocking_handler(e);
+		}
+	}
 	e->read_or_write |= FLY_READ;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
-	fly_event_data_set(e, __p, conn);
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_blocking_handler);
-
 	return fly_event_register(e);
 }
 
@@ -1728,7 +1705,7 @@ int fly_hv2_request_event_handler(fly_event_t *event)
 			fly_hv2_send_protocol_error(FLY_HV2_ROOT_STREAM(state), FLY_HV2_CONNECTION_ERROR);
 		} else if ((FLY_HV2_FRAME_HEADER_LENGTH+length) > conn->buffer->use_len){
 #ifdef DEBUG
-			printf("\t\tread blocking...%ld/%d\n", conn->buffer->use_len, (FLY_HV2_FRAME_HEADER_LENGTH+length));
+			printf("\t\tread blocking...%ld/%d\n", conn->buffer->use_len, length);
 #endif
 			goto blocking;
 		}
@@ -4630,28 +4607,24 @@ int fly_hv2_parse_data(fly_event_t *event, fly_hv2_stream_t *stream, uint32_t le
 
 	/* copy receive buffer to body content. */
 	fly_buffer_memcpy((char *) bc, (char *) payload, __c, length);
-
 	body->next_ptr += length;
 
 	/*
 	 * send window_udpate_frame and recover window size
 	 */
 	// window update for connection
-	if (fly_send_window_update_frame(FLY_HV2_ROOT_STREAM(stream->state), stream->window_size, false) == -1)
+	if (fly_send_window_update_frame(FLY_HV2_ROOT_STREAM(stream->state), length, false) == -1)
 		return FLY_HV2_PARSE_DATA_ERROR;
 	// window update for stream
-	if (fly_send_window_update_frame(stream, stream->window_size, false) == -1)
+	if (fly_send_window_update_frame(stream, length, false) == -1)
 		return FLY_HV2_PARSE_DATA_ERROR;
 
 	event->read_or_write |= FLY_WRITE;
-
 #ifdef DEBUG
 	float percent;
-
 	percent = 100*(body->next_ptr-body->body)/content_length;
 	printf("HTTP2 Recv Body: %ld/%ld(%d)\n", body->next_ptr-body->body, content_length, (int) percent);
 #endif
-
 	return FLY_HV2_PARSE_DATA_SUCCESS;
 }
 
