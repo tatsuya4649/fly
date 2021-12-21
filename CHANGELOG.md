@@ -6,7 +6,27 @@ Released: 2021/12/19
 
 ## Added
 
+### Python
+
 * RequestParser to parse dict of request
+
+### C
+
+* Support Expect: 100-continue
+
+## Changed
+
+### C
+
+* Fixed handler sending Window update frame
+
+## Fixed
+
+### C
+
+* Fixed SSL bug in HTTP2(POST method)
+
+* Fixed Memory leak
 
 ## 1.3.0
 

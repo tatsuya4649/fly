@@ -1333,6 +1333,7 @@ int fly_send_window_update_frame(fly_hv2_stream_t *stream, uint32_t update_size,
 
 	/* Search window update frame, and combine */
 retry:
+	;
 	struct fly_queue *__q;
 	struct fly_hv2_send_frame *__s;
 	fly_for_each_queue(__q, &stream->yetsend){
