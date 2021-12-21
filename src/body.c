@@ -54,7 +54,7 @@ fly_bodyc_t *fly_decode_nowbody(fly_request_t *request, fly_encoding_type_t *t)
 		return NULL;
 
 	size_t __max;
-	__max = fly_max_request_length();
+	__max = fly_max_request_content_length();
 	de->decbuf = fly_buffer_init(de->pool, FLY_BODY_DECBUF_INIT_LEN, FLY_BODY_DECBUF_CHAIN_MAX(__max), FLY_BODY_DECBUF_PER_LEN);
 	de->decbuflen = FLY_BODY_DECBUF_INIT_LEN;
 
@@ -91,7 +91,7 @@ fly_bodyc_t *fly_decode_body(fly_buffer_c *body_c, fly_encoding_type_t *t, fly_b
 	}
 
 	size_t __max;
-	__max = fly_max_request_length();
+	__max = fly_max_request_content_length();
 	de->decbuf = fly_buffer_init(de->pool, FLY_BODY_DECBUF_INIT_LEN, FLY_BODY_DECBUF_CHAIN_MAX(__max), FLY_BODY_DECBUF_PER_LEN);
 	de->decbuflen = FLY_BODY_DECBUF_INIT_LEN;
 	if (de->decbuf == NULL){

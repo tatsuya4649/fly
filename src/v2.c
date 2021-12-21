@@ -4605,7 +4605,7 @@ int fly_hv2_parse_data(fly_event_t *event, fly_hv2_stream_t *stream, uint32_t le
 		if (fly_unlikely_null(body))
 			return FLY_HV2_PARSE_DATA_ERROR;
 
-		if (content_length > req->ctx->max_request_length){
+		if (content_length > req->ctx->max_request_content_length){
 			req->discard_body = true;
 			/*
 			 * send window_udpate_frame and recover window size

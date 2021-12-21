@@ -67,7 +67,7 @@ void fly_config_item_default_setting(void)
 		fprintf(stderr, "end process by config parse error.\n");\
 		exit(-1*__e);							\
 	} while(0)
-int fly_parse_config_file(void)
+int fly_parse_config_file(struct fly_err *err)
 {
 #define FLY_CONFIG_BUF_LENGTH				1024
 	char config_buf[FLY_CONFIG_BUF_LENGTH];
@@ -89,10 +89,29 @@ int fly_parse_config_file(void)
 
 	__cf = fly_open_config_file();
 	errno = 0;
-	if ((__cf == NULL && errno == ENOENT) || (__cf == NULL && errno == 0))
+	if ((__cf == NULL && errno == ENOENT) || (__cf == NULL && errno == 0)){
+		if (err != NULL){
+			fly_error(
+				err, errno,
+				FLY_ERR_WARN,
+				"Not found config file(%s).",
+				fly_config_path() != NULL ? fly_config_path() : ""
+			);
+		}
 		return FLY_PARSE_CONFIG_NOTFOUND;
-	if (__cf == NULL)
+	}
+	if (__cf == NULL){
+		if (err != NULL){
+			fly_error(
+				err, errno,
+				FLY_ERR_ERR,
+				"Open config file error(%s). %s",
+				fly_config_path() != NULL ? fly_config_path() : "",
+				strerror(errno)
+			);
+		}
 		return FLY_PARSE_CONFIG_ERROR;
+	}
 
 	lines = 0;
 	memset(config_buf, '\0', FLY_CONFIG_BUF_LENGTH);
@@ -137,6 +156,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: \"%s\". Invalid character(\"%c\")",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case COMMENT:
 				goto comment;
@@ -163,6 +190,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: %d, \"%s\". Invalid name character(\"%c\")",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, ptr-config_buf+1, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case NAME_END:
 				if (FLY_PARSE_CONFIG_SPACE(ptr)){
@@ -180,6 +215,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: %d, \"%s\". Invalid name end character(\"%c\"). Must be equal or space.",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, ptr-config_buf+1, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case EQUAL:
 				if (FLY_PARSE_CONFIG_SPACE(ptr)){
@@ -191,6 +234,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: %d, \"%s\". Invalid character(\"%c\"). Must be space or value character.",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, ptr-config_buf+1, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case VALUE:
 				if (FLY_PARSE_CONFIG_VALUE_CHAR(ptr)){
@@ -212,6 +263,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: %d, \"%s\". Invalid value character(\"%c\").",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, ptr-config_buf+1, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case VALUE_END:
 				goto end_line;
@@ -258,6 +317,15 @@ newline:
 syntax_error:
 	return FLY_PARSE_CONFIG_ERROR;
 error:
+	if (err != NULL){
+		fly_error(
+			err, errno,
+			FLY_ERR_ERR,
+			"Parse config file error(%s). %s",
+			fly_config_path() != NULL ? fly_config_path() : "",
+			strerror(errno)
+		);
+	}
 	return FLY_PARSE_CONFIG_SYNTAX_ERROR;
 }
 

@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "util.h"
+#include "err.h"
 
 #define FLY_PREFIX			"./"
 #define FLY_PID_FILE		(FLY_PREFIX "log/fly.pid")
@@ -36,7 +37,7 @@ extern struct fly_config configs[];
 #define FLY_PARSE_CONFIG_ERROR				(-1)
 #define FLY_PARSE_CONFIG_SUCCESS			(1)
 #define FLY_PARSE_CONFIG_SYNTAX_ERROR		(0)
-int fly_parse_config_file(void);
+int fly_parse_config_file(struct fly_err *err);
 long fly_config_value_long(char *name);
 char *fly_config_value_str(char *name);
 bool fly_config_value_bool(char *name);

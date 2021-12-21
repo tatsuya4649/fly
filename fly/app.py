@@ -301,6 +301,13 @@ class Fly(_Fly, Mount, Route, _fly_server):
         print(f"    \033[1m*\033[0m fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
         if self._app_filepath:
             print(f"    \033[1m*\033[0m Application file: \033[1m{self._app_filepath}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Log to stdout: \033[1m{ 'on' if self._log_stdout else 'off' }\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Log to stderr: \033[1m{ 'on' if self._log_stderr else 'off' }\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Backlog count: \033[1m{ self._backlog }\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Max response content length: \033[1m{ self._max_response_content_length}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Max request content length: \033[1m{ self._max_request_content_length}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Index path: \033[1m{ self._index_path}\033[0m", file=sys.stderr)
+
         print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m", file=sys.stderr)
         if self._ssl:
             print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m", file=sys.stderr)
@@ -324,5 +331,6 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, _mfc, width=max_len, mn=_mn), file=sys.stderr)
         else:
             print(f"    \033[1m*\033[0m Mount paths: \033[1m-\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Default content paths: \033[1m{ '-' if self._default_content_path is None else selff_default_content_path}\033[0m", file=sys.stderr)
 
         print("\n", file=sys.stderr)

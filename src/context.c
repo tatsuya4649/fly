@@ -25,7 +25,7 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm, struct fly_err *e
 	if (ctx->listen_sock == NULL)
 		goto error;
 	ctx->max_response_content_length = fly_response_content_max_length();
-	ctx->max_request_length = fly_max_request_length();
+	ctx->max_request_content_length = fly_max_request_content_length();
 	ctx->request_timeout = fly_request_timeout();
 	ctx->response_encode_threshold = fly_encode_threshold();
 	ctx->log = fly_log_init(ctx, err);

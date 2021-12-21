@@ -1345,17 +1345,17 @@ __fase_body:
 	/* Check Expect: 100-continue */
 	if (fly_check_expect_100(request->header)){
 #ifdef DEBUG
-		printf("\tDetect EXPECT: 100-continue %ld: %ld\n", content_length, request->ctx->max_request_length);
+		printf("\tDetect EXPECT: 100-continue %ld: %ld\n", content_length, request->ctx->max_request_content_length);
 #endif
 		/* Too payload large */
-		if (content_length > request->ctx->max_request_length)
+		if (content_length > request->ctx->max_request_content_length)
 			goto response_417;
 		else
 			goto response_100;
 
 	}
 	/* Too payload large */
-	if (content_length > request->ctx->max_request_length){
+	if (content_length > request->ctx->max_request_content_length){
 		switch (__fly_discard_body(request, content_length)){
 		case  FLY_DISCARD_BODY_END:
 #ifdef DEBUG
