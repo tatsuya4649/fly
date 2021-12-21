@@ -13,7 +13,8 @@ int main()
 	assert((master=fly_master_init(NULL)) != NULL);
 
 	assert(fly_mount_init(master->context) != -1);
-	assert(fly_mount(master->context, "./tests") != -1);
+	assert(fly_mount(master->context, "./tests/mnt") != -1);
+	assert(fly_mount(master->context, "./tests/mnt2") != -1);
 
 	fly_master_worker_spawn(master, fly_worker_process);
 
