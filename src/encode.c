@@ -1392,5 +1392,5 @@ bool fly_encoding_matching(struct fly_encoding *enc, struct fly_encoding_type *t
 
 size_t fly_encode_threshold(void)
 {
-	return (size_t) fly_config_value_int(FLY_ENCODE_THRESHOLD);
+	return (size_t) fly_config_value_long(FLY_ENCODE_THRESHOLD);
 }

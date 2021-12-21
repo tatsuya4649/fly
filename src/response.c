@@ -90,6 +90,7 @@ fly_response_t *fly_response_init(struct fly_context *ctx)
 	response->response_len = 0;
 	response->flag = 0;
 	response->original_response_len = 0;
+	response->end_response = false;
 	return response;
 }
 
@@ -475,9 +476,6 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 #endif
 	FLY_EVENT_HANDLER(le, fly_log_event_handler);
 	le->read_or_write = FLY_WRITE;
-	//le->event_fase = (void *) EFLY_LOG_FASE_INIT;
-	//le->event_state = (void *) EFLY_LOG_STATE_WAIT;
-	//le->event_data = (void *) log_content;
 	fly_event_fase_set(le, __e, EFLY_LOG_FASE_INIT);
 	fly_event_state_set(le, __e, EFLY_LOG_STATE_WAIT);
 	fly_event_data_set(le, __p, log_content);
@@ -486,9 +484,10 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 	le->eflag = 0;
 	le->expired = false;
 	fly_time_zero(le->timeout);
-	/* regular file event */
+	/* Regular file event */
 	fly_event_regular(le);
 
+	res->fase = FLY_RESPONSE_RELEASE;
 	return fly_event_register(le);
 }
 
@@ -683,6 +682,7 @@ end_of_encoding:
 		FLY_NOT_COME_HERE
 	}
 
+	res->end_response = true;
 	if (fly_response_log(res, e) == -1)
 		return -1;
 
@@ -1281,9 +1281,9 @@ int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_pa
 	return fly_event_register(e);
 }
 
-int fly_response_content_max_length(void)
+long fly_response_content_max_length(void)
 {
-	return fly_config_value_int(FLY_MAX_RESPONSE_CONTENT_LENGTH);
+	return fly_config_value_long(FLY_MAX_RESPONSE_CONTENT_LENGTH);
 }
 
 int fly_response_set_send_ptr(fly_response_t *response)

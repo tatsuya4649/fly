@@ -61,9 +61,9 @@ fly_signal_t fly_master_signals[] = {
 };
 
 
-static int fly_worker_max_limit(void)
+static long fly_worker_max_limit(void)
 {
-	return fly_config_value_int(FLY_WORKER_MAX);
+	return fly_config_value_long(FLY_WORKER_MAX);
 }
 /*
  *  adjust workers number.
@@ -510,9 +510,9 @@ __fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *
 }
 #endif
 
-static int fly_workers_count(void)
+static long fly_workers_count(void)
 {
-	return fly_config_value_int(FLY_WORKER);
+	return fly_config_value_long(FLY_WORKER);
 }
 
 void fly_master_release(fly_master_t *master)

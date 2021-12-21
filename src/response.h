@@ -79,6 +79,7 @@ struct fly_response{
 		FLY_RESPONSE_HEADER,
 		FLY_RESPONSE_CRLF,
 		FLY_RESPONSE_BODY,
+		FLY_RESPONSE_LOG,
 		FLY_RESPONSE_RELEASE,
 		/* for v2 */
 		FLY_RESPONSE_FRAME_HEADER,
@@ -113,6 +114,7 @@ struct fly_response{
 
 	fly_bit_t					encoded: 1;
 	fly_bit_t					blocking: 1;
+	fly_bit_t					end_response: 1;
 };
 typedef struct fly_response fly_response_t;
 #define fly_disconnect_from_response(res)		((res)->request->connect->peer_closed = true)
@@ -218,7 +220,7 @@ static inline bool fly_encode_do(fly_response_t *res)
 }
 
 #define FLY_MAX_RESPONSE_CONTENT_LENGTH	"FLY_MAX_RESPONSE_CONTENT_LENGTH"
-int fly_response_content_max_length(void);
+long fly_response_content_max_length(void);
 void fly_response_timeout_end_setting(fly_event_t *e, fly_response_t *res);
 int fly_response_fail_close_handler(fly_event_t *e, int fd __fly_unused);
 
@@ -229,5 +231,10 @@ int fly_response_fail_close_handler(fly_event_t *e, int fd __fly_unused);
 #define FLY_RESPONSE_ENCBUF_INIT_LEN		(1)
 #define FLY_RESPONSE_ENCBUF_PER_LEN		(1024*4)
 #define FLY_RESPONSE_ENCBUF_CHAIN_MAX(__size)		((size_t) (((size_t) __size/FLY_RESPONSE_ENCBUF_PER_LEN) + 1))
+
+static inline bool fly_end_response_yet_log(fly_response_t *res)
+{
+	return (res->end_response && res->fase != FLY_RESPONSE_LOG) ? true : false;
+}
 
 #endif

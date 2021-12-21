@@ -1702,7 +1702,7 @@ error:
 	return -1;
 }
 
-int fly_request_timeout(void)
+long fly_request_timeout(void)
 {
-	return fly_config_value_int(FLY_REQUEST_TIMEOUT);
+	return fly_config_value_long(FLY_REQUEST_TIMEOUT);
 }

@@ -361,15 +361,15 @@ int fly_listen_socket_end_handler(fly_event_t *__e)
 
 size_t fly_max_request_length(void)
 {
-	return (size_t) fly_config_value_int(FLY_MAX_REQUEST_LENGTH);
+	return (size_t) fly_config_value_long(FLY_MAX_REQUEST_LENGTH);
 }
 
 size_t fly_connect_buffer_init_len(void)
 {
-	return (size_t) fly_config_value_int(FLY_CONNECT_BUFFER_INIT_LEN);
+	return (size_t) fly_config_value_long(FLY_CONNECT_BUFFER_INIT_LEN);
 }
 
 size_t fly_connect_buffer_per_len(void)
 {
-	return (size_t) fly_config_value_int(FLY_CONNECT_BUFFER_PER_LEN);
+	return (size_t) fly_config_value_long(FLY_CONNECT_BUFFER_PER_LEN);
 }

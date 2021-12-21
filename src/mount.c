@@ -12,7 +12,7 @@
 #include "rbtree.h"
 
 __fly_static void __fly_path_cpy_with_mp(char *dist, char *src, const char *mount_point, size_t dist_len);
-static int fly_mount_max_limit(void);
+static long fly_mount_max_limit(void);
 static size_t fly_file_max_limit(void);
 static int __fly_mount_search_cmp(fly_rbdata_t *k1, fly_rbdata_t *k2, fly_rbdata_t *cmpdata);
 #ifdef HAVE_KQUEUE
@@ -403,7 +403,7 @@ int fly_mount(fly_context_t *ctx, const char *path)
 		return FLY_EARG;
 	}
 
-	if (fly_mount_max_limit() == ctx->mount->mount_count)
+	if ((size_t) fly_mount_max_limit() == ctx->mount->mount_count)
 		return FLY_EMOUNT_LIMIT;
 
 	/* alloc realpath memory */
@@ -1328,14 +1328,14 @@ int fly_mount_files_count(fly_mount_t *mnt, int mount_number)
 }
 
 #include "conf.h"
-static int fly_mount_max_limit(void)
+static long fly_mount_max_limit(void)
 {
-	return fly_config_value_int(FLY_MOUNT_MAX);
+	return fly_config_value_long(FLY_MOUNT_MAX);
 }
 
 static size_t fly_file_max_limit(void)
 {
-	return (size_t) fly_config_value_int(FLY_FILE_MAX);
+	return (size_t) fly_config_value_long(FLY_FILE_MAX);
 }
 
 /*

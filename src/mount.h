@@ -80,7 +80,7 @@ struct fly_context;
 typedef struct fly_context fly_context_t;
 struct fly_mount{
 	struct fly_bllist			parts;
-	int							mount_count;
+	size_t						mount_count;
 	size_t 						file_count;
 
 	struct fly_mount_parts_file	*index;

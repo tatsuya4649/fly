@@ -50,7 +50,7 @@ int fly_socket_nonblocking(fly_sock_t s);
 int fly_socket_close(int fd, int how);
 int fly_server_port(void);
 char *fly_server_host(void);
-int fly_backlog(void);
+long fly_backlog(void);
 
 #ifdef DEBUG
 int fly_can_recv(int fd);

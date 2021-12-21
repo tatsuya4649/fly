@@ -1021,7 +1021,7 @@ static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unuse
 		if (stat(__p->mount_path, &__sb) == -1){
 			if (errno == ENOENT){
 #ifdef DEBUG
-				int __tmp, __tmpc;
+				size_t __tmp, __tmpc;
 				size_t __tmpm;
 				__tmp = __p->file_count;
 				__tmpm = __p->mount->file_count;
@@ -1035,8 +1035,8 @@ static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unuse
 				/* unmount mount point */
 				__fly_work_unmount(__p);
 #ifdef DEBUG
-				printf("\tUnmount file count %d\n", __tmp);
-				printf("\tMount point count %d --> %d\n", __tmpc, __p->mount->mount_count);
+				printf("\tUnmount file count %ld\n", __tmp);
+				printf("\tMount point count %ld --> %ld\n", __tmpc, __p->mount->mount_count);
 				printf("\tTotal file count %ld --> %ld\n", __tmpm, __p->mount->file_count);
 				assert(__tmpm == __p->mount->file_count + __tmp);
 #endif

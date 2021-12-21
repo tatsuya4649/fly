@@ -15,9 +15,9 @@ int fly_socket_nonblocking(fly_sock_t s)
 	return ioctl(s, FIONBIO, &val);
 }
 
-int fly_backlog(void)
+long fly_backlog(void)
 {
-	return fly_config_value_int(FLY_BACKLOG);
+	return fly_config_value_long(FLY_BACKLOG);
 }
 
 void fly_add_sockinfo(fly_context_t *ctx, fly_sockinfo_t *info)
@@ -196,7 +196,7 @@ char *fly_server_host(void)
 
 int fly_server_port(void)
 {
-	return fly_config_value_int(FLY_PORT);
+	return fly_config_value_long(FLY_PORT);
 }
 
 int fly_socket_close(int fd, int how __fly_unused)

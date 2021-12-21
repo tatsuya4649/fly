@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include "char.h"
 #include "conf.h"
 
@@ -349,14 +350,20 @@ char *fly_config_value_str(char *name)
 	FLY_NOT_COME_HERE
 }
 
-int fly_config_value_int(char *name)
+long fly_config_value_long(char *name)
 {
+	long res;
 	char *env_value;
 	for (struct fly_config *__c=configs; __c->name; __c++){
 		if (strlen(name) == strlen(__c->env_name) && strncmp(name, __c->env_name, strlen(name)) == 0){
 			env_value = getenv(name);
 			assert(env_value != NULL);
-			return atoi(env_value);
+			errno = 0;
+			res = strtol(env_value, NULL, 10);
+			if (errno == ERANGE)
+				return LONG_MAX;
+			else
+				return res;
 		}
 	}
 	FLY_NOT_COME_HERE
