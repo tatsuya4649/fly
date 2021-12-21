@@ -509,10 +509,10 @@ streams_error:
  *	release handler of HTTP2 connection state.
  */
 void fly_hv2_dynamic_table_release(struct fly_hv2_state *state);
-void fly_hv2_remove_all_response(fly_hv2_state_t *state);
-void fly_hv2_state_release(fly_hv2_state_t *state)
+void fly_hv2_remove_all_response(fly_hv2_state_t *state, struct fly_event *e);
+void fly_hv2_state_release(fly_hv2_state_t *state, struct fly_event *e)
 {
-	fly_hv2_remove_all_response(state);
+	fly_hv2_remove_all_response(state, e);
 	fly_hv2_dynamic_table_release(state);
 	fly_pbfree(state->pool, state->emergency_ptr);
 	fly_pbfree(state->pool, state);
@@ -723,7 +723,7 @@ continuation:
 error:
 overflow:
 disconnect:
-	fly_hv2_state_release(conn->v2_state);
+	fly_hv2_state_release(conn->v2_state, e);
 	fly_connect_release(conn);
 
 	e->tflag = 0;
@@ -1457,7 +1457,7 @@ int fly_hv2_close_handle(fly_event_t *e, fly_hv2_state_t *state)
 
 	conn = state->connect;
 	/* state release */
-	fly_hv2_state_release(state);
+	fly_hv2_state_release(state, e);
 	/* connect release */
 	if (fly_connect_release(conn) == -1)
 		return -1;
@@ -2415,7 +2415,6 @@ int __fly_send_data_fh_event_handler(fly_event_t *e)
 	fly_response_t *res;
 	int flag;
 
-	//res = (fly_response_t *) e->event_data;
 	res = (fly_response_t *) fly_event_data_get(e, __p);
 	flag = res->datai;
 	/*
@@ -2493,7 +2492,6 @@ success:
 	fly_pbfree(res->pool, fh);
 	res->fase = FLY_RESPONSE_DATA_FRAME;
 
-	//e->event_data = (void *) res->request->connect;
 	fly_event_data_set(e, __p, res->request->connect);
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
@@ -2508,13 +2506,11 @@ write_blocking:
 	goto blocking;
 blocking:
 	res->datai = flag;
-	//e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	e->available = false;
-	//e->event_data = (void *) res->request->connect;
 	fly_event_data_set(e, __p, res->request->connect);
 	fly_event_socket(e);
 	return fly_event_register(e);
@@ -2523,7 +2519,6 @@ disconnect:
 	fly_disconnect_from_response(res);
 	fly_pbfree(res->pool, fh);
 	res->fase = FLY_RESPONSE_DATA_FRAME;
-	//e->event_data = (void *) res->request->connect;
 	fly_event_data_set(e, __p, res->request->connect);
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
@@ -2871,8 +2866,11 @@ success:
 			&& total >= res->response_len){
 		stream->stream_state = FLY_HV2_STREAM_STATE_CLOSED;
 		stream->end_send_data = true;
+		res->fase = FLY_RESPONSE_LOG;
+		res->end_response = true;
+		return fly_hv2_response_blocking_event(e, stream);
 	}
-	res->fase = FLY_RESPONSE_FRAME_HEADER;
+	res->fase = FLY_RESPONSE_DATA_FRAME;
 	stream->end_send_headers = true;
 
 	return fly_hv2_response_blocking_event(e, stream);
@@ -4790,11 +4788,19 @@ void fly_hv2_add_response(fly_hv2_state_t *state, struct fly_hv2_response *res)
 	return;
 }
 
-void fly_hv2_remove_hv2_response(fly_hv2_state_t *state, struct fly_hv2_response *res)
+void fly_hv2_remove_hv2_response(fly_hv2_state_t *state, struct fly_hv2_response *res, struct fly_event *e)
 {
 	fly_response_t *__res;
 
 	__res = res->response;
+	/* Check end response, but yet log */
+	if (fly_end_response_yet_log(__res)){
+#ifdef DEBUG
+		printf("End response, but yet log\n");
+#endif
+		/* Register log event */
+		fly_response_log(__res, e);
+	}
 	fly_response_release(__res);
 	fly_queue_remove(&res->qelem);
 	fly_pbfree(state->pool, res);
@@ -4802,7 +4808,7 @@ void fly_hv2_remove_hv2_response(fly_hv2_state_t *state, struct fly_hv2_response
 	return;
 }
 
-void fly_hv2_remove_all_response(fly_hv2_state_t *state)
+void fly_hv2_remove_all_response(fly_hv2_state_t *state, struct fly_event *e)
 {
 	struct fly_queue *__q;
 	struct fly_hv2_response *__r;
@@ -4810,12 +4816,12 @@ void fly_hv2_remove_all_response(fly_hv2_state_t *state)
 	while(state->response_count > 0){
 		__q = fly_queue_pop(&state->responses);
 		__r = (struct fly_hv2_response *) fly_queue_data(__q, struct fly_hv2_response, qelem);
-		fly_hv2_remove_hv2_response(state, __r);
+		fly_hv2_remove_hv2_response(state, __r, e);
 	}
 	return;
 }
 
-void fly_hv2_remove_response(fly_hv2_state_t *state, fly_response_t *res)
+void fly_hv2_remove_response(fly_hv2_state_t *state, fly_response_t *res, struct fly_event *e)
 {
 	struct fly_queue *__q;
 	struct fly_hv2_response *__r;
@@ -4823,7 +4829,7 @@ void fly_hv2_remove_response(fly_hv2_state_t *state, fly_response_t *res)
 	fly_for_each_queue(__q, &state->responses){
 		__r = fly_queue_data(__q, struct fly_hv2_response, qelem);
 		if (__r->response == res)
-			return fly_hv2_remove_hv2_response(state, __r);
+			return fly_hv2_remove_hv2_response(state, __r, e);
 	}
 	return;
 }
@@ -5000,7 +5006,6 @@ int __fly_hv2_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream)
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_hv2_request_event_handler);
 	e->available = false;
-	//e->event_data = (void *) stream->state->connect;
 	fly_event_data_set(e, __p, stream->state->connect);
 	fly_event_socket(e);
 
@@ -5187,7 +5192,6 @@ send_header:
 #endif
 	fly_send_headers_frame(stream, res);
 	e->read_or_write |= FLY_WRITE;
-	//e->event_data = (void *) res->request->connect;
 	fly_event_data_set(e, __p, res->request->connect);
 	goto register_handler;
 
@@ -5209,7 +5213,7 @@ log:
 	res->fase = FLY_RESPONSE_RELEASE;
 	fly_event_data_set(e, __p, res->request->connect);
 	/* Release hv2 response/response */
-	fly_hv2_remove_response(stream->state, res);
+	fly_hv2_remove_response(stream->state, res, e);
 	fly_hv2_max_handled_sid(stream);
 	fly_hv2_stream_end_request_response(stream);
 
@@ -5234,20 +5238,18 @@ register_handler:
 response_413:
 
 	req = res->request;
-	fly_hv2_remove_response(stream->state, res);
+	fly_hv2_remove_response(stream->state, res, e);
 	fly_response_release(res);
 	res = fly_413_response(req);
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	return fly_hv2_response_event(e);
 
 response_500:
 
 	req = res->request;
-	fly_hv2_remove_response(stream->state, res);
+	fly_hv2_remove_response(stream->state, res, e);
 	fly_response_release(res);
 	res = fly_500_response(req);
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	return fly_hv2_response_event(e);
 }
