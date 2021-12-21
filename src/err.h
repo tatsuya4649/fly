@@ -75,7 +75,7 @@ enum fly_error_level{
 
 struct fly_err{
 #define FLY_ERROR_CONTENT_SIZE			200
-	char			content[FLY_ERROR_CONTENT_SIZE];
+	char				content[FLY_ERROR_CONTENT_SIZE];
 	size_t				content_len;
 #define FLY_ERRPTR_FOR_EMERGE_SIZE		1000
 	char				*emergency_memory;

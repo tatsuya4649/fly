@@ -24,6 +24,7 @@ struct __pyfly_server{
 	long				request_timeout;
 	const char			*index_path;
 	const char			*default_content_path;
+	struct fly_err		err;
 };
 
 struct PyMemberDef __pyfly_server_members[] = {
@@ -179,23 +180,26 @@ __fly_unused static PyObject *__pyfly_server_new(PyTypeObject *type, PyObject *a
 	return (PyObject *) self;
 }
 
-static int pyfly_parse_config_file(void)
+static int pyfly_parse_config_file(struct fly_err *err)
 {
-	struct fly_err err;
 	int res;
 
-	res = fly_parse_config_file(&err);
+	memset(err, '\0', sizeof(struct fly_err));
+	res = fly_parse_config_file(err);
+#ifdef DEBUG
+	printf("PyFLY_PARSE_CONFIG_FILE: %s\n", err->content);
+#endif
 	switch (res){
-	case FLY_PARSE_CONFIG_NOTFOUND:
-		PyErr_WarnFormat(PyExc_ResourceWarning, 1, "%s", err.content);
-		break;
-	case FLY_PARSE_CONFIG_ERROR:
-		PyErr_Format(PyExc_ValueError, "Parse file error. %s", err.content);
-		break;
 	case FLY_PARSE_CONFIG_SUCCESS:
 		break;
+	case FLY_PARSE_CONFIG_NOTFOUND:
+		PyErr_WarnFormat(PyExc_ResourceWarning, 1, "%s", (const char *) err->content);
+		break;
+	case FLY_PARSE_CONFIG_ERROR:
+		PyErr_Format(PyExc_ValueError, "Parse config error. %s", err->content);
+		break;
 	case FLY_PARSE_CONFIG_SYNTAX_ERROR:
-		PyErr_Format(PyExc_ValueError, "Parse file error. %s", err.content);
+		PyErr_Format(PyExc_ValueError, "Parse syntax config error.");
 		break;
 	default:
 		FLY_NOT_COME_HERE
@@ -967,18 +971,18 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 	}
 
 	if (config_path && setenv(FLY_CONFIG_PATH, config_path, 1) == -1){
-		PyErr_SetString(PyExc_ValueError, "rnvironment setting error.");
+		PyErr_SetString(PyExc_ValueError, "Environment setting error.");
 		goto error;
 	}
 
 	/* config setting */
-	switch (pyfly_parse_config_file()){
+	switch (pyfly_parse_config_file(&self->err)){
+	case FLY_PARSE_CONFIG_SUCCESS:
+		break;
 	case FLY_PARSE_CONFIG_NOTFOUND:
 		break;
 	case FLY_PARSE_CONFIG_ERROR:
 		goto error;
-	case FLY_PARSE_CONFIG_SUCCESS:
-		break;
 	case FLY_PARSE_CONFIG_SYNTAX_ERROR:
 		goto error;
 	default:

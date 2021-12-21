@@ -10,9 +10,6 @@ struct fly_config configs[] = {
 };
 
 
-static void fly_syntax_error_invalid_item_name(int lines, char *name, size_t name_len);
-static void fly_syntax_error_no_name(int lines);
-static void fly_syntax_error_no_value(int lines);
 static void fly_set_config_value(int lines, struct fly_config *config, char *value, size_t value_len);
 
 static inline char *fly_config_path(void)
@@ -283,21 +280,51 @@ int fly_parse_config_file(struct fly_err *err)
 		}
 
 end_line:
+		;
 #ifdef DEBUG
 		printf("PARSE RESULT=> name: %.*s, value=: %.*s|\n", (int) name_len, name, (int) value_len, value);
 #endif
+		char *__cptr=config_buf;
+		while(!fly_cr(*__cptr) && !fly_lf(*__cptr))
+			__cptr++;
+		*__cptr = '\0';
 		/* syntax check */
-		if (!name || name_len == 0)
-			fly_syntax_error_no_name(lines);
-		if (!value || value_len==0)
-			fly_syntax_error_no_value(lines);
+		if (!name || name_len == 0){
+			if (err != NULL){
+				fly_error(
+					err, errno, FLY_ERR_ERR,
+					"Parse error in configure file (%s). Line %d, \"%s\". Not found name of configure item.",
+					fly_config_path() != NULL ? fly_config_path() : "",
+					lines, config_buf
+				);
+			}
+			goto syntax_error;
+		}
+		if (!value || value_len==0){
+			if (err != NULL){
+				fly_error(
+					err, errno, FLY_ERR_ERR,
+					"Parse error in configure file (%s). Line %d, \"%s\". Not found value of configure item.",
+					fly_config_path() != NULL ? fly_config_path() : "",
+					lines, config_buf
+				);
+			}
+			goto syntax_error;
+		}
 
 		config = fly_config_item_search(name, name_len);
 		if (config != NULL){
 			fly_set_config_value(lines, config, value, value_len);
 		}else{
 			/* unknown item name */
-			fly_syntax_error_invalid_item_name(lines, name, name_len);
+			if (err != NULL){
+				fly_error(
+					err, errno, FLY_ERR_ERR,
+					"Parse error in configure file (%s). Line %d, \"%s\". Unknown configure item.",
+					fly_config_path() != NULL ? fly_config_path() : "",
+					lines, config_buf
+				);
+			}
 			goto syntax_error;
 		}
 
@@ -332,28 +359,8 @@ error:
 #define FLY_CONFIG_PARSE_ERROR_STRING(__l)				\
 	do{													\
 		char *__fpath = fly_config_path();				\
-		fprintf(stderr, "config file parse error(%s,line. %d): ", __fpath, __l);	\
+		fprintf(stderr, "Config file parse error(%s,line. %d): ", __fpath, __l);	\
 	}while(0)
-
-static void fly_syntax_error_invalid_item_name(int lines, char *name, size_t name_len)
-{
-	name[name_len] = '\0';
-
-	FLY_CONFIG_PARSE_ERROR_STRING(lines);
-	fprintf(stderr, "invalid item name(%s)\n", name);
-}
-
-static void fly_syntax_error_no_name(int lines)
-{
-	FLY_CONFIG_PARSE_ERROR_STRING(lines);
-	fprintf(stderr, "no name\n");
-}
-
-static void fly_syntax_error_no_value(int lines)
-{
-	FLY_CONFIG_PARSE_ERROR_STRING(lines);
-	fprintf(stderr, "no value\n");
-}
 
 static void fly_syntax_error_invalid_value(int lines, char *value, size_t value_len, struct fly_config *config)
 {
