@@ -909,6 +909,24 @@ static inline uint32_t __fly_hv2_32bit(uint8_t **pl, fly_buffer_c **__c)
 	return uint32;
 }
 
+static inline uint32_t fly_hv2_31bit_nb(uint8_t *pl)
+{
+	uint32_t uint31 = 0;
+	uint8_t *__u = (uint8_t *) &uint31;
+#ifdef FLY_BIG_ENDIAN
+	*(__u+0) = (uint8_t) pl[0] & ((1<<7)-1);
+	*(__u+1) = (uint8_t) pl[1];
+	*(__u+2) = (uint8_t) pl[2];
+	*(__u+3) = (uint8_t) pl[3];
+#else
+	*(__u+0) = (uint8_t) pl[3];
+	*(__u+1) = (uint8_t) pl[2];
+	*(__u+2) = (uint8_t) pl[1];
+	*(__u+3) = (uint8_t) pl[0] & ((1<<7)-1);
+#endif
+	return uint31;
+}
+
 static inline uint32_t __fly_hv2_31bit(uint8_t **pl, fly_buffer_c **__c)
 {
 	uint32_t uint31 = 0;
@@ -1300,6 +1318,7 @@ int fly_send_window_update_frame(fly_hv2_stream_t *stream, uint32_t update_size,
 	struct fly_hv2_send_frame *frame;
 
 #ifdef DEBUG
+
 	assert(update_size >= 1 && update_size <= FLY_HV2_WINDOW_SIZE_MAX);
 #endif
 	frame = fly_hv2_send_frame_init(stream);
@@ -1311,7 +1330,26 @@ int fly_send_window_update_frame(fly_hv2_stream_t *stream, uint32_t update_size,
 	frame->payload = fly_pballoc(frame->pool, frame->payload_len);
 
 	fly_fh_setting(&frame->frame_header, frame->payload_len, frame->type, 0, false, frame->sid);
-	/* TODO: Search window update frame, and combine */
+
+	/* Search window update frame, and combine */
+retry:
+	struct fly_queue *__q;
+	struct fly_hv2_send_frame *__s;
+	fly_for_each_queue(__q, &stream->yetsend){
+		__s = fly_queue_data(__q, struct fly_hv2_send_frame, qelem);
+		if (__s->sid == frame->sid && \
+				__s->type == FLY_HV2_FRAME_TYPE_WINDOW_UPDATE){
+			uint32_t __usize = fly_hv2_31bit_nb(__s->payload);
+#ifdef DEBUG
+			printf("Found WINDOW UPDATE Frame ! size: %d : now: %d: %s\n", __usize, update_size, (update_size + __usize <= FLY_HV2_WINDOW_SIZE_MAX) ? "combine" : "new window frame");
+#endif
+			if (update_size + __usize <= FLY_HV2_WINDOW_SIZE_MAX){
+				update_size += __usize;
+				fly_hv2_send_frame_release(__s);
+				goto retry;
+			}
+		}
+	}
 	/* copy error_code/last-stream-id/r to payload */
 	uint8_t *ptr = frame->payload;
 	uint32_t *uptr = &update_size;
