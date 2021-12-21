@@ -353,7 +353,6 @@ char *fly_log_request_line_hv2(fly_response_t *res)
 	if (fly_unlikely_null(request_line))
 		return NULL;
 
-	printf("HEre\n");
 	snprintf(request_line, size, "%s %s %s",
 			res->request->request_line->method->name,
 			res->request->request_line->uri.ptr,

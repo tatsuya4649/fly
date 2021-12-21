@@ -234,7 +234,10 @@ int fly_response_fail_close_handler(fly_event_t *e, int fd __fly_unused);
 
 static inline bool fly_end_response_yet_log(fly_response_t *res)
 {
-	return (res->end_response && res->fase != FLY_RESPONSE_LOG) ? true : false;
+#ifdef DEBUG
+	printf("Now response status %d\n", res->fase);
+#endif
+	return (res->end_response && res->fase == FLY_RESPONSE_LOG) ? true : false;
 }
 
 #endif
