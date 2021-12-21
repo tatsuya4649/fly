@@ -109,7 +109,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 				errno,
 				FLY_ERR_ERR,
 				"getnameinfo error. %s (%s: %d)",
-				strerror(res), __FILE__, __LINE__
+				gai_strerror(res), __FILE__, __LINE__
 			);
 		}
 		goto error;

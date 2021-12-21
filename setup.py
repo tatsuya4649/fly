@@ -147,6 +147,7 @@ setup(
     install_requires = [
         "click>=7.1.0",
         "jinja2>=3.0.0",
+        "pydantic==1.8.2",
     ],
     tests_require = [
         "pytest >= 6",
