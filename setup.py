@@ -100,7 +100,7 @@ if _OS == 'Darwin':
                     continue
             if _invalid:
                 continue
-            _bro = "/usr/local/opt/zlib/include"
+            _bro = "/usr/local/opt/brotli/include"
     if _bro is not None:
         extra_compile_args.append(f"-I{_bro}")
     print(f"OpenSSL Directory: {_ssldir}", flush=True)

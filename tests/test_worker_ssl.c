@@ -35,7 +35,7 @@ int main()
 	fly_route_reg_t *reg;
 	struct fly_pool_manager pm;
 
-	if (setenv(FLY_CONFIG_PATH, "tests/https_test_enc.conf", 1) == -1)
+	if (setenv(FLY_CONFIG_PATH, "tests/https_test.conf", 1) == -1)
 		return -1;
 
 	/* load config file */
