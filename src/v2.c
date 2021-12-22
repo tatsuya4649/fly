@@ -2460,7 +2460,7 @@ send:
 			case SSL_ERROR_WANT_WRITE:
 				goto write_blocking;
 			case SSL_ERROR_SYSCALL:
-				if (errno == EPIPE || errno == 0)
+				if (FLY_SEND_DISCONNECTION(-1))
 					goto disconnect;
 				return FLY_SEND_DATA_FH_ERROR;
 			case SSL_ERROR_SSL:
@@ -2475,7 +2475,7 @@ send:
 			numsend = send(c_sockfd, fh, FLY_HV2_FRAME_HEADER_LENGTH, FLY_MSG_NOSIGNAL);
 			if (FLY_BLOCKING(numsend))
 				goto write_blocking;
-			else if (numsend == -1 && errno == EPIPE)
+			else if (FLY_SEND_DISCONNECTION(numsend))
 				goto disconnect;
 			else if (numsend == -1)
 				return FLY_SEND_DATA_FH_ERROR;
@@ -2609,7 +2609,6 @@ send:
 					ERR_clear_error();
 					SSL *ssl = res->request->connect->ssl;
 					numsend = SSL_write(ssl, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr));
-
 					switch(SSL_get_error(ssl, numsend)){
 					case SSL_ERROR_NONE:
 						break;
@@ -2620,9 +2619,7 @@ send:
 					case SSL_ERROR_WANT_WRITE:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
-						if (errno == EPIPE || errno == 0)
-							goto disconnect;
-						else if (errno == 0)
+						if (FLY_SEND_DISCONNECTION(-1))
 							goto disconnect;
 						return FLY_SEND_DATA_FH_ERROR;
 					case SSL_ERROR_SSL:
@@ -2637,9 +2634,9 @@ send:
 					numsend = send(c_sockfd, send_ptr, FLY_LEN_UNTIL_CHAIN_LPTR(chain, send_ptr), FLY_MSG_NOSIGNAL);
 					if (FLY_BLOCKING(numsend))
 						goto write_blocking;
-					else if (numsend == -1 && errno == EPIPE)
+					else if (FLY_SEND_DISCONNECTION(numsend))
 						goto disconnect;
-					else if (numsend == -1 && errno == EINTR)
+					else if (FLY_INTR(numsend))
 						continue;
 					else if (numsend == -1){
 						struct fly_err *__err;
@@ -2682,9 +2679,7 @@ send:
 					case SSL_ERROR_WANT_WRITE:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
-						if (errno == EPIPE || errno == 0)
-							goto disconnect;
-						else if (errno == 0)
+						if (FLY_SEND_DISCONNECTION(-1))
 							goto disconnect;
 						return FLY_SEND_DATA_FH_ERROR;
 					case SSL_ERROR_SSL:
@@ -2697,9 +2692,9 @@ send:
 					numsend = send(e->fd, body->body+total, body->body_len-total, FLY_MSG_NOSIGNAL);
 					if (FLY_BLOCKING(numsend))
 						goto write_blocking;
-					else if (numsend == -1 && errno == EPIPE)
+					else if (FLY_SEND_DISCONNECTION(numsend))
 						goto disconnect;
-					else if (numsend == -1 && errno == EINTR)
+					else if (FLY_INTR(numsend))
 						continue;
 					else if (numsend == -1){
 						struct fly_err *__err;
@@ -2751,9 +2746,7 @@ send:
 					case SSL_ERROR_WANT_WRITE:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
-						if (errno == EPIPE || errno == 0)
-							goto disconnect;
-						else if (errno == 0)
+						if (FLY_SEND_DISCONNECTION(-1))
 							goto disconnect;
 						return FLY_SEND_DATA_FH_ERROR;
 					case SSL_ERROR_SSL:
@@ -2818,9 +2811,7 @@ send:
 					case SSL_ERROR_WANT_WRITE:
 						goto write_blocking;
 					case SSL_ERROR_SYSCALL:
-						if (errno == EPIPE || errno == 0)
-							goto disconnect;
-						else if (errno == 0)
+						if (FLY_SEND_DISCONNECTION(-1))
 							goto disconnect;
 						return FLY_SEND_DATA_FH_ERROR;
 					case SSL_ERROR_SSL:
@@ -3301,7 +3292,7 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame)
 			case SSL_ERROR_WANT_WRITE:
 				goto write_blocking;
 			case SSL_ERROR_SYSCALL:
-				if (errno == EPIPE || errno == 0)
+				if (FLY_SEND_DISCONNECTION(-1))
 					goto disconnect;
 				return __FLY_SEND_FRAME_ERROR;
 			case SSL_ERROR_SSL:
@@ -3318,9 +3309,9 @@ __fly_static int __fly_send_frame(struct fly_hv2_send_frame *frame)
 				numsend = send(c_sockfd, frame->payload+total, frame->payload_len-total, FLY_MSG_NOSIGNAL);
 			if (FLY_BLOCKING(numsend))
 				goto write_blocking;
-			else if (numsend == -1 && errno == EPIPE)
+			else if (FLY_SEND_DISCONNECTION(numsend))
 				goto disconnect;
-			else if (numsend == -1 && errno == EINTR)
+			else if (FLY_INTR(numsend))
 				continue;
 			else if (numsend == -1){
 				struct fly_err *__err;
@@ -5028,7 +5019,6 @@ int fly_hv2_response_event(fly_event_t *e)
 	fly_hv2_stream_t *stream;
 	struct fly_hv2_response *v2_res;
 
-	//res = (fly_response_t *) e->event_data;
 	res = (fly_response_t *) fly_event_data_get(e, __p);
 	if (res->header == NULL)
 		res->header = fly_header_init(res->request->ctx);
@@ -5118,7 +5108,8 @@ int fly_hv2_response_event(fly_event_t *e)
 		if (!res->encoded)
 			res->encoding_type = fly_decided_encoding_type(res->request->encoding);
 		fly_add_content_encoding(res->header, res->encoding_type, true);
-	}
+	}else
+		res->encoding_type = NULL;
 
 	/* if yet response body encoding */
 	if (fly_encode_do(res) && !res->encoded){
@@ -5198,6 +5189,18 @@ send_header:
 send_body:
 #ifdef DEBUG
 	printf("WORKER: Send Body\n");
+#endif
+#ifdef DEBUG_SEND_DC
+	int fd;
+	printf("================  DEBUG SEND DISCONNECTION... ================\n");
+	printf("WORKER PID: %d\n", getpid());
+	printf("HOST: %s\n", res->request->connect->hostname);
+	printf("PORT: %s\n", res->request->connect->servname);
+
+	fd = res->request->connect->c_sockfd;
+	/* DEBUG: Disconnection before response */
+	shutdown(fd, SHUT_WR);
+	printf("==========================================================================\n");
 #endif
 	/* only send */
 	return fly_send_data_frame(e, res);

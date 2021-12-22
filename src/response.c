@@ -536,7 +536,7 @@ int fly_response_event(fly_event_t *e)
 	res = (fly_response_t *) fly_event_data_get(e, __p);
 #ifdef DEBUG_SEND_DC
 	int fd;
-	printf("================  DEBUG SEND DISCONNECTION... sleep 20sec ================\n");
+	printf("================  DEBUG SEND DISCONNECTION... ================\n");
 	printf("WORKER PID: %d\n", getpid());
 	printf("HOST: %s\n", res->request->connect->hostname);
 	printf("PORT: %s\n", res->request->connect->servname);
@@ -1510,6 +1510,7 @@ int fly_response_send(fly_event_t *e, fly_response_t *res)
 
 		if (FLY_CONNECT_ON_SSL(res->request->connect)){
 			SSL *ssl=res->request->connect->ssl;
+			ERR_clear_error();
 			sendnum = SSL_write(ssl, ptr, res->send_len-total);
 			switch(SSL_get_error(ssl, sendnum)){
 			case SSL_ERROR_NONE:

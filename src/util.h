@@ -44,6 +44,8 @@ int fly_until_strcpy(char *dist, char *src, const char *target, char *limit_addr
 	((res) == (int) -1 && (errno == EAGAIN || errno == EWOULDBLOCK))
 #define FLY_SEND_DISCONNECTION(res)		\
 	((res) == (int) -1 && (errno == EPIPE))
+#define FLY_INTR(res)					\
+	((res) == (int) -1 && (errno == EINTR))
 
 #define FLY_SPACE				(0x20)
 #define FLY_CR					(0xD)
