@@ -58,7 +58,7 @@ ifdef DEBUG_SEND_DC
 MACROS := $(MACROS) -D DEBUG_SEND_DC
 endif
 ifdef DEBUG
-PYTHON := python3
+PYTHON := python3.10
 else
 PYTHON := python3
 endif

@@ -1091,8 +1091,6 @@ static int fly_preencode_pf(fly_context_t *ctx, struct fly_mount_parts_file *__p
 		__max = fly_response_content_max_length();
 		__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
 		__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
-		__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
-		__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
 #ifdef DEBUG
 		assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
 #endif
@@ -1145,8 +1143,6 @@ static int fly_preencode_frc(fly_context_t *ctx, struct fly_response_content_by_
 		__max = fly_response_content_max_length();
 		__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
 		__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
-		__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
-		__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
 #ifdef DEBUG
 		assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
 #endif

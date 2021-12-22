@@ -604,15 +604,19 @@ int fly_response_event(fly_event_t *e)
 	if (res->encoded || fly_over_encoding_threshold_from_response(res)){
 		if (!res->encoded)
 			res->encoding_type = fly_decided_encoding_type(res->request->encoding);
-		fly_add_content_encoding(res->header, res->encoding_type, false);
+		if (res->encoding_type != NULL)
+			fly_add_content_encoding(res->header, res->encoding_type, false);
 	}else
 		res->encoding_type = NULL;
 
 
 	if (!res->encoded && fly_encode_do(res)){
 		res->type = FLY_RESPONSE_TYPE_ENCODED;
-		if (res->encoding_type->type == fly_identity)
+		if (res->encoding_type->type == fly_identity){
+			res->type = FLY_RESPONSE_TYPE_BODY;
+			fly_add_content_length(res->header, res->response_len, false);
 			goto end_of_encoding;
+		}
 
 		fly_de_t *__de;
 

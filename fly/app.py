@@ -332,5 +332,6 @@ class Fly(_Fly, Mount, Route, _fly_server):
         else:
             print(f"    \033[1m*\033[0m Mount paths: \033[1m-\033[0m", file=sys.stderr)
         print(f"    \033[1m*\033[0m Default content paths: \033[1m{ '-' if self._default_content_path is None else selff_default_content_path}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Encoding threshold: \033[1m{self._encoding_threshold}bytes\033[0m", file=sys.stderr)
 
         print("\n", file=sys.stderr)

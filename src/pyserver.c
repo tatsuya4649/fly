@@ -25,6 +25,7 @@ struct __pyfly_server{
 	const char			*index_path;
 	const char			*default_content_path;
 	struct fly_err		err;
+	long				encoding_threshold;
 };
 
 struct PyMemberDef __pyfly_server_members[] = {
@@ -44,6 +45,7 @@ struct PyMemberDef __pyfly_server_members[] = {
 	{"_request_timeout", T_LONG, offsetof(struct __pyfly_server, request_timeout), READONLY, ""},
 	{"_index_path", T_STRING, offsetof(struct __pyfly_server, index_path), READONLY, ""},
 	{"_default_content_path", T_STRING, offsetof(struct __pyfly_server, default_content_path), READONLY, ""},
+	{"_encoding_threshold", T_LONG, offsetof(struct __pyfly_server, encoding_threshold), READONLY, ""},
 	{NULL}
 };
 
@@ -1070,6 +1072,7 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 	self->request_timeout	= fly_request_timeout();
 	self->index_path		= fly_index_path();
 	self->default_content_path = fly_default_content_path();
+	self->encoding_threshold = fly_encode_threshold();
 
 #ifdef DEBUG
 	printf("%d\n", self->ssl);

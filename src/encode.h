@@ -64,9 +64,9 @@ struct fly_de{
 		FLY_DE_FROM_PATH,
 	} type;
 	fly_buffer_t					*encbuf;
-	int								encbuflen;
+//	int								encbuflen;
 	fly_buffer_t					*decbuf;
-	int								decbuflen;
+//	int								decbuflen;
 	int								c_sockfd;
 	int								fd;
 	/* where to start encoding of fd */

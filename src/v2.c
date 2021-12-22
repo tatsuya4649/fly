@@ -5107,15 +5107,19 @@ int fly_hv2_response_event(fly_event_t *e)
 	if (res->encoded || fly_over_encoding_threshold_from_response(res)){
 		if (!res->encoded)
 			res->encoding_type = fly_decided_encoding_type(res->request->encoding);
-		fly_add_content_encoding(res->header, res->encoding_type, true);
+		if (res->encoding_type != NULL)
+			fly_add_content_encoding(res->header, res->encoding_type, true);
 	}else
 		res->encoding_type = NULL;
 
 	/* if yet response body encoding */
 	if (fly_encode_do(res) && !res->encoded){
 		res->type = FLY_RESPONSE_TYPE_ENCODED;
-		if (res->encoding_type->type == fly_identity)
+		if (res->encoding_type->type == fly_identity){
+			res->type = FLY_RESPONSE_TYPE_BODY;
+			fly_add_content_length(res->header, res->response_len, true);
 			goto send_header;
+		}
 
 		fly_de_t *__de;
 

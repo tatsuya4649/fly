@@ -520,9 +520,6 @@ int fly_add_content_length(fly_hdr_ci *ci, size_t cl, bool hv2)
 
 	len = fly_number_ldigits(cl)+1;
 	contlen_str = fly_pballoc(ci->pool, (sizeof(char)*len));
-	if (fly_unlikely_null(contlen_str))
-		return -1;
-
 	if (snprintf(contlen_str, len, "%ld", (long) cl) == -1)
 		return -1;
 
