@@ -380,7 +380,7 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 	state = stream->state;
 
 	__fly_hv2_remove_stream(state, stream);
-	/* all frames remove */
+	/* All frames remove */
 	if (stream->frame_count > 0){
 		struct fly_queue *__n;
 		struct fly_hv2_frame *__f;
@@ -391,7 +391,7 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 			fly_hv2_release_frame(__f);
 		}
 	}
-	/* all yet send frames remove */
+	/* All yet send frames remove */
 	if (stream->yetsend_count > 0){
 		struct fly_hv2_send_frame *__f;
 		struct fly_queue *__n;
@@ -404,7 +404,7 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 			fly_hv2_send_frame_release_noqueue_remove(__f);
 		}
 	}
-	/* all yet ack frames remove */
+	/* All yet ack frames remove */
 	if (stream->yetack_count > 0){
 		struct fly_bllist *__n;
 		struct fly_hv2_send_frame *__f;
@@ -415,8 +415,10 @@ int fly_hv2_close_stream(fly_hv2_stream_t *stream)
 			fly_hv2_send_frame_release_noqueue_remove(__f);
 		}
 	}
-	/* request release */
-	if (!stream->end_request_response && stream->request)
+	/*
+	 * Request release. The only place to release request resource in HTTP2.
+	 */
+	if (stream->request)
 		fly_request_release(stream->request);
 
 	fly_pbfree(state->pool, stream);

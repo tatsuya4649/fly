@@ -36,12 +36,13 @@ async def test_http(fly_servers_enc, emerge_log_size_check, access_check, ae, en
                 headers=headers
         )
 
+    print(res.headers)
     assert(res.status_code == 200)
     assert(res.http_version == http_scheme())
     if enc_type == "*":
-        assert(res.headers["content-encoding"] == "gzip")
+        assert(res.headers["Content-Encoding"] == "gzip")
     else:
-        assert(res.headers["content-encoding"] == enc_type)
+        assert(res.headers["Content-Encoding"] == enc_type)
 
 @pytest.mark.parametrize(
     "enc_type", [
@@ -73,12 +74,13 @@ async def test_https(fly_servers_enc_ssl, emerge_log_size_check, access_check, a
                 headers=headers
         )
 
+    print(res.headers)
     assert(res.status_code == 200)
     assert(res.http_version == http_scheme())
     if enc_type == "*":
-        assert(res.headers["content-encoding"] == "gzip")
+        assert(res.headers["Content-Encoding"] == "gzip")
     else:
-        assert(res.headers["content-encoding"] == enc_type)
+        assert(res.headers["Content-Encoding"] == enc_type)
 
 @pytest.mark.parametrize(
     "enc_type", [
@@ -110,6 +112,7 @@ async def test_https2(fly_servers_enc_ssl, emerge_log_size_check, access_check, 
                 headers=headers
         )
 
+    print(res.headers)
     assert(res.status_code == 200)
     assert(res.http_version == http2_scheme())
     if enc_type == "*":
@@ -138,9 +141,10 @@ async def test_quality_value(fly_servers_enc, emerge_log_size_check, access_chec
                 headers=headers
         )
 
+    print(res.headers)
     assert(res.status_code == 200)
     assert(res.http_version == http_scheme())
-    assert(res.headers["content-encoding"] == answer)
+    assert(res.headers["Content-Encoding"] == answer)
 
 @pytest.mark.parametrize(
     "enc_type", [
@@ -159,5 +163,7 @@ async def test_406(fly_servers_enc, emerge_log_size_check, access_check, enc_typ
                 headers=headers
         )
 
+    print(res.headers)
     assert(res.status_code == 406)
     assert(res.http_version == http_scheme())
+    assert("Content-Encoding" not in res.headers)
