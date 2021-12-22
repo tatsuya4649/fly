@@ -36,7 +36,11 @@ case "$host_os" in
 esac
 
 AC_MSG_NOTICE(your sysytem is $host_os)
-LT_INIT() AM_INIT_AUTOMAKE([foreign]) # Checks for programs.  AC_PROG_CC([gcc]) # Checks for libraries.  # FIXME: Replace 'main' with a function in '-lbrotlidec': # FIXME: Replace 'main' with a function in '-lbrotlienc': OLD_LIBS="$LIBS"
+LT_INIT()
+AM_INIT_AUTOMAKE([foreign])
+# Checks for programs.
+AC_PROG_CC([gcc])
+# Checks for libraries.  # FIXME: Replace 'main' with a function in '-lbrotlidec': # FIXME: Replace 'main' with a function in '-lbrotlienc': OLD_LIBS="$LIBS"
 AC_MSG_CHECKING(for brotlidec&brotlienc library works in -lbrotlidec & -lbrotlienc)
 if test "$build_mac" = "yes"; then
         OLD_LDFLAGS="$LDFLAGS"
@@ -45,14 +49,17 @@ if test "$build_mac" = "yes"; then
         LDFLAGS="$LDFLAGS -L$BROTLIDIR/lib"
         CFLAGS="$CFLAGS -I$BROTLIDIR/include"
 fi
+OLD_LIBS="$LIBS"
+LIBS="$LIBS -lbrotlienc -lbrotlidec"
 AC_COMPILE_IFELSE([
 	AC_LANG_PROGRAM(
 		[[
+#include <stdint.h>
 #include <brotli/decode.h>
 		]],
 		[[
 	BrotliDecoderState *state;
-	char dec[10], enc[10];
+	uint8_t dec[10], enc[10];
 	size_t available_in, available_out;
 	uint8_t *next_in, *next_out;
 
@@ -86,11 +93,12 @@ AC_COMPILE_IFELSE([
 )], [
 		AC_COMPILE_IFELSE([
 		AC_LANG_PROGRAM([[
+#include <stdint.h>
 #include <brotli/encode.h>
 		 ]], [[
 	BrotliEncoderOperation op;
 	BrotliEncoderState *state;
-	char dec[10], enc[10];
+	uint8_t dec[10], enc[10];
 	size_t available_in, available_out;
 	uint8_t *next_in, *next_out;
 
@@ -107,8 +115,9 @@ AC_COMPILE_IFELSE([
 
 	while(op != BROTLI_OPERATION_FINISH){
 		op = BROTLI_OPERATION_FINISH;
-		if (BrotliEncoderDecompressStream(
+		if (BrotliEncoderCompressStream(
 			state,
+			op,
 			&available_in,
 			(const uint8_t **) &next_in,
 			&available_out,

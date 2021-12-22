@@ -34,8 +34,6 @@ jobs:
               brew install automake autoconf autoconf-archive
               python3 -m pip install --upgrade pip
               python3 -m pip install -r requirements.txt
-        - name: Setup tmate session
-          uses: mxschmitt/action-tmate@v3
         - name: Make fly library
           run: |
               autoreconf --force --install
