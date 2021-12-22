@@ -26,8 +26,7 @@
 #define FLY_ENCODE_NULL			{ -1, NULL, -1, NULL, NULL }
 #define FLY_ENCODE_END(e)		((e)->name == NULL)
 #define FLY_ENCODE_ASTERISK		{ fly_asterisk_encode, "*", 0, NULL, NULL }
-#define FLY_ACCEPT_ENCODING_HEADER				"Accept-Encoding"
-#define FLY_ACCEPT_ENCODING_HEADER_SMALL		"accept-encoding"
+#define FLY_ACCEPT_ENCODING_HEADER				"accept-encoding"
 enum __fly_encoding_type{
 #ifdef HAVE_ZLIB_H
 	fly_gzip,
@@ -130,6 +129,10 @@ struct fly_encoding{
 	size_t						accept_count;
 };
 typedef struct fly_encoding fly_encoding_t;
+#define FLY_ACCEPT_ENCODING_SUCCESS			0
+#define FLY_ACCEPT_ENCODING_SYNTAX_ERROR		-1
+#define FLY_ACCEPT_ENCODING_ERROR				-2
+#define FLY_ACCEPT_ENCODING_NOT_ACCEPTABLE	-3
 int fly_accept_encoding(struct fly_request *req);
 bool fly_encoding_matching(struct fly_encoding *enc, struct fly_encoding_type *type);
 

@@ -112,6 +112,7 @@ struct fly_response{
 #define FLY_RESPONSE_BACK_TO_REQUEST_100		(1 << 0)
 	int							flag;
 
+	fly_bit_t					dont_encode: 1;
 	fly_bit_t					encoded: 1;
 	fly_bit_t					blocking: 1;
 	fly_bit_t					end_response: 1;
@@ -157,6 +158,7 @@ int fly_400_event_norequest(fly_event_t *e, fly_connect_t *conn);
 int fly_400_event(fly_event_t *e, fly_request_t *req);
 int fly_404_event(fly_event_t *e, fly_request_t *req);
 int fly_405_event(fly_event_t *e, fly_request_t *req);
+int fly_406_event(fly_event_t *e, fly_request_t *req);
 int fly_413_event(fly_event_t *e, fly_request_t *req);
 int fly_414_event(fly_event_t *e, fly_request_t *req);
 int fly_415_event(fly_event_t *e, fly_request_t *req);
@@ -168,6 +170,7 @@ fly_response_t *fly_100_response(fly_request_t *req);
 fly_response_t *fly_400_response(fly_request_t *req);
 fly_response_t *fly_404_response(fly_request_t *req);
 fly_response_t *fly_405_response(fly_request_t *req);
+fly_response_t *fly_406_response(fly_request_t *req);
 fly_response_t *fly_413_response(fly_request_t *req);
 fly_response_t *fly_414_response(fly_request_t *req);
 fly_response_t *fly_415_response(fly_request_t *req);

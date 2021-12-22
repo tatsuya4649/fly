@@ -3238,6 +3238,13 @@ void fly_send_settings_frame(fly_hv2_stream_t *stream, uint16_t *id, uint32_t *v
 	struct fly_hv2_send_frame *frame;
 	uint8_t flag=0;
 
+#ifdef DEBUG
+	/*
+	 * RFC7540 :6.5
+	 * StreamID of Setting frame must be 0x0
+	 */
+	assert(stream == FLY_HV2_ROOT_STREAM(stream->state));
+#endif
 	frame = fly_hv2_send_frame_init(stream);
 
 	frame->send_fase = FLY_HV2_SEND_FRAME_FASE_FRAME_HEADER;
@@ -4850,21 +4857,62 @@ int fly_hv2_response_event_handler(fly_event_t *e, fly_hv2_stream_t *stream)
 		fly_check_cookie(request->header);
 	if (request->discard_body)
 		goto response_413;
-	/* accept encoding type */
-	if (fly_accept_encoding(request) == -1)
+
+	/* accept encoding parse */
+	switch(fly_accept_encoding(request)){
+	case FLY_ACCEPT_ENCODING_SUCCESS:
+		break;
+	case FLY_ACCEPT_ENCODING_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_ENCODING_ERROR:
 		goto error;
+	case FLY_ACCEPT_ENCODING_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* accept mime parse */
-	if (fly_accept_mime(request) == -1)
+	switch(fly_accept_mime(request)){
+	case FLY_ACCEPT_MIME_SUCCESS:
+		break;
+	case FLY_ACCEPT_MIME_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_MIME_ERROR:
 		goto error;
+	case FLY_ACCEPT_MIME_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* accept charset parse */
-	if (fly_accept_charset(request) == -1)
+	switch(fly_accept_charset(request)){
+	case FLY_ACCEPT_CHARSET_SUCCESS:
+		break;
+	case FLY_ACCEPT_CHARSET_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_CHARSET_ERROR:
 		goto error;
+	case FLY_ACCEPT_CHARSET_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* accept language parse */
-	if (fly_accept_language(request) == -1)
+	switch(fly_accept_language(request)){
+	case FLY_ACCEPT_LANG_SUCCESS:
+		break;
+	case FLY_ACCEPT_LANG_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_LANG_ERROR:
 		goto error;
+	case FLY_ACCEPT_LANG_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* check of having body */
 	size_t content_length;
@@ -4959,6 +5007,9 @@ response_404:
 	goto __response_event;
 response_405:
 	response = fly_405_response(request);
+	goto __response_event;
+response_406:
+	response = fly_406_response(request);
 	goto __response_event;
 response_413:
 	response = fly_413_response(request);
@@ -5097,6 +5148,12 @@ int fly_hv2_response_event(fly_event_t *e)
 		res->type = FLY_RESPONSE_TYPE_NOCONTENT;
 	}
 
+	/* Response must not be encoded */
+	if (res->dont_encode){
+		res->encoded = false;
+		fly_add_content_length(res->header, res->response_len, true);
+		goto send_header;
+	}
 	/* encoding matching test */
 	if (res->encoded \
 			&& !fly_encoding_matching(res->request->encoding, res->encoding_type)){

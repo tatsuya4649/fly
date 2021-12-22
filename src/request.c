@@ -1310,20 +1310,60 @@ __fase_header:
 	}
 
 	/* accept encoding parse */
-	if (fly_accept_encoding(request) == -1)
+	switch(fly_accept_encoding(request)){
+	case FLY_ACCEPT_ENCODING_SUCCESS:
+		break;
+	case FLY_ACCEPT_ENCODING_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_ENCODING_ERROR:
 		goto error;
+	case FLY_ACCEPT_ENCODING_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* accept mime parse */
-	if (fly_accept_mime(request) == -1)
+	switch(fly_accept_mime(request)){
+	case FLY_ACCEPT_MIME_SUCCESS:
+		break;
+	case FLY_ACCEPT_MIME_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_MIME_ERROR:
 		goto error;
+	case FLY_ACCEPT_MIME_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* accept charset parse */
-	if (fly_accept_charset(request) == -1)
+	switch(fly_accept_charset(request)){
+	case FLY_ACCEPT_CHARSET_SUCCESS:
+		break;
+	case FLY_ACCEPT_CHARSET_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_CHARSET_ERROR:
 		goto error;
+	case FLY_ACCEPT_CHARSET_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* accept language parse */
-	if (fly_accept_language(request) == -1)
+	switch(fly_accept_language(request)){
+	case FLY_ACCEPT_LANG_SUCCESS:
+		break;
+	case FLY_ACCEPT_LANG_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_LANG_ERROR:
 		goto error;
+	case FLY_ACCEPT_LANG_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* check of having body */
 	if (fly_content_length(request->header) == 0)
@@ -1506,6 +1546,8 @@ response_404:
 	return fly_404_event(event, request);
 response_405:
 	return fly_405_event(event, request);
+response_406:
+	return fly_406_event(event, request);
 response_413:
 	if (request->request_line == NULL)
 		fly_request_line_init(request);

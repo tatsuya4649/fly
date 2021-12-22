@@ -27,6 +27,7 @@ static inline fly_encoding_type_t *__fly_asterisk(void);
 #define __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR		0
 #define __FLY_PARSE_ACCEPT_ENCODING_SUCCESS			1
 #define __FLY_PARSE_ACCEPT_ENCODING_ERROR			-1
+#define __FLY_PARSE_ACCEPT_ENCODING_NOT_ACCEPTABLE  -2
 __fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_header);
 __fly_static void __fly_memcpy_name(char *dist, char *src, size_t src_len, size_t maxlen);
 static inline bool __fly_number(char c);
@@ -42,6 +43,9 @@ static inline bool __fly_point(char c);
 static inline bool __fly_comma(char c);
 static inline bool __fly_equal(char c);
 static int __fly_quality_value_from_str(char *qvalue);
+#define __FLY_DECIDE_ENCODING_SUCCESS			0
+#define __FLY_DECIDE_ENCODING_ERROR				-1
+#define __FLY_DECIDE_ENCODING_NOT_ACCEPTABLE	-2
 static int __fly_decide_encoding(fly_encoding_t *__e);
 
 static inline fly_encoding_type_t *__fly_asterisk(void)
@@ -736,7 +740,9 @@ __fly_static int __fly_accept_encoding(fly_hdr_ci *ci, fly_hdr_c **accept_encodi
 
 	fly_for_each_bllist(__b, &ci->chain){
 		c = fly_bllist_data(__b, fly_hdr_c, blelem);
-		if (c->name_len>0 && (strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER, strlen(FLY_ACCEPT_ENCODING_HEADER)) == 0 || strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER_SMALL, strlen(FLY_ACCEPT_ENCODING_HEADER_SMALL)) == 0)&& c->value != NULL){
+		if (c->name_len>0 && \
+				c->value_len > 0 && \
+				strncmp(c->name, FLY_ACCEPT_ENCODING_HEADER, strlen(FLY_ACCEPT_ENCODING_HEADER)) == 0){
 			*accept_encoding = c;
 			return __FLY_ACCEPT_ENCODING_FOUND;
 		}
@@ -830,14 +836,32 @@ int fly_accept_encoding(struct fly_request *req)
 	switch (__fly_accept_encoding(header, &accept_encoding)){
 	case __FLY_ACCEPT_ENCODING_ERROR:
 		req->encoding = NULL;
-		return -1;
+		return FLY_ACCEPT_ENCODING_ERROR;
 	case __FLY_ACCEPT_ENCODING_NOTFOUND:
 		__fly_add_accept_encode_asterisk(req);
-		return __fly_decide_encoding(req->encoding);
+		switch(__fly_decide_encoding(req->encoding)){
+		case __FLY_DECIDE_ENCODING_SUCCESS:
+			return FLY_ACCEPT_ENCODING_SUCCESS;
+		case __FLY_DECIDE_ENCODING_ERROR:
+			return FLY_ACCEPT_ENCODING_ERROR;
+		case __FLY_DECIDE_ENCODING_NOT_ACCEPTABLE:
+			return FLY_ACCEPT_ENCODING_NOT_ACCEPTABLE;
+		default:
+			FLY_NOT_COME_HERE
+		}
 	case __FLY_ACCEPT_ENCODING_FOUND:
-		if (__fly_parse_accept_encoding(req, accept_encoding) == -1)
-			return -1;
-		return 0;
+		switch(__fly_parse_accept_encoding(req, accept_encoding)){
+		case __FLY_PARSE_ACCEPT_ENCODING_PARSEERROR:
+			return FLY_ACCEPT_ENCODING_SYNTAX_ERROR;
+		case __FLY_PARSE_ACCEPT_ENCODING_SUCCESS:
+			return FLY_ACCEPT_ENCODING_SUCCESS;
+		case __FLY_PARSE_ACCEPT_ENCODING_ERROR:
+			return FLY_ACCEPT_ENCODING_ERROR;
+		case __FLY_PARSE_ACCEPT_ENCODING_NOT_ACCEPTABLE:
+			return FLY_ACCEPT_ENCODING_NOT_ACCEPTABLE;
+		default:
+			FLY_NOT_COME_HERE
+		}
 	default:
 		FLY_NOT_COME_HERE
 	}
@@ -1226,7 +1250,16 @@ __fly_static int __fly_parse_accept_encoding(fly_request_t *req, fly_hdr_c *ae_h
 	}
 
 	/* decide to use which encodes */
-	return __fly_decide_encoding(req->encoding);
+	switch(__fly_decide_encoding(req->encoding)){
+	case __FLY_DECIDE_ENCODING_SUCCESS:
+		return __FLY_PARSE_ACCEPT_ENCODING_SUCCESS;
+	case __FLY_DECIDE_ENCODING_ERROR:
+		return __FLY_PARSE_ACCEPT_ENCODING_ERROR;
+	case __FLY_DECIDE_ENCODING_NOT_ACCEPTABLE:
+		return __FLY_PARSE_ACCEPT_ENCODING_NOT_ACCEPTABLE;
+	default:
+		FLY_NOT_COME_HERE
+	}
 }
 
 __fly_static int __fly_quality_value_from_str(char *qvalue)
@@ -1274,13 +1307,16 @@ __fly_static int __fly_decide_encoding(fly_encoding_t *__e)
 		}
 	}
 
-	/* if asterisk, select most priority encoding. */
+	/* If there is no encoding type that have quality value greater than 0, response 406(Not Acceptable)  */
+	if (maxt == NULL)
+		return __FLY_DECIDE_ENCODING_NOT_ACCEPTABLE;
+	/* If asterisk, select most priority encoding. */
 	if (maxt->type == __fly_asterisk()){
 		__p = __fly_most_priority();
 		maxt->type = __p;
 		maxt->use = true;
 	}
-	return 0;
+	return __FLY_DECIDE_ENCODING_SUCCESS;
 }
 
 fly_encname_t *fly_decided_encoding_name(fly_encoding_t *enc)

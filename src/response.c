@@ -91,6 +91,7 @@ fly_response_t *fly_response_init(struct fly_context *ctx)
 	response->flag = 0;
 	response->original_response_len = 0;
 	response->end_response = false;
+	response->dont_encode = false;
 	return response;
 }
 
@@ -594,6 +595,11 @@ int fly_response_event(fly_event_t *e)
 		res->type = FLY_RESPONSE_TYPE_NOCONTENT;
 	}
 
+	/* Response must not be encoded */
+	if (res->dont_encode){
+		fly_add_content_length(res->header, res->response_len, false);
+		goto end_of_encoding;
+	}
 	/* encoding matching test */
 	if (res->encoded \
 			&& !fly_encoding_matching(res->request->encoding, res->encoding_type)){
@@ -1013,6 +1019,49 @@ int fly_405_event(fly_event_t *e, fly_request_t *req)
 	fly_response_t *res;
 
 	res = fly_405_response(req);
+	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
+	fly_event_data_set(e, __p, res);
+	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
+	e->fail_close = fly_response_fail_close_handler;
+	return fly_event_register(e);
+}
+
+fly_response_t *fly_406_response(fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res= fly_response_init(req->ctx);
+	res->header = fly_header_init(req->ctx);
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
+	fly_response_http_version_from_request(res, req);
+	res->status_code = _406;
+	res->request = req;
+	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
+
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
+}
+
+int fly_406_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_406_response(req);
+	/* Response must not be encoded */
+	res->dont_encode = true;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
