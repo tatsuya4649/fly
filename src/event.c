@@ -969,8 +969,10 @@ __fly_static int __fly_event_handle_failure_log(fly_event_t *e)
 
 	fly_notice_direct_log_lc(fly_log_from_event(e), lc);
 	/* close failure fd */
-	if ((e->fail_close != NULL ? e->fail_close(e, e->fd) : close(e->fd)) == -1)
-		return -1;
+	if (e->flag != FLY_CLOSE_EV){
+		if ((e->fail_close != NULL ? e->fail_close(e, e->fd) : close(e->fd)) == -1)
+			return -1;
+	}
 
 	e->flag = FLY_CLOSE_EV;
 	return 0;

@@ -54,7 +54,9 @@ static int fly_preencode_frc(fly_context_t *ctx, struct fly_response_content_by_
  *  worker process signal info.
  */
 fly_signal_t fly_worker_signals[] = {
+#if !defined DEBUG_WORKER_ONLY
 	FLY_SIGNAL_SETTING(SIGINT,	FLY_SIG_IGN),
+#endif
 	FLY_SIGNAL_SETTING(SIGPIPE, FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(FLY_SIGNAL_CHANGE_MNT_CONTENT, fly_worker_signal_change_mnt_content),
@@ -488,7 +490,7 @@ __fly_static int __fly_worker_signal_handler(fly_event_t *e)
 }
 #endif
 
-static int __fly_notice_master_now_pid(fly_worker_t *__w)
+__fly_unused static int __fly_notice_master_now_pid(fly_worker_t *__w)
 {
 	union sigval sv;
 
@@ -683,11 +685,13 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 			__FILE__, __LINE__
 		);
 
+#if !defined DEBUG_WORKER_ONLY
 	if (__fly_notice_master_now_pid(worker) == -1)
 		FLY_EMERGENCY_ERROR(
 			"worker notice daemon pid error. (%s: %d)",
 			__FILE__, __LINE__
 		);
+#endif
 
 	switch (__fly_worker_open_file(ctx)){
 	case FLY_WORKER_OPEN_FILE_SUCCESS:

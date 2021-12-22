@@ -120,15 +120,12 @@ int fly_listen_connected(fly_event_t *e)
 	fly_connect_t *conn;
 	fly_request_t *req;
 
-	//conn = (fly_connect_t *) e->event_data;
 	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 	e->read_or_write = FLY_READ;
 	/* event only modify (no add, no delete) */
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
-	//e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
-	//e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_INIT);
 	fly_event_fase_set(e, __e, EFLY_REQUEST_FASE_INIT);
 	fly_event_socket(e);
@@ -173,7 +170,6 @@ int fly_fail_recognize_protocol(fly_event_t *e, int fd __fly_unused)
 	fly_connect_t *con;
 
 	con = (fly_connect_t *) fly_expired_event_data_get(e, __p);
-	//con = (fly_connect_t *) e->expired_event_data;
 	return fly_connect_release(con);
 }
 
@@ -183,9 +179,6 @@ static fly_connect_t *fly_http_connected(fly_sock_t fd, fly_sock_t cfd, fly_even
 	fly_connect_t *conn;
 
 	conn = fly_connect_init(fd, cfd, e, addr, addrlen);
-	if (conn == NULL)
-		return NULL;
-
 	return conn;
 }
 
@@ -275,7 +268,6 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 	fly_sock_t conn_sock;
 	fly_sockinfo_t *sockinfo;
 
-	//conn = (fly_connect_t *) e->event_data;
 	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 	conn_sock = conn->c_sockfd;
 	sockinfo = e->manager->ctx->listen_sock;

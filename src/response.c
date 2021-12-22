@@ -534,6 +534,18 @@ int fly_response_event(fly_event_t *e)
 	fly_rcbs_t *rcbs=NULL;
 
 	res = (fly_response_t *) fly_event_data_get(e, __p);
+#ifdef DEBUG_SEND_DC
+	int fd;
+	printf("================  DEBUG SEND DISCONNECTION... sleep 20sec ================\n");
+	printf("WORKER PID: %d\n", getpid());
+	printf("HOST: %s\n", res->request->connect->hostname);
+	printf("PORT: %s\n", res->request->connect->servname);
+
+	fd = res->request->connect->c_sockfd;
+	/* DEBUG: Disconnection before response */
+	shutdown(fd, SHUT_WR);
+	printf("==========================================================================\n");
+#endif
 	if (res->send_ptr)
 		goto end_of_encoding;
 
@@ -675,6 +687,8 @@ end_of_encoding:
 		return fly_response_send_blocking(e, res, FLY_READ);
 	case FLY_RESPONSE_WRITE_BLOCKING:
 		return fly_response_send_blocking(e, res, FLY_WRITE);
+	case FLY_RESPONSE_DISCONNECTION:
+		return __fly_response_release_handler(e);
 	case FLY_RESPONSE_ERROR:
 		return -1;
 	default:
@@ -1499,25 +1513,47 @@ int fly_response_send(fly_event_t *e, fly_response_t *res)
 			sendnum = SSL_write(ssl, ptr, res->send_len-total);
 			switch(SSL_get_error(ssl, sendnum)){
 			case SSL_ERROR_NONE:
+#ifdef DEBUG
+				printf("SSL_ERROR_NONE\n");
+#endif
 				break;
 			case SSL_ERROR_ZERO_RETURN:
+#ifdef DEBUG
+				printf("SSL_ERROR_ZERO_RETURN\n");
+#endif
 				return FLY_RESPONSE_ERROR;
 			case SSL_ERROR_WANT_READ:
+#ifdef DEBUG
+				printf("SSL_ERROR_WANT_READ\n");
+#endif
 				return FLY_RESPONSE_READ_BLOCKING;
 			case SSL_ERROR_WANT_WRITE:
+#ifdef DEBUG
+				printf("SSL_ERROR_WANT_WRITE\n");
+#endif
 				return FLY_RESPONSE_WRITE_BLOCKING;
 			case SSL_ERROR_SYSCALL:
+#ifdef DEBUG
+				printf("SSL_ERROR_SYSCALL\n");
+#endif
+				if (FLY_SEND_DISCONNECTION(-1))
+					return FLY_RESPONSE_DISCONNECTION;
 				return FLY_RESPONSE_ERROR;
 			case SSL_ERROR_SSL:
+#ifdef DEBUG
+				printf("SSL_ERROR_SSL\n");
+#endif
 				return FLY_RESPONSE_ERROR;
 			default:
 				/* unknown error */
 				return FLY_RESPONSE_ERROR;
 			}
 		}else{
-			sendnum = send(e->fd, ptr, res->send_len-total, 0);
+			sendnum = send(e->fd, ptr, res->send_len-total, MSG_NOSIGNAL);
 			if (FLY_BLOCKING(sendnum)){
 				return FLY_RESPONSE_WRITE_BLOCKING;
+			}else if (FLY_SEND_DISCONNECTION(sendnum)){
+				return FLY_RESPONSE_DISCONNECTION;
 			}else if (sendnum == -1)
 				return FLY_RESPONSE_ERROR;
 		}

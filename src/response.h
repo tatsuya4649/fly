@@ -187,6 +187,7 @@ struct fly_response_content{
 #define FLY_RESPONSE_READ_BLOCKING		2
 #define FLY_RESPONSE_WRITE_BLOCKING		3
 #define FLY_RESPONSE_ERROR				-1
+#define FLY_RESPONSE_DISCONNECTION		-2
 
 /* default response content(static content) */
 struct fly_response_content_by_stcode{

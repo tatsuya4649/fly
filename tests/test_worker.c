@@ -34,10 +34,10 @@ int main()
 		return -1;
 
 	/* load config file */
-	fly_parse_config_file();
+	fly_parse_config_file(NULL);
 
 	fly_bllist_init(&pm.pools);
-	ctx = fly_context_init(&pm);
+	ctx = fly_context_init(&pm, NULL);
 
 	if (fly_mount_init(ctx) == -1)
 		return -1;
