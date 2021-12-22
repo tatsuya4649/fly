@@ -61,6 +61,7 @@ int fly_hv2_parse_headers(fly_hv2_stream_t *stream __fly_unused, uint32_t length
 void __fly_hv2_send_error(fly_hv2_stream_t *stream, uint32_t code, enum fly_hv2_error_type etype);
 void fly_hv2_emergency(fly_event_t *event, fly_hv2_state_t *state);
 void fly_hv2_dynamic_table_release(struct fly_hv2_state *state);
+static inline void fly_header_hv2_state(fly_hdr_ci *__ci, struct fly_hv2_state *state);
 
 int __fly_hv2_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream);
 int fly_hv2_settings_blocking_event(fly_event_t *e, fly_hv2_stream_t *stream){
@@ -4969,6 +4970,7 @@ __response:
 	if (response == NULL)
 		goto response_500;
 	fly_response_header_init(response, request);
+	fly_header_hv2_state(response->header, stream->state);
 
 #define FLY_REQ_HV2				is_fly_request_http_v2(request)
 	if (fly_add_date(response->header, FLY_REQ_HV2) == -1)
@@ -5215,15 +5217,52 @@ int fly_hv2_response_event(fly_event_t *e)
 		__de->end = false;
 		res->de = __de;
 
-		if (res->encoding_type->encode(__de) == -1){
-			struct fly_err *__err;
+		struct fly_err *__err;
+		switch(res->encoding_type->encode(__de)){
+		case FLY_ENCODE_SUCCESS:
+			break;
+		case FLY_ENCODE_ERROR:
 			__err = fly_event_err_init(
 				e, errno, FLY_ERR_ERR,
-				"response encoding error. %s",
+				"Response encoding error. %s",
 				strerror(errno)
 			);
 			fly_event_error_add(e, __err);
-			return -1;
+			goto response_500;
+		case FLY_ENCODE_SEEK_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding seek error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_500;
+		case FLY_ENCODE_TYPE_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding type error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_500;
+		case FLY_ENCODE_READ_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding read error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_500;
+		case FLY_ENCODE_BUFFER_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding buffer error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_413;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		res->encoded = true;
@@ -5376,4 +5415,9 @@ int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, 
 
 	}
 	return 0;
+}
+
+static inline void fly_header_hv2_state(fly_hdr_ci *__ci, struct fly_hv2_state *state)
+{
+	__ci->state = state;
 }

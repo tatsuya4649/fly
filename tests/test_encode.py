@@ -26,7 +26,7 @@ _HTTPS="https"
     ]
 )
 @pytest.mark.asyncio
-async def test_http(fly_servers_enc, ae, enc_type, emerge_log_size_check, access_check):
+async def test_http(fly_servers_enc, emerge_log_size_check, access_check, ae, enc_type):
     headers = {
         ae: enc_type,
     }
@@ -59,7 +59,7 @@ async def test_http(fly_servers_enc, ae, enc_type, emerge_log_size_check, access
     ]
 )
 @pytest.mark.asyncio
-async def test_https(fly_servers_enc_ssl, ae, enc_type, emerge_log_size_check, access_check):
+async def test_https(fly_servers_enc_ssl, emerge_log_size_check, access_check, ae, enc_type):
     headers = {
         ae: enc_type,
     }
@@ -96,7 +96,7 @@ async def test_https(fly_servers_enc_ssl, ae, enc_type, emerge_log_size_check, a
     ]
 )
 @pytest.mark.asyncio
-async def test_https2(fly_servers_enc_ssl, ae, enc_type, emerge_log_size_check, access_check):
+async def test_https2(fly_servers_enc_ssl, emerge_log_size_check, access_check, ae, enc_type):
     headers = {
         ae: enc_type,
     }
@@ -128,7 +128,7 @@ async def test_https2(fly_servers_enc_ssl, ae, enc_type, emerge_log_size_check, 
     ]
 )
 @pytest.mark.asyncio
-async def test_quality_value(fly_servers_enc, enc_type, answer, emerge_log_size_check, access_check):
+async def test_quality_value(fly_servers_enc, emerge_log_size_check, access_check, enc_type, answer):
     headers = {
         "Accept-Encoding" : enc_type,
     }
@@ -149,7 +149,7 @@ async def test_quality_value(fly_servers_enc, enc_type, answer, emerge_log_size_
     ]
 )
 @pytest.mark.asyncio
-async def test_406(fly_servers_enc, enc_type, emerge_log_size_check, access_check):
+async def test_406(fly_servers_enc, emerge_log_size_check, access_check, enc_type):
     headers = {
         "Accept-Encoding" : enc_type,
     }

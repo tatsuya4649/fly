@@ -129,7 +129,10 @@ int fly_header_add_ver_ifno(fly_hdr_ci *ci, fly_hdr_name *name, size_t name_len,
 	struct fly_bllist *__b;
 	fly_for_each_bllist(__b, &ci->chain){
 		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
-		if (strcmp(__c->name, name) == 0)
+		if (__c->name_len != name_len)
+			continue;
+
+		if (strncmp(__c->name, name, name_len) == 0)
 			return 0;
 	}
 
@@ -599,7 +602,7 @@ void fly_header_state(fly_hdr_ci *__ci, struct fly_request *__req)
 
 void fly_response_header_init(struct fly_response *__res, struct fly_request *__req)
 {
-	if (!__res->header){
+	if (__res->header == NULL){
 		__res->header = fly_header_init(__req->ctx);
 		fly_header_state(__res->header, __req);
 	}

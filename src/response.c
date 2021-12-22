@@ -660,15 +660,52 @@ int fly_response_event(fly_event_t *e)
 		__de->bfs = 0;
 		__de->end = false;
 		res->de = __de;
-		if (res->encoding_type->encode(__de) == -1){
-			struct fly_err *__err;
+		struct fly_err *__err;
+		switch(res->encoding_type->encode(__de)){
+		case FLY_ENCODE_SUCCESS:
+			break;
+		case FLY_ENCODE_ERROR:
 			__err = fly_event_err_init(
 				e, errno, FLY_ERR_ERR,
-				"response encoding error. %s",
+				"Response encoding error. %s",
 				strerror(errno)
 			);
 			fly_event_error_add(e, __err);
-			return -1;
+			goto response_500;
+		case FLY_ENCODE_SEEK_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding seek error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_500;
+		case FLY_ENCODE_TYPE_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding type error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_500;
+		case FLY_ENCODE_READ_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding read error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_500;
+		case FLY_ENCODE_BUFFER_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding buffer error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_413;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		res->encoded = true;
