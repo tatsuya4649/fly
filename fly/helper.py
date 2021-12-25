@@ -8,8 +8,8 @@ from .response import Response
     @body(str or bytes):    Response message
 
 """
-def redirect(location, code=301, body=None):
-    if code < 300 or code >= 400:
+def redirect(location, status_code=301, body=None):
+    if status_code < 300 or status_code >= 400:
         raise ValueError("Status code of redirect must be 3xx.")
     if not isinstance(location, str):
         raise TypeError("location must be str type.")
@@ -18,7 +18,7 @@ def redirect(location, code=301, body=None):
 
     body_bytes = body.encode("utf-8") if isinstance(body, str) else body
     _response = Response(
-        status_code=code,
+        status_code=status_code,
         header=None,
         body=body_bytes,
     )

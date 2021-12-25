@@ -14,7 +14,14 @@ class Route():
     def routes(self):
         return self._routes
 
-    def register_route(self, uri, func, method, debug=True):
+    def register_route(
+            self,
+            uri,
+            func,
+            method,
+            debug=True,
+            print_request=False,
+            ):
         if not isinstance(uri, str):
             raise TypeError(
                 "uri must be str type."
@@ -44,7 +51,7 @@ class Route():
 
         method_str = method if isinstance(method, str) else method.value
 
-        _base = _BaseRoute(func, debug)
+        _base = _BaseRoute(func, debug, print_request)
         _rd = dict()
         _rd.setdefault("uri", uri)
         _rd.setdefault("func", _base.handler)

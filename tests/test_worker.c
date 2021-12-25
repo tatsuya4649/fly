@@ -19,7 +19,7 @@ fly_response_t *hello(fly_request_t *request, fly_route_t *route __fly_unused, v
 	if (fly_header_add(res->header, fly_header_name_length("Connection"), fly_header_value_length("keep-alive")) == -1)
 		return NULL;
 
-	char *hello = "Hello world";
+	char *hello = "";
 	fly_body_setting(res->body, hello, strlen(hello));
 	res->status_code = _200;
 	res->version = V1_1;

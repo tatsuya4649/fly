@@ -248,7 +248,7 @@ class RequestParser:
             _content_type = self._get_content_type(request["header"])
             if _content_type is None:
                 # Unsupported Media Type (Unknown content-type)
-                raise HTTP415Exception
+                raise HTTP415Exception("Recv body, but unknown Content-Type.")
 
             _body = request.get("body")
             _res = self._parse_data_form(_body, _content_type)

@@ -6,9 +6,9 @@ import inspect
 import importlib.machinery as imm
 import importlib.util as imu
 import asyncio
-import traceback
 import time
 import signal
+from .err import display_fly_error
 
 _os = platform.system()
 _libfly_dir = os.path.abspath(
@@ -54,8 +54,6 @@ def _signal_interrupt():
     print("\nReceive SIGINT. teminate fly server.", file=sys.stderr, flush=True)
     sys.exit(1)
 
-#import pdb
-#pdb.set_trace()
 def _watch_dog(fly):
     _f = os.stat(fly._app_filepath)
     try:
@@ -79,20 +77,11 @@ def _watch_dog(fly):
         else:
             _signal_interrupt()
     except Exception as e:
-        _t = traceback.format_exc()
-        print(_t)
+        display_fly_error(e)
         sys.exit(1)
 
-def _display_fly_error(_e):
-    print("", file=sys.stderr)
-    print("\033[1m" + '  fly error !' + '\033[0m', file=sys.stderr)
-    print(f"    {_e}", file=sys.stderr)
-    print("", file=sys.stderr)
-    _t = traceback.format_exc()
-    print(_t, file=sys.stderr)
-
 def _display_master_configure_error(_e):
-    _display_fly_error(_e)
+    display_fly_error(_e)
     sys.exit(1)
 
 def _run(fly):
@@ -106,7 +95,7 @@ def _run(fly):
     except _FLY_MASTER_CONFIGURE_ERROR as e:
         _display_master_configure_error(e)
     except Exception as e:
-        _display_fly_error(e)
+        display_fly_error(e)
         err = True
 
     if err:
@@ -170,6 +159,15 @@ class Fly(_Fly, Mount, Route, _fly_server):
         else:
             self._debug = True
 
+        if kwargs.get("print_request") is not None:
+            if not isinstance(kwargs.get("print_request"), bool):
+                raise TypeError("print_request must be bool type.")
+
+            self._print_request = True \
+                    if kwargs.get("print_request") is True else False
+        else:
+            self._print_request = False
+
         self._app_filepath = self._get_application_file_path()
         self._ran = False
 
@@ -194,7 +192,8 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 uri=path,
                 func=func,
                 method=method.value,
-                debug=self.is_debug
+                debug=self.is_debug,
+                print_request=self.is_print_request,
             )
             return func
         return _route
@@ -283,6 +282,10 @@ class Fly(_Fly, Mount, Route, _fly_server):
     @property
     def is_debug(self):
         return self._debug
+
+    @property
+    def is_print_request(self):
+        return self._print_request
 
     @property
     def is_daemon(self):

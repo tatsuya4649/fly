@@ -8,7 +8,7 @@ import sys
 
 
 class _BaseRoute:
-    def __init__(self, handler, debug=True):
+    def __init__(self, handler, debug=True, print_request=False):
         if handler is None:
             raise ValueError("handler must not be None.")
         if not callable(handler):
@@ -16,6 +16,7 @@ class _BaseRoute:
 
         self._handler = handler
         self._debug = debug
+        self._print_request = print_request
         self._parser = RequestParser(handler)
 
     @property
@@ -30,6 +31,8 @@ class _BaseRoute:
 
     def handler(self, request):
         try:
+            if self._print_request:
+                print(request)
             res = self._parse_func_args(request)
             if self.is_debug:
                 if isinstance(res, Response):

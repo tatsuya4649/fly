@@ -827,16 +827,11 @@ int fly_100_event(fly_event_t *e, fly_request_t *req)
 {
 	fly_response_t *res;
 	/* Response(100) event*/
-//	fly_event_t *ne;
-//
-//	ne = fly_event_init(e->manager);
 	e->read_or_write = FLY_WRITE;
 
 	res = fly_100_response(req);
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
-//	memcpy(&ne->timeout, &e->timeout, sizeof(fly_time_t));
-//	memcpy(&ne->start, &e->start, sizeof(fly_time_t));
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
