@@ -16,7 +16,7 @@ class _BaseRoute:
 
         self._handler = handler
         self._debug = debug
-        self._print_request = print_request
+        self._print_request = debug and print_request
         self._parser = RequestParser(handler)
 
     @property

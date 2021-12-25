@@ -194,7 +194,15 @@ class FlyNotFoundError(Exception):
     "print_request",
     is_flag=True,
     default=False,
-    help="display the content of the request dictionary from client in stdout.",
+    help="display the content of the request dictionary from client in stdout. this is valid in debug mode.",
+    show_default=False,
+)
+@click.option(
+    "--production",
+    "production",
+    is_flag=True,
+    default=False,
+    help="Run fly in production mode.",
     show_default=False,
 )
 def fly_command_line(
@@ -220,6 +228,7 @@ def fly_command_line(
     daemon:             bool,
     test:               bool,
     print_request:      bool,
+    production:         bool,
 ):
     """This is fly operation script.\n
     If the same name is specified in the configure file and the argument,
@@ -254,6 +263,7 @@ def fly_command_line(
         "request_timeout":      request_timeout,
         "test":                 test,
         "print_request":        print_request,
+        "production":           production,
     }
     run(**kwargs)
 
@@ -288,6 +298,7 @@ def run(**kwargs):
     test = kwargs.get("test")
     config_path = kwargs.get("conf_path")
     print_request = kwargs.get("print_request")
+    production = kwargs.get("production")
 
     _fp = tempfile.NamedTemporaryFile("w+", delete=True)
     try:
@@ -318,7 +329,7 @@ def run(**kwargs):
             "backlog",
             "max_response_content_length",
             "max_request_length",
-            "request_timeout"
+            "request_timeout",
         ]
         _fp.flush()
         for key in kwargs.keys():
@@ -339,6 +350,8 @@ def run(**kwargs):
                 _instance.config_path = os.path.abspath(_fp.name)
                 if print_request:
                     _instance.print_request = True
+                if production:
+                    _instance._debug = False
                 _instance.run(daemon=daemon, test=test)
                 sys.exit(1)
 

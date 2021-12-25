@@ -9,6 +9,7 @@ class Route():
     URI_RE_SUB_REPEAT_PATTERN   = r"(/{2,})"
     def __init__(self):
         self._routes = list()
+        self._debug_route = list()
 
     @property
     def routes(self):
@@ -21,6 +22,7 @@ class Route():
             method,
             debug=True,
             print_request=False,
+            **kwargs,
             ):
         if not isinstance(uri, str):
             raise TypeError(
@@ -55,7 +57,10 @@ class Route():
         _rd = dict()
         _rd.setdefault("uri", uri)
         _rd.setdefault("func", _base.handler)
+        _rd.setdefault("orig_func", func)
         _rd.setdefault("method", method_str)
+        if kwargs.get("debug_route") and kwargs.get("debug_route") is True:
+            _rd.setdefault("debug_route", True)
 
         for _r in self._routes:
             if _r["method"] == method_str and _r["uri"] == uri:
@@ -87,3 +92,19 @@ class Route():
             if route["method"] == method_str and \
                     route["uri"] == uri:
                 route["func"] = func
+
+    """
+    If now in production mode, remove route that is debug_route from routes.
+    """
+    def _production_routes(self, debug=True):
+        if debug:
+            return
+
+        product_routes = list()
+        for i in self._routes:
+            if i.get("debug_route") and i.get("debug_route") is True:
+                continue
+            else:
+                product_routes.append(i)
+
+        self._routes = product_routes
