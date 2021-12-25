@@ -141,7 +141,8 @@ static inline bool __fly_method(char c)
 static inline bool __fly_unreserved(char c)
 {
 	return (fly_alpha(c) || fly_numeral(c) || \
-		c=='=' || c=='.' || c=='_' || c==0x7E
+		fly_equal(c) || fly_dot(c) || fly_underscore(c) || fly_tilda(c) || \
+		fly_hyphen(c) \
 	) ? true : false;
 }
 

@@ -119,6 +119,16 @@ static inline bool fly_question(char c)
 	return c == 0x3F ? true : false;
 }
 
+static inline bool fly_tilda(char c)
+{
+	return c == 0x7E ? true : false;
+}
+
+static inline bool fly_hyphen(char c)
+{
+	return c == 0x2D ? true : false;
+}
+
 #define FLY_SLASH						'/'
 #define FLY_QUESTION					'?'
 
