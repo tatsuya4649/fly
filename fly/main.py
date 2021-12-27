@@ -349,7 +349,7 @@ def run(**kwargs):
                     )
                 _instance.config_path = os.path.abspath(_fp.name)
                 if print_request:
-                    _instance.print_request = True
+                    _instance._print_request = True
                 if production:
                     _instance._debug = False
                 _instance.run(daemon=daemon, test=test)

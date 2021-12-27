@@ -59,6 +59,7 @@ class Route():
         _rd.setdefault("func", _base.handler)
         _rd.setdefault("orig_func", func)
         _rd.setdefault("method", method_str)
+        _rd.setdefault("base", _base)
         if kwargs.get("debug_route") and kwargs.get("debug_route") is True:
             _rd.setdefault("debug_route", True)
 
@@ -92,6 +93,16 @@ class Route():
             if route["method"] == method_str and \
                     route["uri"] == uri:
                 route["func"] = func
+
+    def _print_request_routes(self, print_request=False):
+        if not print_request:
+            return
+
+        for i in self._routes:
+            if i.get("base") is None or not isinstance(i.get("base"), _BaseRoute):
+                raise RuntimeError("Not found base key in route.")
+            _base = i.get("base")
+            _base.print_request = True
 
     """
     If now in production mode, remove route that is debug_route from routes.

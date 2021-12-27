@@ -262,6 +262,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
             raise TypeError("config_path must be str type.")
 
         self._production_routes(debug=self.is_debug)
+        self._print_request_routes(print_request=self.is_print_request)
         try:
             super()._configure(self.config_path, self.routes)
         except Exception as e:
@@ -313,7 +314,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
         if not self.is_debug and not self.is_daemon:
             print(f"  \033[1mWARN: fly is product mode now. But, not daemon.\033[0m", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
-        print(f"    \033[1m*\033[0m { 'Debug mode' if self.is_debug else 'Production mode'}", file=sys.stderr)
+        print(f"    \033[1m*\033[0m { 'Debug mode' if self.is_debug else 'Production mode'}{ '(print request)' if self.is_print_request else '' }", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
         if self._app_filepath:
             print(f"    \033[1m*\033[0m Application file: \033[1m{self._app_filepath}\033[0m", file=sys.stderr)

@@ -76,3 +76,12 @@ class _BaseRoute:
             )
         finally:
             return res
+
+    @property
+    def print_request(self):
+        return self._print_request
+
+    @print_request.setter
+    def print_request(self, value):
+
+        self._print_request = value
