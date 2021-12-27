@@ -6,6 +6,7 @@ from urllib.parse import unquote_plus, unquote
 import pydantic
 import re
 import inspect
+import json
 
 
 """
@@ -96,6 +97,8 @@ class RequestParser:
             raise HTTP400Exception
         return _res
 
+    def _parse_application_json(self, body):
+        return json.loads(body)
 
     """
     Convert lower:
@@ -198,10 +201,12 @@ class RequestParser:
             return self._parse_multipart_form_data(body)
         elif _ct == "application/x-www-form-urlencoded":
             return self._parse_application_x_www_form_urlencoded(body)
+        elif _ct == "application/json":
+            return self._parse_application_json(body)
 
         # Unknown content-type in POST method(Form data)
         # If you want other method, should use hint of Body.
-        raise HTTP415Exception
+        raise HTTP415Exception(f"Sorry, unsupport content type \"{content_type}\"")
 
     def _get_data_form(self, _type, form_data):
         if form_data is None:
