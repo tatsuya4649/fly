@@ -5,9 +5,14 @@ from fly.cors import *
 app = Fly()
 CORS(app)
 
+
 @app.get("/")
 def index():
     return "Hello, Test"
+
+@app.post("/")
+def index_post():
+    return "Hello, Test Post"
 
 @allow_cors("*")
 @app.get("/user")
@@ -25,3 +30,10 @@ def user():
 @app.get("/post")
 def user():
     return "Hello, User"
+
+@allow_cors("*")
+@app.get("/already")
+def already():
+    res = Response()
+    res.add_header("Access-Control-Allow-Origin", "https://localhost:8080")
+    return res

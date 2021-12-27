@@ -97,28 +97,28 @@ def all_allow_cors(func):
         if i["uri"] == route["uri"] and \
                 i["method"] == (route["method"].value if isinstance(route["method"], Method) else route["method"]):
                     _base = i["base"]
-    _base._default_headers.append({
+    _base.default_headers.append({
         "name": ACCESS_CONTROL_ALLOW_ORIGIN,
         "value": allow_origin,
     })
-    _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_ORIGIN)
+    _base.only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_ORIGIN)
     if len(allow_methods) > 0:
-        _base._default_headers.append({
+        _base.default_headers.append({
             "name": ACCESS_CONTROL_ALLOW_METHODS,
             "value": ','.join(allow_methods),
         })
     if len(allow_headers) > 0:
-        _base._default_headers.append({
+        _base.default_headers.append({
             "name": ACCESS_CONTROL_ALLOW_HEADERS,
             "value": ','.join(allow_headers),
         })
     if len(expose_headers) > 0:
-        _base._default_headers.append({
+        _base.default_headers.append({
             "name": ACCESS_CONTROL_EXPOSE_HEADERS,
             "value": ','.join(expose_headers),
         })
     if allow_credentials:
-        _base._default_headers.append({
+        _base.default_headers.append({
             "name": ACCESS_CONTROL_ALLOW_CREDENTIALS,
             "value": 'true',
         })
@@ -133,30 +133,15 @@ def allow_cors(
         max_age=None,
         only_debug=True,
         ):
-    if not isinstance(allow_methods, list):
-        raise TypeError("allow_methods must be list type.")
-    if not isinstance(allow_headers, list):
-        raise TypeError("allow_headers must be list type.")
-    if not isinstance(expose_headers, list):
-        raise TypeError("expose_headers must be list type.")
-    if not isinstance(allow_credentials, bool):
-        raise TypeError("allow_credentials must be bool type.")
-    if max_age is not None and not isinstance(max_age, int):
-        raise TypeError("max_age must be int type.")
-
-    _sm = list()
-    for i in allow_methods:
-        if not isinstance(i, (str, Method)):
-            raise TypeError("allow_methods item must be str or Method type.")
-
-        _sm.append(i if isinstance(i, str) else i.value)
-    allow_methods = _sm
-    for i in allow_headers:
-        if not isinstance(i, str):
-            raise TypeError("allow_headers item must be str type.")
-    for i in expose_headers:
-        if not isinstance(i, str):
-            raise TypeError("expose_headers item must be str type.")
+    _check_cors_type(
+        allow_origin=allow_origin,
+        allow_methods=allow_methods,
+        allow_headers=allow_headers,
+        allow_credentials=allow_credentials,
+        expose_headers=expose_headers,
+        max_age=max_age,
+        only_debug=only_debug,
+            )
     def _allow_cors(func):
         if not hasattr(func, "_application") or \
                 not hasattr(func, "route"):
@@ -198,41 +183,85 @@ ex.
                     i["method"] == (route["method"].value \
                     if isinstance(route["method"], Method) else route["method"]):
                         _base = i["base"]
-        _base._default_headers.append({
+        _base.default_headers.append({
             "name": ACCESS_CONTROL_ALLOW_ORIGIN,
             "value": allow_origin,
         })
-        _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_ORIGIN)
+        _base.only_debug_default_headers.append(
+                ACCESS_CONTROL_ALLOW_ORIGIN
+                )
         if len(allow_methods) > 0:
-            _base._default_headers.append({
+            _base.default_headers.append({
                 "name": ACCESS_CONTROL_ALLOW_METHODS,
                 "value": ','.join(allow_methods),
             })
             if only_debug:
-                _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_METHODS)
+                _base.only_debug_default_headers.append(
+                        ACCESS_CONTROL_ALLOW_METHODS
+                        )
         if len(allow_headers) > 0:
-            _base._default_headers.append({
+            _base.default_headers.append({
                 "name": ACCESS_CONTROL_ALLOW_HEADERS,
                 "value": ','.join(allow_headers),
             })
             if only_debug:
-                _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_HEADERS)
+                _base.only_debug_default_headers.append(
+                        ACCESS_CONTROL_ALLOW_HEADERS
+                        )
         if len(expose_headers) > 0:
-            _base._default_headers.append({
+            _base.default_headers.append({
                 "name": ACCESS_CONTROL_EXPOSE_HEADERS,
                 "value": ','.join(expose_headers),
             })
             if only_debug:
-                _base._only_debug_default_headers.append(ACCESS_CONTROL_EXPOSE_HEADERS)
+                _base.only_debug_default_headers.append(
+                        ACCESS_CONTROL_EXPOSE_HEADERS
+                        )
         if allow_credentials:
-            _base._default_headers.append({
+            _base.default_headers.append({
                 "name": ACCESS_CONTROL_ALLOW_CREDENTIALS,
                 "value": 'true',
             })
             if only_debug:
-                _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_CREDENTIALS)
+                _base.only_debug_default_headers.append(
+                        ACCESS_CONTROL_ALLOW_CREDENTIALS
+                        )
         return func
     return _allow_cors
+
+def _check_cors_type(**kwargs):
+    allow_origin        = kwargs["allow_origin"]
+    allow_methods       = kwargs["allow_methods"]
+    allow_headers       = kwargs["allow_headers"]
+    allow_credentials   = kwargs["allow_credentials"]
+    expose_headers      = kwargs["expose_headers"]
+    max_age             = kwargs["max_age"]
+    only_debug          = kwargs["only_debug"]
+
+    if not isinstance(allow_methods, list):
+        raise TypeError("allow_methods must be list type.")
+    if not isinstance(allow_headers, list):
+        raise TypeError("allow_headers must be list type.")
+    if not isinstance(expose_headers, list):
+        raise TypeError("expose_headers must be list type.")
+    if not isinstance(allow_credentials, bool):
+        raise TypeError("allow_credentials must be bool type.")
+    if max_age is not None and not isinstance(max_age, int):
+        raise TypeError("max_age must be int type.")
+
+    _sm = list()
+    for i in allow_methods:
+        if not isinstance(i, (str, Method)):
+            raise TypeError("allow_methods item must be str or Method type.")
+
+        _sm.append(i if isinstance(i, str) else i.value)
+    allow_methods = _sm
+    for i in allow_headers:
+        if not isinstance(i, str):
+            raise TypeError("allow_headers item must be str type.")
+    for i in expose_headers:
+        if not isinstance(i, str):
+            raise TypeError("expose_headers item must be str type.")
 
 
 class _Cors:
@@ -248,6 +277,17 @@ class _Cors:
         max_age=None,
         only_debug=False,
             ):
+
+        _check_cors_type(
+            allow_origin=allow_origin,
+            allow_methods=allow_methods,
+            allow_headers=allow_headers,
+            allow_credentials=allow_credentials,
+            expose_headers=expose_headers,
+            max_age=max_age,
+            only_debug=only_debug,
+                )
+
         self._allow_origin = allow_origin
         self._allow_methods = allow_methods
         self._allow_headers = allow_headers
@@ -275,6 +315,47 @@ class _Cors:
                 max_age=self._max_age,
                 )
         _route(_option_handler)
+        _base.default_headers.append({
+            "name": ACCESS_CONTROL_ALLOW_ORIGIN,
+            "value": self._allow_origin,
+        })
+        _base.only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_ORIGIN)
+        if len(self._allow_methods) > 0:
+            _base.default_headers.append({
+                "name": ACCESS_CONTROL_ALLOW_METHODS,
+                "value": ','.join(self._allow_methods),
+            })
+            if self._only_debug:
+                _base.only_debug_default_headers.append(
+                        ACCESS_CONTROL_ALLOW_METHODS
+                        )
+        if len(self._allow_headers) > 0:
+            _base.default_headers.append({
+                "name": ACCESS_CONTROL_ALLOW_HEADERS,
+                "value": ','.join(self._allow_headers),
+            })
+            if self._only_debug:
+                _base.only_debug_default_headers.append(
+                        ACCESS_CONTROL_ALLOW_HEADERS
+                        )
+        if len(self._expose_headers) > 0:
+            _base.default_headers.append({
+                "name": ACCESS_CONTROL_EXPOSE_HEADERS,
+                "value": ','.join(self._expose_headers),
+            })
+            if self._only_debug:
+                _base.only_debug_default_headers.append(
+                        ACCESS_CONTROL_EXPOSE_HEADERS
+                        )
+        if self._allow_credentials:
+            _base.default_headers.append({
+                "name": ACCESS_CONTROL_ALLOW_CREDENTIALS,
+                "value": 'true',
+            })
+            if self._only_debug:
+                _base.only_debug_default_headers.append(
+                        ACCESS_CONTROL_ALLOW_CREDENTIALS
+                        )
 
     def apply_route(self, app, routes):
         if not isinstance(routes, list):

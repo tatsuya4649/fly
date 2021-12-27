@@ -63,14 +63,21 @@ class _BaseRoute:
                 if not isinstance(res, Response):
                     res = Response(
                             status_code=200,
-                            body=res if isinstance(res, bytes) else res.encode("utf-8"),
+                            body=res if res is None or isinstance(res, bytes) \
+                                    else res.encode("utf-8"),
                             )
 
-            for i in self._default_headers:
-                res.add_header(
-                        name=i["name"],
-                        value=i["value"]
-                        )
+            for i in self.default_headers:
+                for j in res.header:
+                    # Already, response have default header item
+                    # No override
+                    if j["name"].lower() == i["name"].lower():
+                        break
+                else:
+                    res.add_header(
+                            name=i["name"],
+                            value=i["value"]
+                            )
         except HTTPException as e:
             res = Response(
                 status_code=e.status_code,
@@ -109,3 +116,11 @@ class _BaseRoute:
             for j in self._default_headers:
                 if i == j["name"]:
                     self._default_headers.remove(j)
+
+    @property
+    def default_headers(self):
+        return self._default_headers
+
+    @property
+    def only_debug_default_headers(self):
+        return self._only_debug_default_headers
