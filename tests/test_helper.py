@@ -12,8 +12,3 @@ def test_redicret():
             break
     else:
         assert 0
-
-def test_allow_cors():
-    @allow_cros()
-    def index():
-        return None

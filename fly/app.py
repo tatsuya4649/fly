@@ -182,7 +182,8 @@ class Fly(_Fly, Mount, Route, _fly_server):
                     raise TypeError(
                             "debug_route must be bool type."
                             )
-        kwargs.pop("debug_route")
+        if "debug_route" in kwargs:
+            kwargs.pop("debug_route")
 
         def _route(func):
             if not callable(func):

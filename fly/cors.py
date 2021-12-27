@@ -1,6 +1,14 @@
 from .method import Method
 from .types import Request
+from .response import Response
 
+
+ACCESS_CONTROL_ALLOW_ORIGIN="Access-Control-Allow-Origin"
+ACCESS_CONTROL_ALLOW_METHODS="Access-Control-Allow-Methods"
+ACCESS_CONTROL_ALLOW_HEADERS="Access-Control-Allow-Headers"
+ACCESS_CONTROL_EXPOSE_HEADERS="Access-Control-Expose-Headers"
+ACCESS_CONTROL_ALLOW_CREDENTIALS="Access-Control-Allow-Credentials"
+ACCESS_CONTROL_MAX_AGE="Access-Control-Max-Age"
 
 def CORS(
         app,
@@ -11,6 +19,7 @@ def CORS(
         allow_headers=[],
         allow_credentials=True,
         expose_headers=[],
+        max_age=None,
         only_debug=False,
         ):
     app.default_cors = _Cors(
@@ -19,6 +28,7 @@ def CORS(
         allow_headers=allow_headers,
         allow_credentials=allow_credentials,
         expose_headers=expose_headers,
+        max_age=max_age,
         only_debug=only_debug,
             )
 
@@ -36,28 +46,86 @@ def _option(
         max_age=None,
         only_debug=True,
         ):
+
     def _option_for_allow_cors(request: Request):
         res = Response(
                 status_code=200,
                 )
-        res.add_header("Access-Control-Allow-Origin", allow_origin)
+        res.add_header(ACCESS_CONTROL_ALLOW_ORIGIN, allow_origin)
         if len(allow_methods) > 0:
-            res.add_header("Access-Control-Allow-Methods", ','.join(allow_methods))
+            res.add_header(ACCESS_CONTROL_ALLOW_METHODS, ','.join(allow_methods))
         if len(allow_headers) > 0:
-            res.add_header("Access-Control-Allow-Headers", ','.join(allow_headers))
+            res.add_header(ACCESS_CONTROL_ALLOW_HEADERS, ','.join(allow_headers))
         if len(expose_headers) > 0:
-            res.add_header("Access-Control-Allow-Expose_Headers", ','.join(expose_headers))
+            res.add_header(ACCESS_CONTROL_EXPOSE_HEADERS, ','.join(expose_headers))
         if allow_credentials:
-            res.add_header("Access-Control-Allow-Credentials", "true")
+            res.add_header(ACCESS_CONTROL_ALLOW_CREDENTIALS, "true")
         if max_age is not None:
-            res.add_header("Access-Control-Max-Age", str(max_age))
+            res.add_header(ACCESS_CONTROL_MAX_AGE, str(max_age))
         return res
 
     _option_for_allow_cors.__name__ = f"{func.__name__} (for CORS)"
     return _option_for_allow_cors
 
+def all_allow_cors(func):
+    app = func._application
+    route = func.route
+    _route = app.options(
+            path=route["uri"],
+            debug_route=route["debug_route"],
+            only_debug=False,
+            )
+    allow_origin = "*"
+    allow_methods=["GET", "POST", "HEAD", "OPTIONS", "PUT", "DELETE", "TRACE", "PATCH"]
+    allow_headers = []
+    expose_headers = []
+    allow_credentials = True
+    max_age = None
+    _option_handler = _option(
+            func=func,
+            allow_origin=allow_origin,
+            allow_methods=allow_methods,
+            allow_headers=allow_headers,
+            expose_headers=expose_headers,
+            allow_credentials=allow_credentials,
+            max_age=max_age,
+            )
+    _route(_option_handler)
+
+    _base = None
+    for i in app.routes:
+        if i["uri"] == route["uri"] and \
+                i["method"] == (route["method"].value if isinstance(route["method"], Method) else route["method"]):
+                    _base = i["base"]
+    _base._default_headers.append({
+        "name": ACCESS_CONTROL_ALLOW_ORIGIN,
+        "value": allow_origin,
+    })
+    _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_ORIGIN)
+    if len(allow_methods) > 0:
+        _base._default_headers.append({
+            "name": ACCESS_CONTROL_ALLOW_METHODS,
+            "value": ','.join(allow_methods),
+        })
+    if len(allow_headers) > 0:
+        _base._default_headers.append({
+            "name": ACCESS_CONTROL_ALLOW_HEADERS,
+            "value": ','.join(allow_headers),
+        })
+    if len(expose_headers) > 0:
+        _base._default_headers.append({
+            "name": ACCESS_CONTROL_EXPOSE_HEADERS,
+            "value": ','.join(expose_headers),
+        })
+    if allow_credentials:
+        _base._default_headers.append({
+            "name": ACCESS_CONTROL_ALLOW_CREDENTIALS,
+            "value": 'true',
+        })
+    return func
+
 def allow_cors(
-        allow_origin,
+        allow_origin="*",
         allow_methods=[],
         allow_headers=[],
         expose_headers=[],
@@ -92,8 +160,17 @@ def allow_cors(
     def _allow_cors(func):
         if not hasattr(func, "_application") or \
                 not hasattr(func, "route"):
-                    raise ValueError(
-                            )
+                    raise ValueError(f"""
+
+    function({func.__name__}) is invalid error. allow_cors decorator shuld be set above route(get, post, etc...) decorator.
+
+ex.
+
+    @allow_cors(allow_origin="http://localhost:8080")
+    @app.get("/")
+    def index():
+        return None
+                    """)
         app = func._application
         if only_debug and not app.is_debug:
             return func
@@ -105,54 +182,55 @@ def allow_cors(
                 only_debug=only_debug,
                 )
         _option_handler = _option(
-                func,
-                allow_origin,
-                allow_methods,
-                allow_headers,
-                expose_headers,
-                allow_credentials,
-                max_age,
+                func=func,
+                allow_origin=allow_origin,
+                allow_methods=allow_methods,
+                allow_headers=allow_headers,
+                expose_headers=expose_headers,
+                allow_credentials=allow_credentials,
+                max_age=max_age,
                 )
         _route(_option_handler)
 
         _base = None
         for i in app.routes:
             if i["uri"] == route["uri"] and \
-                    i["method"] == (route["method"].value if isinstance(route["method"], Method) else route["method"]):
+                    i["method"] == (route["method"].value \
+                    if isinstance(route["method"], Method) else route["method"]):
                         _base = i["base"]
         _base._default_headers.append({
-            "name": "Access-Control-Allow-Origin",
+            "name": ACCESS_CONTROL_ALLOW_ORIGIN,
             "value": allow_origin,
         })
-        _base._only_debug_default_headers.append("Access-Control-Allow-Origin")
+        _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_ORIGIN)
         if len(allow_methods) > 0:
             _base._default_headers.append({
-                "name": "Access-Control-Allow-Methods",
+                "name": ACCESS_CONTROL_ALLOW_METHODS,
                 "value": ','.join(allow_methods),
             })
             if only_debug:
-                _base._only_debug_default_headers.append("Access-Control-Allow-Methods")
+                _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_METHODS)
         if len(allow_headers) > 0:
             _base._default_headers.append({
-                "name": "Access-Control-Allow-Headers",
+                "name": ACCESS_CONTROL_ALLOW_HEADERS,
                 "value": ','.join(allow_headers),
             })
             if only_debug:
-                _base._only_debug_default_headers.append("Access-Control-Allow-Headers")
+                _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_HEADERS)
         if len(expose_headers) > 0:
             _base._default_headers.append({
-                "name": "Access-Control-Allow-Expose_Headers",
+                "name": ACCESS_CONTROL_EXPOSE_HEADERS,
                 "value": ','.join(expose_headers),
             })
             if only_debug:
-                _base._only_debug_default_headers.append("Access-Control-Allow-Expose-Headers")
+                _base._only_debug_default_headers.append(ACCESS_CONTROL_EXPOSE_HEADERS)
         if allow_credentials:
             _base._default_headers.append({
-                "name": "Access-Control-Allow-Credentials",
+                "name": ACCESS_CONTROL_ALLOW_CREDENTIALS,
                 "value": 'true',
             })
             if only_debug:
-                _base._only_debug_default_headers.append("Access-Control-Allow-Credentials")
+                _base._only_debug_default_headers.append(ACCESS_CONTROL_ALLOW_CREDENTIALS)
         return func
     return _allow_cors
 
@@ -197,7 +275,6 @@ class _Cors:
                 max_age=self._max_age,
                 )
         _route(_option_handler)
-        print(app.routes)
 
     def apply_route(self, app, routes):
         if not isinstance(routes, list):
