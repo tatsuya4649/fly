@@ -2,6 +2,7 @@ import sys
 import re
 from .method import method_from_name, Method
 from ._base import _BaseRoute
+from .cors import *
 
 
 class Route():
@@ -62,6 +63,8 @@ class Route():
         _rd.setdefault("base", _base)
         if kwargs.get("debug_route") and kwargs.get("debug_route") is True:
             _rd.setdefault("debug_route", True)
+        if kwargs.get("only_debug") and kwargs.get("only_debug") is True:
+            _rd.setdefault("only_debug", True)
 
         for _r in self._routes:
             if _r["method"] == method_str and _r["uri"] == uri:
@@ -112,10 +115,24 @@ class Route():
             return
 
         product_routes = list()
-        for i in self._routes:
+        for i in self.routes:
             if i.get("debug_route") and i.get("debug_route") is True:
                 continue
             else:
                 product_routes.append(i)
 
         self._routes = product_routes
+
+    def remove_only_debug_headers(self, debug=True):
+        if debug:
+            return
+
+        for i in self.routes:
+            if i.get("only_debug") is not None and \
+                    i.get("only_debug"):
+                self.routes.remove(i)
+            if i.get("base") is None:
+                raise ValueError("must have base key")
+
+            _base = i.get("base")
+            _base.remove_default_headers_with_debug()

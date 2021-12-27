@@ -182,6 +182,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
                     raise TypeError(
                             "debug_route must be bool type."
                             )
+        kwargs.pop("debug_route")
 
         def _route(func):
             if not callable(func):
@@ -193,6 +194,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 "uri": path,
                 "func": func,
                 "method": method,
+                "debug_route": _debug_route
             })
             if not self.is_debug and _debug_route:
                 return func
@@ -204,6 +206,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 debug=self.is_debug,
                 print_request=self.is_print_request,
                 debug_route=_debug_route,
+                **kwargs
             )
             return func
         return _route
@@ -262,7 +265,12 @@ class Fly(_Fly, Mount, Route, _fly_server):
             raise TypeError("config_path must be str type.")
 
         self._production_routes(debug=self.is_debug)
+        if self.mounts_count == 0 and len(self.routes) == 0:
+            raise RuntimeError("fly must have one or more mount points.")
+
         self._print_request_routes(print_request=self.is_print_request)
+        self.default_cors_apply_routes()
+        self.remove_only_debug_headers(debug=self.is_debug)
         try:
             super()._configure(self.config_path, self.routes)
         except Exception as e:
@@ -357,3 +365,15 @@ class Fly(_Fly, Mount, Route, _fly_server):
         print(f"    \033[1m*\033[0m Encoding threshold: \033[1m{self._encoding_threshold}bytes\033[0m", file=sys.stderr)
 
         print("\n", file=sys.stderr)
+
+    @property
+    def default_cors(self):
+        return self._cors
+
+    @default_cors.setter
+    def default_cors(self, value):
+        self._cors = value
+
+    def default_cors_apply_routes(self):
+        if hasattr(self, "_cors") and self._cors is not None:
+            self._cors.apply_route(self, self.routes)

@@ -18,6 +18,13 @@ class _BaseRoute:
         self._debug = debug
         self._print_request = debug and print_request
         self._parser = RequestParser(handler)
+        if hasattr(handler, "default_headers"):
+            if not isinstance(handler.default_headers, list):
+                raise TypeError("default_headers of handler must be list type.")
+            self._default_headers = handler.default_headers
+        else:
+            self._default_headers = list()
+        self._only_debug_default_headers = list()
 
     @property
     def is_debug(self):
@@ -52,7 +59,18 @@ class _BaseRoute:
                         raise TypeError(
                             "response must be Response or None or str or bytes type."
                         )
+            if len(self._default_headers) > 0:
+                if not isinstance(res, Response):
+                    res = Response(
+                            status_code=200,
+                            body=res if isinstance(res, bytes) else res.encode("utf-8"),
+                            )
 
+            for i in self._default_headers:
+                res.add_header(
+                        name=i["name"],
+                        value=i["value"]
+                        )
         except HTTPException as e:
             res = Response(
                 status_code=e.status_code,
@@ -85,3 +103,9 @@ class _BaseRoute:
     def print_request(self, value):
 
         self._print_request = value
+
+    def remove_default_headers_with_debug(self):
+        for i in self._only_debug_default_headers:
+            for j in self._default_headers:
+                if i == j["name"]:
+                    self._default_headers.remove(j)

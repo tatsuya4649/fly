@@ -1,4 +1,5 @@
 from .response import Response
+from .types import Request
 
 """
 
@@ -24,3 +25,5 @@ def redirect(location, status_code=301, body=None):
     )
     _response.add_header("location", location)
     return _response
+
+
