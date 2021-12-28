@@ -356,6 +356,7 @@ class _Cors:
                 _base.only_debug_default_headers.append(
                         ACCESS_CONTROL_ALLOW_CREDENTIALS
                         )
+        print(_base.default_headers)
 
     def apply_route(self, app, routes):
         if not isinstance(routes, list):

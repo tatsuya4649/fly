@@ -727,6 +727,9 @@ end_of_encoding:
 	if (fly_response_set_send_ptr(res) == -1)
 		goto response_500;
 
+#ifdef DEBUG
+	printf("%s\n", (char *) res->send_ptr);
+#endif
 	switch(fly_response_send(e, res)){
 	case FLY_RESPONSE_SUCCESS:
 		break;

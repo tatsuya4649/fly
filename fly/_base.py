@@ -59,25 +59,6 @@ class _BaseRoute:
                         raise TypeError(
                             "response must be Response or None or str or bytes type."
                         )
-            if len(self._default_headers) > 0:
-                if not isinstance(res, Response):
-                    res = Response(
-                            status_code=200,
-                            body=res if res is None or isinstance(res, bytes) \
-                                    else res.encode("utf-8"),
-                            )
-
-            for i in self.default_headers:
-                for j in res.header:
-                    # Already, response have default header item
-                    # No override
-                    if j["name"].lower() == i["name"].lower():
-                        break
-                else:
-                    res.add_header(
-                            name=i["name"],
-                            value=i["value"]
-                            )
         except HTTPException as e:
             res = Response(
                 status_code=e.status_code,
@@ -100,6 +81,25 @@ class _BaseRoute:
                 body=res_body,
             )
         finally:
+            if len(self.default_headers) > 0:
+                if not isinstance(res, Response):
+                    res = Response(
+                            status_code=200,
+                            body=res if res is None or isinstance(res, bytes) \
+                                    else res.encode("utf-8"),
+                            )
+            for i in self.default_headers:
+                for j in res.header:
+                    # Already, response have default header item
+                    # No override
+                    if j["name"].lower() == i["name"].lower():
+                        break
+                else:
+                    res.add_header(
+                            name=i["name"],
+                            value=i["value"]
+                            )
+                    print(res.header)
             return res
 
     @property
