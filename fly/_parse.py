@@ -42,6 +42,10 @@ class RequestParser:
 
     """
     def parse_cookie(self, _cookie):
+        # Already parsed
+        if isinstance(_cookie, list):
+            return _cookie
+
         if _cookie is None:
             return []
 

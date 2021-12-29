@@ -333,6 +333,7 @@ class Fly(_Fly, Mount, Route, _fly_server):
         print(f"    \033[1m*\033[0m Max response content length: \033[1m{ self._max_response_content_length}\033[0m", file=sys.stderr)
         print(f"    \033[1m*\033[0m Max request content length: \033[1m{ self._max_request_content_length}\033[0m", file=sys.stderr)
         print(f"    \033[1m*\033[0m Index path: \033[1m{ self._index_path}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Default content paths: \033[1m{ '-' if self._default_content_path is None else selff_default_content_path}\033[0m", file=sys.stderr)
 
         print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m", file=sys.stderr)
         if self._ssl:
@@ -357,13 +358,12 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, _mfc, width=max_len, mn=_mn), file=sys.stderr)
         else:
             print(f"    \033[1m*\033[0m Mount paths: \033[1m-\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Encoding threshold: \033[1m{self._encoding_threshold}bytes\033[0m", file=sys.stderr)
 
         if len(self._routes) > 0:
             print(f"    \033[1m*\033[0m Routes: \033[1m{len(self._routes)}\033[0m", file=sys.stderr)
             for route in self._routes:
                 print(f"        \033[1m-\033[0m uri: \033[1m{route['uri']}\033[0m, method: \033[1m{route['method']}\033[0m, handler: \033[1m{route['orig_func'].__name__}\033[0m { ', ' if route.get('debug_route') else '' }\033[1m{ 'debug_route' if route.get('debug_route') else ''}\033[0m", file=sys.stderr)
-        print(f"    \033[1m*\033[0m Default content paths: \033[1m{ '-' if self._default_content_path is None else selff_default_content_path}\033[0m", file=sys.stderr)
-        print(f"    \033[1m*\033[0m Encoding threshold: \033[1m{self._encoding_threshold}bytes\033[0m", file=sys.stderr)
 
         print("\n", file=sys.stderr)
 

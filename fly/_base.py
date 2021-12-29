@@ -99,7 +99,6 @@ class _BaseRoute:
                             name=i["name"],
                             value=i["value"]
                             )
-                    print(res.header)
             return res
 
     @property
