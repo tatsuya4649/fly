@@ -42,15 +42,16 @@ class RequestParser:
 
     """
     def parse_cookie(self, _cookie):
-        # Already parsed
-        if isinstance(_cookie, list):
-            return _cookie
-
         if _cookie is None:
             return []
 
         res = list()
         for i in _cookie:
+            # Already parse
+            if isinstance(i, dict):
+                res.append(i)
+                continue
+
             for item in i.split(';'):
                 _c = iter(item.split('='))
                 name  = next(_c, None)

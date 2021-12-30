@@ -85,7 +85,7 @@ def test_cookie():
             handler=index
             )
     res = base.handler({
-        "cookie": ["name=taro", "age=20"]
+        "cookie": ["name=taro;age=20"]
     })
     assert isinstance(res, str)
 
