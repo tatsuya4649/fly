@@ -1,4 +1,4 @@
-from .response import Response, JSONResponse
+from .response import Response, JSONResponse, PlainResponse, HTMLResponse
 from .types import Request
 
 """
@@ -26,6 +26,53 @@ def redirect(location, status_code=301, body=None):
     _response.add_header("location", location)
     return _response
 
+"""
+    Response function.
+"""
+def response(
+        status_code=200,
+        header=None,
+        body=None,
+        content_type="text/plain",
+        ):
+    res = Response(
+            status_code=status_code,
+            header=header,
+            body=body,
+            content_type=content_type,
+            )
+    return res
+
+"""
+
+    REsponse TextPlain function.
+"""
+def plain_response(
+        status_code=200,
+        header=None,
+        body=None,
+        ):
+    res = PlainResponse(
+            status_code=status_code,
+            header=header,
+            body=body,
+            )
+    return res
+
+"""
+    Response HTML function.
+"""
+def html_response(
+        status_code=200,
+        header=None,
+        body=None,
+        ):
+    res = HTMLResponse(
+            status_code=status_code,
+            header=header,
+            body=body,
+            )
+    return res
 
 """
 

@@ -12,3 +12,18 @@ def test_redicret():
             break
     else:
         assert 0
+
+def test_json_response():
+    res = json_response()
+
+    assert isinstance(res, JSONResponse)
+
+def test_plain_response():
+    res = plain_response()
+
+    assert isinstance(res, PlainResponse)
+
+def test_html_response():
+    res = html_response()
+
+    assert isinstance(res, HTMLResponse)
