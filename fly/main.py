@@ -278,6 +278,10 @@ def run(**kwargs):
     if app is None:
         raise KeyError("must have 'app' key.")
 
+    # Add current working directory.
+    sys.path.append(
+            os.path.abspath(os.getcwd())
+            )
     _abs_app = os.path.abspath(app)
     try:
         _ml = imm.SourceFileLoader("_app", _abs_app)
