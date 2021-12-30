@@ -1,4 +1,4 @@
-from .response import Response
+from .response import Response, JSONResponse
 from .types import Request
 
 """
@@ -27,3 +27,18 @@ def redirect(location, status_code=301, body=None):
     return _response
 
 
+"""
+
+    Response JSON function.
+"""
+def json_response(
+        status_code=200,
+        header=None,
+        body=None,
+        ):
+    res = JSONResponse(
+            status_code=status_code,
+            header=header,
+            body=body,
+            )
+    return res
