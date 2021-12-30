@@ -6,6 +6,14 @@ Released: 2021/12/19
 
 ## Added
 
+* Support CORS
+
+* Support POST of application/json
+
+* helper function of CORS, HTTP response
+
+* print\_request option in CLI
+
 ### Python
 
 * RequestParser to parse dict of request
@@ -16,11 +24,21 @@ Released: 2021/12/19
 
 ## Changed
 
+## Python
+
+* Change Python UI when running fly server
+
+* Change config item name (max\_request\_length => max\_request\_content\_length)
+
 ### C
 
 * Fixed handler sending Window update frame
 
 ## Fixed
+
+### Python
+
+* Fixed bug of parsing cookie
 
 ### C
 
