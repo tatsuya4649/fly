@@ -321,6 +321,9 @@ void fly_buffer_memcpy(char *dist, char *src, fly_buffer_c *__c, size_t len)
 	char *sptr;
 	sptr = src;
 
+	if (len == 0)
+		return;
+
 	while(sptr<(char *) __c->use_ptr || sptr>(char *) __c->lptr){
 		__c = fly_buffer_next_chain(__c);
 		if (fly_is_chain_term(__c))

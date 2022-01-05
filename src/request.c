@@ -896,6 +896,9 @@ __fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_c *header_chain)
 				case _FLY_PARSE_ITM:
 					goto in_the_middle;
 				case _FLY_PARSE_SUCCESS:
+#ifdef DEBUG
+					printf("\tHeader item name_len: %d, name: %.*s, value_len: %d, value: %.*s\n", name_len, name_len, name, value_len, value_len, value);
+#endif
 					if (fly_header_addb(__c, ci, name, name_len, value, value_len) == -1)
 						return -1;
 					break;
@@ -1309,6 +1312,9 @@ __fase_header:
 	default:
 		FLY_NOT_COME_HERE
 	}
+#ifdef DEBUG
+	printf("\tEND REQUEST HEADER PARSE\n");
+#endif
 
 	/* accept encoding parse */
 	switch(fly_accept_encoding(request)){
