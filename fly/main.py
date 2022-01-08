@@ -259,7 +259,7 @@ def fly_command_line(
         "log_stderr":           stderr,
         "backlog":              backlog,
         "max_response_content_length":     max_response_len,
-        "max_request_length":      max_request_len,
+        "max_request_content_length":      max_request_len,
         "request_timeout":      request_timeout,
         "test":                 test,
         "print_request":        print_request,
@@ -332,7 +332,7 @@ def run(**kwargs):
             "log_stderr",
             "backlog",
             "max_response_content_length",
-            "max_request_length",
+            "max_request_content_length",
             "request_timeout",
         ]
         _fp.flush()
