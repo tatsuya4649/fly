@@ -19,10 +19,10 @@ jobs:
                   usesh: true
                   mem: 4096
                   prepare: |
-                      pkg update
+                      pkg update -f
                       pkg install -y autoconf autoconf-archive automake autotools gcc sqlite3 python36 py36-sqlite3 lsof
-                      python3.6 -m ensurepip
-                      python3.6 -m pip install --upgrade pip
+                      python3 -m ensurepip
+                      python3 -m pip install --upgrade pip
                   run: |
                       autoreconf --force --install
                       ./configure
@@ -39,8 +39,8 @@ jobs:
                       -out tests/fly_test.crt
 
                       # Python3.6
-                      python3.6 -m pip install -r ./requirements.txt
-                      python3.6 setup.py build
+                      python3 -m pip install -r ./requirements.txt
+                      python3 setup.py build
                       cp -rf build/lib.*/fly/_fly_* fly/
                       export _PATH_PYTHON=$(which python3.6)
                       ln -sf $_PATH_PYTHON $(dirname $_PATH_PYTHON)/python3

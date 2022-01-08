@@ -1402,6 +1402,9 @@ __fase_body:
 
 	}
 	/* Too payload large */
+#ifdef DEBUG
+	printf("content_length %ld, max request content length %ld\n", content_length, request->ctx->max_request_content_length);
+#endif
 	if (content_length > request->ctx->max_request_content_length){
 		switch (__fly_discard_body(request, content_length)){
 		case  FLY_DISCARD_BODY_END:
