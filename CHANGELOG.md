@@ -2,7 +2,7 @@
 
 ## 1.4.0
 
-Released: 2021/12/19
+Released: 2021/1/21
 
 ## Added
 
