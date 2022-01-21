@@ -46,6 +46,7 @@ jobs:
                       ln -sf $_PATH_PYTHON $(dirname $_PATH_PYTHON)/python3
                       echo $_PATH_PYTHON
                       which python3
-                      python3 -m pytest tests -xv
+                      python3 -m pytest --force-flaky --max-runs=3 --min-passes=1 tests -xv
+
                       rm fly/_fly_server*
                       rm -rf build
