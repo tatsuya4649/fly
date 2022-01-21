@@ -44,8 +44,6 @@ jobs:
         - name: Update resolv.conf file
           run: |
               echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
-              #        - name: Setup tmate session
-              #          uses: mxschmitt/action-tmate@v3
         - name: Build extension module
           run: |
               python3 setup.py build
@@ -60,4 +58,4 @@ jobs:
               #        - name: Setup tmate session
               #          uses: mxschmitt/action-tmate@v3
         - name: Run Python fly test
-          run: python3 -m pytest tests -xv
+          run: python3 -m pytest --force-flaky --max-runs=3 --min-passes=1 tests -xv

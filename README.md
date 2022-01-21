@@ -18,7 +18,7 @@ fly currently supports the following platforms.
 
 | Python | Linux | macOS | FreeBSD |
 | :-: | :-: | :-: | :-: |
-| **3.6** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py36.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py36.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/freebsd-py36.yaml/badge.svg) |
+| **3.6** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py36.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py36.yaml/badge.svg) | - |
 | **3.7** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py37.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py37.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/freebsd-py37.yaml/badge.svg) |
 | **3.8** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py38.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py38.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/freebsd-py38.yaml/badge.svg) |
 | **3.9** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py39.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py39.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/freebsd-py39.yaml/badge.svg) |
