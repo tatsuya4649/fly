@@ -51,6 +51,12 @@ endif
 ifdef DEBUG_EMERGE
 MACROS := $(MACROS) -D DEBUG_EMERGE
 endif
+ifdef DEBUG_WORKER_ONLY
+MACROS := $(MACROS) -D DEBUG_WORKER_ONLY
+endif
+ifdef DEBUG_SEND_DC
+MACROS := $(MACROS) -D DEBUG_SEND_DC
+endif
 ifdef DEBUG
 PYTHON := python3
 else

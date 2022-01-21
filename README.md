@@ -18,7 +18,7 @@ fly currently supports the following platforms.
 
 | Python | Linux | macOS | FreeBSD |
 | :-: | :-: | :-: | :-: |
-| **3.6** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py36.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py36.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/freebsd-py36.yaml/badge.svg) |
+| **3.6** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py36.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py36.yaml/badge.svg) | - |
 | **3.7** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py37.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py37.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/freebsd-py37.yaml/badge.svg) |
 | **3.8** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py38.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py38.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/freebsd-py38.yaml/badge.svg) |
 | **3.9** | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/linux-py39.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/macos-py39.yaml/badge.svg) | ![Test](https://github.com/tatsuya4649/fly/actions/workflows/freebsd-py39.yaml/badge.svg) |
@@ -63,10 +63,19 @@ $ fly app.py
 
     * fly Running on 0.0.0.0:1234 (Press CTRL+C to quit)
     * fly 1 workers
-    * Application file: app.py
+    * Application file: /home/user/app.py
+    * Log to stdout: on
+    * Log to stderr: off
+    * Backlog count: 1024
+    * Max response content length: 1048576
+    * Max request content length: 1048576
+    * Index path: index.html
     * SSL: False
     * Log directory path: -
-    * Mount paths: -
+    * Mount paths (/home/user/mnt,/home/user/mnt2)
+        - /home/user/mnt: files 2, mount_number 0
+        - /home/user/mnt2: files 0, mount_number 1
+
 
 ```
 

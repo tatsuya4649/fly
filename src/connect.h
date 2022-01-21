@@ -54,7 +54,7 @@ int fly_listen_socket_end_handler(fly_event_t *__e);
 			(conn->http_v->type)
 
 #define FLY_MAX_REQUEST_LENGTH		"FLY_MAX_REQUEST_LENGTH"
-size_t fly_max_request_length(void);
+size_t fly_max_request_content_length(void);
 
 #define FLY_CONNECT_BUFFER_INIT_LEN "FLY_CONNECT_BUFFER_INIT_LEN"
 #define FLY_CONNECT_BUFFER_PER_LEN	"FLY_CONNECT_BUFFER_PER_LEN"

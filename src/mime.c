@@ -33,6 +33,10 @@ bool fly_mime_invalid(fly_mime_type_t *type)
 
 static void __fly_mime_init(fly_request_t *req);
 __fly_static int __fly_add_accept_mime(fly_mime_t *m, struct __fly_mime *nm);
+#define __FLY_ACCEPT_PARSE_MIME_SUCCESS				1
+#define __FLY_ACCEPT_PARSE_MIME_ERROR				-1
+#define __FLY_ACCEPT_PARSE_MIME_SYNTAX_ERROR		-2
+#define __FLY_ACCEPT_PARSE_MIME_NOT_ACCEPTABLE		-3
 __fly_static int __fly_accept_parse(fly_mime_t *mime, fly_hdr_c *c);
 __fly_static int __fly_accept_mime_parse(fly_mime_t *mime, fly_hdr_value *value);
 #define FLY_MIME_PARSE_ERROR	-1
@@ -180,18 +184,29 @@ int fly_accept_mime(__fly_unused fly_request_t *request)
 
 	header = request->header;
 	if (fly_unlikely_null(request) || fly_unlikely_null(request->pool) || fly_unlikely_null(request->header))
-		return -1;
+		return FLY_ACCEPT_MIME_ERROR;
 
 	__fly_mime_init(request);
 	switch(__fly_accept_mime(header, &accept)){
 	case __FLY_ACCEPT_MIME_ERROR:
-		return -1;
+		return FLY_ACCEPT_MIME_ERROR;
 	case __FLY_ACCEPT_MIME_NOTFOUND:
 		if (__fly_add_accept_asterisk(request) == -1)
-			return -1;
-		return 0;
+			return FLY_ACCEPT_MIME_ERROR;
+		return FLY_ACCEPT_MIME_SUCCESS;
 	case __FLY_ACCEPT_MIME_FOUND:
-		return __fly_accept_parse(request->mime, accept);
+		switch(__fly_accept_parse(request->mime, accept)){
+		case __FLY_ACCEPT_PARSE_MIME_SUCCESS:
+			return FLY_ACCEPT_MIME_SUCCESS;
+		case __FLY_ACCEPT_PARSE_MIME_ERROR:
+			return FLY_ACCEPT_MIME_ERROR;
+		case __FLY_ACCEPT_PARSE_MIME_SYNTAX_ERROR:
+			return FLY_ACCEPT_MIME_SYNTAX_ERROR;
+		case __FLY_ACCEPT_PARSE_MIME_NOT_ACCEPTABLE:
+			return FLY_ACCEPT_MIME_NOT_ACCEPTABLE;
+		default:
+			FLY_NOT_COME_HERE
+		}
 	default:
 		FLY_NOT_COME_HERE
 	}
@@ -996,26 +1011,36 @@ __fly_static int __fly_accept_qvalue_from_str(fly_hdr_value *qvalue)
 
 __fly_static int __fly_accept_parse(fly_mime_t *mime, fly_hdr_c *c)
 {
+	struct fly_bllist *__b;
+	struct __fly_mime *__m;
 	fly_hdr_value *value;
 
-	if (!mime)
-		return -1;
-
 	if (!c->value)
-		return FLY_MIME_PARSE_ERROR;
-	value = c->value;
+		return __FLY_ACCEPT_PARSE_MIME_SYNTAX_ERROR;
 
+	value = c->value;
 	switch (__fly_accept_mime_parse(mime, value)){
 	case FLY_MIME_PARSE_SUCCESS:
-		return 1;
+		break;
 	case FLY_MIME_PARSE_ERROR:
-		return -1;
+		return __FLY_ACCEPT_PARSE_MIME_ERROR;
 	case FLY_MIME_PARSE_PERROR:
-		return 0;
+		return __FLY_ACCEPT_PARSE_MIME_SYNTAX_ERROR;
 	default:
-		return -1;
+		FLY_NOT_COME_HERE
 	}
-	FLY_NOT_COME_HERE
+
+	if (mime->accept_count == 0)
+		return __FLY_ACCEPT_PARSE_MIME_SYNTAX_ERROR;
+
+	fly_for_each_bllist(__b, &mime->accepts){
+		__m = fly_bllist_data(__b, struct __fly_mime, blelem);
+		if (__m->quality_value > 0)
+			return __FLY_ACCEPT_PARSE_MIME_SUCCESS;
+	}
+
+	/* There is no mime type that have quality value greater than 0 */
+	return __FLY_ACCEPT_PARSE_MIME_NOT_ACCEPTABLE;
 }
 
 __fly_static void __fly_mime_param_add(struct __fly_mime *__nm, struct __fly_accept_param *param)

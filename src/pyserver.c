@@ -16,6 +16,16 @@ struct __pyfly_server{
 	char				*log;
 	char				*ssl_crt_path;
 	char 				*ssl_key_path;
+	bool				log_stdout;
+	bool				log_stderr;
+	long				backlog;
+	long				max_response_content_length;
+	long				max_request_content_length;
+	long				request_timeout;
+	const char			*index_path;
+	const char			*default_content_path;
+	struct fly_err		err;
+	long				encoding_threshold;
 };
 
 struct PyMemberDef __pyfly_server_members[] = {
@@ -27,6 +37,15 @@ struct PyMemberDef __pyfly_server_members[] = {
 	{"_ssl", T_BOOL, offsetof(struct __pyfly_server, ssl), READONLY, ""},
 	{"_ssl_crt_path", T_STRING, offsetof(struct __pyfly_server, ssl_crt_path), READONLY, ""},
 	{"_ssl_key_path", T_STRING, offsetof(struct __pyfly_server, ssl_key_path), READONLY, ""},
+	{"_log_stdout", T_BOOL, offsetof(struct __pyfly_server, log_stdout), READONLY, ""},
+	{"_log_stderr", T_BOOL, offsetof(struct __pyfly_server, log_stderr), READONLY, ""},
+	{"_backlog", T_LONG, offsetof(struct __pyfly_server, backlog), READONLY, ""},
+	{"_max_response_content_length", T_LONG, offsetof(struct __pyfly_server, max_response_content_length), READONLY, ""},
+	{"_max_request_content_length", T_LONG, offsetof(struct __pyfly_server, max_request_content_length), READONLY, ""},
+	{"_request_timeout", T_LONG, offsetof(struct __pyfly_server, request_timeout), READONLY, ""},
+	{"_index_path", T_STRING, offsetof(struct __pyfly_server, index_path), READONLY, ""},
+	{"_default_content_path", T_STRING, offsetof(struct __pyfly_server, default_content_path), READONLY, ""},
+	{"_encoding_threshold", T_LONG, offsetof(struct __pyfly_server, encoding_threshold), READONLY, ""},
 	{NULL}
 };
 
@@ -152,8 +171,6 @@ typedef struct __pyfly_server __pyfly_server_t;
 
 static void __pyfly_server_dealloc(__pyfly_server_t *self)
 {
-//	if (self->master)
-//		fly_master_release(self->master);
 	Py_TYPE(self)->tp_free((PyObject *) self);
 }
 
@@ -165,25 +182,29 @@ __fly_unused static PyObject *__pyfly_server_new(PyTypeObject *type, PyObject *a
 	return (PyObject *) self;
 }
 
-static int pyfly_parse_config_file(void)
+static int pyfly_parse_config_file(struct fly_err *err)
 {
 	int res;
 
-	res = fly_parse_config_file();
+	memset(err, '\0', sizeof(struct fly_err));
+	res = fly_parse_config_file(err);
+#ifdef DEBUG
+	printf("PyFLY_PARSE_CONFIG_FILE: %s\n", err->content);
+#endif
 	switch (res){
-	case FLY_PARSE_CONFIG_NOTFOUND:
-		break;
-	case FLY_PARSE_CONFIG_ERROR:
-		PyErr_SetString(PyExc_ValueError, "parse file error.");
-		break;
 	case FLY_PARSE_CONFIG_SUCCESS:
 		break;
+	case FLY_PARSE_CONFIG_NOTFOUND:
+		PyErr_WarnFormat(PyExc_ResourceWarning, 1, "%s", (const char *) err->content);
+		break;
+	case FLY_PARSE_CONFIG_ERROR:
+		PyErr_Format(PyExc_ValueError, "Parse config error. %s", err->content);
+		break;
 	case FLY_PARSE_CONFIG_SYNTAX_ERROR:
-		PyErr_SetString(PyExc_ValueError, "parse file error.");
+		PyErr_Format(PyExc_ValueError, "Parse syntax config error.");
 		break;
 	default:
-		PyErr_SetString(PyExc_ValueError, "parse file error.");
-		break;
+		FLY_NOT_COME_HERE
 	}
 	return res;
 }
@@ -952,18 +973,18 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 	}
 
 	if (config_path && setenv(FLY_CONFIG_PATH, config_path, 1) == -1){
-		PyErr_SetString(PyExc_ValueError, "rnvironment setting error.");
+		PyErr_SetString(PyExc_ValueError, "Environment setting error.");
 		goto error;
 	}
 
 	/* config setting */
-	switch (pyfly_parse_config_file()){
+	switch (pyfly_parse_config_file(&self->err)){
+	case FLY_PARSE_CONFIG_SUCCESS:
+		break;
 	case FLY_PARSE_CONFIG_NOTFOUND:
 		break;
 	case FLY_PARSE_CONFIG_ERROR:
 		goto error;
-	case FLY_PARSE_CONFIG_SUCCESS:
-		break;
 	case FLY_PARSE_CONFIG_SYNTAX_ERROR:
 		goto error;
 	default:
@@ -1037,12 +1058,21 @@ static PyObject *__pyfly_configure(__pyfly_server_t *self, PyObject *args)
 		}
 	}
 
-	self->master = master;
-	self->port = (long) fly_server_port();
-	self->host = (const char *) fly_server_host();
-	self->worker = (long) master->now_workers;
-	self->reqworker = (long) master->req_workers;
-	self->ssl = (bool) fly_ssl();
+	self->master			= master;
+	self->port				= (long) fly_server_port();
+	self->host 				= (const char *) fly_server_host();
+	self->worker			= (long) master->now_workers;
+	self->reqworker			= (long) master->req_workers;
+	self->ssl				= (bool) fly_ssl();
+	self->log_stdout		= fly_log_stdout();
+	self->log_stderr		= fly_log_stderr();
+	self->backlog			= fly_backlog();
+	self->max_response_content_length = fly_response_content_max_length();
+	self->max_request_content_length = fly_max_request_content_length();
+	self->request_timeout	= fly_request_timeout();
+	self->index_path		= fly_index_path();
+	self->default_content_path = fly_default_content_path();
+	self->encoding_threshold = fly_encode_threshold();
 
 #ifdef DEBUG
 	printf("%d\n", self->ssl);

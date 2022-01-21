@@ -153,15 +153,27 @@ int fly_event_manager_release(fly_event_manager_t *manager)
 	if (close(manager->efd) == -1)
 		return -1;
 
-	struct fly_queue *__b;
+	struct fly_queue *__q;
 	fly_event_t *__e;
-	fly_for_each_queue(__b, &manager->monitorable){
-		__e = fly_bllist_data(__b, fly_event_t, qelem);
+
+	while(manager->monitorable.count > 0){
+		__q = fly_queue_pop(&manager->monitorable);
+		__e = fly_bllist_data(__q, fly_event_t, qelem);
+#ifdef DEBUG
+		printf("\tRELEASE MONITORABLE EVENT %s: fd %d: flag %d\n", __e->handler_name, __e->fd, __e->flag);
+		printf("\tTOTAL MONITORABLE EVENTS %d\n", manager->monitorable.count);
+#endif
 		if (__e->end_handler)
 			__e->end_handler(__e);
 	}
-	fly_for_each_queue(__b, &manager->unmonitorable){
-		__e = fly_bllist_data(__b, fly_event_t, qelem);
+
+	while(manager->unmonitorable.count > 0){
+		__q = fly_queue_pop(&manager->unmonitorable);
+		__e = fly_bllist_data(__q, fly_event_t, uqelem);
+#ifdef DEBUG
+		printf("\tRELEASE UNMONITORABLE EVENT %s: fd %d: flag %d\n", __e->handler_name, __e->fd, __e->flag);
+		printf("\tTOTAL UNMONITORABLE EVENT %d\n", manager->monitorable.count);
+#endif
 		if (__e->end_handler)
 			__e->end_handler(__e);
 	}
@@ -377,6 +389,7 @@ int fly_event_register(fly_event_t *event)
 			}
 		}
 	}
+	event->available_row = 0;
 #ifdef HAVE_EPOLL
 	data.ptr = event;
 	ev.data = data;
@@ -956,8 +969,10 @@ __fly_static int __fly_event_handle_failure_log(fly_event_t *e)
 
 	fly_notice_direct_log_lc(fly_log_from_event(e), lc);
 	/* close failure fd */
-	if ((e->fail_close != NULL ? e->fail_close(e, e->fd) : close(e->fd)) == -1)
-		return -1;
+	if (e->flag != FLY_CLOSE_EV){
+		if ((e->fail_close != NULL ? e->fail_close(e, e->fd) : close(e->fd)) == -1)
+			return -1;
+	}
 
 	e->flag = FLY_CLOSE_EV;
 	return 0;

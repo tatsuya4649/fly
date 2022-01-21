@@ -7,6 +7,7 @@ sys.path.append(
 from fly import Fly, Response
 from fly.response import *
 from fly.types import *
+from fly.helper import redirect
 
 app = Fly()
 app.mount("tests/mnt")
@@ -155,3 +156,6 @@ def types_path_param_item(user_id: Path):
 def types_path_param_default(postid: Path):
     return f"Success, path_param_default: {postid}"
 
+@app.get("/redirect")
+def redirect_location():
+    return redirect("/")

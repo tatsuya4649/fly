@@ -30,9 +30,12 @@ struct fly_charset{
 };
 typedef struct fly_charset fly_charset_t;
 
+#define FLY_ACCEPT_CHARSET_SUCCESS				0
+#define FLY_ACCEPT_CHARSET_SYNTAX_ERROR			-1
+#define FLY_ACCEPT_CHARSET_ERROR				-2
+#define FLY_ACCEPT_CHARSET_NOT_ACCEPTABLE		-3
 int fly_accept_charset(fly_request_t *req);
-#define FLY_ACCEPT_CHARSET					("Accept-Charset")
-#define FLY_ACCEPT_CHARSET_SMALL			("accept-charset")
+#define FLY_ACCEPT_CHARSET					("accept-charset")
 
 #endif
 

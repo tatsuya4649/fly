@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include "char.h"
 #include "conf.h"
 
@@ -9,9 +10,6 @@ struct fly_config configs[] = {
 };
 
 
-static void fly_syntax_error_invalid_item_name(int lines, char *name, size_t name_len);
-static void fly_syntax_error_no_name(int lines);
-static void fly_syntax_error_no_value(int lines);
 static void fly_set_config_value(int lines, struct fly_config *config, char *value, size_t value_len);
 
 static inline char *fly_config_path(void)
@@ -66,7 +64,7 @@ void fly_config_item_default_setting(void)
 		fprintf(stderr, "end process by config parse error.\n");\
 		exit(-1*__e);							\
 	} while(0)
-int fly_parse_config_file(void)
+int fly_parse_config_file(struct fly_err *err)
 {
 #define FLY_CONFIG_BUF_LENGTH				1024
 	char config_buf[FLY_CONFIG_BUF_LENGTH];
@@ -88,10 +86,29 @@ int fly_parse_config_file(void)
 
 	__cf = fly_open_config_file();
 	errno = 0;
-	if ((__cf == NULL && errno == ENOENT) || (__cf == NULL && errno == 0))
+	if ((__cf == NULL && errno == ENOENT) || (__cf == NULL && errno == 0)){
+		if (err != NULL){
+			fly_error(
+				err, errno,
+				FLY_ERR_WARN,
+				"Not found config file(%s).",
+				fly_config_path() != NULL ? fly_config_path() : ""
+			);
+		}
 		return FLY_PARSE_CONFIG_NOTFOUND;
-	if (__cf == NULL)
+	}
+	if (__cf == NULL){
+		if (err != NULL){
+			fly_error(
+				err, errno,
+				FLY_ERR_ERR,
+				"Open config file error(%s). %s",
+				fly_config_path() != NULL ? fly_config_path() : "",
+				strerror(errno)
+			);
+		}
 		return FLY_PARSE_CONFIG_ERROR;
+	}
 
 	lines = 0;
 	memset(config_buf, '\0', FLY_CONFIG_BUF_LENGTH);
@@ -136,6 +153,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: \"%s\". Invalid character(\"%c\")",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case COMMENT:
 				goto comment;
@@ -162,6 +187,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: %d, \"%s\". Invalid name character(\"%c\")",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, ptr-config_buf+1, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case NAME_END:
 				if (FLY_PARSE_CONFIG_SPACE(ptr)){
@@ -179,6 +212,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: %d, \"%s\". Invalid name end character(\"%c\"). Must be equal or space.",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, ptr-config_buf+1, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case EQUAL:
 				if (FLY_PARSE_CONFIG_SPACE(ptr)){
@@ -190,6 +231,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: %d, \"%s\". Invalid character(\"%c\"). Must be space or value character.",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, ptr-config_buf+1, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case VALUE:
 				if (FLY_PARSE_CONFIG_VALUE_CHAR(ptr)){
@@ -211,6 +260,14 @@ int fly_parse_config_file(void)
 					break;
 				}
 
+				if (err != NULL){
+					fly_error(
+						err, errno, FLY_ERR_ERR,
+						"Syntax error in configure file (%s). Line %d: %d, \"%s\". Invalid value character(\"%c\").",
+						fly_config_path() != NULL ? fly_config_path() : "",
+						lines, ptr-config_buf+1, config_buf, *ptr
+					);
+				}
 				goto syntax_error;
 			case VALUE_END:
 				goto end_line;
@@ -223,21 +280,51 @@ int fly_parse_config_file(void)
 		}
 
 end_line:
+		;
 #ifdef DEBUG
 		printf("PARSE RESULT=> name: %.*s, value=: %.*s|\n", (int) name_len, name, (int) value_len, value);
 #endif
+		char *__cptr=config_buf;
+		while(!fly_cr(*__cptr) && !fly_lf(*__cptr))
+			__cptr++;
+		*__cptr = '\0';
 		/* syntax check */
-		if (!name || name_len == 0)
-			fly_syntax_error_no_name(lines);
-		if (!value || value_len==0)
-			fly_syntax_error_no_value(lines);
+		if (!name || name_len == 0){
+			if (err != NULL){
+				fly_error(
+					err, errno, FLY_ERR_ERR,
+					"Parse error in configure file (%s). Line %d, \"%s\". Not found name of configure item.",
+					fly_config_path() != NULL ? fly_config_path() : "",
+					lines, config_buf
+				);
+			}
+			goto syntax_error;
+		}
+		if (!value || value_len==0){
+			if (err != NULL){
+				fly_error(
+					err, errno, FLY_ERR_ERR,
+					"Parse error in configure file (%s). Line %d, \"%s\". Not found value of configure item.",
+					fly_config_path() != NULL ? fly_config_path() : "",
+					lines, config_buf
+				);
+			}
+			goto syntax_error;
+		}
 
 		config = fly_config_item_search(name, name_len);
 		if (config != NULL){
 			fly_set_config_value(lines, config, value, value_len);
 		}else{
 			/* unknown item name */
-			fly_syntax_error_invalid_item_name(lines, name, name_len);
+			if (err != NULL){
+				fly_error(
+					err, errno, FLY_ERR_ERR,
+					"Parse error in configure file (%s). Line %d, \"%s\". Unknown configure item.",
+					fly_config_path() != NULL ? fly_config_path() : "",
+					lines, config_buf
+				);
+			}
 			goto syntax_error;
 		}
 
@@ -257,34 +344,23 @@ newline:
 syntax_error:
 	return FLY_PARSE_CONFIG_ERROR;
 error:
+	if (err != NULL){
+		fly_error(
+			err, errno,
+			FLY_ERR_ERR,
+			"Parse config file error(%s). %s",
+			fly_config_path() != NULL ? fly_config_path() : "",
+			strerror(errno)
+		);
+	}
 	return FLY_PARSE_CONFIG_SYNTAX_ERROR;
 }
 
 #define FLY_CONFIG_PARSE_ERROR_STRING(__l)				\
 	do{													\
 		char *__fpath = fly_config_path();				\
-		fprintf(stderr, "config file parse error(%s,line. %d): ", __fpath, __l);	\
+		fprintf(stderr, "Config file parse error(%s,line. %d): ", __fpath, __l);	\
 	}while(0)
-
-static void fly_syntax_error_invalid_item_name(int lines, char *name, size_t name_len)
-{
-	name[name_len] = '\0';
-
-	FLY_CONFIG_PARSE_ERROR_STRING(lines);
-	fprintf(stderr, "invalid item name(%s)\n", name);
-}
-
-static void fly_syntax_error_no_name(int lines)
-{
-	FLY_CONFIG_PARSE_ERROR_STRING(lines);
-	fprintf(stderr, "no name\n");
-}
-
-static void fly_syntax_error_no_value(int lines)
-{
-	FLY_CONFIG_PARSE_ERROR_STRING(lines);
-	fprintf(stderr, "no value\n");
-}
 
 static void fly_syntax_error_invalid_value(int lines, char *value, size_t value_len, struct fly_config *config)
 {
@@ -349,14 +425,20 @@ char *fly_config_value_str(char *name)
 	FLY_NOT_COME_HERE
 }
 
-int fly_config_value_int(char *name)
+long fly_config_value_long(char *name)
 {
+	long res;
 	char *env_value;
 	for (struct fly_config *__c=configs; __c->name; __c++){
 		if (strlen(name) == strlen(__c->env_name) && strncmp(name, __c->env_name, strlen(name)) == 0){
 			env_value = getenv(name);
 			assert(env_value != NULL);
-			return atoi(env_value);
+			errno = 0;
+			res = strtol(env_value, NULL, 10);
+			if (errno == ERANGE)
+				return LONG_MAX;
+			else
+				return res;
 		}
 	}
 	FLY_NOT_COME_HERE

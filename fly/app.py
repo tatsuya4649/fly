@@ -6,9 +6,9 @@ import inspect
 import importlib.machinery as imm
 import importlib.util as imu
 import asyncio
-import traceback
 import time
 import signal
+from .err import display_fly_error
 
 _os = platform.system()
 _libfly_dir = os.path.abspath(
@@ -54,8 +54,6 @@ def _signal_interrupt():
     print("\nReceive SIGINT. teminate fly server.", file=sys.stderr, flush=True)
     sys.exit(1)
 
-#import pdb
-#pdb.set_trace()
 def _watch_dog(fly):
     _f = os.stat(fly._app_filepath)
     try:
@@ -79,20 +77,11 @@ def _watch_dog(fly):
         else:
             _signal_interrupt()
     except Exception as e:
-        _t = traceback.format_exc()
-        print(_t)
+        display_fly_error(e)
         sys.exit(1)
 
-def _display_fly_error(_e):
-    print("", file=sys.stderr)
-    print("\033[1m" + '  fly error !' + '\033[0m', file=sys.stderr)
-    print(f"    {_e}", file=sys.stderr)
-    print("", file=sys.stderr)
-    _t = traceback.format_exc()
-    print(_t, file=sys.stderr)
-
 def _display_master_configure_error(_e):
-    _display_fly_error(_e)
+    display_fly_error(_e)
     sys.exit(1)
 
 def _run(fly):
@@ -106,7 +95,7 @@ def _run(fly):
     except _FLY_MASTER_CONFIGURE_ERROR as e:
         _display_master_configure_error(e)
     except Exception as e:
-        _display_fly_error(e)
+        display_fly_error(e)
         err = True
 
     if err:
@@ -170,14 +159,31 @@ class Fly(_Fly, Mount, Route, _fly_server):
         else:
             self._debug = True
 
+        if kwargs.get("print_request") is not None:
+            if not isinstance(kwargs.get("print_request"), bool):
+                raise TypeError("print_request must be bool type.")
+
+            self._print_request = True \
+                    if kwargs.get("print_request") is True else False
+        else:
+            self._print_request = False
+
         self._app_filepath = self._get_application_file_path()
         self._ran = False
 
-    def route(self, path, method):
+    def route(self, path, method, **kwargs):
         if not isinstance(path, str) or not isinstance(method, Method):
             raise TypeError(
                 "path must be str type and Method."
             )
+        _debug_route = kwargs.get("debug_route")
+        if _debug_route is not None and \
+                not isinstance(_debug_route, bool):
+                    raise TypeError(
+                            "debug_route must be bool type."
+                            )
+        if "debug_route" in kwargs:
+            kwargs.pop("debug_route")
 
         def _route(func):
             if not callable(func):
@@ -189,42 +195,49 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 "uri": path,
                 "func": func,
                 "method": method,
+                "debug_route": _debug_route
             })
+            if not self.is_debug and _debug_route:
+                return func
+
             self.register_route(
                 uri=path,
                 func=func,
                 method=method.value,
-                debug=self.is_debug
+                debug=self.is_debug,
+                print_request=self.is_print_request,
+                debug_route=_debug_route,
+                **kwargs
             )
             return func
         return _route
 
-    def get(self, path):
-        return self.route(path, Method.GET)
+    def get(self, path, **kwargs):
+        return self.route(path, Method.GET, **kwargs)
 
-    def post(self, path):
-        return self.route(path, Method.POST)
+    def post(self, path, **kwargs):
+        return self.route(path, Method.POST, **kwargs)
 
-    def head(self, path):
-        return self.route(path, Method.HEAD)
+    def head(self, path, **kwargs):
+        return self.route(path, Method.HEAD, **kwargs)
 
-    def options(self, path):
-        return self.route(path, Method.OPTIONS)
+    def options(self, path, **kwargs):
+        return self.route(path, Method.OPTIONS, **kwargs)
 
-    def put(self, path):
-        return self.route(path, Method.PUT)
+    def put(self, path, **kwargs):
+        return self.route(path, Method.PUT, **kwargs)
 
-    def delete(self, path):
-        return self.route(path, Method.DELETE)
+    def delete(self, path, **kwargs):
+        return self.route(path, Method.DELETE, **kwargs)
 
-    def connect(self, path):
-        return self.route(path, Method.CONNECT)
+    def connect(self, path, **kwargs):
+        return self.route(path, Method.CONNECT, **kwargs)
 
-    def trace(self, path):
-        return self.route(path, Method.TRACE)
+    def trace(self, path, **kwargs):
+        return self.route(path, Method.TRACE, **kwargs)
 
-    def patch(self, path):
-        return self.route(path, Method.PATCH)
+    def patch(self, path, **kwargs):
+        return self.route(path, Method.PATCH, **kwargs)
 
     def _get_application_file_path(self):
         stack = inspect.stack()
@@ -234,7 +247,6 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 return os.path.abspath(m.__file__)
         return None
 
-    # XXX: require debug
     def run(self, daemon=False, test=False):
         self._daemon = daemon
         self._test = test
@@ -253,6 +265,13 @@ class Fly(_Fly, Mount, Route, _fly_server):
         if self.config_path is not None and not isinstance(self.config_path, str):
             raise TypeError("config_path must be str type.")
 
+        self._production_routes(debug=self.is_debug)
+        if self.mounts_count == 0 and len(self.routes) == 0:
+            raise RuntimeError("fly must have one or more mount points.")
+
+        self._print_request_routes(print_request=self.is_print_request)
+        self.default_cors_apply_routes()
+        self.remove_only_debug_headers(debug=self.is_debug)
         try:
             super()._configure(self.config_path, self.routes)
         except Exception as e:
@@ -285,6 +304,10 @@ class Fly(_Fly, Mount, Route, _fly_server):
         return self._debug
 
     @property
+    def is_print_request(self):
+        return self._print_request
+
+    @property
     def is_daemon(self):
         return self._daemon
 
@@ -297,10 +320,21 @@ class Fly(_Fly, Mount, Route, _fly_server):
 
     def _display_explain(self):
         print("\n", file=sys.stderr)
+        if not self.is_debug and not self.is_daemon:
+            print(f"  \033[1mWARN: fly is product mode now. But, not daemon.\033[0m", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly Running on \033[1m{self._host}:{self._port}\033[0m (Press CTRL+C to quit)", file=sys.stderr)
+        print(f"    \033[1m*\033[0m { 'Debug mode' if self.is_debug else 'Production mode'}{ '(print request)' if self.is_print_request else '' }", file=sys.stderr)
         print(f"    \033[1m*\033[0m fly \033[1m{self._reqworker}\033[0m workers", file=sys.stderr)
         if self._app_filepath:
             print(f"    \033[1m*\033[0m Application file: \033[1m{self._app_filepath}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Log to stdout: \033[1m{ 'on' if self._log_stdout else 'off' }\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Log to stderr: \033[1m{ 'on' if self._log_stderr else 'off' }\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Backlog count: \033[1m{ self._backlog }\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Max response content length: \033[1m{ self._max_response_content_length}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Max request content length: \033[1m{ self._max_request_content_length}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Index path: \033[1m{ self._index_path}\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Default content paths: \033[1m{ '-' if self._default_content_path is None else selff_default_content_path}\033[0m", file=sys.stderr)
+
         print(f"    \033[1m*\033[0m SSL: \033[1m{self._ssl}\033[0m", file=sys.stderr)
         if self._ssl:
             print(f"    \033[1m*\033[0m SSL certificate path: \033[1m{self._ssl_crt_path}\033[0m", file=sys.stderr)
@@ -324,5 +358,23 @@ class Fly(_Fly, Mount, Route, _fly_server):
                 print("        - {:<{width}s}: files \033[1m{}\033[0m, mount_number \033[1m{mn}\033[0m".format(mount, _mfc, width=max_len, mn=_mn), file=sys.stderr)
         else:
             print(f"    \033[1m*\033[0m Mount paths: \033[1m-\033[0m", file=sys.stderr)
+        print(f"    \033[1m*\033[0m Encoding threshold: \033[1m{self._encoding_threshold}bytes\033[0m", file=sys.stderr)
+
+        if len(self._routes) > 0:
+            print(f"    \033[1m*\033[0m Routes: \033[1m{len(self._routes)}\033[0m", file=sys.stderr)
+            for route in self._routes:
+                print(f"        \033[1m-\033[0m uri: \033[1m{route['uri']}\033[0m, method: \033[1m{route['method']}\033[0m, handler: \033[1m{route['orig_func'].__name__}\033[0m { ', ' if route.get('debug_route') else '' }\033[1m{ 'debug_route' if route.get('debug_route') else ''}\033[0m", file=sys.stderr)
 
         print("\n", file=sys.stderr)
+
+    @property
+    def default_cors(self):
+        return self._cors
+
+    @default_cors.setter
+    def default_cors(self, value):
+        self._cors = value
+
+    def default_cors_apply_routes(self):
+        if hasattr(self, "_cors") and self._cors is not None:
+            self._cors.apply_route(self, self.routes)

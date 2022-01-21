@@ -23,9 +23,9 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm, struct fly_err *e
 	ctx->listen_count = 0;
 	ctx->listen_sock = __fly_listen_sock(ctx, pool, err);
 	if (ctx->listen_sock == NULL)
-		return NULL;
+		goto error;
 	ctx->max_response_content_length = fly_response_content_max_length();
-	ctx->max_request_length = fly_max_request_length();
+	ctx->max_request_content_length = fly_max_request_content_length();
 	ctx->request_timeout = fly_request_timeout();
 	ctx->response_encode_threshold = fly_encode_threshold();
 	ctx->log = fly_log_init(ctx, err);
@@ -46,6 +46,10 @@ fly_context_t *fly_context_init(struct fly_pool_manager *__pm, struct fly_err *e
 	fly_errsys_init(ctx);
 
 	return ctx;
+error:
+	fly_delete_pool(pool);
+	fly_free(ctx);
+	return NULL;
 }
 
 void fly_context_release(fly_context_t *ctx)

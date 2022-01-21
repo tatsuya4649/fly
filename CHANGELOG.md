@@ -1,5 +1,51 @@
 # Change Log
 
+## 1.4.0
+
+Released: 2021/12/19
+
+## Added
+
+* Support CORS
+
+* Support POST of application/json
+
+* helper function of CORS, HTTP response
+
+* print\_request option in CLI
+
+### Python
+
+* RequestParser to parse dict of request
+
+### C
+
+* Support Expect: 100-continue
+
+## Changed
+
+## Python
+
+* Change Python UI when running fly server
+
+* Change config item name (max\_request\_length => max\_request\_content\_length)
+
+### C
+
+* Fixed handler sending Window update frame
+
+## Fixed
+
+### Python
+
+* Fixed bug of parsing cookie
+
+### C
+
+* Fixed SSL bug in HTTP2(POST method)
+
+* Fixed Memory leak
+
 ## 1.3.0
 
 Released: 2021/12/18

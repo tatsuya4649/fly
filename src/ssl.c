@@ -39,10 +39,15 @@ void fly_listen_socket_ssl_setting(fly_context_t *ctx, fly_sockinfo_t *sockinfo)
 #ifdef DEBUG
 	printf("SSL CRT PATH: %s\n", sockinfo->crt_path);
 	printf("SSL KEY PATH: %s\n", sockinfo->key_path);
+	printf("SSL read ahead: %ld\n", SSL_CTX_get_read_ahead(ssl_ctx));
+	printf("SSL default read ahead: %ld\n", SSL_CTX_get_default_read_ahead(ssl_ctx));
+	printf("SSL get mode %ld\n", SSL_CTX_get_mode(ssl_ctx));
 #endif
 
 	SSL_CTX_set_options(ssl_ctx, SSL_OP_NO_SSLv2);
     SSL_CTX_set_alpn_select_cb(ssl_ctx, __fly_ssl_alpn, NULL);
+	/* Read aheader must be off. */
+	SSL_CTX_set_read_ahead(ssl_ctx, 0);
 	return;
 }
 
@@ -90,6 +95,9 @@ int fly_accept_listen_socket_ssl_handler(fly_event_t *e, fly_connect_t *conn)
 		}
 		return -1;
 	}
+#ifdef DEBUG
+	assert(SSL_get_read_ahead(ssl) == 0);
+#endif
 
 	conn->ssl = ssl;
 	conn->flag = FLY_SSL_CONNECT;

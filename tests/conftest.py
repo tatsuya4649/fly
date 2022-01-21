@@ -188,6 +188,19 @@ def fly_servers(request):
     else:
         yield request.getfixturevalue("fly_server_d")
 
+@pytest.fixture(params=["nodaemon", "daemon"])
+def fly_servers_enc(request):
+    if request.param == "nodaemon":
+        yield request.getfixturevalue("fly_server_enc")
+    else:
+        yield request.getfixturevalue("fly_server_enc_d")
+
+@pytest.fixture(params=["nodaemon", "daemon"])
+def fly_servers_enc_ssl(request):
+    if request.param == "nodaemon":
+        yield request.getfixturevalue("fly_server_enc_ssl")
+    else:
+        yield request.getfixturevalue("fly_server_enc_ssl_d")
 
 @pytest.fixture(params=["nodaemon", "daemon"])
 def fly_mini_servers(request):
@@ -209,6 +222,34 @@ def fly_mini_servers_ssl(request):
         yield request.getfixturevalue("fly_mini_server_ssl")
     else:
         yield request.getfixturevalue("fly_mini_server_ssl_d")
+
+@pytest.mark.asyncio
+@pytest.fixture(scope="function", autouse=False)
+async def fly_server_enc(fly_remove_pid, remove_already_in_use):
+    process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test_enc.conf --test")
+    await asyncio.sleep(1.5)
+    yield process
+
+@pytest.mark.asyncio
+@pytest.fixture(scope="function", autouse=False)
+async def fly_server_enc_d(fly_remove_pid, remove_already_in_use):
+    process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/http_test_enc.conf --daemon  --test")
+    await asyncio.sleep(1.5)
+    yield process
+
+@pytest.mark.asyncio
+@pytest.fixture(scope="function", autouse=False)
+async def fly_server_enc_ssl(fly_remove_pid, remove_already_in_use):
+    process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/https_test_enc.conf --test")
+    await asyncio.sleep(1.5)
+    yield process
+
+@pytest.mark.asyncio
+@pytest.fixture(scope="function", autouse=False)
+async def fly_server_enc_ssl_d(fly_remove_pid, remove_already_in_use):
+    process = await asyncio.create_subprocess_shell("python3 -m fly tests/fly_test.py -c tests/https_test_enc.conf --daemon  --test")
+    await asyncio.sleep(1.5)
+    yield process
 
 @pytest.mark.asyncio
 @pytest.fixture(scope="function", autouse=False)

@@ -100,7 +100,7 @@ if _OS == 'Darwin':
                     continue
             if _invalid:
                 continue
-            _bro = "/usr/local/opt/zlib/include"
+            _bro = "/usr/local/opt/brotli/include"
     if _bro is not None:
         extra_compile_args.append(f"-I{_bro}")
     print(f"OpenSSL Directory: {_ssldir}", flush=True)
@@ -147,6 +147,7 @@ setup(
     install_requires = [
         "click>=7.1.0",
         "jinja2>=3.0.0",
+        "pydantic==1.8.2",
     ],
     tests_require = [
         "pytest >= 6",
