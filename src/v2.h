@@ -115,7 +115,9 @@ struct fly_hv2_state{
 	/* use when memory is low */
 	void							*emergency_ptr;
 
+	/* Window size of myself */
 	ssize_t							 window_size;
+	/* Window size of peer */
 	ssize_t							 p_window_size;
 	/* connection setting value by SETTINGS frame */
 #define FLY_HV2_HEADER_TABLE_SIZE_DEFAULT		(4096)	/* unit: octet*/
@@ -459,5 +461,27 @@ extern struct fly_hv2_static_table static_table[];
 int fly_header_add_v2(fly_hdr_ci *chain_info, fly_hdr_name *name, int name_len, fly_hdr_value *value, int value_len, bool beginning);
 int fly_hv2_end_handle(fly_event_t *e);
 int fly_hv2_timeout_handle(fly_event_t *e);
+
+#ifdef DEBUG
+bool fly_hv2_is_index_header_field(uint8_t *pl);
+bool fly_hv2_is_index_header_update(uint8_t *pl);
+bool fly_hv2_is_index_header_noupdate(uint8_t *pl);
+bool fly_hv2_is_index_header_noindex(uint8_t *pl);
+#endif
+
+static inline void fly_hv2_max_handled_sid(fly_hv2_stream_t *stream)
+{
+#ifdef DEBUG
+	assert(stream != NULL);
+	assert(stream->state != NULL);
+#endif
+	if (stream->id > stream->state->max_handled_sid)
+		stream->state->max_handled_sid = stream->id;
+}
+
+static inline void fly_hv2_stream_end_request_response(fly_hv2_stream_t *stream)
+{
+	stream->end_request_response = true;
+}
 
 #endif

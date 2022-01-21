@@ -44,7 +44,7 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 	conn->buffer_per_len = fly_connect_buffer_per_len();
 
 #define FLY_CONNECT_BUFFER_CHAIN_MAX(__ctx, per_len)			\
-			((size_t) (((int) ((__ctx)->max_request_length/(per_len)))+1))
+			((size_t) (((int) ((__ctx)->max_request_content_length/(per_len)))+1))
 	conn->buffer = fly_buffer_init(pool, conn->buffer_init_len, FLY_CONNECT_BUFFER_CHAIN_MAX(ctx, conn->buffer_per_len), conn->buffer_per_len);
 	if (fly_unlikely_null(conn->buffer))
 		return NULL;
@@ -52,7 +52,7 @@ fly_connect_t *fly_connect_init(int sockfd, int c_sockfd, fly_event_t *event, st
 #ifdef DEBUG
 	assert(conn->buffer_per_len > 0);
 	assert(conn->buffer_init_len > 0);
-	assert((conn->buffer_per_len*FLY_CONNECT_BUFFER_CHAIN_MAX(ctx, conn->buffer_per_len)) > ctx->max_request_length);
+	assert((conn->buffer_per_len*FLY_CONNECT_BUFFER_CHAIN_MAX(ctx, conn->buffer_per_len)) > ctx->max_request_content_length);
 #endif
 	if (__fly_info_of_connect(conn) == -1)
 		return NULL;
@@ -120,15 +120,12 @@ int fly_listen_connected(fly_event_t *e)
 	fly_connect_t *conn;
 	fly_request_t *req;
 
-	//conn = (fly_connect_t *) e->event_data;
 	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 	e->read_or_write = FLY_READ;
 	/* event only modify (no add, no delete) */
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	e->eflag = 0;
-	//e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
-	//e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_INIT);
 	fly_event_fase_set(e, __e, EFLY_REQUEST_FASE_INIT);
 	fly_event_socket(e);
@@ -173,7 +170,6 @@ int fly_fail_recognize_protocol(fly_event_t *e, int fd __fly_unused)
 	fly_connect_t *con;
 
 	con = (fly_connect_t *) fly_expired_event_data_get(e, __p);
-	//con = (fly_connect_t *) e->expired_event_data;
 	return fly_connect_release(con);
 }
 
@@ -183,9 +179,6 @@ static fly_connect_t *fly_http_connected(fly_sock_t fd, fly_sock_t cfd, fly_even
 	fly_connect_t *conn;
 
 	conn = fly_connect_init(fd, cfd, e, addr, addrlen);
-	if (conn == NULL)
-		return NULL;
-
 	return conn;
 }
 
@@ -255,8 +248,6 @@ int fly_accept_listen_socket_handler(struct fly_event *event)
 	/* for end of connection */
 	FLY_EVENT_EXPIRED_HANDLER(ne, fly_listen_socket_end_handler, conn);
 	FLY_EVENT_END_HANDLER(ne, fly_listen_socket_end_handler, conn);
-	//ne->event_data = conn;
-	//ne->expired_event_data = conn;
 	fly_event_data_set(ne, __p, conn);
 	fly_expired_event_data_set(ne, __p, conn);
 	ne->fail_close = fly_fail_recognize_protocol;
@@ -277,7 +268,6 @@ static int fly_recognize_protocol_of_connected(fly_event_t *e)
 	fly_sock_t conn_sock;
 	fly_sockinfo_t *sockinfo;
 
-	//conn = (fly_connect_t *) e->event_data;
 	conn = (fly_connect_t *) fly_event_data_get(e, __p);
 	conn_sock = conn->c_sockfd;
 	sockinfo = e->manager->ctx->listen_sock;
@@ -361,17 +351,17 @@ int fly_listen_socket_end_handler(fly_event_t *__e)
 	return fly_connect_release(conn);
 }
 
-size_t fly_max_request_length(void)
+size_t fly_max_request_content_length(void)
 {
-	return (size_t) fly_config_value_int(FLY_MAX_REQUEST_LENGTH);
+	return (size_t) fly_config_value_long(FLY_MAX_REQUEST_LENGTH);
 }
 
 size_t fly_connect_buffer_init_len(void)
 {
-	return (size_t) fly_config_value_int(FLY_CONNECT_BUFFER_INIT_LEN);
+	return (size_t) fly_config_value_long(FLY_CONNECT_BUFFER_INIT_LEN);
 }
 
 size_t fly_connect_buffer_per_len(void)
 {
-	return (size_t) fly_config_value_int(FLY_CONNECT_BUFFER_PER_LEN);
+	return (size_t) fly_config_value_long(FLY_CONNECT_BUFFER_PER_LEN);
 }

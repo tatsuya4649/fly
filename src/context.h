@@ -25,7 +25,7 @@ struct fly_context{
 
 	void						*data;
 	long long					max_response_content_length;
-	size_t						max_request_length;
+	size_t						max_request_content_length;
 	size_t						response_encode_threshold;
 	int							request_timeout;
 	bool						log_stdout;

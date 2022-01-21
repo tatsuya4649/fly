@@ -10,7 +10,7 @@ int main()
 	if (setenv(FLY_CONFIG_PATH, "tests/test.conf", 1) == -1)
 		return 1;
 
-	fly_parse_config_file();
+	fly_parse_config_file(NULL);
 
 	printf("Hweer?\n");
 	assert((master=fly_master_init(NULL)) != NULL);

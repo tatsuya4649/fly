@@ -141,7 +141,8 @@ static inline bool __fly_method(char c)
 static inline bool __fly_unreserved(char c)
 {
 	return (fly_alpha(c) || fly_numeral(c) || \
-		c=='=' || c=='.' || c=='_' || c==0x7E
+		fly_equal(c) || fly_dot(c) || fly_underscore(c) || fly_tilda(c) || \
+		fly_hyphen(c) \
 	) ? true : false;
 }
 
@@ -895,6 +896,9 @@ __fly_static int __fly_parse_header(fly_hdr_ci *ci, fly_buffer_c *header_chain)
 				case _FLY_PARSE_ITM:
 					goto in_the_middle;
 				case _FLY_PARSE_SUCCESS:
+#ifdef DEBUG
+					printf("\tHeader item name_len: %d, name: %.*s, value_len: %d, value: %.*s\n", name_len, name_len, name, value_len, value_len, value);
+#endif
 					if (fly_header_addb(__c, ci, name, name_len, value, value_len) == -1)
 						return -1;
 					break;
@@ -1042,7 +1046,8 @@ int fly_request_receive(fly_sock_t fd, fly_connect_t *connect, fly_request_t*req
 		}else{
 			recvlen = recv(fd, fly_buffer_lunuse_ptr(__buf), fly_buffer_lunuse_len(__buf), MSG_DONTWAIT);
 #ifdef DEBUG
-			printf("RECV[%d]:\n%.*s----end----\n", recvlen, recvlen, (char *) fly_buffer_lunuse_ptr(__buf));
+			printf("RECV %dbytes\n", recvlen);
+			fflush(stdout);
 #endif
 			switch(recvlen){
 			case 0:
@@ -1307,22 +1312,65 @@ __fase_header:
 	default:
 		FLY_NOT_COME_HERE
 	}
+#ifdef DEBUG
+	printf("\tEND REQUEST HEADER PARSE\n");
+#endif
 
 	/* accept encoding parse */
-	if (fly_accept_encoding(request) == -1)
+	switch(fly_accept_encoding(request)){
+	case FLY_ACCEPT_ENCODING_SUCCESS:
+		break;
+	case FLY_ACCEPT_ENCODING_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_ENCODING_ERROR:
 		goto error;
+	case FLY_ACCEPT_ENCODING_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* accept mime parse */
-	if (fly_accept_mime(request) == -1)
+	switch(fly_accept_mime(request)){
+	case FLY_ACCEPT_MIME_SUCCESS:
+		break;
+	case FLY_ACCEPT_MIME_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_MIME_ERROR:
 		goto error;
+	case FLY_ACCEPT_MIME_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* accept charset parse */
-	if (fly_accept_charset(request) == -1)
+	switch(fly_accept_charset(request)){
+	case FLY_ACCEPT_CHARSET_SUCCESS:
+		break;
+	case FLY_ACCEPT_CHARSET_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_CHARSET_ERROR:
 		goto error;
+	case FLY_ACCEPT_CHARSET_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* accept language parse */
-	if (fly_accept_language(request) == -1)
+	switch(fly_accept_language(request)){
+	case FLY_ACCEPT_LANG_SUCCESS:
+		break;
+	case FLY_ACCEPT_LANG_SYNTAX_ERROR:
+		goto response_400;
+	case FLY_ACCEPT_LANG_ERROR:
 		goto error;
+	case FLY_ACCEPT_LANG_NOT_ACCEPTABLE:
+		goto response_406;
+	default:
+		FLY_NOT_COME_HERE
+	}
 
 	/* check of having body */
 	if (fly_content_length(request->header) == 0)
@@ -1341,18 +1389,48 @@ __fase_body:
 	fly_event_request_fase(event, BODY);
 	size_t content_length;
 	content_length = fly_content_length(request->header);
+	/* Check Expect: 100-continue */
+	if (fly_check_expect_100(request->header)){
+#ifdef DEBUG
+		printf("\tDetect EXPECT: 100-continue %ld: %ld\n", content_length, request->ctx->max_request_content_length);
+#endif
+		/* Too payload large */
+		if (content_length > request->ctx->max_request_content_length)
+			goto response_417;
+		else
+			goto response_100;
+
+	}
 	/* Too payload large */
-	if (content_length > request->ctx->max_request_length){
+#ifdef DEBUG
+	printf("content_length %ld, max request content length %ld\n", content_length, request->ctx->max_request_content_length);
+#endif
+	if (content_length > request->ctx->max_request_content_length){
 		switch (__fly_discard_body(request, content_length)){
 		case  FLY_DISCARD_BODY_END:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_END\n");
+#endif
 			goto response_413;
 		case  FLY_DISCARD_BODY_WRITE_YET:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_WRITE_YET\n");
+#endif
 			goto write_continuation;
 		case  FLY_DISCARD_BODY_READ_YET:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_READ_YET\n");
+#endif
 			goto read_continuation;
 		case  FLY_DISCARD_BODY_ERROR:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_ERROR\n");
+#endif
 			goto error;
 		case  FLY_DISCARD_BODY_DISCONNECT:
+#ifdef DEBUG
+			printf("FLY_DISCARD_BODY_DISCONNECT\n");
+#endif
 			goto disconnection;
 		default:
 			FLY_NOT_COME_HERE
@@ -1468,6 +1546,8 @@ __fase_end_of_parse:
 	fly_response_http_version_from_request(response, request);
 	goto response;
 
+response_100:
+	return fly_100_event(event, request);
 response_400_norequest:
 	return fly_400_event_norequest(event, conn);
 response_400:
@@ -1476,6 +1556,8 @@ response_404:
 	return fly_404_event(event, request);
 response_405:
 	return fly_405_event(event, request);
+response_406:
+	return fly_406_event(event, request);
 response_413:
 	if (request->request_line == NULL)
 		fly_request_line_init(request);
@@ -1485,6 +1567,8 @@ response_414:
 	return fly_414_event(event, request);
 response_415:
 	return fly_415_event(event, request);
+response_417:
+	return fly_417_event(event, request);
 response_500:
 	return fly_500_event(event, request);
 
@@ -1502,7 +1586,6 @@ read_continuation:
 	event->read_or_write = FLY_READ;
 	goto continuation;
 continuation:
-	//event->event_state = (void *) EFLY_REQUEST_STATE_CONT;
 	fly_event_state_set(event, __e, EFLY_REQUEST_STATE_CONT);
 	event->flag = FLY_MODIFY;
 	FLY_EVENT_HANDLER(event, fly_request_event_handler);
@@ -1671,7 +1754,7 @@ error:
 	return -1;
 }
 
-int fly_request_timeout(void)
+long fly_request_timeout(void)
 {
-	return fly_config_value_int(FLY_REQUEST_TIMEOUT);
+	return fly_config_value_long(FLY_REQUEST_TIMEOUT);
 }

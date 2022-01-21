@@ -35,7 +35,9 @@ __fly_static int __fly_accept_charset(fly_hdr_ci *header, fly_hdr_value **value)
 
 	fly_for_each_bllist(__b, &header->chain){
 		__h = fly_bllist_data(__b, fly_hdr_c, blelem);
-		if (__h->name_len>0 && (strcmp(__h->name, FLY_ACCEPT_CHARSET) == 0 || strcmp(__h->name, FLY_ACCEPT_CHARSET_SMALL) == 0) && __h->value){
+		if (__h->name_len>0 && \
+				__h->value_len>0 && \
+				strcmp(__h->name, FLY_ACCEPT_CHARSET) == 0){
 			*value = __h->value;
 			return __FLY_ACCEPT_CHARSET_FOUND;
 		}
@@ -316,27 +318,46 @@ int fly_accept_charset(fly_request_t *req)
 {
 	fly_hdr_ci *header;
 	fly_hdr_value *accept_charset;
+	struct fly_bllist *__b;
+	struct __fly_charset *__c;
 
 	header = req->header;
 	if (header == NULL)
-		return -1;
+		return FLY_ACCEPT_CHARSET_ERROR;
 
 	accept_charset = NULL;
 	__fly_accept_charset_init(req);
-
 	switch(__fly_accept_charset(header, &accept_charset)){
 	case __FLY_ACCEPT_CHARSET_FOUND:
-		return __fly_accept_charset_parse(req, accept_charset);
+		switch(__fly_accept_charset_parse(req, accept_charset)){
+		case __FLY_AC_PARSE_SUCCESS:
+			break;
+		case __FLY_AC_PARSE_PERROR:
+			return FLY_ACCEPT_CHARSET_SYNTAX_ERROR;
+		case __FLY_AC_PARSE_ERROR:
+			return FLY_ACCEPT_CHARSET_ERROR;
+		default:
+			FLY_NOT_COME_HERE
+		}
+		break;
 	case __FLY_ACCEPT_CHARSET_NOTFOUND:
 		__fly_accept_add_asterisk(req);
-		return 0;
+		return FLY_ACCEPT_CHARSET_SUCCESS;
 	case __FLY_ACCEPT_CHARSET_ERROR:
-		return -1;
+		return FLY_ACCEPT_CHARSET_ERROR;
 	default:
 		FLY_NOT_COME_HERE
 	}
-	FLY_NOT_COME_HERE
-	return -1;
+
+	if (req->charset == NULL || req->charset->charset_count == 0)
+		return FLY_ACCEPT_CHARSET_SYNTAX_ERROR;
+
+	fly_for_each_bllist(__b, &req->charset->charsets){
+		__c = fly_bllist_data(__b, struct __fly_charset,blelem);
+		if (__c->quality_value > (float) 0)
+			return FLY_ACCEPT_CHARSET_SUCCESS;
+	}
+	return FLY_ACCEPT_CHARSET_NOT_ACCEPTABLE;
 }
 
 static float __fly_qvalue_from_str(char *qvalue)

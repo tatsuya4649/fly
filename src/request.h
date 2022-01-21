@@ -60,7 +60,6 @@ enum fly_request_fase{
 };
 #define fly_event_request_fase(e, fase)			\
 	fly_event_fase_set((e), __e, EFLY_REQUEST_FASE_ ## fase)
-	//((e)->event_fase = (void *) EFLY_REQUEST_FASE_ ## fase)
 typedef enum fly_request_fase fly_request_fase_t;
 enum fly_request_state{
 	EFLY_REQUEST_STATE_INIT,
@@ -137,7 +136,7 @@ int fly_request_timeout_handler(fly_event_t *event);
 int fly_hv2_request_target_parse(fly_request_t *req);
 int fly_if_none_match(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
 int fly_if_modified_since(fly_hdr_ci *ci, struct fly_mount_parts_file *pf);
-int fly_request_timeout(void);
+long fly_request_timeout(void);
 int fly_request_fail_close_handler(fly_event_t *event, int fd __fly_unused);
 
 static inline void fly_query_set(fly_request_t *req, fly_reqlinec_t *c, size_t len)

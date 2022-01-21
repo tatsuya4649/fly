@@ -29,7 +29,11 @@ struct fly_lang{
 };
 typedef struct fly_lang fly_lang_t;
 
+#define FLY_ACCEPT_LANG_SUCCESS				0
+#define FLY_ACCEPT_LANG_SYNTAX_ERROR		-1
+#define FLY_ACCEPT_LANG_ERROR				-2
+#define FLY_ACCEPT_LANG_NOT_ACCEPTABLE		-3
 int fly_accept_language(fly_request_t *req);
-#define FLY_ACCEPT_LANG					("Accept-Language")
+#define FLY_ACCEPT_LANG					("accept-language")
 
 #endif

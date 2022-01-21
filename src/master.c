@@ -37,6 +37,7 @@ static void __fly_master_set_orig_sighandler(fly_master_t *__m);
 static int __fly_master_get_now_sighandler(fly_master_t *__m, struct fly_err *err);
 static int fly_master_default_fail_close(fly_event_t *e, int fd);
 void fly_master_notice_worker_daemon_pid(fly_context_t *ctx, fly_siginfo_t *info);
+static void __fly_master_release_orig_sighandler(fly_master_t *__m);
 #if defined DEBUG && defined HAVE_KQUEUE
 static void fly_master_mount_parts_debug(fly_master_t *master, fly_event_manager_t *__m, fly_event_t *event);
 #endif
@@ -60,9 +61,9 @@ fly_signal_t fly_master_signals[] = {
 };
 
 
-static int fly_worker_max_limit(void)
+static long fly_worker_max_limit(void)
 {
-	return fly_config_value_int(FLY_WORKER_MAX);
+	return fly_config_value_long(FLY_WORKER_MAX);
 }
 /*
  *  adjust workers number.
@@ -509,13 +510,18 @@ __fly_static int __fly_master_signal(fly_master_t *master, fly_event_manager_t *
 }
 #endif
 
-static int fly_workers_count(void)
+static long fly_workers_count(void)
 {
-	return fly_config_value_int(FLY_WORKER);
+	return fly_config_value_long(FLY_WORKER);
 }
 
 void fly_master_release(fly_master_t *master)
 {
+#ifdef DEBUG
+	printf("MASTER: ==================release resource==================\n");
+	printf("MASTER: now event count %d: %d\n", master->event_manager->monitorable.count, master->event_manager->unmonitorable.count);
+	fflush(stdout);
+#endif
 	assert(master != NULL);
 
 	if (master->event_manager)
@@ -535,6 +541,10 @@ void fly_master_release(fly_master_t *master)
 	}
 	__fly_master_set_orig_sighandler(master);
 	fly_free(master);
+#ifdef DEBUG
+	printf("MASTER: ====================================================\n");
+	fflush(stdout);
+#endif
 }
 
 fly_context_t *fly_master_release_except_context(fly_master_t *master)
@@ -544,12 +554,25 @@ fly_context_t *fly_master_release_except_context(fly_master_t *master)
 	fly_context_t *ctx = master->context;
 	ctx->pool_manager = NULL;
 
+	__fly_master_release_orig_sighandler(master);
 	if (master->event_manager)
 		fly_event_manager_release(master->event_manager);
 	fly_pool_manager_release(master->pool_manager);
 	fly_free(master);
 
 	return ctx;
+}
+
+static void __fly_master_release_orig_sighandler(fly_master_t *__m)
+{
+	struct fly_bllist *__b, *__n;
+	struct fly_orig_signal *__s;
+	for (__b=__m->orig_sighandler.next; __b!=&__m->orig_sighandler; __b=__n){
+		__n = __b->next;
+		__s = fly_bllist_data(__b, struct fly_orig_signal, blelem);
+		fly_free(__s);
+	}
+	return;
 }
 
 static int __fly_master_get_now_sighandler(fly_master_t *__m, struct fly_err *err)

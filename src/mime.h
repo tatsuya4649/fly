@@ -223,6 +223,10 @@ struct fly_mime{
 };
 
 typedef struct fly_mime fly_mime_t;
+#define FLY_ACCEPT_MIME_SUCCESS				0
+#define FLY_ACCEPT_MIME_SYNTAX_ERROR		-1
+#define FLY_ACCEPT_MIME_ERROR				-2
+#define FLY_ACCEPT_MIME_NOT_ACCEPTABLE		-3
 int fly_accept_mime(fly_request_t *request);
 
 #define FLY_MIMQVALUE_MAXLEN	(6)

@@ -5,6 +5,8 @@ import pydantic
 from urllib.parse import unquote_plus, unquote
 import pydantic
 import re
+import inspect
+import json
 
 
 """
@@ -28,8 +30,8 @@ BOOL        = 2
 STR         = 3
 
 class RequestParser:
-    def __init__(self, func_spec):
-        self._func_spec = func_spec
+    def __init__(self, func):
+        self._func_spec = inspect.getfullargspec(func)
 
     """
 
@@ -45,6 +47,11 @@ class RequestParser:
 
         res = list()
         for i in _cookie:
+            # Already parse
+            if isinstance(i, dict):
+                res.append(i)
+                continue
+
             for item in i.split(';'):
                 _c = iter(item.split('='))
                 name  = next(_c, None)
@@ -95,6 +102,8 @@ class RequestParser:
             raise HTTP400Exception
         return _res
 
+    def _parse_application_json(self, body):
+        return json.loads(body)
 
     """
     Convert lower:
@@ -197,10 +206,12 @@ class RequestParser:
             return self._parse_multipart_form_data(body)
         elif _ct == "application/x-www-form-urlencoded":
             return self._parse_application_x_www_form_urlencoded(body)
+        elif _ct == "application/json":
+            return self._parse_application_json(body)
 
         # Unknown content-type in POST method(Form data)
         # If you want other method, should use hint of Body.
-        raise HTTP415Exception
+        raise HTTP415Exception(f"Sorry, unsupport content type \"{content_type}\"")
 
     def _get_data_form(self, _type, form_data):
         if form_data is None:
@@ -247,7 +258,7 @@ class RequestParser:
             _content_type = self._get_content_type(request["header"])
             if _content_type is None:
                 # Unsupported Media Type (Unknown content-type)
-                raise HTTP415Exception
+                raise HTTP415Exception("Recv body, but unknown Content-Type.")
 
             _body = request.get("body")
             _res = self._parse_data_form(_body, _content_type)

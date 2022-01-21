@@ -54,7 +54,9 @@ static int fly_preencode_frc(fly_context_t *ctx, struct fly_response_content_by_
  *  worker process signal info.
  */
 fly_signal_t fly_worker_signals[] = {
+#if !defined DEBUG_WORKER_ONLY
 	FLY_SIGNAL_SETTING(SIGINT,	FLY_SIG_IGN),
+#endif
 	FLY_SIGNAL_SETTING(SIGPIPE, FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(SIGWINCH, FLY_SIG_IGN),
 	FLY_SIGNAL_SETTING(FLY_SIGNAL_CHANGE_MNT_CONTENT, fly_worker_signal_change_mnt_content),
@@ -108,6 +110,11 @@ pm_error:
 
 void fly_worker_release(fly_worker_t *worker)
 {
+#ifdef DEBUG
+	printf("WORKER: ==================release resource==================\n");
+	printf("WORKER: now event count %d: %d\n", worker->event_manager->monitorable.count, worker->event_manager->unmonitorable.count);
+	fflush(stdout);
+#endif
 	assert(worker != NULL);
 
 	if (worker->event_manager)
@@ -118,6 +125,10 @@ void fly_worker_release(fly_worker_t *worker)
 
 	fly_pool_manager_release(worker->pool_manager);
 	fly_free(worker);
+#ifdef DEBUG
+	printf("WORKER: ====================================================\n");
+	fflush(stdout);
+#endif
 }
 
 __fly_static void fly_add_worker_sig(fly_context_t *ctx, int num, fly_sighand_t *handler)
@@ -479,7 +490,7 @@ __fly_static int __fly_worker_signal_handler(fly_event_t *e)
 }
 #endif
 
-static int __fly_notice_master_now_pid(fly_worker_t *__w)
+__fly_unused static int __fly_notice_master_now_pid(fly_worker_t *__w)
 {
 	union sigval sv;
 
@@ -513,10 +524,12 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 
 	for (int i=0; i<(int) FLY_WORKER_SIG_COUNT; i++)
 		fly_add_worker_sig(ctx, fly_worker_signals[i].number, fly_worker_signals[i].handler);
-//	fly_worker_rtsig_added(ctx);
 
 	int sigfd;
 	sigfd = fly_signal_register(&sset);
+#ifdef DEBUG
+	printf("WORKER: signalfd %d\n", sigfd);
+#endif
 	if (sigfd == -1)
 		return FLY_WORKER_SIGNAL_EVENT_SIGNAL_REGISTER_ERROR;
 
@@ -531,10 +544,9 @@ __fly_static int __fly_worker_signal_event(fly_worker_t *worker, fly_event_manag
 	e->flag = FLY_PERSISTENT;
 	e->expired = false;
 	e->available = false;
-	e->handler = __fly_worker_signal_handler;
-	e->end_handler = __fly_worker_signal_end_handler;
+	FLY_EVENT_HANDLER(e, __fly_worker_signal_handler);
+	FLY_EVENT_END_HANDLER(e, __fly_worker_signal_end_handler, NULL);
 	e->if_fail_term = true;
-	//e->event_data = (void *) worker;
 	fly_event_data_set(e, __p, worker);
 
 	fly_time_null(e->timeout);
@@ -673,11 +685,13 @@ __fly_direct_log __fly_noreturn void fly_worker_process(fly_context_t *ctx, __fl
 			__FILE__, __LINE__
 		);
 
+#if !defined DEBUG_WORKER_ONLY
 	if (__fly_notice_master_now_pid(worker) == -1)
 		FLY_EMERGENCY_ERROR(
 			"worker notice daemon pid error. (%s: %d)",
 			__FILE__, __LINE__
 		);
+#endif
 
 	switch (__fly_worker_open_file(ctx)){
 	case FLY_WORKER_OPEN_FILE_SUCCESS:
@@ -863,7 +877,6 @@ __fly_static int fly_wainting_for_connection_event(fly_event_manager_t *manager,
 	e->tflag = FLY_INFINITY;
 	e->eflag = 0;
 	fly_time_null(e->timeout);
-	//e->event_data = sockinfo;
 	fly_event_data_set(e, __p, sockinfo);
 	e->expired = false;
 	e->available = false;
@@ -1012,7 +1025,7 @@ static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unuse
 		if (stat(__p->mount_path, &__sb) == -1){
 			if (errno == ENOENT){
 #ifdef DEBUG
-				int __tmp, __tmpc;
+				size_t __tmp, __tmpc;
 				size_t __tmpm;
 				__tmp = __p->file_count;
 				__tmpm = __p->mount->file_count;
@@ -1026,8 +1039,8 @@ static void fly_worker_signal_change_mnt_content(fly_context_t *ctx, __fly_unuse
 				/* unmount mount point */
 				__fly_work_unmount(__p);
 #ifdef DEBUG
-				printf("\tUnmount file count %d\n", __tmp);
-				printf("\tMount point count %d --> %d\n", __tmpc, __p->mount->mount_count);
+				printf("\tUnmount file count %ld\n", __tmp);
+				printf("\tMount point count %ld --> %ld\n", __tmpc, __p->mount->mount_count);
 				printf("\tTotal file count %ld --> %ld\n", __tmpm, __p->mount->file_count);
 				assert(__tmpm == __p->mount->file_count + __tmp);
 #endif
@@ -1078,8 +1091,6 @@ static int fly_preencode_pf(fly_context_t *ctx, struct fly_mount_parts_file *__p
 		__max = fly_response_content_max_length();
 		__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
 		__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
-		__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
-		__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
 #ifdef DEBUG
 		assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
 #endif
@@ -1132,8 +1143,6 @@ static int fly_preencode_frc(fly_context_t *ctx, struct fly_response_content_by_
 		__max = fly_response_content_max_length();
 		__de->encbuf = fly_buffer_init(__de->pool, FLY_WORKER_ENCBUF_INIT_LEN, FLY_WORKER_ENCBUF_CHAIN_MAX(__max), FLY_WORKER_ENCBUF_PER_LEN);
 		__de->decbuf = fly_buffer_init(__de->pool, FLY_WORKER_DECBUF_INIT_LEN, FLY_WORKER_DECBUF_CHAIN_MAX, FLY_WORKER_DECBUF_PER_LEN);
-		__de->encbuflen = FLY_WORKER_ENCBUF_INIT_LEN;
-		__de->decbuflen = FLY_WORKER_DECBUF_INIT_LEN;
 #ifdef DEBUG
 		assert(__max < (size_t) (__de->encbuf->per_len*__de->encbuf->chain_max));
 #endif

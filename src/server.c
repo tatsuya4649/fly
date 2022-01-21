@@ -7,6 +7,7 @@
 #include "err.h"
 #include "ssl.h"
 #include "conf.h"
+#include <sys/ioctl.h>
 
 int fly_socket_nonblocking(fly_sock_t s)
 {
@@ -14,9 +15,9 @@ int fly_socket_nonblocking(fly_sock_t s)
 	return ioctl(s, FIONBIO, &val);
 }
 
-int fly_backlog(void)
+long fly_backlog(void)
 {
-	return fly_config_value_int(FLY_BACKLOG);
+	return fly_config_value_long(FLY_BACKLOG);
 }
 
 void fly_add_sockinfo(fly_context_t *ctx, fly_sockinfo_t *info)
@@ -96,6 +97,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 				strerror(errno), __FILE__, __LINE__
 			);
 		}
+		freeaddrinfo(result);
 		return -1;
 	}
 
@@ -107,7 +109,7 @@ int fly_socket_init(fly_context_t *ctx, int port, fly_sockinfo_t *info, int flag
 				errno,
 				FLY_ERR_ERR,
 				"getnameinfo error. %s (%s: %d)",
-				strerror(res), __FILE__, __LINE__
+				gai_strerror(res), __FILE__, __LINE__
 			);
 		}
 		goto error;
@@ -194,7 +196,7 @@ char *fly_server_host(void)
 
 int fly_server_port(void)
 {
-	return fly_config_value_int(FLY_PORT);
+	return fly_config_value_long(FLY_PORT);
 }
 
 int fly_socket_close(int fd, int how __fly_unused)
@@ -206,3 +208,13 @@ retry:
 	}
 	return 0;
 }
+
+#ifdef DEBUG
+int fly_can_recv(int fd)
+{
+	int _b;
+	if (ioctl(fd, FIONREAD, &_b) == -1)
+		return -1;
+	return _b;
+}
+#endif

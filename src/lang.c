@@ -329,25 +329,45 @@ int fly_accept_language(fly_request_t *req)
 {
 	fly_hdr_ci *header;
 	fly_hdr_value *accept_lang;
+	struct fly_bllist *__b;
+	struct __fly_lang *__l;
 
 	header = req->header;
 	if (header == NULL)
-		return -1;
+		return FLY_ACCEPT_LANG_ERROR;
 
 	__fly_accept_lang_init(req);
 	switch(__fly_accept_lang(header, &accept_lang)){
 	case __FLY_ACCEPT_LANG_FOUND:
-		return __fly_accept_lang_parse(req, accept_lang);
+		switch(__fly_accept_lang_parse(req, accept_lang)){
+		case __FLY_AL_PARSE_SUCCESS:
+			break;
+		case __FLY_AL_PARSE_PERROR:
+			return FLY_ACCEPT_LANG_SYNTAX_ERROR;
+		case __FLY_AL_PARSE_ERROR:
+			return FLY_ACCEPT_LANG_ERROR;
+		default:
+			FLY_NOT_COME_HERE
+		}
+		break;
 	case __FLY_ACCEPT_LANG_NOTFOUND:
 		__fly_accept_lang_add_asterisk(req);
-		return 0;
+		return FLY_ACCEPT_LANG_SUCCESS;
 	case __FLY_ACCEPT_LANG_ERROR:
-		return -1;
+		return FLY_ACCEPT_LANG_ERROR;
 	default:
 		FLY_NOT_COME_HERE
 	}
-	FLY_NOT_COME_HERE
-	return -1;
+
+	if (req->language == NULL || req->language->lang_count == 0)
+		return FLY_ACCEPT_LANG_SYNTAX_ERROR;
+
+	fly_for_each_bllist(__b, &req->language->langs){
+		__l = fly_bllist_data(__b, struct __fly_lang, blelem);
+		if (__l->quality_value > (float) 0)
+			return FLY_ACCEPT_LANG_SUCCESS;
+	}
+	return FLY_ACCEPT_LANG_NOT_ACCEPTABLE;
 }
 
 static float __fly_qvalue_from_str(char *qvalue)

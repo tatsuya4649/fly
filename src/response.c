@@ -10,6 +10,7 @@
 #include "v2.h"
 #include "encode.h"
 #include "response.h"
+#include "request.h"
 
 fly_status_code responses[] = {
 	/* 1xx Info */
@@ -87,7 +88,10 @@ fly_response_t *fly_response_init(struct fly_context *ctx)
 	response->rcbs = NULL;
 	response->send_len = 0;
 	response->response_len = 0;
+	response->flag = 0;
 	response->original_response_len = 0;
+	response->end_response = false;
+	response->dont_encode = false;
 	return response;
 }
 
@@ -244,7 +248,6 @@ __fly_static int __fly_response_release_handler(fly_event_t *e)
 	fly_connect_t *con;
 	fly_response_t *res;
 
-	//res = (fly_response_t *) e->event_data;
 	res = (fly_response_t *) fly_event_data_get(e, __p);
 	req = res->request;
 	con = req->connect;
@@ -266,7 +269,6 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	fly_connect_t *con;
 	fly_context_t *ctx;
 
-	//res = (fly_response_t *) e->event_data;
 	res = (fly_response_t *) fly_event_data_get(e, __p);
 	req = res->request;
 	con = req->connect;
@@ -288,16 +290,12 @@ __fly_static int __fly_response_reuse_handler(fly_event_t *e)
 	e->eflag = 0;
 	fly_sec(&e->timeout, ctx->request_timeout);
 	FLY_EVENT_HANDLER(e, fly_request_event_handler);
-	//e->event_data = (void *) req;
 	fly_event_data_set(e, __p, req);
 	e->available = false;
 	e->expired = false;
-	//e->event_fase = (void *) EFLY_REQUEST_FASE_INIT;
-	//e->event_state = (void *) EFLY_REQUEST_STATE_INIT;
 	fly_event_fase_set(e, __e, EFLY_REQUEST_FASE_INIT);
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_INIT);
 	FLY_EVENT_EXPIRED_END_HANDLER(e, fly_request_timeout_handler, req);
-	//e->expired_event_data = req;
 	fly_expired_event_data_set(e, __p, req);
 	fly_event_socket(e);
 
@@ -356,7 +354,6 @@ char *fly_log_request_line_hv2(fly_response_t *res)
 	if (fly_unlikely_null(request_line))
 		return NULL;
 
-	printf("HEre\n");
 	snprintf(request_line, size, "%s %s %s",
 			res->request->request_line->method->name,
 			res->request->request_line->uri.ptr,
@@ -479,9 +476,6 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 #endif
 	FLY_EVENT_HANDLER(le, fly_log_event_handler);
 	le->read_or_write = FLY_WRITE;
-	//le->event_fase = (void *) EFLY_LOG_FASE_INIT;
-	//le->event_state = (void *) EFLY_LOG_STATE_WAIT;
-	//le->event_data = (void *) log_content;
 	fly_event_fase_set(le, __e, EFLY_LOG_FASE_INIT);
 	fly_event_state_set(le, __e, EFLY_LOG_STATE_WAIT);
 	fly_event_data_set(le, __p, log_content);
@@ -490,15 +484,15 @@ int fly_response_log(fly_response_t *res, fly_event_t *e)
 	le->eflag = 0;
 	le->expired = false;
 	fly_time_zero(le->timeout);
-	/* regular file event */
+	/* Regular file event */
 	fly_event_regular(le);
 
+	res->fase = FLY_RESPONSE_RELEASE;
 	return fly_event_register(le);
 }
 
 __fly_static int fly_after_response(fly_event_t *e, fly_response_t *response)
 {
-	//e->event_data = (void *) response;
 	fly_event_data_set(e, __p, response);
 	switch (fly_connection(response->header)){
 	case FLY_CONNECTION_CLOSE:
@@ -540,8 +534,19 @@ int fly_response_event(fly_event_t *e)
 	fly_request_t *req;
 	fly_rcbs_t *rcbs=NULL;
 
-	//res = (fly_response_t *) e->event_data;
 	res = (fly_response_t *) fly_event_data_get(e, __p);
+#ifdef DEBUG_SEND_DC
+	int fd;
+	printf("================  DEBUG SEND DISCONNECTION... ================\n");
+	printf("WORKER PID: %d\n", getpid());
+	printf("HOST: %s\n", res->request->connect->hostname);
+	printf("PORT: %s\n", res->request->connect->servname);
+
+	fd = res->request->connect->c_sockfd;
+	/* DEBUG: Disconnection before response */
+	shutdown(fd, SHUT_WR);
+	printf("==========================================================================\n");
+#endif
 	if (res->send_ptr)
 		goto end_of_encoding;
 
@@ -590,6 +595,11 @@ int fly_response_event(fly_event_t *e)
 		res->type = FLY_RESPONSE_TYPE_NOCONTENT;
 	}
 
+	/* Response must not be encoded */
+	if (res->dont_encode){
+		fly_add_content_length(res->header, res->response_len, false);
+		goto end_of_encoding;
+	}
 	/* encoding matching test */
 	if (res->encoded \
 			&& !fly_encoding_matching(res->request->encoding, res->encoding_type)){
@@ -600,15 +610,19 @@ int fly_response_event(fly_event_t *e)
 	if (res->encoded || fly_over_encoding_threshold_from_response(res)){
 		if (!res->encoded)
 			res->encoding_type = fly_decided_encoding_type(res->request->encoding);
-		fly_add_content_encoding(res->header, res->encoding_type, false);
+		if (res->encoding_type != NULL)
+			fly_add_content_encoding(res->header, res->encoding_type, false);
 	}else
 		res->encoding_type = NULL;
 
 
 	if (!res->encoded && fly_encode_do(res)){
 		res->type = FLY_RESPONSE_TYPE_ENCODED;
-		if (res->encoding_type->type == fly_identity)
+		if (res->encoding_type->type == fly_identity){
+			res->type = FLY_RESPONSE_TYPE_BODY;
+			fly_add_content_length(res->header, res->response_len, false);
 			goto end_of_encoding;
+		}
 
 		fly_de_t *__de;
 
@@ -646,15 +660,52 @@ int fly_response_event(fly_event_t *e)
 		__de->bfs = 0;
 		__de->end = false;
 		res->de = __de;
-		if (res->encoding_type->encode(__de) == -1){
-			struct fly_err *__err;
+		struct fly_err *__err;
+		switch(res->encoding_type->encode(__de)){
+		case FLY_ENCODE_SUCCESS:
+			break;
+		case FLY_ENCODE_ERROR:
 			__err = fly_event_err_init(
 				e, errno, FLY_ERR_ERR,
-				"response encoding error. %s",
+				"Response encoding error. %s",
 				strerror(errno)
 			);
 			fly_event_error_add(e, __err);
-			return -1;
+			goto response_500;
+		case FLY_ENCODE_SEEK_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding seek error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_500;
+		case FLY_ENCODE_TYPE_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding type error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_500;
+		case FLY_ENCODE_READ_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding read error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_500;
+		case FLY_ENCODE_BUFFER_ERROR:
+			__err = fly_event_err_init(
+				e, errno, FLY_ERR_ERR,
+				"Response encoding buffer error. %s",
+				strerror(errno)
+			);
+			fly_event_error_add(e, __err);
+			goto response_413;
+		default:
+			FLY_NOT_COME_HERE
 		}
 
 		res->encoded = true;
@@ -676,6 +727,9 @@ end_of_encoding:
 	if (fly_response_set_send_ptr(res) == -1)
 		goto response_500;
 
+#ifdef DEBUG
+	printf("%s\n", (char *) res->send_ptr);
+#endif
 	switch(fly_response_send(e, res)){
 	case FLY_RESPONSE_SUCCESS:
 		break;
@@ -683,22 +737,43 @@ end_of_encoding:
 		return fly_response_send_blocking(e, res, FLY_READ);
 	case FLY_RESPONSE_WRITE_BLOCKING:
 		return fly_response_send_blocking(e, res, FLY_WRITE);
+	case FLY_RESPONSE_DISCONNECTION:
+		return __fly_response_release_handler(e);
 	case FLY_RESPONSE_ERROR:
 		return -1;
 	default:
 		FLY_NOT_COME_HERE
 	}
 
+	res->end_response = true;
 	if (fly_response_log(res, e) == -1)
 		return -1;
-	return fly_after_response(e, res);
+
+	if (res->flag & FLY_RESPONSE_BACK_TO_REQUEST_100){
+		fly_response_release(res);
+
+		e->read_or_write = FLY_READ;
+		e->flag = FLY_MODIFY;
+		e->tflag = FLY_INHERIT;
+		fly_event_data_set(e, __p, res->request);
+		FLY_EVENT_HANDLER(e, fly_request_event_handler);
+		fly_event_request_fase(e, BODY);
+		fly_event_request_state(e, CONT);
+		e->available = false;
+		e->expired = false;
+		fly_expired_event_data_set(e, __p, res->request);
+		fly_event_socket(e);
+
+		fly_remove_expect_from_header(res->request->header);
+		return fly_event_register(e);
+	}else
+		return fly_after_response(e, res);
 
 response_413:
 
 	req = res->request;
 	fly_response_release(res);
 	res = fly_413_response(req);
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	return fly_response_event(e);
 
@@ -707,7 +782,6 @@ response_500:
 	req = res->request;
 	fly_response_release(res);
 	res = fly_500_response(req);
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	return fly_response_event(e);
 }
@@ -729,21 +803,49 @@ void fly_response_release(fly_response_t *response)
 	fly_delete_pool(response->pool);
 }
 
-//__fly_noreturn void fly_response_init_errorp(fly_pool_t *pool)
-//{
-//	struct fly_err *__err;
-//	__err = fly_err_init(
-//		pool, errno, FLY_ERR_ERR,
-//		"response init error. (%s: %d)",
-//		__FILE__,
-//		__LINE__
-//	);
-//	fly_error_error(__err);
-//}
-//__fly_noreturn void fly_response_init_error(fly_request_t *req)
-//{
-//	fly_response_init_errorp(req->connect->pool);
-//}
+fly_response_t *fly_100_response(fly_request_t *req)
+{
+	fly_response_t *res;
+	res= fly_response_init(req->ctx);
+	res->header = fly_header_init(req->ctx);
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
+	fly_response_http_version_from_request(res, req);
+	res->status_code = _100;
+	res->request = req;
+	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
+	res->flag = FLY_RESPONSE_BACK_TO_REQUEST_100;
+
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
+}
+
+int fly_100_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+	/* Response(100) event*/
+	e->read_or_write = FLY_WRITE;
+
+	res = fly_100_response(req);
+	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
+	fly_event_data_set(e, __p, res);
+	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
+	e->fail_close = fly_response_fail_close_handler;
+
+	return fly_event_register(e);
+}
 
 fly_response_t *fly_304_response(fly_request_t *req, struct fly_mount_parts_file *pf)
 {
@@ -774,7 +876,6 @@ int fly_304_event(fly_event_t *e)
 	struct fly_response_content *rc;
 	fly_request_t *req;
 
-	//rc = (struct fly_response_content *) e->event_data;
 	rc = (struct fly_response_content *) fly_event_data_get(e, __p);
 	req = rc->request;
 
@@ -786,13 +887,13 @@ int fly_304_event(fly_event_t *e)
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
 	e->available = false;
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	fly_event_socket(e);
 	fly_response_timeout_end_setting(e, res);
 	e->fail_close = fly_response_fail_close_handler;
 	return fly_event_register(e);
 }
+
 
 fly_response_t *fly_400_response(fly_request_t *req)
 {
@@ -851,14 +952,12 @@ int fly_400_event_norequest(fly_event_t *e, fly_connect_t *conn)
 	fly_add_connection(res->header, CLOSE);
 
 	e->fd = conn->c_sockfd;
-	//e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
 	e->available = false;
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	fly_event_socket(e);
 	fly_response_timeout_end_setting(e, res);
@@ -866,19 +965,18 @@ int fly_400_event_norequest(fly_event_t *e, fly_connect_t *conn)
 	return fly_event_register(e);
 }
 
+
 int fly_400_event(fly_event_t *e, fly_request_t *req)
 {
 	fly_response_t *res;
 
 	res = fly_400_response(req);
-	//e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
 	e->available = false;
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	fly_event_socket(e);
 	fly_response_timeout_end_setting(e, res);
@@ -914,14 +1012,12 @@ int fly_404_event(fly_event_t *e, fly_request_t *req)
 	fly_response_t *res;
 
 	res = fly_404_response(req);
-	//e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
 	e->available = false;
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	fly_event_socket(e);
 	fly_response_timeout_end_setting(e, res);
@@ -958,14 +1054,55 @@ int fly_405_event(fly_event_t *e, fly_request_t *req)
 	fly_response_t *res;
 
 	res = fly_405_response(req);
-	//e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
 	e->available = false;
-	//e->event_data = (void *) res;
+	fly_event_data_set(e, __p, res);
+	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
+	e->fail_close = fly_response_fail_close_handler;
+	return fly_event_register(e);
+}
+
+fly_response_t *fly_406_response(fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res= fly_response_init(req->ctx);
+	res->header = fly_header_init(req->ctx);
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
+	fly_response_http_version_from_request(res, req);
+	res->status_code = _406;
+	res->request = req;
+	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
+
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
+}
+
+int fly_406_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_406_response(req);
+	/* Response must not be encoded */
+	res->dont_encode = true;
+	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
 	fly_event_data_set(e, __p, res);
 	fly_event_socket(e);
 	fly_response_timeout_end_setting(e, res);
@@ -1003,14 +1140,12 @@ int fly_414_event(fly_event_t *e, fly_request_t *req)
 	fly_response_t *res;
 
 	res = fly_414_response(req);
-	//e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
 	e->available = false;
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	fly_event_socket(e);
 	fly_response_timeout_end_setting(e, res);
@@ -1046,14 +1181,12 @@ int fly_413_event(fly_event_t *e, fly_request_t *req)
 	fly_response_t *res;
 
 	res = fly_413_response(req);
-	//e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
 	e->available = false;
-	//e->event_data = (void *) res;
 	fly_event_data_set(e, __p, res);
 	fly_event_socket(e);
 	fly_response_timeout_end_setting(e, res);
@@ -1090,14 +1223,54 @@ int fly_415_event(fly_event_t *e, fly_request_t *req)
 	fly_response_t *res;
 
 	res = fly_415_response(req);
-	//e->event_state = (void *) EFLY_REQUEST_STATE_RESPONSE;
 	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
 	e->read_or_write = FLY_WRITE;
 	e->flag = FLY_MODIFY;
 	e->tflag = FLY_INHERIT;
 	FLY_EVENT_HANDLER(e, fly_response_event);
 	e->available = false;
-	//e->event_data = (void *) res;
+	fly_event_data_set(e, __p, res);
+	fly_event_socket(e);
+	fly_response_timeout_end_setting(e, res);
+	e->fail_close = fly_response_fail_close_handler;
+	return fly_event_register(e);
+}
+
+fly_response_t *fly_417_response(fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res= fly_response_init(req->ctx);
+	res->header = fly_header_init(req->ctx);
+	if (is_fly_request_http_v2(req))
+		res->header->state = req->stream->state;
+	fly_response_http_version_from_request(res, req);
+	res->status_code = _417;
+	res->request = req;
+	res->encoded = false;
+	res->offset = 0;
+	res->byte_from_start = 0;
+
+	fly_add_allow(res->header, req);
+	fly_add_server(res->header, is_fly_request_http_v2(req));
+	fly_add_date(res->header, is_fly_request_http_v2(req));
+	if (!is_fly_request_http_v2(req))
+		fly_add_connection(res->header, KEEP_ALIVE);
+
+	return res;
+}
+
+int fly_417_event(fly_event_t *e, fly_request_t *req)
+{
+	fly_response_t *res;
+
+	res = fly_417_response(req);
+	fly_event_state_set(e, __e, EFLY_REQUEST_STATE_RESPONSE);
+	e->read_or_write = FLY_WRITE;
+	e->flag = FLY_MODIFY;
+	e->tflag = FLY_INHERIT;
+	FLY_EVENT_HANDLER(e, fly_response_event);
+	e->available = false;
 	fly_event_data_set(e, __p, res);
 	fly_event_socket(e);
 	fly_response_timeout_end_setting(e, res);
@@ -1209,9 +1382,9 @@ int fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_pa
 	return fly_event_register(e);
 }
 
-int fly_response_content_max_length(void)
+long fly_response_content_max_length(void)
 {
-	return fly_config_value_int(FLY_MAX_RESPONSE_CONTENT_LENGTH);
+	return fly_config_value_long(FLY_MAX_RESPONSE_CONTENT_LENGTH);
 }
 
 int fly_response_set_send_ptr(fly_response_t *response)
@@ -1425,28 +1598,51 @@ int fly_response_send(fly_event_t *e, fly_response_t *res)
 
 		if (FLY_CONNECT_ON_SSL(res->request->connect)){
 			SSL *ssl=res->request->connect->ssl;
+			ERR_clear_error();
 			sendnum = SSL_write(ssl, ptr, res->send_len-total);
 			switch(SSL_get_error(ssl, sendnum)){
 			case SSL_ERROR_NONE:
+#ifdef DEBUG
+				printf("SSL_ERROR_NONE\n");
+#endif
 				break;
 			case SSL_ERROR_ZERO_RETURN:
+#ifdef DEBUG
+				printf("SSL_ERROR_ZERO_RETURN\n");
+#endif
 				return FLY_RESPONSE_ERROR;
 			case SSL_ERROR_WANT_READ:
+#ifdef DEBUG
+				printf("SSL_ERROR_WANT_READ\n");
+#endif
 				return FLY_RESPONSE_READ_BLOCKING;
 			case SSL_ERROR_WANT_WRITE:
+#ifdef DEBUG
+				printf("SSL_ERROR_WANT_WRITE\n");
+#endif
 				return FLY_RESPONSE_WRITE_BLOCKING;
 			case SSL_ERROR_SYSCALL:
+#ifdef DEBUG
+				printf("SSL_ERROR_SYSCALL\n");
+#endif
+				if (FLY_SEND_DISCONNECTION(-1))
+					return FLY_RESPONSE_DISCONNECTION;
 				return FLY_RESPONSE_ERROR;
 			case SSL_ERROR_SSL:
+#ifdef DEBUG
+				printf("SSL_ERROR_SSL\n");
+#endif
 				return FLY_RESPONSE_ERROR;
 			default:
 				/* unknown error */
 				return FLY_RESPONSE_ERROR;
 			}
 		}else{
-			sendnum = send(e->fd, ptr, res->send_len-total, 0);
+			sendnum = send(e->fd, ptr, res->send_len-total, MSG_NOSIGNAL);
 			if (FLY_BLOCKING(sendnum)){
 				return FLY_RESPONSE_WRITE_BLOCKING;
+			}else if (FLY_SEND_DISCONNECTION(sendnum)){
+				return FLY_RESPONSE_DISCONNECTION;
 			}else if (sendnum == -1)
 				return FLY_RESPONSE_ERROR;
 		}

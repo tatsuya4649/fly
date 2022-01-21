@@ -79,6 +79,7 @@ struct fly_response{
 		FLY_RESPONSE_HEADER,
 		FLY_RESPONSE_CRLF,
 		FLY_RESPONSE_BODY,
+		FLY_RESPONSE_LOG,
 		FLY_RESPONSE_RELEASE,
 		/* for v2 */
 		FLY_RESPONSE_FRAME_HEADER,
@@ -108,9 +109,13 @@ struct fly_response{
 		void *					datav;
 		long					datal;
 	};
+#define FLY_RESPONSE_BACK_TO_REQUEST_100		(1 << 0)
+	int							flag;
 
+	fly_bit_t					dont_encode: 1;
 	fly_bit_t					encoded: 1;
 	fly_bit_t					blocking: 1;
+	fly_bit_t					end_response: 1;
 };
 typedef struct fly_response fly_response_t;
 #define fly_disconnect_from_response(res)		((res)->request->connect->peer_closed = true)
@@ -148,22 +153,28 @@ struct fly_itm_response{
 typedef struct fly_itm_response fly_itm_response_t;
 struct fly_response_content;
 int fly_304_event(fly_event_t *e);
+int fly_100_event(fly_event_t *e, fly_request_t *req);
 int fly_400_event_norequest(fly_event_t *e, fly_connect_t *conn);
 int fly_400_event(fly_event_t *e, fly_request_t *req);
 int fly_404_event(fly_event_t *e, fly_request_t *req);
 int fly_405_event(fly_event_t *e, fly_request_t *req);
+int fly_406_event(fly_event_t *e, fly_request_t *req);
 int fly_413_event(fly_event_t *e, fly_request_t *req);
 int fly_414_event(fly_event_t *e, fly_request_t *req);
 int fly_415_event(fly_event_t *e, fly_request_t *req);
+int fly_417_event(fly_event_t *e, fly_request_t *req);
 int fly_500_event(fly_event_t *e, fly_request_t *req);
 
 fly_response_t *fly_304_response(fly_request_t *req, struct fly_mount_parts_file *pf);
+fly_response_t *fly_100_response(fly_request_t *req);
 fly_response_t *fly_400_response(fly_request_t *req);
 fly_response_t *fly_404_response(fly_request_t *req);
 fly_response_t *fly_405_response(fly_request_t *req);
+fly_response_t *fly_406_response(fly_request_t *req);
 fly_response_t *fly_413_response(fly_request_t *req);
 fly_response_t *fly_414_response(fly_request_t *req);
 fly_response_t *fly_415_response(fly_request_t *req);
+fly_response_t *fly_417_response(fly_request_t *req);
 fly_response_t *fly_500_response(fly_request_t *req);
 
 void __fly_response_from_pf(fly_event_t *e, fly_request_t *req, struct fly_mount_parts_file *pf, int (*handler)(fly_event_t *e));
@@ -179,6 +190,7 @@ struct fly_response_content{
 #define FLY_RESPONSE_READ_BLOCKING		2
 #define FLY_RESPONSE_WRITE_BLOCKING		3
 #define FLY_RESPONSE_ERROR				-1
+#define FLY_RESPONSE_DISCONNECTION		-2
 
 /* default response content(static content) */
 struct fly_response_content_by_stcode{
@@ -212,7 +224,7 @@ static inline bool fly_encode_do(fly_response_t *res)
 }
 
 #define FLY_MAX_RESPONSE_CONTENT_LENGTH	"FLY_MAX_RESPONSE_CONTENT_LENGTH"
-int fly_response_content_max_length(void);
+long fly_response_content_max_length(void);
 void fly_response_timeout_end_setting(fly_event_t *e, fly_response_t *res);
 int fly_response_fail_close_handler(fly_event_t *e, int fd __fly_unused);
 
@@ -223,5 +235,13 @@ int fly_response_fail_close_handler(fly_event_t *e, int fd __fly_unused);
 #define FLY_RESPONSE_ENCBUF_INIT_LEN		(1)
 #define FLY_RESPONSE_ENCBUF_PER_LEN		(1024*4)
 #define FLY_RESPONSE_ENCBUF_CHAIN_MAX(__size)		((size_t) (((size_t) __size/FLY_RESPONSE_ENCBUF_PER_LEN) + 1))
+
+static inline bool fly_end_response_yet_log(fly_response_t *res)
+{
+#ifdef DEBUG
+	printf("Now response status %d\n", res->fase);
+#endif
+	return (res->end_response && res->fase == FLY_RESPONSE_LOG) ? true : false;
+}
 
 #endif

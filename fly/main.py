@@ -7,6 +7,7 @@ import tempfile
 import importlib.machinery as imm
 import signal
 from fly.__init__ import __version__ as __version__
+from .err import display_fly_error
 
 class FlyNotFoundError(Exception):
     pass
@@ -187,6 +188,23 @@ class FlyNotFoundError(Exception):
     default=False,
     show_default=False
 )
+@click.option(
+    "-a",
+    "--print_request",
+    "print_request",
+    is_flag=True,
+    default=False,
+    help="display the content of the request dictionary from client in stdout. this is valid in debug mode.",
+    show_default=False,
+)
+@click.option(
+    "--production",
+    "production",
+    is_flag=True,
+    default=False,
+    help="Run fly in production mode.",
+    show_default=False,
+)
 def fly_command_line(
     app:                str,
     conf_path:          str,
@@ -209,6 +227,8 @@ def fly_command_line(
     request_timeout:    int,
     daemon:             bool,
     test:               bool,
+    print_request:      bool,
+    production:         bool,
 ):
     """This is fly operation script.\n
     If the same name is specified in the configure file and the argument,
@@ -239,9 +259,11 @@ def fly_command_line(
         "log_stderr":           stderr,
         "backlog":              backlog,
         "max_response_content_length":     max_response_len,
-        "max_request_length":      max_request_len,
+        "max_request_content_length":      max_request_len,
         "request_timeout":      request_timeout,
         "test":                 test,
+        "print_request":        print_request,
+        "production":           production,
     }
     run(**kwargs)
 
@@ -256,6 +278,10 @@ def run(**kwargs):
     if app is None:
         raise KeyError("must have 'app' key.")
 
+    # Add current working directory.
+    sys.path.append(
+            os.path.abspath(os.getcwd())
+            )
     _abs_app = os.path.abspath(app)
     try:
         _ml = imm.SourceFileLoader("_app", _abs_app)
@@ -264,10 +290,10 @@ def run(**kwargs):
         display_help(fly_command_line, f"\"{app}\" can't import as module. {e}")
         sys.exit(1)
     except RuntimeError as e:
-        print(e)
+        display_fly_error(e)
         sys.exit(1)
     except Exception as e:
-        print(e)
+        display_fly_error(e)
         sys.exit(1)
 
     daemon = kwargs.get("daemon")
@@ -275,6 +301,8 @@ def run(**kwargs):
         raise KeyError("must have 'daemon' key.")
     test = kwargs.get("test")
     config_path = kwargs.get("conf_path")
+    print_request = kwargs.get("print_request")
+    production = kwargs.get("production")
 
     _fp = tempfile.NamedTemporaryFile("w+", delete=True)
     try:
@@ -304,8 +332,8 @@ def run(**kwargs):
             "log_stderr",
             "backlog",
             "max_response_content_length",
-            "max_request_length",
-            "request_timeout"
+            "max_request_content_length",
+            "request_timeout",
         ]
         _fp.flush()
         for key in kwargs.keys():
@@ -321,9 +349,13 @@ def run(**kwargs):
                 if config_path is not None and _instance.config_path is not None and \
                         os.path.abspath(_instance.config_path) != os.path.abspath(config_path):
                     raise ValueError(
-                        f"ambiguous config_path. Fly instance config_path({os.path.abspath(_instance.config_path)}) or command line config_path({os.path.abspath(config_path)})."
+                        f"Ambiguous config_path. Fly instance config_path({os.path.abspath(_instance.config_path)}) or command line config_path({os.path.abspath(config_path)})."
                     )
                 _instance.config_path = os.path.abspath(_fp.name)
+                if print_request:
+                    _instance._print_request = True
+                if production:
+                    _instance._debug = False
                 _instance.run(daemon=daemon, test=test)
                 sys.exit(1)
 

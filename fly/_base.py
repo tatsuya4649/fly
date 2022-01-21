@@ -1,5 +1,4 @@
 import traceback
-import inspect
 from .exceptions import *
 from .response import Response
 from . import types
@@ -9,7 +8,7 @@ import sys
 
 
 class _BaseRoute:
-    def __init__(self, handler, debug=True):
+    def __init__(self, handler, debug=True, print_request=False):
         if handler is None:
             raise ValueError("handler must not be None.")
         if not callable(handler):
@@ -17,9 +16,15 @@ class _BaseRoute:
 
         self._handler = handler
         self._debug = debug
-
-        self._func_spec = inspect.getfullargspec(handler)
-        self._parser = RequestParser(self._func_spec)
+        self._print_request = debug and print_request
+        self._parser = RequestParser(handler)
+        if hasattr(handler, "default_headers"):
+            if not isinstance(handler.default_headers, list):
+                raise TypeError("default_headers of handler must be list type.")
+            self._default_headers = handler.default_headers
+        else:
+            self._default_headers = list()
+        self._only_debug_default_headers = list()
 
     @property
     def is_debug(self):
@@ -33,6 +38,8 @@ class _BaseRoute:
 
     def handler(self, request):
         try:
+            if self._print_request:
+                print(request)
             res = self._parse_func_args(request)
             if self.is_debug:
                 if isinstance(res, Response):
@@ -52,7 +59,6 @@ class _BaseRoute:
                         raise TypeError(
                             "response must be Response or None or str or bytes type."
                         )
-
         except HTTPException as e:
             res = Response(
                 status_code=e.status_code,
@@ -75,4 +81,45 @@ class _BaseRoute:
                 body=res_body,
             )
         finally:
+            if len(self.default_headers) > 0:
+                if not isinstance(res, Response):
+                    res = Response(
+                            status_code=200,
+                            body=res if res is None or isinstance(res, bytes) \
+                                    else res.encode("utf-8"),
+                            )
+            for i in self.default_headers:
+                for j in res.header:
+                    # Already, response have default header item
+                    # No override
+                    if j["name"].lower() == i["name"].lower():
+                        break
+                else:
+                    res.add_header(
+                            name=i["name"],
+                            value=i["value"]
+                            )
             return res
+
+    @property
+    def print_request(self):
+        return self._print_request
+
+    @print_request.setter
+    def print_request(self, value):
+
+        self._print_request = value
+
+    def remove_default_headers_with_debug(self):
+        for i in self._only_debug_default_headers:
+            for j in self._default_headers:
+                if i == j["name"]:
+                    self._default_headers.remove(j)
+
+    @property
+    def default_headers(self):
+        return self._default_headers
+
+    @property
+    def only_debug_default_headers(self):
+        return self._only_debug_default_headers

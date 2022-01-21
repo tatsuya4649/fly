@@ -129,7 +129,10 @@ int fly_header_add_ver_ifno(fly_hdr_ci *ci, fly_hdr_name *name, size_t name_len,
 	struct fly_bllist *__b;
 	fly_for_each_bllist(__b, &ci->chain){
 		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
-		if (strcmp(__c->name, name) == 0)
+		if (__c->name_len != name_len)
+			continue;
+
+		if (strncmp(__c->name, name, name_len) == 0)
 			return 0;
 	}
 
@@ -164,14 +167,19 @@ int fly_header_addb(fly_buffer_c *bc, fly_hdr_ci *chain_info, fly_hdr_name *name
 		return -1;
 	new_chain->name_len = name_len;
 	memset(new_chain->name, '\0', name_len+1);
+	/* To lower name */
 	fly_buffer_memcpy(new_chain->name, name, bc, name_len);
+	for (int i=0; i<name_len; i++)
+		new_chain->name[i] = fly_alpha_lower(name[i]);
 
 	new_chain->value = fly_pballoc(chain_info->pool, value_len+1);
 	if (fly_unlikely_null(new_chain->value))
 		return -1;
 	new_chain->value_len = value_len;
 	memset(new_chain->value, '\0', value_len+1);
+	/* To lower value */
 	fly_buffer_memcpy(new_chain->value, value, bc, value_len);
+
 	new_chain->name[name_len] = '\0';
 	new_chain->value[value_len] = '\0';
 
@@ -515,9 +523,6 @@ int fly_add_content_length(fly_hdr_ci *ci, size_t cl, bool hv2)
 
 	len = fly_number_ldigits(cl)+1;
 	contlen_str = fly_pballoc(ci->pool, (sizeof(char)*len));
-	if (fly_unlikely_null(contlen_str))
-		return -1;
-
 	if (snprintf(contlen_str, len, "%ld", (long) cl) == -1)
 		return -1;
 
@@ -597,7 +602,7 @@ void fly_header_state(fly_hdr_ci *__ci, struct fly_request *__req)
 
 void fly_response_header_init(struct fly_response *__res, struct fly_request *__req)
 {
-	if (!__res->header){
+	if (__res->header == NULL){
 		__res->header = fly_header_init(__req->ctx);
 		fly_header_state(__res->header, __req);
 	}
@@ -608,7 +613,7 @@ bool fly_is_cookie(char *name, size_t len)
 	if (FLY_COOKIE_HEADER_NAME_LEN != len)
 		return false;
 
-	if (strncmp(name, FLY_COOKIE_HEADER_NAME, FLY_COOKIE_HEADER_NAME_LEN)==0 || strncmp(name, FLY_COOKIE_HEADER_NAME_S, FLY_COOKIE_HEADER_NAME_LEN)==0)
+	if (strncmp(name, FLY_COOKIE_HEADER_NAME, FLY_COOKIE_HEADER_NAME_LEN)==0)
 		return true;
 	else
 		return false;
@@ -633,4 +638,59 @@ void fly_check_cookie(fly_hdr_ci *__ci)
 			c->cookie = true;
 	}
 	return;
+}
+
+
+bool fly_check_expect_100(fly_hdr_ci *__ci)
+{
+#define FLY_HEADER_EXPECT			"expect"
+#define FLY_HEADER_100_CONTINUE		"100-continue"
+#ifdef DEBUG
+	assert(__ci);
+#endif
+	struct fly_bllist *__b;
+	fly_hdr_c *c;
+
+	fly_for_each_bllist(__b, &__ci->chain){
+		c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (strlen(FLY_HEADER_EXPECT) == c->name_len && \
+				strncmp(c->name, FLY_HEADER_EXPECT, c->name_len) == 0){
+			if (strlen(FLY_HEADER_100_CONTINUE) == c->value_len){
+				if (fly_same_string_ignore_lu(c->value, (char *) FLY_HEADER_100_CONTINUE, c->value_len))
+					return true;
+			}
+		}
+	}
+	return false;
+}
+
+void fly_remove_header_chain(fly_hdr_ci *__ci, char *name, size_t name_len)
+{
+#ifdef DEBUG
+	assert(__ci != NULL);
+#endif
+	if (__ci == NULL || __ci->chain_count == 0)
+		return;
+
+	struct fly_bllist *__b;
+	fly_hdr_c *__c;
+	fly_for_each_bllist(__b, &__ci->chain){
+		__c = fly_bllist_data(__b, fly_hdr_c, blelem);
+		if (__c->name_len == name_len && \
+				strncmp(__c->name, name, name_len) == 0){
+			/* Remove founded header item */
+			fly_bllist_remove(&__c->blelem);
+
+			__ci->chain_count--;
+			fly_pbfree(__ci->pool, __c->name);
+			fly_pbfree(__ci->pool, __c->value);
+			fly_pbfree(__ci->pool, __c);
+		}
+	}
+	return;
+}
+
+void fly_remove_expect_from_header(fly_hdr_ci *__ci)
+{
+	return fly_remove_header_chain(__ci, FLY_HEADER_EXPECT, strlen(FLY_HEADER_EXPECT));
 }
